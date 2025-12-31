@@ -63,7 +63,7 @@ pnpm dlx shadcn-ui@latest add [component-name]
 - `app/globals.css` - Tailwind imports and CSS theme variables
 - `app/store/[slug]/` - Public storefront for each tenant
 - `app/dashboard/` - Store owner dashboard
-- `app/(auth)/login/` and `app/(auth)/signup/` - Authentication pages
+- `app/auth/login/` and `app/auth/signup/` - Authentication pages
 
 **Key Utilities**:
 

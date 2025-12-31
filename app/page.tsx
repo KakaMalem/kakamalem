@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Rocket, Palette, Package, ClipboardList } from "lucide-react";
+import { getUser } from "@/lib/supabase/auth";
 
 const features = [
   {
@@ -46,7 +47,9 @@ const steps = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const user = await getUser();
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
@@ -56,18 +59,29 @@ export default function Home() {
             Kaka Malem
           </Link>
           <nav className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Login
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Get Started
-            </Link>
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/auth/login"
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/auth/signup"
+                  className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -87,10 +101,10 @@ export default function Home() {
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
-                href="/signup"
+                href={user ? "/dashboard" : "/auth/signup"}
                 className="w-full rounded-full bg-primary px-8 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:w-auto"
               >
-                Start for Free
+                {user ? "Go to Dashboard" : "Start for Free"}
               </Link>
               <Link
                 href="/store/demo"
@@ -122,7 +136,9 @@ export default function Home() {
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                     <feature.icon className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold">{feature.title}</h3>
+                  <h3 className="mt-4 text-lg font-semibold">
+                    {feature.title}
+                  </h3>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {feature.description}
                   </p>
@@ -170,10 +186,10 @@ export default function Home() {
               Kaka Malem.
             </p>
             <Link
-              href="/signup"
+              href={user ? "/dashboard" : "/auth/signup"}
               className="mt-8 inline-block rounded-full bg-primary px-8 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              Create Your Store
+              {user ? "Go to Dashboard" : "Create Your Store"}
             </Link>
           </div>
         </section>
