@@ -5,6 +5,7 @@ import {
   text,
   varchar,
   timestamp,
+  date,
   decimal,
   integer,
   boolean,
@@ -1157,7 +1158,7 @@ export const analyticsDailySnapshots = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
     // Date for this snapshot (UTC, no time component)
-    date: timestamp("date", { mode: "date" }).notNull(),
+    snapshotDate: date("snapshot_date").notNull(),
 
     // ── Revenue & Sales ──
     grossRevenue: decimal("gross_revenue", { precision: 12, scale: 2 }).default("0").notNull(), // Total before discounts
@@ -1201,7 +1202,7 @@ export const analyticsDailySnapshots = pgTable(
   },
   (table) => [
     // One snapshot per tenant per day
-    uniqueIndex("analytics_daily_snapshots_tenant_date_idx").on(table.tenantId, table.date),
+    uniqueIndex("analytics_daily_snapshots_tenant_date_idx").on(table.tenantId, table.snapshotDate),
   ]
 );
 
@@ -1228,7 +1229,7 @@ export const analyticsProductPerformance = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     // Date for this snapshot
-    date: timestamp("date", { mode: "date" }).notNull(),
+    snapshotDate: date("snapshot_date").notNull(),
 
     // ── Sales ──
     quantitySold: integer("quantity_sold").default(0).notNull(),
@@ -1257,7 +1258,7 @@ export const analyticsProductPerformance = pgTable(
     uniqueIndex("analytics_product_perf_tenant_product_date_idx").on(
       table.tenantId,
       table.productId,
-      table.date
+      table.snapshotDate
     ),
   ]
 );
@@ -1287,7 +1288,7 @@ export const analyticsCategoryPerformance = pgTable(
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
-    date: timestamp("date", { mode: "date" }).notNull(),
+    snapshotDate: date("snapshot_date").notNull(),
 
     // ── Sales ──
     quantitySold: integer("quantity_sold").default(0).notNull(),
@@ -1305,7 +1306,7 @@ export const analyticsCategoryPerformance = pgTable(
     uniqueIndex("analytics_category_perf_tenant_cat_date_idx").on(
       table.tenantId,
       table.categoryId,
-      table.date
+      table.snapshotDate
     ),
   ]
 );
@@ -1333,7 +1334,7 @@ export const analyticsTrafficSources = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    date: timestamp("date", { mode: "date" }).notNull(),
+    snapshotDate: date("snapshot_date").notNull(),
 
     // Source identification
     source: varchar("source", { length: 100 }).notNull(), // "google", "facebook", "instagram", "direct", "referral"
@@ -1353,7 +1354,7 @@ export const analyticsTrafficSources = pgTable(
   (table) => [
     uniqueIndex("analytics_traffic_tenant_date_source_idx").on(
       table.tenantId,
-      table.date,
+      table.snapshotDate,
       table.source,
       table.medium
     ),
@@ -1379,7 +1380,7 @@ export const analyticsGeographicSales = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    date: timestamp("date", { mode: "date" }).notNull(),
+    snapshotDate: date("snapshot_date").notNull(),
 
     // Location (from shipping address)
     countryCode: varchar("country_code", { length: 2 }).notNull(), // ISO code
@@ -1398,7 +1399,7 @@ export const analyticsGeographicSales = pgTable(
   (table) => [
     uniqueIndex("analytics_geo_tenant_date_location_idx").on(
       table.tenantId,
-      table.date,
+      table.snapshotDate,
       table.countryCode,
       table.state,
       table.city
