@@ -15,6 +15,15 @@ pnpm start    # Start production server
 pnpm lint     # Run ESLint
 ```
 
+Database commands (Drizzle):
+
+```bash
+pnpm db:generate  # Generate migrations from schema changes
+pnpm db:push      # Push schema directly to database (dev)
+pnpm db:migrate   # Run migrations (production)
+pnpm db:studio    # Open Drizzle Studio GUI
+```
+
 Add shadcn/ui components:
 
 ```bash
@@ -50,12 +59,17 @@ pnpm dlx shadcn-ui@latest add [component-name]
 **App Router Structure**:
 
 - `app/layout.tsx` - Root layout with Geist fonts and metadata
-- `app/page.tsx` - Home page route
+- `app/page.tsx` - Landing page
 - `app/globals.css` - Tailwind imports and CSS theme variables
+- `app/store/[slug]/` - Public storefront for each tenant
+- `app/dashboard/` - Store owner dashboard
+- `app/(auth)/login/` and `app/(auth)/signup/` - Authentication pages
 
 **Key Utilities**:
 
 - `lib/utils.ts` - Contains `cn()` function for merging Tailwind classes safely (clsx + tailwind-merge)
+- `lib/db/index.ts` - Drizzle database client
+- `lib/db/schema.ts` - Database schema (tenants, products, categories, carts, orders)
 
 **Path Alias**: `@/*` maps to project root (use `@/lib/utils`, `@/components/...`)
 
@@ -69,18 +83,49 @@ pnpm dlx shadcn-ui@latest add [component-name]
 
 ## Database
 
-Environment variables for Supabase are in `.env`:
+Environment variables for Supabase are in `.env` (see `.env.example`):
 
-- `DATABASE_URL` - Supabase connection URL
-- `PUBLISHABLE_API_KEY` - Supabase public API key
+- `DATABASE_URL` - Supabase PostgreSQL connection string (pooler URI)
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_ANON_KEY` - Supabase anonymous/public key
+
+**Schema** (`lib/db/schema.ts`):
+
+- `profiles` - User profiles linked to Supabase Auth (id, email, role)
+- `tenant_members` - Staff/collaborators per store (userId, tenantId, role) - unique per user/tenant
+- `tenants` - Stores (id, slug, name, ownerId, currency, isActive)
+- `categories` - Product categories per tenant (image, displayOrder) - unique slug per tenant
+- `products` - Products (price, stock, displayOrder) - unique slug per tenant
+- `media` - Centralized media library (tenant-isolated, tracks uploader, reusable across products)
+- `product_images` - Junction table linking products to media (position for ordering)
+- `carts` - Shopping carts per tenant/session
+- `cart_items` - Items in carts - unique product per cart
+- `orders` - Customer orders per tenant (status enum: pending/confirmed/processing/shipped/delivered/cancelled)
+- `order_items` - Line items in orders
+- `reviews` - Product reviews (rating 1-5, comment, verified purchase flag, approval status)
+
+**Authorization Model**:
+
+- `profiles.role` - Global user roles: `admin`, `owner`, `staff`, `customer`
+- `tenant_members.role` - Per-store roles: `owner`, `admin`, `staff`
+- Supabase Auth handles authentication, `profiles` table extends with app-specific data
+- Profile ID matches Supabase Auth user UUID
 
 **Multitenancy Pattern**:
 
+- All tenant-scoped tables include `tenant_id` column
 - Use Supabase Row Level Security (RLS) policies for tenant data isolation
-- All tenant-scoped tables must include `tenant_id` column
 - Drizzle queries should always filter by `tenant_id` from authenticated context
 
-Drizzle ORM is installed but no schema/models defined yet.
+**RLS Policies** (`supabase/migrations/001_rls_policies.sql`):
+
+- `check_tenant_access(tenant_id, role)` - Helper function with role hierarchy (owner > admin > staff)
+- Uses `SECURITY DEFINER` for performance (bypasses RLS on helper queries)
+- Public can view: active tenants, categories, active products, approved reviews, media
+- Staff+ can: manage products, categories, media, view orders, moderate reviews
+- Admin+ can: delete products/categories/orders/media, manage tenant members
+- Owner can: update/delete tenant, manage all members
+- Auto-creates profile on user signup via trigger on `auth.users`
 
 ## Notes
 

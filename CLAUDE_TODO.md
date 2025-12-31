@@ -2,10 +2,15 @@
 
 ## Foundation
 
-- [ ] Set up project structure (`app/store/[slug]/`, `app/dashboard/`, `components/`, `lib/db/`)
-- [ ] Configure Drizzle ORM with Supabase connection
-- [ ] Create database schema (tenants, users, products, categories, carts, cart_items, orders, order_items)
-- [ ] Set up Supabase RLS policies for tenant isolation
+- [x] Set up project structure (`app/store/[slug]/`, `app/dashboard/`, `components/`, `lib/db/`)
+- [x] Configure Drizzle ORM with Supabase connection
+- [x] Create database schema (tenants, products, categories, carts, cart_items, orders, order_items)
+- [x] Set up Supabase RLS policies for tenant isolation
+- [x] Implement inventory & variant management system (product variants, stock tracking, inventory movements)
+- [x] Implement shipping system (zones, methods, rate calculation, shipment tracking)
+- [x] Implement storefront branding system (logo, tagline, social links, SEO metadata, analytics)
+- [x] Implement commission/billing system (free tier, transaction tracking, grace period, forgiveness)
+- [x] Implement comprehensive analytics system (daily/hourly snapshots, product/category performance, traffic sources, geographic sales, conversion events)
 - [ ] Implement authentication (Supabase Auth integration)
 
 ## Dashboard (Store Owner)
@@ -24,4 +29,4 @@
 ## Orders & Landing
 
 - [ ] Create order management for store owners (view orders, update status)
-- [ ] Build landing page (kakamalem.com home)
+- [x] Build landing page (kakamalem.com home)
