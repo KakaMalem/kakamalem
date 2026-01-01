@@ -1,8 +1,9 @@
 "use server";
 
 import { createClient } from "./server";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { loginSchema, signupSchema } from "@/lib/validations/auth";
+import { ZodError } from "zod";
 
 export type AuthError = {
   message: string;
@@ -17,24 +18,33 @@ export type AuthResult = {
 export async function signUp(formData: FormData): Promise<AuthResult> {
   const supabase = await createClient();
 
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const fullName = formData.get("fullName") as string;
+  const formValues = {
+    fullName: formData.get("fullName") as string,
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+    confirmPassword: formData.get("confirmPassword") as string,
+  };
 
-  if (!email || !password) {
-    return { error: { message: "Email and password are required" } };
-  }
-
-  if (password.length < 6) {
-    return { error: { message: "Password must be at least 6 characters" } };
+  // Server-side validation
+  try {
+    signupSchema.parse(formValues);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed"
+        }
+      };
+    }
   }
 
   const { error } = await supabase.auth.signUp({
-    email,
-    password,
+    email: formValues.email,
+    password: formValues.password,
     options: {
       data: {
-        full_name: fullName,
+        full_name: formValues.fullName,
       },
     },
   });
@@ -50,16 +60,28 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
 export async function signIn(formData: FormData): Promise<AuthResult> {
   const supabase = await createClient();
 
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const formValues = {
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+  };
 
-  if (!email || !password) {
-    return { error: { message: "Email and password are required" } };
+  // Server-side validation
+  try {
+    loginSchema.parse(formValues);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed"
+        }
+      };
+    }
   }
 
   const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+    email: formValues.email,
+    password: formValues.password,
   });
 
   if (error) {
@@ -70,11 +92,16 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
   return { success: true };
 }
 
-export async function signOut(): Promise<void> {
+export async function signOut(): Promise<AuthResult> {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    return { error: { message: error.message, status: error.status } };
+  }
+
   revalidatePath("/", "layout");
-  redirect("/");
+  return { success: true };
 }
 
 export async function getUser() {

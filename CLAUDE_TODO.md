@@ -12,6 +12,11 @@
 - [x] Implement commission/billing system (free tier, transaction tracking, grace period, forgiveness)
 - [x] Implement comprehensive analytics system (daily/hourly snapshots, product/category performance, traffic sources, geographic sales, conversion events)
 - [x] Implement authentication (Supabase Auth integration)
+  - [x] Email/password sign up and login with success states
+  - [x] Google OAuth authentication
+  - [x] Facebook OAuth authentication
+  - [x] Auth callback handling for OAuth and email confirmation
+  - [x] Zod validation for auth forms (client + server-side, 8 char min password with strength requirements)
 
 ## Dashboard (Store Owner)
 

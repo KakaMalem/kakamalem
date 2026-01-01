@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Rocket, Palette, Package, ClipboardList } from "lucide-react";
 import { getUser } from "@/lib/supabase/auth";
+import { Button } from "@/components/ui/button";
 
 const features = [
   {
@@ -60,26 +61,17 @@ export default async function Home() {
           </Link>
           <nav className="flex items-center gap-4">
             {user ? (
-              <Link
-                href="/dashboard"
-                className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Dashboard
-              </Link>
+              <Button asChild>
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
             ) : (
               <>
-                <Link
-                  href="/auth/login"
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/auth/signup"
-                  className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  Get Started
-                </Link>
+                <Button variant="ghost" asChild>
+                  <Link href="/auth/login">Login</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/auth/signup">Get Started</Link>
+                </Button>
               </>
             )}
           </nav>
@@ -100,18 +92,19 @@ export default async function Home() {
               required. Start selling today.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <Link
-                href={user ? "/dashboard" : "/auth/signup"}
-                className="w-full rounded-full bg-primary px-8 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:w-auto"
+              <Button size="lg" className="w-full sm:w-auto" asChild>
+                <Link href={user ? "/dashboard" : "/auth/signup"}>
+                  {user ? "Go to Dashboard" : "Start for Free"}
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full sm:w-auto"
+                asChild
               >
-                {user ? "Go to Dashboard" : "Start for Free"}
-              </Link>
-              <Link
-                href="/store/demo"
-                className="w-full rounded-full border px-8 py-3 text-sm font-medium transition-colors hover:bg-accent sm:w-auto"
-              >
-                View Demo Store
-              </Link>
+                <Link href="/store/demo">View Demo Store</Link>
+              </Button>
             </div>
           </div>
         </section>
@@ -185,12 +178,11 @@ export default async function Home() {
               Join thousands of sellers who have already built their stores with
               Kaka Malem.
             </p>
-            <Link
-              href={user ? "/dashboard" : "/auth/signup"}
-              className="mt-8 inline-block rounded-full bg-primary px-8 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              {user ? "Go to Dashboard" : "Create Your Store"}
-            </Link>
+            <Button size="lg" className="mt-8" asChild>
+              <Link href={user ? "/dashboard" : "/auth/signup"}>
+                {user ? "Go to Dashboard" : "Create Your Store"}
+              </Link>
+            </Button>
           </div>
         </section>
       </main>

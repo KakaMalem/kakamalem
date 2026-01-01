@@ -1,12 +1,10 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export function SignOutButton() {
   return (
-    <Link
-      href="/auth/logout"
-      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-    >
-      Sign out
-    </Link>
+    <Button variant="ghost" size="sm" asChild>
+      <Link href="/auth/logout">Sign out</Link>
+    </Button>
   );
 }

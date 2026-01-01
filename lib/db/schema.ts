@@ -65,6 +65,8 @@ export const orderStatusEnum = pgEnum("order_status", [
   "shipped",
   "delivered",
   "cancelled",
+  "refunded",
+  "partially_refunded",
 ]);
 
 // Inventory & Variant Management Enums
@@ -377,6 +379,7 @@ export const productImages = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
+    // Note: No tenant_id index needed here as product_id already provides tenant isolation
     uniqueIndex("product_images_product_media_idx").on(table.productId, table.mediaId),
   ]
 );
@@ -444,7 +447,8 @@ export const variantOptionValues = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("variant_option_values_option_value_idx").on(table.optionId, table.value),
+    // Unique on option + value, but tenant_id first for RLS performance
+    uniqueIndex("variant_option_values_tenant_option_value_idx").on(table.tenantId, table.optionId, table.value),
   ]
 );
 
@@ -498,8 +502,9 @@ export const productVariants = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("product_variants_product_sku_idx").on(table.productId, table.sku),
-    // Index for fast RLS lookups
+    // Tenant_id first for RLS performance, SKU uniqueness within tenant+product
+    uniqueIndex("product_variants_tenant_product_sku_idx").on(table.tenantId, table.productId, table.sku),
+    // Index for fast RLS lookups by ID
     uniqueIndex("product_variants_tenant_id_idx").on(table.tenantId, table.id),
   ]
 );
@@ -855,7 +860,8 @@ export const shippingMethods = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("shipping_methods_zone_name_idx").on(table.zoneId, table.name),
+    // Tenant_id first for RLS performance
+    uniqueIndex("shipping_methods_tenant_zone_name_idx").on(table.tenantId, table.zoneId, table.name),
   ]
 );
 
@@ -1074,7 +1080,8 @@ export const reviewMedia = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("review_media_review_media_idx").on(table.reviewId, table.mediaId),
+    // Tenant_id first for RLS performance
+    uniqueIndex("review_media_tenant_review_media_idx").on(table.tenantId, table.reviewId, table.mediaId),
   ]
 );
 
@@ -1242,6 +1249,8 @@ export const analyticsProductPerformance = pgTable(
     // Conversion: views → add to cart → purchase
     viewToCartRate: decimal("view_to_cart_rate", { precision: 5, scale: 2 }).default("0").notNull(),
     cartToPurchaseRate: decimal("cart_to_purchase_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    // Revenue efficiency metric (revenue per view)
+    revenuePerView: decimal("revenue_per_view", { precision: 10, scale: 2 }).default("0").notNull(),
 
     // ── Reviews ──
     reviewsReceived: integer("reviews_received").default(0).notNull(),

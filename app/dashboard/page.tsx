@@ -35,9 +35,13 @@ export default async function DashboardPage() {
           </div>
 
           {/* Quick stats placeholder */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="border rounded-lg p-6">
               <p className="text-sm text-muted-foreground">Total Orders</p>
+              <p className="text-3xl font-bold mt-2">0</p>
+            </div>
+            <div className="border rounded-lg p-6">
+              <p className="text-sm text-muted-foreground">Products</p>
               <p className="text-3xl font-bold mt-2">0</p>
             </div>
             <div className="border rounded-lg p-6">
@@ -45,8 +49,8 @@ export default async function DashboardPage() {
               <p className="text-3xl font-bold mt-2">0 AFN</p>
             </div>
             <div className="border rounded-lg p-6">
-              <p className="text-sm text-muted-foreground">Products</p>
-              <p className="text-3xl font-bold mt-2">0</p>
+              <p className="text-sm text-muted-foreground">Payment Due</p>
+              <p className="text-3xl font-bold mt-2">0 AFN</p>
             </div>
           </div>
 

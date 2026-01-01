@@ -73,6 +73,20 @@ pnpm dlx shadcn-ui@latest add [component-name]
 
 **Path Alias**: `@/*` maps to project root (use `@/lib/utils`, `@/components/...`)
 
+## Validation
+
+- **Library**: Zod for schema validation
+- **Location**: All validation schemas in `lib/validations/` directory
+- **Pattern**: Implement both client-side and server-side validation
+  - Client-side: Parse schema in form submit handlers, display field-specific errors
+  - Server-side: Parse schema in server actions for security
+  - Use TypeScript inference with `z.infer<typeof schema>` for type safety
+- **Form Validation**:
+  - Store field errors in component state: `useState<Partial<Record<keyof InputType, string>>>({})`
+  - Display errors below inputs with `text-sm text-destructive` styling
+  - Use `aria-invalid` attribute for accessibility
+- **Password Requirements**: Minimum 8 characters, must contain uppercase, lowercase, and number
+
 ## Styling Patterns
 
 - **Mobile-first design** - ALWAYS write mobile styles first.
@@ -85,9 +99,10 @@ pnpm dlx shadcn-ui@latest add [component-name]
 
 Environment variables for Supabase are in `.env` (see `.env.example`):
 
-- `DATABASE_URL` - Supabase PostgreSQL connection string (pooler URI)
-- `SUPABASE_URL` - Supabase project URL
-- `SUPABASE_ANON_KEY` - Supabase anonymous/public key
+- `DATABASE_URL` - Supabase PostgreSQL transaction pooler (port 6543) for app runtime
+- `DATABASE_URL_UNPOOLED` - Supabase PostgreSQL session pooler (port 5432) for drizzle-kit
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL (exposed to browser)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous/public key (exposed to browser)
 
 **Schema** (`lib/db/schema.ts`):
 
