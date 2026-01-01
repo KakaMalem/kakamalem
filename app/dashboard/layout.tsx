@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { getUser } from "@/lib/supabase/auth";
 import { getUserStores } from "@/lib/db/queries/tenants";
@@ -7,6 +7,15 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import type { StoreInfo } from "@/components/dashboard/store-switcher";
+
+// Extract store slug from pathname like /dashboard/my-store/...
+function getStoreSlugFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/dashboard\/([^/]+)/);
+  if (match && match[1] !== "new" && match[1] !== "account") {
+    return match[1];
+  }
+  return null;
+}
 
 export default async function DashboardLayout({
   children,
@@ -19,6 +28,12 @@ export default async function DashboardLayout({
     redirect("/auth/login");
   }
 
+  // Get current path to determine active store
+  const headersList = await headers();
+  const pathname =
+    headersList.get("x-pathname") || headersList.get("x-invoke-path") || "";
+  const urlStoreSlug = getStoreSlugFromPath(pathname);
+
   // Fetch user's stores
   const userStores = await getUserStores(user.id);
 
@@ -30,8 +45,19 @@ export default async function DashboardLayout({
     logoUrl: store.logoUrl,
   }));
 
-  // For now, use the first store as current (later: use URL param or cookie)
-  const currentStore = stores.length > 0 ? stores[0] : null;
+  // Find the current store from URL or fall back to first store
+  let currentStore: StoreInfo | null = null;
+  let storeSlug: string | undefined;
+
+  if (urlStoreSlug) {
+    currentStore = stores.find((s) => s.slug === urlStoreSlug) || null;
+    storeSlug = urlStoreSlug;
+  }
+
+  if (!currentStore && stores.length > 0) {
+    currentStore = stores[0];
+    storeSlug = currentStore.slug;
+  }
 
   // Get sidebar state from cookie
   const cookieStore = await cookies();
@@ -48,6 +74,7 @@ export default async function DashboardLayout({
         }}
         stores={stores}
         currentStore={currentStore}
+        storeSlug={storeSlug}
       />
       <SidebarInset>
         <DashboardHeader />

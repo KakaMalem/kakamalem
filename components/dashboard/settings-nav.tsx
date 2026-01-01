@@ -4,50 +4,63 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const settingsNavItems = [
-  {
-    title: "General",
-    href: "/dashboard/settings",
-    description: "Store name, description, and contact info",
-  },
-  {
-    title: "Branding",
-    href: "/dashboard/settings/branding",
-    description: "Logo, colors, and visual identity",
-  },
-  {
-    title: "Social Links",
-    href: "/dashboard/settings/social",
-    description: "Connect your social media accounts",
-  },
-  {
-    title: "SEO",
-    href: "/dashboard/settings/seo",
-    description: "Search engine optimization settings",
-  },
-  {
-    title: "Domains",
-    href: "/dashboard/settings/domains",
-    description: "Custom domain configuration",
-  },
-  {
-    title: "Team",
-    href: "/dashboard/settings/team",
-    description: "Manage staff and collaborators",
-  },
-  {
-    title: "Danger Zone",
-    href: "/dashboard/settings/danger",
-    description: "Delete or transfer store",
-  },
-];
+// Extract store slug from pathname like /dashboard/my-store/settings
+function getStoreSlugFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/dashboard\/([^/]+)/);
+  if (match && match[1] !== "new" && match[1] !== "account") {
+    return match[1];
+  }
+  return null;
+}
 
 export function SettingsNav() {
   const pathname = usePathname();
+  const storeSlug = getStoreSlugFromPath(pathname);
+  const baseUrl = storeSlug
+    ? `/dashboard/${storeSlug}/settings`
+    : "/dashboard/settings";
+
+  const settingsNavItems = [
+    {
+      title: "General",
+      href: baseUrl,
+      description: "Store name, description, and contact info",
+    },
+    {
+      title: "Branding",
+      href: `${baseUrl}/branding`,
+      description: "Logo, colors, and visual identity",
+    },
+    {
+      title: "Social Links",
+      href: `${baseUrl}/social`,
+      description: "Connect your social media accounts",
+    },
+    {
+      title: "SEO",
+      href: `${baseUrl}/seo`,
+      description: "Search engine optimization settings",
+    },
+    {
+      title: "Domains",
+      href: `${baseUrl}/domains`,
+      description: "Custom domain configuration",
+    },
+    {
+      title: "Team",
+      href: `${baseUrl}/team`,
+      description: "Manage staff and collaborators",
+    },
+    {
+      title: "Danger Zone",
+      href: `${baseUrl}/danger`,
+      description: "Delete or transfer store",
+    },
+  ];
 
   const isActive = (href: string) => {
-    if (href === "/dashboard/settings") {
-      return pathname === "/dashboard/settings";
+    if (href === baseUrl) {
+      return pathname === baseUrl;
     }
     return pathname === href;
   };
@@ -78,10 +91,24 @@ export function SettingsNav() {
 // Horizontal tabs version for mobile
 export function SettingsNavTabs() {
   const pathname = usePathname();
+  const storeSlug = getStoreSlugFromPath(pathname);
+  const baseUrl = storeSlug
+    ? `/dashboard/${storeSlug}/settings`
+    : "/dashboard/settings";
+
+  const settingsNavItems = [
+    { title: "General", href: baseUrl },
+    { title: "Branding", href: `${baseUrl}/branding` },
+    { title: "Social Links", href: `${baseUrl}/social` },
+    { title: "SEO", href: `${baseUrl}/seo` },
+    { title: "Domains", href: `${baseUrl}/domains` },
+    { title: "Team", href: `${baseUrl}/team` },
+    { title: "Danger Zone", href: `${baseUrl}/danger` },
+  ];
 
   const isActive = (href: string) => {
-    if (href === "/dashboard/settings") {
-      return pathname === "/dashboard/settings";
+    if (href === baseUrl) {
+      return pathname === baseUrl;
     }
     return pathname === href;
   };

@@ -51,3 +51,88 @@ export async function getTenantBySlug(slug: string) {
 
   return tenant;
 }
+
+/**
+ * Check if a slug is available (not already in use)
+ */
+export async function checkSlugAvailable(slug: string): Promise<boolean> {
+  const existing = await db.query.tenants.findFirst({
+    where: eq(tenants.slug, slug),
+    columns: { id: true },
+  });
+
+  return !existing;
+}
+
+/**
+ * Create a new tenant/store
+ */
+export async function createTenant(data: {
+  name: string;
+  slug: string;
+  ownerId: string;
+  tagline?: string;
+  logoUrl?: string;
+  headerDisplay?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  currency?: string;
+}) {
+  const [newTenant] = await db
+    .insert(tenants)
+    .values({
+      name: data.name,
+      slug: data.slug,
+      ownerId: data.ownerId,
+      tagline: data.tagline || null,
+      logoUrl: data.logoUrl || null,
+      headerDisplay: data.headerDisplay || "name_only",
+      contactEmail: data.contactEmail || null,
+      contactPhone: data.contactPhone || null,
+      currency: data.currency || "AFN",
+      status: "active", // New stores are active by default
+    })
+    .returning();
+
+  // Auto-create tenant member with owner role
+  if (newTenant) {
+    await db.insert(tenantMembers).values({
+      tenantId: newTenant.id,
+      userId: data.ownerId,
+      role: "owner",
+    });
+  }
+
+  return newTenant;
+}
+
+/**
+ * Update tenant settings
+ */
+export async function updateTenant(
+  tenantId: string,
+  data: Partial<{
+    name: string;
+    tagline: string | null;
+    description: string | null;
+    logoUrl: string | null;
+    faviconUrl: string | null;
+    headerDisplay: string;
+    contactEmail: string | null;
+    contactPhone: string | null;
+    currency: string;
+    socialLinks: Record<string, string | undefined>;
+    seo: Record<string, string | undefined>;
+  }>
+) {
+  const [updated] = await db
+    .update(tenants)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(tenants.id, tenantId))
+    .returning();
+
+  return updated;
+}

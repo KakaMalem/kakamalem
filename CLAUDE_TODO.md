@@ -38,12 +38,21 @@
 
 ### Store Setup
 
-- [ ] Create store flow (name, slug, currency)
-- [ ] Store settings page
-  - [ ] Basic info (name, description, contact)
-  - [ ] Branding (logo, favicon, header display)
-  - [ ] Social links (Facebook, Instagram, WhatsApp, etc.)
-  - [ ] SEO metadata (meta title, description, OG image)
+- [x] Create store flow (name, slug, currency) - Multi-step wizard at `/dashboard/new`
+- [x] Store settings page
+  - [x] Basic info (name, description, contact) - `/dashboard/[slug]/settings`
+  - [x] Branding (logo, favicon, header display) - `/dashboard/[slug]/settings/branding`
+  - [x] Social links (Facebook, Instagram, WhatsApp, etc.) - `/dashboard/[slug]/settings/social`
+  - [x] SEO metadata (meta title, description, OG image) - `/dashboard/[slug]/settings/seo`
+  - [x] Team members placeholder - `/dashboard/[slug]/settings/team`
+  - [x] Danger zone placeholder - `/dashboard/[slug]/settings/danger`
+- [x] Multi-store routing (`/dashboard/[slug]/` dynamic routes)
+  - [x] Store-specific dashboard pages
+  - [x] Store context validation in layout
+  - [x] Sidebar navigation with store-aware URLs
+  - [x] Store switcher navigation
+  - [x] Redirects from old routes to store-specific routes
+- [x] International phone input component with country selector
 
 ### Product Management
 

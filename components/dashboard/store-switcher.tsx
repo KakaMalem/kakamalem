@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { ChevronsUpDown, Plus, Check, Store } from "lucide-react";
 
 import {
@@ -18,6 +18,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
+import { useLastStore } from "@/lib/hooks/use-last-store";
 
 export type StoreInfo = {
   id: string;
@@ -31,9 +32,52 @@ interface StoreSwitcherProps {
   currentStore?: StoreInfo | null;
 }
 
-export function StoreSwitcher({ stores, currentStore }: StoreSwitcherProps) {
+// Reserved paths that are not store slugs
+const reservedPaths = new Set(["new", "account"]);
+
+// Extract store slug from pathname
+function getStoreSlugFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/dashboard\/([^/]+)/);
+  if (match && !reservedPaths.has(match[1])) {
+    return match[1];
+  }
+  return null;
+}
+
+export function StoreSwitcher({
+  stores,
+  currentStore: initialStore,
+}: StoreSwitcherProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { isMobile } = useSidebar();
+  const [isHydrated, setIsHydrated] = React.useState(false);
+
+  // Mark as hydrated after first render
+  React.useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  // Derive current store from URL path for client-side navigation
+  const urlSlug = getStoreSlugFromPath(pathname);
+  const currentStore = React.useMemo(() => {
+    if (urlSlug) {
+      return stores.find((s) => s.slug === urlSlug) || initialStore;
+    }
+    // On /dashboard page (no urlSlug), check localStorage for last store
+    if (isHydrated && typeof window !== "undefined") {
+      const lastSlug = localStorage.getItem("kaka-malem-last-store");
+      if (lastSlug) {
+        const lastStore = stores.find((s) => s.slug === lastSlug);
+        if (lastStore) return lastStore;
+      }
+    }
+    return initialStore;
+  }, [urlSlug, stores, initialStore, isHydrated]);
+
+  // Only persist when we're on a store-specific page (not /dashboard redirect page)
+  // This prevents overwriting the saved store during redirect
+  useLastStore(urlSlug ? currentStore?.slug : undefined);
 
   const handleStoreSelect = (store: StoreInfo) => {
     // Navigate to the selected store's dashboard
@@ -43,6 +87,24 @@ export function StoreSwitcher({ stores, currentStore }: StoreSwitcherProps) {
   const handleCreateStore = () => {
     router.push("/dashboard/new");
   };
+
+  // Show skeleton while hydrating on /dashboard page to prevent flash
+  const isOnRedirectPage = pathname === "/dashboard";
+  if (isOnRedirectPage && !isHydrated) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg" className="pointer-events-none">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted animate-pulse" />
+            <div className="grid flex-1 gap-1">
+              <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+              <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   // If no current store, show "Create Store" prompt
   if (!currentStore) {

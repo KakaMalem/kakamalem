@@ -1,0 +1,513 @@
+"use client";
+
+import { useState, useTransition, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import {
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldDescription,
+} from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Store,
+  Palette,
+  Settings,
+  Upload,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  createStoreSchema,
+  type CreateStoreInput,
+} from "@/lib/validations/stores";
+import { createStore, checkSlugAvailability } from "@/lib/supabase/stores";
+import { ZodError } from "zod";
+
+interface CreateStoreFormProps {
+  userEmail: string;
+}
+
+const steps = [
+  { id: 1, title: "Basic Info", icon: Store },
+  { id: 2, title: "Branding", icon: Palette },
+  { id: 3, title: "Contact", icon: Settings },
+];
+
+export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<keyof CreateStoreInput, string>>
+  >({});
+  const [isPending, startTransition] = useTransition();
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [checkingSlug, setCheckingSlug] = useState(false);
+  const slugCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Form state
+  const [formData, setFormData] = useState<{
+    name: string;
+    slug: string;
+    tagline: string;
+    logoUrl: string;
+    headerDisplay: "logo_only" | "name_only" | "logo_and_name";
+    contactEmail: string;
+    contactPhone: string;
+    currency: "AFN" | "USD";
+  }>({
+    name: "",
+    slug: "",
+    tagline: "",
+    logoUrl: "",
+    headerDisplay: "name_only",
+    contactEmail: userEmail,
+    contactPhone: "",
+    currency: "AFN",
+  });
+
+  // Check slug availability with debounce
+  const checkSlug = useCallback(async (slug: string) => {
+    // Clear any existing timer
+    if (slugCheckTimer.current) {
+      clearTimeout(slugCheckTimer.current);
+    }
+
+    if (slug.length < 3) {
+      setSlugAvailable(null);
+      setCheckingSlug(false);
+      return;
+    }
+
+    setCheckingSlug(true);
+    slugCheckTimer.current = setTimeout(async () => {
+      const available = await checkSlugAvailability(slug);
+      setSlugAvailable(available);
+      setCheckingSlug(false);
+    }, 500);
+  }, []);
+
+  const updateField = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear field error when user starts typing
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+    // Check slug availability when slug field changes
+    if (field === "slug") {
+      checkSlug(value);
+    }
+  };
+
+  const validateStep = (step: number): boolean => {
+    const errors: Partial<Record<keyof CreateStoreInput, string>> = {};
+
+    if (step === 1) {
+      if (!formData.name || formData.name.length < 2) {
+        errors.name = "Store name must be at least 2 characters";
+      }
+      if (!formData.slug || formData.slug.length < 3) {
+        errors.slug = "Store URL must be at least 3 characters";
+      } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(formData.slug)) {
+        errors.slug =
+          "Store URL can only contain lowercase letters, numbers, and hyphens";
+      } else if (slugAvailable === false) {
+        errors.slug = "This store URL is already taken";
+      }
+    }
+
+    if (step === 3) {
+      if (
+        formData.contactEmail &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)
+      ) {
+        errors.contactEmail = "Please enter a valid email address";
+      }
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const nextStep = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (validateStep(currentStep)) {
+      setCurrentStep((prev) => Math.min(prev + 1, 3));
+    }
+  };
+
+  const prevStep = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
+  };
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    // Only allow submission on the final step
+    if (currentStep !== 3) return;
+
+    if (!validateStep(currentStep)) return;
+
+    startTransition(async () => {
+      setError(null);
+
+      // Full validation
+      try {
+        createStoreSchema.parse(formData);
+      } catch (err) {
+        if (err instanceof ZodError) {
+          const errors: Partial<Record<keyof CreateStoreInput, string>> = {};
+          err.issues.forEach((issue) => {
+            if (issue.path[0]) {
+              errors[issue.path[0] as keyof CreateStoreInput] = issue.message;
+            }
+          });
+          setFieldErrors(errors);
+          return;
+        }
+      }
+
+      // Create FormData for server action
+      const submitData = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        submitData.append(key, value);
+      });
+
+      const result = await createStore(submitData);
+
+      if (result.error) {
+        if (result.error.field) {
+          setFieldErrors({ [result.error.field]: result.error.message });
+        } else {
+          setError(result.error.message);
+        }
+        return;
+      }
+
+      // Success - redirect to the new store's dashboard
+      router.push(`/dashboard/${formData.slug}`);
+    });
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Step Indicator */}
+      <div className="flex items-center justify-center gap-2">
+        {steps.map((step, index) => (
+          <div key={step.id} className="flex items-center">
+            <div
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors",
+                currentStep === step.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : currentStep > step.id
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-muted-foreground/30 text-muted-foreground"
+              )}
+            >
+              {currentStep > step.id ? (
+                <Check className="h-5 w-5" />
+              ) : (
+                <step.icon className="h-5 w-5" />
+              )}
+            </div>
+            {index < steps.length - 1 && (
+              <div
+                className={cn(
+                  "w-12 h-0.5 mx-2",
+                  currentStep > step.id
+                    ? "bg-primary"
+                    : "bg-muted-foreground/30"
+                )}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Step Title */}
+      <div className="text-center">
+        <h2 className="text-lg font-semibold">
+          Step {currentStep}: {steps[currentStep - 1].title}
+        </h2>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Step 1: Basic Info */}
+        {currentStep === 1 && (
+          <div className="space-y-4">
+            <Field>
+              <FieldLabel htmlFor="name">Store name</FieldLabel>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                placeholder="My Awesome Store"
+                disabled={isPending}
+                aria-invalid={!!fieldErrors.name}
+              />
+              <FieldError>{fieldErrors.name}</FieldError>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="slug">Store URL</FieldLabel>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  kakamalem.com/store/
+                </span>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) =>
+                    updateField("slug", e.target.value.toLowerCase())
+                  }
+                  placeholder="my-store"
+                  disabled={isPending}
+                  aria-invalid={!!fieldErrors.slug}
+                  className="flex-1"
+                />
+              </div>
+              {checkingSlug ? (
+                <FieldDescription>Checking availability...</FieldDescription>
+              ) : slugAvailable === true ? (
+                <FieldDescription className="text-green-600">
+                  This URL is available
+                </FieldDescription>
+              ) : slugAvailable === false ? (
+                <FieldError>This URL is already taken</FieldError>
+              ) : (
+                <FieldError>{fieldErrors.slug}</FieldError>
+              )}
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="tagline">Tagline (optional)</FieldLabel>
+              <Input
+                id="tagline"
+                value={formData.tagline}
+                onChange={(e) => updateField("tagline", e.target.value)}
+                placeholder="A short catchy phrase for your store"
+                disabled={isPending}
+                aria-invalid={!!fieldErrors.tagline}
+              />
+              <FieldDescription>
+                A short phrase that describes your store
+              </FieldDescription>
+              <FieldError>{fieldErrors.tagline}</FieldError>
+            </Field>
+          </div>
+        )}
+
+        {/* Step 2: Branding */}
+        {currentStep === 2 && (
+          <div className="space-y-6">
+            <Field>
+              <FieldLabel>Store logo (optional)</FieldLabel>
+              <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Upload your store logo
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Coming soon - you can add a logo in settings later
+                </p>
+              </div>
+            </Field>
+
+            <Field>
+              <FieldLabel>Header display</FieldLabel>
+              <RadioGroup
+                value={formData.headerDisplay}
+                onValueChange={(value) => updateField("headerDisplay", value)}
+                className="grid grid-cols-3 gap-4 mt-2"
+              >
+                <Label
+                  htmlFor="name_only"
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors",
+                    formData.headerDisplay === "name_only"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
+                >
+                  <RadioGroupItem
+                    value="name_only"
+                    id="name_only"
+                    className="sr-only"
+                  />
+                  <div className="h-8 flex items-center">
+                    <span className="font-semibold text-sm">Store Name</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Text only
+                  </span>
+                </Label>
+
+                <Label
+                  htmlFor="logo_only"
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors",
+                    formData.headerDisplay === "logo_only"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
+                >
+                  <RadioGroupItem
+                    value="logo_only"
+                    id="logo_only"
+                    className="sr-only"
+                  />
+                  <div className="h-8 flex items-center">
+                    <div className="w-8 h-8 rounded bg-muted" />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Logo only
+                  </span>
+                </Label>
+
+                <Label
+                  htmlFor="logo_and_name"
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors",
+                    formData.headerDisplay === "logo_and_name"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
+                >
+                  <RadioGroupItem
+                    value="logo_and_name"
+                    id="logo_and_name"
+                    className="sr-only"
+                  />
+                  <div className="h-8 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-muted" />
+                    <span className="font-semibold text-xs">Name</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Both</span>
+                </Label>
+              </RadioGroup>
+              <FieldDescription className="mt-2">
+                How your store name and logo appear in the header
+              </FieldDescription>
+            </Field>
+          </div>
+        )}
+
+        {/* Step 3: Contact & Currency */}
+        {currentStep === 3 && (
+          <div className="space-y-4">
+            <Field>
+              <FieldLabel htmlFor="contactEmail">Contact email</FieldLabel>
+              <Input
+                id="contactEmail"
+                type="email"
+                value={formData.contactEmail}
+                onChange={(e) => updateField("contactEmail", e.target.value)}
+                placeholder="contact@example.com"
+                disabled={isPending}
+                aria-invalid={!!fieldErrors.contactEmail}
+              />
+              <FieldDescription>
+                Customers will use this to contact you
+              </FieldDescription>
+              <FieldError>{fieldErrors.contactEmail}</FieldError>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="contactPhone">
+                Contact phone (optional)
+              </FieldLabel>
+              <PhoneInput
+                id="contactPhone"
+                value={formData.contactPhone}
+                onChange={(value) => updateField("contactPhone", value || "")}
+                defaultCountry="AF"
+                disabled={isPending}
+                aria-invalid={!!fieldErrors.contactPhone}
+              />
+              <FieldError>{fieldErrors.contactPhone}</FieldError>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="currency">Store currency</FieldLabel>
+              <Select
+                value={formData.currency}
+                onValueChange={(value) => updateField("currency", value)}
+                disabled={isPending}
+              >
+                <SelectTrigger id="currency">
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AFN">AFN - Afghan Afghani</SelectItem>
+                  <SelectItem value="USD">USD - US Dollar</SelectItem>
+                </SelectContent>
+              </Select>
+              <FieldDescription>
+                The currency used for pricing products
+              </FieldDescription>
+            </Field>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex items-center justify-between pt-4">
+          {currentStep > 1 ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={prevStep}
+              disabled={isPending}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          ) : (
+            <div />
+          )}
+
+          {currentStep < 3 ? (
+            <Button
+              type="button"
+              onClick={(e) => nextStep(e)}
+              disabled={isPending}
+            >
+              Next
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          ) : (
+            <Button type="submit" disabled={isPending}>
+              {isPending && <Spinner className="mr-2" />}
+              {isPending ? "Creating store..." : "Create store"}
+            </Button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -32,68 +33,6 @@ import {
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
 
-const mainNavItems = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Products",
-    href: "/dashboard/products",
-    icon: Package,
-  },
-  {
-    title: "Categories",
-    href: "/dashboard/categories",
-    icon: FolderTree,
-  },
-  {
-    title: "Media",
-    href: "/dashboard/media",
-    icon: Image,
-  },
-];
-
-const salesNavItems = [
-  {
-    title: "Orders",
-    href: "/dashboard/orders",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Shipping",
-    href: "/dashboard/shipping",
-    icon: Truck,
-  },
-];
-
-const insightsNavItems = [
-  {
-    title: "Analytics",
-    href: "/dashboard/analytics",
-    icon: BarChart3,
-  },
-  {
-    title: "Billing",
-    href: "/dashboard/billing",
-    icon: CreditCard,
-  },
-];
-
-const settingsNavItems = [
-  {
-    title: "Store Settings",
-    href: "/dashboard/settings",
-    icon: Store,
-  },
-  {
-    title: "Account",
-    href: "/dashboard/account",
-    icon: Settings,
-  },
-];
-
 interface AppSidebarProps {
   user: {
     email: string;
@@ -102,21 +41,107 @@ interface AppSidebarProps {
   };
   stores?: StoreInfo[];
   currentStore?: StoreInfo | null;
+  storeSlug?: string;
+}
+
+// Reserved paths that are not store slugs
+const reservedPaths = new Set(["new", "account"]);
+
+// Extract store slug from pathname
+function getStoreSlugFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/dashboard\/([^/]+)/);
+  if (match && !reservedPaths.has(match[1])) {
+    return match[1];
+  }
+  return null;
 }
 
 export function AppSidebar({
   user,
   stores = [],
   currentStore,
+  storeSlug: initialStoreSlug,
 }: AppSidebarProps) {
   const pathname = usePathname();
 
+  // Derive store slug from URL for client-side navigation
+  const storeSlug = useMemo(() => {
+    const urlSlug = getStoreSlugFromPath(pathname);
+    return urlSlug || initialStoreSlug;
+  }, [pathname, initialStoreSlug]);
+
+  // Build store-specific URL prefix
+  const baseUrl = storeSlug ? `/dashboard/${storeSlug}` : "/dashboard";
+
   const isActive = (href: string) => {
-    if (href === "/dashboard") {
-      return pathname === "/dashboard";
+    if (href === baseUrl) {
+      return pathname === baseUrl;
     }
     return pathname.startsWith(href);
   };
+
+  // Generate navigation items with store-specific URLs
+  const mainNavItems = [
+    {
+      title: "Dashboard",
+      href: baseUrl,
+      icon: LayoutDashboard,
+    },
+    {
+      title: "Products",
+      href: `${baseUrl}/products`,
+      icon: Package,
+    },
+    {
+      title: "Categories",
+      href: `${baseUrl}/categories`,
+      icon: FolderTree,
+    },
+    {
+      title: "Media",
+      href: `${baseUrl}/media`,
+      icon: Image,
+    },
+  ];
+
+  const salesNavItems = [
+    {
+      title: "Orders",
+      href: `${baseUrl}/orders`,
+      icon: ShoppingCart,
+    },
+    {
+      title: "Shipping",
+      href: `${baseUrl}/shipping`,
+      icon: Truck,
+    },
+  ];
+
+  const insightsNavItems = [
+    {
+      title: "Analytics",
+      href: `${baseUrl}/analytics`,
+      icon: BarChart3,
+    },
+    {
+      title: "Billing",
+      href: `${baseUrl}/billing`,
+      icon: CreditCard,
+    },
+  ];
+
+  const settingsNavItems = [
+    {
+      title: "Store Settings",
+      href: `${baseUrl}/settings`,
+      icon: Store,
+    },
+    {
+      title: "Account",
+      href: "/dashboard/account",
+      icon: Settings,
+    },
+  ];
 
   return (
     <Sidebar collapsible="icon">
