@@ -1,85 +1,104 @@
 import { getUser } from "@/lib/supabase/auth";
-import { redirect } from "next/navigation";
-import { SignOutButton } from "./sign-out-button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function DashboardPage() {
   const user = await getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
-
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b bg-background">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">
+          Welcome back, {user?.user_metadata?.full_name || "there"}!
+        </h1>
+        <p className="text-muted-foreground">
+          Here&apos;s an overview of your store.
+        </p>
+      </div>
 
-      {/* Content */}
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className="space-y-8">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Welcome, {user.user_metadata?.full_name || "there"}!
-            </h2>
-            <p className="text-muted-foreground mt-2">
-              Manage your store from here.
-            </p>
-          </div>
+      {/* Quick Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0</div>
+            <p className="text-xs text-muted-foreground">No orders yet</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Products</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0</div>
+            <p className="text-xs text-muted-foreground">No products yet</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0 AFN</div>
+            <p className="text-xs text-muted-foreground">Total sales</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Payment Due</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0 AFN</div>
+            <p className="text-xs text-muted-foreground">Free tier active</p>
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* Quick stats placeholder */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="border rounded-lg p-6">
-              <p className="text-sm text-muted-foreground">Total Orders</p>
-              <p className="text-3xl font-bold mt-2">0</p>
-            </div>
-            <div className="border rounded-lg p-6">
-              <p className="text-sm text-muted-foreground">Products</p>
-              <p className="text-3xl font-bold mt-2">0</p>
-            </div>
-            <div className="border rounded-lg p-6">
-              <p className="text-sm text-muted-foreground">Revenue</p>
-              <p className="text-3xl font-bold mt-2">0 AFN</p>
-            </div>
-            <div className="border rounded-lg p-6">
-              <p className="text-sm text-muted-foreground">Payment Due</p>
-              <p className="text-3xl font-bold mt-2">0 AFN</p>
-            </div>
-          </div>
-
-          {/* Getting started */}
-          <div className="border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">Getting Started</h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs">
-                  1
-                </div>
-                <span>Create your store</span>
+      {/* Getting Started */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Getting Started</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-muted-foreground/30 text-sm font-medium text-muted-foreground">
+                1
               </div>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs">
-                  2
-                </div>
-                <span>Add your products</span>
+              <div>
+                <p className="font-medium">Create your store</p>
+                <p className="text-sm text-muted-foreground">
+                  Set up your store name, branding, and settings
+                </p>
               </div>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs">
-                  3
-                </div>
-                <span>Start selling</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-muted-foreground/30 text-sm font-medium text-muted-foreground">
+                2
+              </div>
+              <div>
+                <p className="font-medium">Add your products</p>
+                <p className="text-sm text-muted-foreground">
+                  Upload products with images, prices, and descriptions
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-muted-foreground/30 text-sm font-medium text-muted-foreground">
+                3
+              </div>
+              <div>
+                <p className="font-medium">Start selling</p>
+                <p className="text-sm text-muted-foreground">
+                  Share your store link and receive orders
+                </p>
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        </CardContent>
+      </Card>
     </div>
   );
 }

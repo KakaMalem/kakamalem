@@ -66,7 +66,7 @@ export default async function Home() {
               </Button>
             ) : (
               <>
-                <Button variant="ghost" asChild>
+                <Button variant="outline" asChild>
                   <Link href="/auth/login">Login</Link>
                 </Button>
                 <Button asChild>
