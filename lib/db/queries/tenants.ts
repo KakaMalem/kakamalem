@@ -123,6 +123,7 @@ export async function updateTenant(
     currency: string;
     socialLinks: Record<string, string | undefined>;
     seo: Record<string, string | undefined>;
+    status: "pending_review" | "active" | "suspended" | "inactive";
   }>
 ) {
   const [updated] = await db
@@ -135,4 +136,12 @@ export async function updateTenant(
     .returning();
 
   return updated;
+}
+
+/**
+ * Delete a tenant and all related data
+ */
+export async function deleteTenant(tenantId: string) {
+  // Delete tenant - cascades will handle related records
+  await db.delete(tenants).where(eq(tenants.id, tenantId));
 }

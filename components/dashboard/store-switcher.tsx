@@ -51,11 +51,11 @@ export function StoreSwitcher({
   const router = useRouter();
   const pathname = usePathname();
   const { isMobile } = useSidebar();
-  const [isHydrated, setIsHydrated] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(false);
 
-  // Mark as hydrated after first render
+  // Wait for client-side mount to avoid hydration mismatch
   React.useEffect(() => {
-    setIsHydrated(true);
+    setIsMounted(true);
   }, []);
 
   // Derive current store from URL path for client-side navigation
@@ -65,7 +65,7 @@ export function StoreSwitcher({
       return stores.find((s) => s.slug === urlSlug) || initialStore;
     }
     // On /dashboard page (no urlSlug), check localStorage for last store
-    if (isHydrated && typeof window !== "undefined") {
+    if (isMounted && typeof window !== "undefined") {
       const lastSlug = localStorage.getItem("kaka-malem-last-store");
       if (lastSlug) {
         const lastStore = stores.find((s) => s.slug === lastSlug);
@@ -73,7 +73,7 @@ export function StoreSwitcher({
       }
     }
     return initialStore;
-  }, [urlSlug, stores, initialStore, isHydrated]);
+  }, [urlSlug, stores, initialStore, isMounted]);
 
   // Only persist when we're on a store-specific page (not /dashboard redirect page)
   // This prevents overwriting the saved store during redirect
@@ -88,17 +88,16 @@ export function StoreSwitcher({
     router.push("/dashboard/new");
   };
 
-  // Show skeleton while hydrating on /dashboard page to prevent flash
-  const isOnRedirectPage = pathname === "/dashboard";
-  if (isOnRedirectPage && !isHydrated) {
+  // Show skeleton until mounted to avoid hydration mismatch with Radix IDs
+  if (!isMounted) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" className="pointer-events-none">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted animate-pulse" />
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted" />
             <div className="grid flex-1 gap-1">
-              <div className="h-4 w-20 bg-muted rounded animate-pulse" />
-              <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+              <div className="h-4 w-20 bg-muted rounded" />
+              <div className="h-3 w-16 bg-muted rounded" />
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>

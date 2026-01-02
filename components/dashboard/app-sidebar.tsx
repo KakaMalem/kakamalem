@@ -14,6 +14,8 @@ import {
   Settings,
   Store,
   CreditCard,
+  Layers,
+  Warehouse,
 } from "lucide-react";
 
 import {
@@ -96,6 +98,16 @@ export function AppSidebar({
       title: "Categories",
       href: `${baseUrl}/categories`,
       icon: FolderTree,
+    },
+    {
+      title: "Inventory",
+      href: `${baseUrl}/inventory`,
+      icon: Warehouse,
+    },
+    {
+      title: "Variants",
+      href: `${baseUrl}/variants`,
+      icon: Layers,
     },
     {
       title: "Media",

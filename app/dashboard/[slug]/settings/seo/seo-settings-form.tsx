@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,13 +21,20 @@ import {
 } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, Check, Upload } from "lucide-react";
+import { AlertCircle, Check, Upload, X } from "lucide-react";
 import {
   seoSettingsSchema,
   type SeoSettingsInput,
 } from "@/lib/validations/stores";
-import { updateSeoSettings } from "@/lib/supabase/stores";
-import { ZodError } from "zod";
+import { updateSeoSettingsWithImage } from "@/lib/supabase/stores";
+import { toast } from "sonner";
+
+// Image state type
+type ImageState = {
+  url: string;
+  file?: File;
+  isStaged?: boolean;
+};
 
 interface SeoSettingsFormProps {
   storeId: string;
@@ -50,14 +58,56 @@ export function SeoSettingsForm({
   >({});
   const [isPending, startTransition] = useTransition();
 
-  const [formData, setFormData] = useState(initialData);
+  const [metaTitle, setMetaTitle] = useState(initialData.metaTitle);
+  const [metaDescription, setMetaDescription] = useState(
+    initialData.metaDescription
+  );
 
-  const updateField = (field: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    setSuccess(false);
-    if (fieldErrors[field]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+  // OG Image state
+  const [ogImage, setOgImage] = useState<ImageState | null>(() =>
+    initialData.ogImageUrl
+      ? { url: initialData.ogImageUrl, isStaged: false }
+      : null
+  );
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (ogImage?.isStaged && ogImage.url) URL.revokeObjectURL(ogImage.url);
+    };
+  }, [ogImage]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
     }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be less than 2MB");
+      return;
+    }
+
+    // Cleanup previous staged URL
+    if (ogImage?.isStaged && ogImage.url) {
+      URL.revokeObjectURL(ogImage.url);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setOgImage({ url: previewUrl, file, isStaged: true });
+    setSuccess(false);
+    e.target.value = "";
+  };
+
+  const removeImage = () => {
+    if (ogImage?.isStaged && ogImage.url) {
+      URL.revokeObjectURL(ogImage.url);
+    }
+    setOgImage(null);
+    setSuccess(false);
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -68,29 +118,34 @@ export function SeoSettingsForm({
       setFieldErrors({});
       setSuccess(false);
 
+      const formData = {
+        metaTitle,
+        metaDescription,
+        ogImageUrl: ogImage && !ogImage.isStaged ? ogImage.url : "",
+      };
+
       // Client-side validation
-      try {
-        seoSettingsSchema.parse(formData);
-      } catch (err) {
-        if (err instanceof ZodError) {
-          const errors: Partial<Record<keyof SeoSettingsInput, string>> = {};
-          err.issues.forEach((issue) => {
-            if (issue.path[0]) {
-              errors[issue.path[0] as keyof SeoSettingsInput] = issue.message;
-            }
-          });
-          setFieldErrors(errors);
-          return;
-        }
+      const validation = seoSettingsSchema.safeParse(formData);
+      if (!validation.success) {
+        const errors: Partial<Record<keyof SeoSettingsInput, string>> = {};
+        validation.error.issues.forEach((issue) => {
+          if (issue.path[0]) {
+            errors[issue.path[0] as keyof SeoSettingsInput] = issue.message;
+          }
+        });
+        setFieldErrors(errors);
+        return;
       }
 
-      // Create FormData for server action
-      const submitData = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        submitData.append(key, value);
-      });
+      // Get staged file
+      const ogImageFile =
+        ogImage?.isStaged && ogImage.file ? ogImage.file : null;
 
-      const result = await updateSeoSettings(storeId, submitData);
+      const result = await updateSeoSettingsWithImage(
+        storeId,
+        formData,
+        ogImageFile
+      );
 
       if (result.error) {
         if (result.error.field) {
@@ -101,12 +156,19 @@ export function SeoSettingsForm({
         return;
       }
 
+      // Update local state with new URL if image was uploaded
+      if (result.ogImageUrl) {
+        if (ogImage?.isStaged && ogImage.url) URL.revokeObjectURL(ogImage.url);
+        setOgImage({ url: result.ogImageUrl, isStaged: false });
+      }
+
       setSuccess(true);
+      toast.success("SEO settings saved!");
     });
   }
 
-  const metaTitleLength = formData.metaTitle.length;
-  const metaDescriptionLength = formData.metaDescription.length;
+  const metaTitleLength = metaTitle.length;
+  const metaDescriptionLength = metaDescription.length;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -137,8 +199,11 @@ export function SeoSettingsForm({
             <FieldLabel htmlFor="metaTitle">Meta Title</FieldLabel>
             <Input
               id="metaTitle"
-              value={formData.metaTitle}
-              onChange={(e) => updateField("metaTitle", e.target.value)}
+              value={metaTitle}
+              onChange={(e) => {
+                setMetaTitle(e.target.value);
+                setSuccess(false);
+              }}
               placeholder={storeName}
               disabled={isPending}
               aria-invalid={!!fieldErrors.metaTitle}
@@ -165,8 +230,11 @@ export function SeoSettingsForm({
             <FieldLabel htmlFor="metaDescription">Meta Description</FieldLabel>
             <Textarea
               id="metaDescription"
-              value={formData.metaDescription}
-              onChange={(e) => updateField("metaDescription", e.target.value)}
+              value={metaDescription}
+              onChange={(e) => {
+                setMetaDescription(e.target.value);
+                setSuccess(false);
+              }}
               placeholder="A brief description of your store..."
               disabled={isPending}
               rows={3}
@@ -200,17 +268,74 @@ export function SeoSettingsForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-40 border-2 border-dashed rounded-lg bg-muted/50">
-            <div className="text-center">
-              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                OG image upload coming soon
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                PNG, JPG up to 2MB (1200x630px recommended)
-              </p>
+          {ogImage ? (
+            <div className="relative aspect-1200/630 max-w-md mx-auto">
+              <Image
+                src={ogImage.url}
+                alt="Social sharing preview"
+                fill
+                className="rounded-lg object-cover border"
+                unoptimized={ogImage.isStaged}
+              />
+              {ogImage.isStaged && (
+                <span className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
+                  New
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={removeImage}
+                className="absolute top-2 right-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
+                disabled={isPending}
+              >
+                <X className="size-4" />
+              </button>
             </div>
-          </div>
+          ) : (
+            <label className="flex items-center justify-center h-40 border-2 border-dashed rounded-lg bg-muted/50 cursor-pointer hover:border-muted-foreground/50 transition-colors">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="sr-only"
+                disabled={isPending}
+              />
+              <div className="text-center">
+                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Click to upload OG image
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  PNG, JPG up to 2MB (1200x630px recommended)
+                </p>
+              </div>
+            </label>
+          )}
+          {ogImage && (
+            <div className="flex justify-center mt-3">
+              <label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="sr-only"
+                  disabled={isPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  disabled={isPending}
+                >
+                  <span className="cursor-pointer">
+                    <Upload className="mr-2 size-4" />
+                    Change Image
+                  </span>
+                </Button>
+              </label>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -224,11 +349,11 @@ export function SeoSettingsForm({
         <CardContent>
           <div className="p-4 border rounded-lg bg-white">
             <p className="text-blue-600 text-lg hover:underline cursor-pointer">
-              {formData.metaTitle || storeName}
+              {metaTitle || storeName}
             </p>
             <p className="text-green-700 text-sm">kakamalem.com/store/...</p>
             <p className="text-gray-600 text-sm mt-1">
-              {formData.metaDescription || "No description provided"}
+              {metaDescription || "No description provided"}
             </p>
           </div>
         </CardContent>

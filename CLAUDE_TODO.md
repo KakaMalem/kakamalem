@@ -56,37 +56,72 @@
 
 ### Product Management
 
-- [ ] Products list with search/filter
-- [ ] Create/edit product form
-  - [ ] Basic info (name, slug, description, price)
-  - [ ] Category assignment
-  - [ ] Image upload (Supabase Storage)
-  - [ ] Inventory settings (track stock, allow backorder, low stock threshold)
-  - [ ] Weight for shipping
-- [ ] Product variants
-  - [ ] Variant options management (Size, Color, etc.)
-  - [ ] Create variants with SKU, price override, stock
-  - [ ] Variant images
-- [ ] Bulk actions (activate, deactivate, delete)
+- [x] Products list with search/filter
+- [x] Products list with drag-to-reorder (mouse + touch support)
+- [x] Create/edit product form
+  - [x] Basic info (name, slug, description, price)
+  - [x] Category assignment
+  - [x] Image upload with drag-to-reorder (mouse + touch support)
+  - [x] Media selector for reusing existing images
+  - [x] Inventory settings (track stock, allow backorder, low stock threshold)
+  - [x] Weight for shipping
+- [x] Product variants
+  - [x] Variant options management (Size, Color, etc.)
+  - [x] Create variants with SKU, price override, stock
+  - [x] Variant images
+- [x] Bulk actions (activate, deactivate, delete)
 
 ### Category Management
 
-- [ ] Categories list with drag-to-reorder
-- [ ] Create/edit category (name, slug, description, image)
+- [x] Categories list with drag-to-reorder (mouse + touch support)
+- [x] Create/edit category (name, slug, description, image)
+- [x] Media selector for category images
 
 ### Media Library
 
-- [ ] Grid view of all uploaded media
-- [ ] Upload new media
-- [ ] Delete unused media
-- [ ] Alt text editing
+- [x] Grid view of all uploaded media with pagination
+- [x] Upload new media (single and multiple)
+- [x] Delete unused media (with in-use protection)
+- [x] Alt text editing
+- [x] Copy URL to clipboard
+- [x] Search media by filename
+- [x] Reusable media selector component (dialog-based)
 
-### Inventory
+### Inventory Management
 
-- [ ] Stock overview dashboard
-- [ ] Low stock alerts
-- [ ] Manual stock adjustments
-- [ ] Inventory movement history
+#### Stock Overview Dashboard (`/dashboard/[slug]/inventory`)
+
+- [x] Summary cards (total products, in stock, low stock, out of stock)
+- [x] Quick stock status breakdown by category
+- [x] Products at or below low stock threshold list
+- [x] Stock value calculation (sum of stock × price)
+
+#### Low Stock Alerts
+
+- [x] Low stock indicator badges on products list
+- [ ] Dashboard notification for low stock items
+- [x] Filter products by stock status (in stock, low stock, out of stock)
+
+#### Stock Adjustments (`/dashboard/[slug]/inventory/adjust`)
+
+- [x] Manual stock adjustment form (add/remove stock)
+- [ ] Bulk stock adjustment (CSV import)
+- [x] Adjustment reason/notes field
+- [x] Creates `inventory_movements` record with type: `adjustment`
+
+#### Inventory Movement History (`/dashboard/[slug]/inventory/history`)
+
+- [x] Paginated list of all stock changes
+- [x] Filter by movement type (adjustment, sale, return, restock)
+- [x] Filter by product/variant
+- [ ] Filter by date range
+- [x] Shows: product, variant, type, quantity (+/-), previous → new stock, reason, user, date
+
+#### Product-Level Inventory
+
+- [ ] Stock history tab on product edit page
+- [x] Quick adjust stock button on product card
+- [ ] Variant-level stock management (for products with variants)
 
 ---
 

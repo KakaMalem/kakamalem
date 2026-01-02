@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ChevronsUpDown, LogOut, Settings, User } from "lucide-react";
 
@@ -32,6 +33,12 @@ interface UserNavProps {
 export function UserNav({ user }: UserNavProps) {
   const router = useRouter();
   const { isMobile } = useSidebar();
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  // Wait for client-side mount to avoid hydration mismatch with Radix IDs
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const initials = user.fullName
     ? user.fullName
@@ -46,6 +53,23 @@ export function UserNav({ user }: UserNavProps) {
     await signOut();
     router.push("/auth/login");
   };
+
+  // Show skeleton until mounted to avoid hydration mismatch
+  if (!isMounted) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg" className="pointer-events-none">
+            <div className="h-8 w-8 rounded-lg bg-muted" />
+            <div className="grid flex-1 gap-1">
+              <div className="h-4 w-20 bg-muted rounded" />
+              <div className="h-3 w-24 bg-muted rounded" />
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   return (
     <SidebarMenu>

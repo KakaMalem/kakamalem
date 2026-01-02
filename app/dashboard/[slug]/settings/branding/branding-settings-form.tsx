@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -14,14 +15,18 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, Check, Upload } from "lucide-react";
+import { AlertCircle, Check, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  brandingSettingsSchema,
-  type BrandingSettingsInput,
-} from "@/lib/validations/stores";
-import { updateBrandingSettings } from "@/lib/supabase/stores";
-import { ZodError } from "zod";
+import { brandingSettingsSchema } from "@/lib/validations/stores";
+import { updateBrandingSettingsWithImages } from "@/lib/supabase/stores";
+import { toast } from "sonner";
+
+// Image state type - can be existing URL or staged file
+type ImageState = {
+  url: string;
+  file?: File;
+  isStaged?: boolean;
+};
 
 interface BrandingSettingsFormProps {
   storeId: string;
@@ -38,23 +43,73 @@ export function BrandingSettingsForm({
 }: BrandingSettingsFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<
-    Partial<Record<keyof BrandingSettingsInput, string>>
-  >({});
   const [isPending, startTransition] = useTransition();
 
-  const [formData, setFormData] = useState({
-    logoUrl: initialData.logoUrl,
-    faviconUrl: initialData.faviconUrl,
-    headerDisplay: initialData.headerDisplay,
-  });
+  const [headerDisplay, setHeaderDisplay] = useState(initialData.headerDisplay);
 
-  const updateField = (field: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    setSuccess(false);
-    if (fieldErrors[field as keyof BrandingSettingsInput]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+  // Logo image state
+  const [logo, setLogo] = useState<ImageState | null>(() =>
+    initialData.logoUrl ? { url: initialData.logoUrl, isStaged: false } : null
+  );
+
+  // Favicon image state
+  const [favicon, setFavicon] = useState<ImageState | null>(() =>
+    initialData.faviconUrl
+      ? { url: initialData.faviconUrl, isStaged: false }
+      : null
+  );
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (logo?.isStaged && logo.url) URL.revokeObjectURL(logo.url);
+      if (favicon?.isStaged && favicon.url) URL.revokeObjectURL(favicon.url);
+    };
+  }, [logo, favicon]);
+
+  const handleImageUpload = (
+    type: "logo" | "favicon",
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
     }
+
+    const maxSize = type === "logo" ? 2 * 1024 * 1024 : 512 * 1024; // 2MB for logo, 512KB for favicon
+    if (file.size > maxSize) {
+      toast.error(
+        `Image must be less than ${type === "logo" ? "2MB" : "512KB"}`
+      );
+      return;
+    }
+
+    const setter = type === "logo" ? setLogo : setFavicon;
+    const current = type === "logo" ? logo : favicon;
+
+    // Cleanup previous staged URL
+    if (current?.isStaged && current.url) {
+      URL.revokeObjectURL(current.url);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setter({ url: previewUrl, file, isStaged: true });
+    setSuccess(false);
+    e.target.value = "";
+  };
+
+  const removeImage = (type: "logo" | "favicon") => {
+    const setter = type === "logo" ? setLogo : setFavicon;
+    const current = type === "logo" ? logo : favicon;
+
+    if (current?.isStaged && current.url) {
+      URL.revokeObjectURL(current.url);
+    }
+    setter(null);
+    setSuccess(false);
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -62,45 +117,51 @@ export function BrandingSettingsForm({
 
     startTransition(async () => {
       setError(null);
-      setFieldErrors({});
       setSuccess(false);
 
+      const formData = {
+        logoUrl: logo && !logo.isStaged ? logo.url : "",
+        faviconUrl: favicon && !favicon.isStaged ? favicon.url : "",
+        headerDisplay,
+      };
+
       // Client-side validation
-      try {
-        brandingSettingsSchema.parse(formData);
-      } catch (err) {
-        if (err instanceof ZodError) {
-          const errors: Partial<Record<keyof BrandingSettingsInput, string>> =
-            {};
-          err.issues.forEach((issue) => {
-            if (issue.path[0]) {
-              errors[issue.path[0] as keyof BrandingSettingsInput] =
-                issue.message;
-            }
-          });
-          setFieldErrors(errors);
-          return;
-        }
-      }
-
-      // Create FormData for server action
-      const submitData = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        submitData.append(key, value);
-      });
-
-      const result = await updateBrandingSettings(storeId, submitData);
-
-      if (result.error) {
-        if (result.error.field) {
-          setFieldErrors({ [result.error.field]: result.error.message });
-        } else {
-          setError(result.error.message);
-        }
+      const validation = brandingSettingsSchema.safeParse(formData);
+      if (!validation.success) {
+        const firstError = validation.error.issues[0]?.message;
+        toast.error(firstError || "Please check the form for errors");
         return;
       }
 
+      // Get staged files
+      const logoFile = logo?.isStaged && logo.file ? logo.file : null;
+      const faviconFile =
+        favicon?.isStaged && favicon.file ? favicon.file : null;
+
+      const result = await updateBrandingSettingsWithImages(
+        storeId,
+        formData,
+        logoFile,
+        faviconFile
+      );
+
+      if (result.error) {
+        toast.error(result.error.message);
+        return;
+      }
+
+      // Update local state with new URLs if images were uploaded
+      if (result.logoUrl) {
+        if (logo?.isStaged && logo.url) URL.revokeObjectURL(logo.url);
+        setLogo({ url: result.logoUrl, isStaged: false });
+      }
+      if (result.faviconUrl) {
+        if (favicon?.isStaged && favicon.url) URL.revokeObjectURL(favicon.url);
+        setFavicon({ url: result.faviconUrl, isStaged: false });
+      }
+
       setSuccess(true);
+      toast.success("Branding settings saved!");
     });
   }
 
@@ -130,17 +191,74 @@ export function BrandingSettingsForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-32 border-2 border-dashed rounded-lg bg-muted/50">
-            <div className="text-center">
-              <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Image upload coming soon
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                PNG, JPG up to 2MB
-              </p>
+          {logo ? (
+            <div className="relative w-32 h-32 mx-auto">
+              <Image
+                src={logo.url}
+                alt="Store logo"
+                fill
+                className="rounded-lg object-contain border bg-muted/30"
+                unoptimized={logo.isStaged}
+              />
+              {logo.isStaged && (
+                <span className="absolute -top-2 -left-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
+                  New
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => removeImage("logo")}
+                className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
+                disabled={isPending}
+              >
+                <X className="size-4" />
+              </button>
             </div>
-          </div>
+          ) : (
+            <label className="flex items-center justify-center h-32 border-2 border-dashed rounded-lg bg-muted/50 cursor-pointer hover:border-muted-foreground/50 transition-colors">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageUpload("logo", e)}
+                className="sr-only"
+                disabled={isPending}
+              />
+              <div className="text-center">
+                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Click to upload logo
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  PNG, JPG up to 2MB
+                </p>
+              </div>
+            </label>
+          )}
+          {logo && (
+            <div className="flex justify-center mt-3">
+              <label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageUpload("logo", e)}
+                  className="sr-only"
+                  disabled={isPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  disabled={isPending}
+                >
+                  <span className="cursor-pointer">
+                    <Upload className="mr-2 size-4" />
+                    Change Logo
+                  </span>
+                </Button>
+              </label>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -152,14 +270,71 @@ export function BrandingSettingsForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-20 border-2 border-dashed rounded-lg bg-muted/50">
-            <div className="text-center">
-              <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
-              <p className="text-xs text-muted-foreground">
-                Favicon upload coming soon
-              </p>
+          {favicon ? (
+            <div className="relative w-16 h-16 mx-auto">
+              <Image
+                src={favicon.url}
+                alt="Store favicon"
+                fill
+                className="rounded object-contain border bg-muted/30"
+                unoptimized={favicon.isStaged}
+              />
+              {favicon.isStaged && (
+                <span className="absolute -top-2 -left-2 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full">
+                  New
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => removeImage("favicon")}
+                className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
+                disabled={isPending}
+              >
+                <X className="size-3" />
+              </button>
             </div>
-          </div>
+          ) : (
+            <label className="flex items-center justify-center h-20 border-2 border-dashed rounded-lg bg-muted/50 cursor-pointer hover:border-muted-foreground/50 transition-colors">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageUpload("favicon", e)}
+                className="sr-only"
+                disabled={isPending}
+              />
+              <div className="text-center">
+                <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">
+                  Click to upload favicon (PNG, ICO up to 512KB)
+                </p>
+              </div>
+            </label>
+          )}
+          {favicon && (
+            <div className="flex justify-center mt-3">
+              <label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageUpload("favicon", e)}
+                  className="sr-only"
+                  disabled={isPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  disabled={isPending}
+                >
+                  <span className="cursor-pointer">
+                    <Upload className="mr-2 size-4" />
+                    Change Favicon
+                  </span>
+                </Button>
+              </label>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -172,8 +347,13 @@ export function BrandingSettingsForm({
         </CardHeader>
         <CardContent>
           <RadioGroup
-            value={formData.headerDisplay}
-            onValueChange={(value) => updateField("headerDisplay", value)}
+            value={headerDisplay}
+            onValueChange={(value) => {
+              setHeaderDisplay(
+                value as "logo_only" | "name_only" | "logo_and_name"
+              );
+              setSuccess(false);
+            }}
             className="grid grid-cols-1 sm:grid-cols-3 gap-4"
             disabled={isPending}
           >
@@ -181,7 +361,7 @@ export function BrandingSettingsForm({
               htmlFor="hd_name_only"
               className={cn(
                 "flex flex-col items-center gap-3 rounded-lg border-2 p-4 cursor-pointer transition-colors",
-                formData.headerDisplay === "name_only"
+                headerDisplay === "name_only"
                   ? "border-primary bg-primary/5"
                   : "border-muted hover:border-muted-foreground/50"
               )}
@@ -201,7 +381,7 @@ export function BrandingSettingsForm({
               htmlFor="hd_logo_only"
               className={cn(
                 "flex flex-col items-center gap-3 rounded-lg border-2 p-4 cursor-pointer transition-colors",
-                formData.headerDisplay === "logo_only"
+                headerDisplay === "logo_only"
                   ? "border-primary bg-primary/5"
                   : "border-muted hover:border-muted-foreground/50"
               )}
@@ -225,7 +405,7 @@ export function BrandingSettingsForm({
               htmlFor="hd_logo_and_name"
               className={cn(
                 "flex flex-col items-center gap-3 rounded-lg border-2 p-4 cursor-pointer transition-colors",
-                formData.headerDisplay === "logo_and_name"
+                headerDisplay === "logo_and_name"
                   ? "border-primary bg-primary/5"
                   : "border-muted hover:border-muted-foreground/50"
               )}

@@ -3,6 +3,17 @@ import { z } from "zod";
 // Slug validation pattern: lowercase letters, numbers, and hyphens only
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+// Phone validation: allows international formats
+// Examples: +93 700 123456, 0700123456, +1-555-123-4567
+const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
+
+// URL validation regex
+const urlRegex =
+  /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+
+// Email validation regex
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Header display options
 export const headerDisplayOptions = [
   "logo_only",
@@ -37,18 +48,24 @@ export const createStoreSchema = z.object({
     .or(z.literal("")),
 
   // Step 2: Branding
-  logoUrl: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+  logoUrl: z
+    .string()
+    .regex(urlRegex, "Please enter a valid URL")
+    .optional()
+    .or(z.literal("")),
   headerDisplay: z.enum(headerDisplayOptions).default("name_only"),
 
   // Step 3: Contact & Currency
   contactEmail: z
     .string()
-    .email("Please enter a valid email address")
+    .regex(emailRegex, "Please enter a valid email address")
     .optional()
     .or(z.literal("")),
   contactPhone: z
     .string()
-    .max(50, "Phone number must be less than 50 characters")
+    .regex(phoneRegex, "Please enter a valid phone number (e.g., +93 700 123456)")
+    .min(7, "Phone number must be at least 7 digits")
+    .max(20, "Phone number must be less than 20 characters")
     .optional()
     .or(z.literal("")),
   currency: z.enum(currencyOptions).default("AFN"),
@@ -68,15 +85,21 @@ export const generalSettingsSchema = z.object({
     .max(255, "Tagline must be less than 255 characters")
     .optional()
     .or(z.literal("")),
-  description: z.string().optional().or(z.literal("")),
+  description: z
+    .string()
+    .max(2000, "Description must be less than 2000 characters")
+    .optional()
+    .or(z.literal("")),
   contactEmail: z
     .string()
-    .email("Please enter a valid email address")
+    .regex(emailRegex, "Please enter a valid email address")
     .optional()
     .or(z.literal("")),
   contactPhone: z
     .string()
-    .max(50, "Phone number must be less than 50 characters")
+    .regex(phoneRegex, "Please enter a valid phone number (e.g., +93 700 123456)")
+    .min(7, "Phone number must be at least 7 digits")
+    .max(20, "Phone number must be less than 20 characters")
     .optional()
     .or(z.literal("")),
   currency: z.enum(currencyOptions).default("AFN"),
@@ -86,8 +109,16 @@ export type GeneralSettingsInput = z.infer<typeof generalSettingsSchema>;
 
 // Branding settings validation schema
 export const brandingSettingsSchema = z.object({
-  logoUrl: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
-  faviconUrl: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+  logoUrl: z
+    .string()
+    .regex(urlRegex, "Please enter a valid URL")
+    .optional()
+    .or(z.literal("")),
+  faviconUrl: z
+    .string()
+    .regex(urlRegex, "Please enter a valid URL")
+    .optional()
+    .or(z.literal("")),
   headerDisplay: z.enum(headerDisplayOptions).default("logo_and_name"),
 });
 
@@ -95,17 +126,43 @@ export type BrandingSettingsInput = z.infer<typeof brandingSettingsSchema>;
 
 // Social links validation schema
 export const socialLinksSchema = z.object({
-  facebook: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
-  instagram: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
-  twitter: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+  facebook: z
+    .string()
+    .regex(urlRegex, "Please enter a valid Facebook URL")
+    .optional()
+    .or(z.literal("")),
+  instagram: z
+    .string()
+    .regex(urlRegex, "Please enter a valid Instagram URL")
+    .optional()
+    .or(z.literal("")),
+  twitter: z
+    .string()
+    .regex(urlRegex, "Please enter a valid Twitter/X URL")
+    .optional()
+    .or(z.literal("")),
   whatsapp: z
     .string()
+    .regex(phoneRegex, "Please enter a valid WhatsApp number (e.g., +93 700 123456)")
+    .min(7, "WhatsApp number must be at least 7 digits")
     .max(20, "WhatsApp number must be less than 20 characters")
     .optional()
     .or(z.literal("")),
-  telegram: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
-  tiktok: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
-  youtube: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+  telegram: z
+    .string()
+    .regex(urlRegex, "Please enter a valid Telegram URL")
+    .optional()
+    .or(z.literal("")),
+  tiktok: z
+    .string()
+    .regex(urlRegex, "Please enter a valid TikTok URL")
+    .optional()
+    .or(z.literal("")),
+  youtube: z
+    .string()
+    .regex(urlRegex, "Please enter a valid YouTube URL")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type SocialLinksInput = z.infer<typeof socialLinksSchema>;
@@ -122,7 +179,11 @@ export const seoSettingsSchema = z.object({
     .max(160, "Meta description should be 160 characters or less for best SEO")
     .optional()
     .or(z.literal("")),
-  ogImageUrl: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+  ogImageUrl: z
+    .string()
+    .regex(urlRegex, "Please enter a valid URL")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type SeoSettingsInput = z.infer<typeof seoSettingsSchema>;

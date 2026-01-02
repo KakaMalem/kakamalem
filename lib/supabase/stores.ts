@@ -27,7 +27,40 @@ export type StoreActionResult = {
   error?: StoreActionError;
   success?: boolean;
   storeId?: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  ogImageUrl?: string;
 };
+
+/**
+ * Helper to upload a branding image to Supabase Storage
+ */
+async function uploadBrandingImage(
+  tenantId: string,
+  file: File,
+  type: "logo" | "favicon" | "og-image"
+): Promise<string | null> {
+  const supabase = await createClient();
+
+  const ext = file.name.split(".").pop() || "png";
+  const fileName = `${type}-${Date.now()}.${ext}`;
+  const filePath = `${tenantId}/branding/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("media")
+    .upload(filePath, file, { upsert: true });
+
+  if (uploadError) {
+    console.error(`Storage upload error (${type}):`, uploadError);
+    return null;
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("media").getPublicUrl(filePath);
+
+  return publicUrl;
+}
 
 /**
  * Create a new store
@@ -224,6 +257,94 @@ export async function updateBrandingSettings(
 }
 
 /**
+ * Update branding settings with optional image file uploads
+ */
+export async function updateBrandingSettingsWithImages(
+  storeId: string,
+  formValues: {
+    logoUrl: string;
+    faviconUrl: string;
+    headerDisplay: "logo_only" | "name_only" | "logo_and_name";
+  },
+  logoFile: File | null,
+  faviconFile: File | null
+): Promise<StoreActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  try {
+    brandingSettingsSchema.parse(formValues);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed",
+          field: firstError?.path[0] as string,
+        },
+      };
+    }
+  }
+
+  let logoUrl = formValues.logoUrl || null;
+  let faviconUrl = formValues.faviconUrl || null;
+
+  // Upload logo if provided
+  if (logoFile) {
+    const uploadedUrl = await uploadBrandingImage(storeId, logoFile, "logo");
+    if (uploadedUrl) {
+      logoUrl = uploadedUrl;
+    } else {
+      return { error: { message: "Failed to upload logo. Please try again." } };
+    }
+  }
+
+  // Upload favicon if provided
+  if (faviconFile) {
+    const uploadedUrl = await uploadBrandingImage(
+      storeId,
+      faviconFile,
+      "favicon"
+    );
+    if (uploadedUrl) {
+      faviconUrl = uploadedUrl;
+    } else {
+      return {
+        error: { message: "Failed to upload favicon. Please try again." },
+      };
+    }
+  }
+
+  try {
+    await updateTenant(storeId, {
+      logoUrl,
+      faviconUrl,
+      headerDisplay: formValues.headerDisplay,
+    });
+
+    revalidatePath("/dashboard/settings/branding", "page");
+    return { success: true, logoUrl: logoUrl || undefined, faviconUrl: faviconUrl || undefined };
+  } catch {
+    return {
+      error: { message: "Failed to update branding. Please try again." },
+    };
+  }
+}
+
+/**
  * Update social links
  */
 export async function updateSocialLinks(
@@ -339,5 +460,198 @@ export async function updateSeoSettings(
     return { success: true };
   } catch {
     return { error: { message: "Failed to update SEO settings. Please try again." } };
+  }
+}
+
+/**
+ * Update SEO settings with optional OG image file upload
+ */
+export async function updateSeoSettingsWithImage(
+  storeId: string,
+  formValues: {
+    metaTitle: string;
+    metaDescription: string;
+    ogImageUrl: string;
+  },
+  ogImageFile: File | null
+): Promise<StoreActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  try {
+    seoSettingsSchema.parse(formValues);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed",
+          field: firstError?.path[0] as string,
+        },
+      };
+    }
+  }
+
+  let ogImageUrl = formValues.ogImageUrl || undefined;
+
+  // Upload OG image if provided
+  if (ogImageFile) {
+    const uploadedUrl = await uploadBrandingImage(
+      storeId,
+      ogImageFile,
+      "og-image"
+    );
+    if (uploadedUrl) {
+      ogImageUrl = uploadedUrl;
+    } else {
+      return {
+        error: { message: "Failed to upload OG image. Please try again." },
+      };
+    }
+  }
+
+  const seo = {
+    metaTitle: formValues.metaTitle || undefined,
+    metaDescription: formValues.metaDescription || undefined,
+    ogImageUrl,
+  };
+
+  try {
+    await updateTenant(storeId, { seo });
+
+    revalidatePath("/dashboard/settings/seo", "page");
+    return { success: true, ogImageUrl };
+  } catch {
+    return {
+      error: { message: "Failed to update SEO settings. Please try again." },
+    };
+  }
+}
+
+/**
+ * Deactivate a store (set status to inactive)
+ */
+export async function deactivateStore(
+  storeId: string
+): Promise<StoreActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to deactivate this store" },
+    };
+  }
+
+  try {
+    await updateTenant(storeId, { status: "inactive" });
+
+    revalidatePath("/dashboard", "layout");
+    return { success: true };
+  } catch {
+    return {
+      error: { message: "Failed to deactivate store. Please try again." },
+    };
+  }
+}
+
+/**
+ * Reactivate a store (set status to active)
+ */
+export async function reactivateStore(
+  storeId: string
+): Promise<StoreActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to reactivate this store" },
+    };
+  }
+
+  try {
+    await updateTenant(storeId, { status: "active" });
+
+    revalidatePath("/dashboard", "layout");
+    return { success: true };
+  } catch {
+    return {
+      error: { message: "Failed to reactivate store. Please try again." },
+    };
+  }
+}
+
+/**
+ * Permanently delete a store and all its data
+ */
+export async function deleteStore(
+  storeId: string,
+  confirmationName: string
+): Promise<StoreActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to delete this store" },
+    };
+  }
+
+  // Verify the confirmation matches the store name
+  if (confirmationName !== store.name) {
+    return {
+      error: {
+        message: "Store name doesn't match. Please type the exact store name.",
+        field: "confirmationName",
+      },
+    };
+  }
+
+  try {
+    // Delete from database - cascade will handle related records
+    const { deleteTenant } = await import("@/lib/db/queries/tenants");
+    await deleteTenant(storeId);
+
+    revalidatePath("/dashboard", "layout");
+    return { success: true };
+  } catch {
+    return {
+      error: { message: "Failed to delete store. Please try again." },
+    };
   }
 }

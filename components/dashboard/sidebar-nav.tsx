@@ -15,6 +15,8 @@ import {
   Store,
   CreditCard,
   ChevronLeft,
+  Layers,
+  Warehouse,
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -82,6 +84,8 @@ const navAreas: NavArea[] = [
       { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { title: "Products", href: "/dashboard/products", icon: Package },
       { title: "Categories", href: "/dashboard/categories", icon: FolderTree },
+      { title: "Inventory", href: "/dashboard/inventory", icon: Warehouse },
+      { title: "Variants", href: "/dashboard/variants", icon: Layers },
       { title: "Media", href: "/dashboard/media", icon: ImageIcon },
     ],
   },

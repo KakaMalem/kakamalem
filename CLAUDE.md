@@ -354,3 +354,22 @@ const products = await db.query.products.findMany({
   where: eq(products.tenantId, tenantId),
 });
 ```
+
+## TODO: Store Settings Features
+
+### Completed
+
+- [x] General settings (store name, description, currency, timezone)
+- [x] Social links (Facebook, Instagram, Twitter, TikTok, WhatsApp, Telegram)
+- [x] Branding settings - Logo and favicon upload with staged upload pattern
+- [x] SEO settings - OG image upload with staged upload pattern
+- [x] Danger zone - Deactivate/reactivate store functionality
+- [x] Danger zone - Delete store permanently (with confirmation)
+- [x] Team management - Add team members by email
+- [x] Team management - List/manage existing team members
+- [x] Team management - Remove team members
+- [x] Team management - Change member roles (admin/staff)
+
+### Pending
+
+- [ ] Team management - Email invitations (currently requires user to have an account first)
