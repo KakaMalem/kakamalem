@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect } from "react";
+import {
+  useState,
+  useTransition,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -12,6 +19,8 @@ import {
   ImageIcon,
   ChevronLeft,
   ChevronRight,
+  Plus,
+  Check,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,27 +28,58 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { MediaSelector } from "@/components/dashboard/media/media-selector";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { EnhancedMediaPicker } from "@/components/dashboard/media/enhanced-media-picker";
+import {
+  VariantOptionsBuilder,
+  type ExistingOption,
+} from "@/components/dashboard/products/variant-options-builder";
+import { VariantMatrixTable } from "@/components/dashboard/products/variant-matrix-table";
 
 import type { Category, Product, Media } from "@/lib/db/schema";
-import {
-  productSchema,
-  generateProductSlug,
-  type ProductInput,
-} from "@/lib/validations/products";
+import { productSchema, type ProductInput } from "@/lib/validations/products";
+import type {
+  InlineOption,
+  GeneratedVariant,
+} from "@/lib/validations/variant-form";
 import {
   createProductWithImages,
   updateProductWithImages,
 } from "@/lib/supabase/products";
+import {
+  createProductVariantsInBulk,
+  updateProductVariantsInBulk,
+} from "@/lib/supabase/variants";
+import { cn } from "@/lib/utils";
+import {
+  generateVariantCombinations,
+  generateSku,
+  validateVariantCount,
+} from "@/lib/variants/cartesian";
 
 interface ProductFormProps {
   tenantId: string;
@@ -48,7 +88,14 @@ interface ProductFormProps {
   currency: string;
   product?: Product & {
     images?: { media: Media; position: number }[];
+    productCategories?: { categoryId: string }[];
   };
+  /** Existing variant options for this tenant (for autocomplete) */
+  existingVariantOptions?: ExistingOption[];
+  /** Initial variant options if editing a product with variants */
+  initialVariantOptions?: InlineOption[];
+  /** Initial variants if editing a product with variants */
+  initialVariants?: GeneratedVariant[];
 }
 
 type FormErrors = Partial<Record<keyof ProductInput, string>>;
@@ -68,11 +115,18 @@ export function ProductForm({
   categories,
   currency,
   product,
+  existingVariantOptions = [],
+  initialVariantOptions = [],
+  initialVariants = [],
 }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<FormErrors>({});
   const [mediaSelectorOpen, setMediaSelectorOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    stage: "validating" | "uploading" | "saving" | "complete";
+    message: string;
+  } | null>(null);
 
   // Image drag state (mouse)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -86,12 +140,15 @@ export function ProductForm({
 
   // Form state
   const [name, setName] = useState(product?.name || "");
-  const [slug, setSlug] = useState(product?.slug || "");
   const [description, setDescription] = useState(product?.description || "");
+  // Note: slug is now auto-generated on the backend, no need to manage it here
   const [price, setPrice] = useState(product?.price || "");
-  const [categoryId, setCategoryId] = useState(product?.categoryId || "");
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
+    new Set(product?.productCategories?.map((pc) => pc.categoryId) || [])
+  );
+  const availableCategories = categories;
   const [trackInventory, setTrackInventory] = useState(
-    product?.trackInventory ?? true
+    product?.trackInventory ?? false
   );
   const [stock, setStock] = useState(String(product?.stock ?? 0));
   const [allowBackorder, setAllowBackorder] = useState(
@@ -100,8 +157,27 @@ export function ProductForm({
   const [lowStockThreshold, setLowStockThreshold] = useState(
     String(product?.lowStockThreshold ?? 0)
   );
+  const [showStock, setShowStock] = useState(product?.showStock ?? false);
   const [weight, setWeight] = useState(product?.weight || "");
+  const [length, setLength] = useState(product?.length || "");
+  const [width, setWidth] = useState(product?.width || "");
+  const [height, setHeight] = useState(product?.height || "");
   const [isActive, setIsActive] = useState(product?.isActive ?? true);
+
+  // Variant state
+  const [hasVariants, setHasVariants] = useState(product?.hasVariants ?? false);
+  const [variantOptions, setVariantOptions] = useState<InlineOption[]>(
+    initialVariantOptions
+  );
+  const [variants, setVariants] = useState<GeneratedVariant[]>(initialVariants);
+  const [variantError, setVariantError] = useState<string | null>(null);
+  const [showDisableVariantsDialog, setShowDisableVariantsDialog] =
+    useState(false);
+
+  // Category input state
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [categorySearchInput, setCategorySearchInput] = useState("");
+  const categoryInputRef = useRef<HTMLInputElement>(null);
 
   // Images state - now includes both existing and staged images
   const [images, setImages] = useState<ImageItem[]>(
@@ -126,12 +202,120 @@ export function ProductForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleNameChange = (value: string) => {
-    setName(value);
-    // Auto-generate slug if not manually edited
-    if (!product) {
-      setSlug(generateProductSlug(value));
+  // Removed old handleNameChange - now using useSlug hook
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+
+  // Filtered categories based on search input
+  const filteredCategories = useMemo(() => {
+    if (!categorySearchInput.trim()) return availableCategories;
+    return availableCategories.filter((cat) =>
+      cat.name.toLowerCase().includes(categorySearchInput.toLowerCase())
+    );
+  }, [availableCategories, categorySearchInput]);
+
+  const handleCategoryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      // If there's text in the input, create the category first
+      if (categorySearchInput.trim()) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleCreateNewCategory();
+        // Don't submit form - user needs to press Enter again or click submit
+        return;
+      }
+      // If input is empty, allow the Enter to propagate to form submission
+      // (the form's onSubmit will handle it)
     }
+
+    // Remove last category on Backspace when input is empty
+    if (
+      e.key === "Backspace" &&
+      !categorySearchInput &&
+      selectedCategories.size > 0
+    ) {
+      e.preventDefault();
+      const categoriesArray = Array.from(selectedCategories);
+      const lastCategoryId = categoriesArray[categoriesArray.length - 1];
+      toggleCategory(lastCategoryId);
+    }
+
+    // Close dropdown on Escape
+    if (e.key === "Escape") {
+      setShowCategoryDropdown(false);
+      categoryInputRef.current?.blur();
+    }
+  };
+
+  const handleSelectCategory = (categoryId: string) => {
+    toggleCategory(categoryId);
+    setCategorySearchInput("");
+    // Close dropdown and refocus input
+    setShowCategoryDropdown(false);
+    setTimeout(() => {
+      categoryInputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleCreateNewCategory = () => {
+    const trimmedName = categorySearchInput.trim();
+    if (!trimmedName) return;
+
+    // Check for duplicates (case-insensitive)
+    const isDuplicate = availableCategories.some(
+      (cat) => cat.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      toast.error("A category with this name already exists");
+      return;
+    }
+
+    if (trimmedName.length < 2) {
+      toast.error("Category name must be at least 2 characters");
+      return;
+    }
+
+    // Generate a temporary ID for the new category
+    const tempId = `temp-${Date.now()}`;
+    const newCategory: Category = {
+      id: tempId,
+      tenantId: tenantId,
+      name: trimmedName,
+      slug: trimmedName.toLowerCase().replace(/\s+/g, "-"),
+      description: null,
+      imageId: null,
+      displayOrder: availableCategories.length,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Add to available categories
+    categories.push(newCategory);
+
+    // Auto-select the new category
+    setSelectedCategories((prev) => new Set([...prev, tempId]));
+
+    // Reset input, close dropdown, and refocus
+    setCategorySearchInput("");
+    setShowCategoryDropdown(false);
+    setTimeout(() => {
+      categoryInputRef.current?.focus();
+    }, 0);
+
+    toast.success(
+      "Category added! It will be created when you save the product."
+    );
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,21 +371,38 @@ export function ProductForm({
     });
   };
 
-  const handleMediaSelect = (media: { id: string; url: string } | null) => {
-    if (media) {
-      // Check if image already exists
-      if (images.some((img) => img.id === media.id)) {
-        toast.error("This image is already added");
-        return;
-      }
-      setImages((prev) => [
-        ...prev,
-        {
-          id: media.id,
-          url: media.url,
-          isStaged: false, // Existing media, not staged
-        },
-      ]);
+  const handleMediaSelect = (media: { id: string; url: string }[]) => {
+    // Filter out images that already exist
+    const newImages = media.filter(
+      (m) => !images.some((img) => img.id === m.id)
+    );
+
+    if (newImages.length === 0) {
+      toast.error("Selected images are already added");
+      return;
+    }
+
+    if (newImages.length < media.length) {
+      toast.info(
+        `${media.length - newImages.length} image${
+          media.length - newImages.length !== 1 ? "s" : ""
+        } already added`
+      );
+    }
+
+    setImages((prev) => [
+      ...prev,
+      ...newImages.map((m) => ({
+        id: m.id,
+        url: m.url,
+        isStaged: false, // Existing media, not staged
+      })),
+    ]);
+
+    if (newImages.length > 0) {
+      toast.success(
+        `${newImages.length} image${newImages.length !== 1 ? "s" : ""} added`
+      );
     }
   };
 
@@ -271,9 +472,162 @@ export function ProductForm({
     setTouchOverIndex(null);
   };
 
+  // Handle variant options change - regenerate variants
+  const handleVariantOptionsChange = useCallback(
+    (newOptions: InlineOption[]) => {
+      setVariantOptions(newOptions);
+      setVariantError(null);
+
+      // Check if all options have at least one value
+      const validOptions = newOptions.filter(
+        (opt) => opt.name.trim() && opt.values.length > 0
+      );
+
+      if (validOptions.length === 0) {
+        setVariants([]);
+        return;
+      }
+
+      // Prepare options for Cartesian product generation
+      const optionsForGeneration = validOptions.map((opt) => ({
+        optionId: opt.id || opt.tempId || `temp-${Date.now()}`,
+        optionName: opt.name,
+        values: opt.values.map((val) => ({
+          valueId: val.id || val.value,
+          value: val.value,
+        })),
+      }));
+
+      // Generate combinations
+      const combinations = generateVariantCombinations(optionsForGeneration);
+
+      // Validate count
+      const validation = validateVariantCount(combinations.length);
+      if (validation.status === "error") {
+        setVariantError(validation.message);
+        return;
+      }
+
+      // Convert combinations to GeneratedVariant format
+      // Preserve existing variant data where possible (matching by option values)
+      const newVariants: GeneratedVariant[] = combinations.map((combo) => {
+        // Try to find an existing variant with the same option values
+        const existingVariant = variants.find((v) => {
+          if (v.optionValues.length !== combo.optionValues.length) return false;
+          return combo.optionValues.every((newOv) =>
+            v.optionValues.some(
+              (existingOv) =>
+                existingOv.optionName === newOv.optionName &&
+                existingOv.value === newOv.value
+            )
+          );
+        });
+
+        if (existingVariant) {
+          // Preserve existing data but update option value refs
+          return {
+            ...existingVariant,
+            optionValues: combo.optionValues,
+            displayName: combo.displayName,
+          };
+        }
+
+        // Create new variant with defaults
+        return {
+          tempId: combo.tempId,
+          optionValues: combo.optionValues,
+          displayName: combo.displayName,
+          sku: generateSku(
+            name || "product",
+            combo.optionValues.map((ov) => ov.value)
+          ),
+          price: "", // Empty = use base price
+          stock: "0",
+          weight: "",
+          length: "",
+          width: "",
+          height: "",
+          description: "",
+          imageIds: [],
+          isActive: true,
+          isExcluded: false,
+        };
+      });
+
+      setVariants(newVariants);
+    },
+    [variants, name]
+  );
+
+  // Handle hasVariants toggle
+  const handleHasVariantsChange = useCallback(
+    (enabled: boolean) => {
+      if (!enabled && (variantOptions.length > 0 || variants.length > 0)) {
+        // Show confirmation dialog if there are variants to lose
+        setShowDisableVariantsDialog(true);
+      } else {
+        setHasVariants(enabled);
+        if (!enabled) {
+          setVariantOptions([]);
+          setVariants([]);
+          setVariantError(null);
+        }
+      }
+    },
+    [variantOptions.length, variants.length]
+  );
+
+  // Confirm disabling variants
+  const confirmDisableVariants = useCallback(() => {
+    setHasVariants(false);
+    setVariantOptions([]);
+    setVariants([]);
+    setVariantError(null);
+    setShowDisableVariantsDialog(false);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("🚀 [handleSubmit] Form submission started");
+    console.log(
+      "📋 [handleSubmit] Selected categories:",
+      Array.from(selectedCategories)
+    );
     setErrors({});
+    setVariantError(null);
+    setUploadProgress({
+      stage: "validating",
+      message: "Validating product...",
+    });
+
+    // Validate variants if enabled
+    if (hasVariants) {
+      // Must have at least one option with values
+      const validOptions = variantOptions.filter(
+        (opt) => opt.name.trim() && opt.values.length > 0
+      );
+      if (validOptions.length === 0) {
+        setVariantError("Please add at least one variant option with values");
+        setUploadProgress(null);
+        return;
+      }
+
+      // Must have at least one non-excluded variant
+      const activeVariants = variants.filter((v) => !v.isExcluded);
+      if (activeVariants.length === 0) {
+        setVariantError("Please include at least one variant");
+        setUploadProgress(null);
+        return;
+      }
+
+      // Check variant count limit
+      const validation = validateVariantCount(activeVariants.length);
+      if (validation.status === "error") {
+        setVariantError(validation.message);
+        setUploadProgress(null);
+        return;
+      }
+    }
 
     // Separate existing media IDs and staged files
     const existingImageIds = images
@@ -283,53 +637,197 @@ export function ProductForm({
       .filter((img) => img.isStaged && img.file)
       .map((img) => img.file!);
 
+    // Separate existing category IDs (UUIDs) from new category temp IDs
+    // New categories will be created before product submission
+    const existingCategoryIds = Array.from(selectedCategories).filter(
+      (id) => !id.startsWith("temp-")
+    );
+    const newCategoryTempIds = Array.from(selectedCategories).filter((id) =>
+      id.startsWith("temp-")
+    );
+    console.log(
+      "📂 [handleSubmit] Existing category IDs:",
+      existingCategoryIds
+    );
+    console.log("🆕 [handleSubmit] New category temp IDs:", newCategoryTempIds);
+
     const formData: ProductInput = {
       name,
-      slug,
+      slug: "", // Auto-generated on the backend, empty string for validation
       description,
       price,
-      categoryId: categoryId || "",
-      trackInventory,
-      stock,
+      // Only include existing (valid UUID) category IDs for initial validation
+      // New categories will be created first, then their real IDs will be added
+      categoryIds: existingCategoryIds,
+      trackInventory, // Can be enabled/disabled for both simple and variant products
+      stock: hasVariants ? "0" : stock,
       allowBackorder,
       lowStockThreshold,
+      showStock,
       weight,
+      length,
+      width,
+      height,
       isActive,
       displayOrder: String(product?.displayOrder ?? 0),
       imageIds: existingImageIds, // Only existing media IDs
     };
 
     // Validate
+    console.log("🔍 [handleSubmit] Validating formData:", formData);
     const result = productSchema.safeParse(formData);
     if (!result.success) {
+      console.log("❌ [handleSubmit] Validation failed:", result.error.issues);
       const fieldErrors: FormErrors = {};
       result.error.issues.forEach((issue) => {
         const field = issue.path[0] as keyof ProductInput;
         fieldErrors[field] = issue.message;
       });
       setErrors(fieldErrors);
+      setUploadProgress(null);
       return;
     }
+    console.log("✅ [handleSubmit] Validation passed");
 
+    console.log("🔄 [handleSubmit] Starting transition...");
     startTransition(async () => {
-      let actionResult;
+      console.log("📦 [handleSubmit] Inside startTransition");
+      try {
+        // Step 1: Create any new categories first
+        const createdCategoryMap = new Map<string, string>(); // tempId -> realId
 
-      if (product) {
-        actionResult = await updateProductWithImages(
-          tenantId,
-          product.id,
-          formData,
-          stagedFiles
-        );
-      } else {
-        actionResult = await createProductWithImages(
-          tenantId,
-          formData,
-          stagedFiles
-        );
-      }
+        if (newCategoryTempIds.length > 0) {
+          console.log(
+            "🏷️ [handleSubmit] Creating new categories:",
+            newCategoryTempIds
+          );
+          setUploadProgress({
+            stage: "saving",
+            message: `Creating ${newCategoryTempIds.length} new categor${
+              newCategoryTempIds.length > 1 ? "ies" : "y"
+            }...`,
+          });
 
-      if (actionResult.success) {
+          for (const tempId of newCategoryTempIds) {
+            const category = availableCategories.find((c) => c.id === tempId);
+            if (!category) continue;
+
+            // Create category via server action (slug is auto-generated on backend)
+            const { createCategory } = await import(
+              "@/lib/supabase/categories"
+            );
+            const categoryResult = await createCategory(tenantId, {
+              name: category.name,
+              slug: "", // Auto-generated on the backend
+              description: category.description || "",
+              imageId: category.imageId || "",
+              displayOrder: category.displayOrder,
+            });
+
+            if (categoryResult.success && categoryResult.data) {
+              createdCategoryMap.set(tempId, categoryResult.data.id);
+            } else {
+              // Handle category creation failure
+              toast.error(
+                categoryResult.error?.message ||
+                  `Failed to create category "${category.name}"`
+              );
+              setUploadProgress(null);
+              return;
+            }
+          }
+        }
+
+        // Build final category IDs: existing UUIDs + newly created category IDs
+        const newlyCreatedIds = Array.from(createdCategoryMap.values());
+        const finalCategoryIds = [...existingCategoryIds, ...newlyCreatedIds];
+        console.log("✅ [handleSubmit] Final category IDs:", finalCategoryIds);
+
+        // Update formData with all category IDs
+        formData.categoryIds = finalCategoryIds;
+
+        // Step 2: Upload images and create/update product
+        if (stagedFiles.length > 0) {
+          setUploadProgress({
+            stage: "uploading",
+            message: `Uploading ${stagedFiles.length} image${
+              stagedFiles.length > 1 ? "s" : ""
+            }...`,
+          });
+        } else {
+          setUploadProgress({
+            stage: "saving",
+            message: product ? "Saving changes..." : "Creating product...",
+          });
+        }
+
+        let actionResult;
+
+        if (product) {
+          // Update existing product
+          actionResult = await updateProductWithImages(
+            tenantId,
+            product.id,
+            formData,
+            stagedFiles
+          );
+        } else {
+          // Create new product
+          actionResult = await createProductWithImages(
+            tenantId,
+            formData,
+            stagedFiles
+          );
+        }
+
+        if (!actionResult.success) {
+          if (actionResult.error?.field) {
+            setErrors({
+              [actionResult.error.field]: actionResult.error.message,
+            });
+          } else {
+            toast.error(actionResult.error?.message || "Something went wrong");
+          }
+          setUploadProgress(null);
+          return;
+        }
+
+        // Get the product ID (from response for new products, or existing)
+        const productId = product?.id || actionResult.data?.id;
+
+        // Save variants if enabled
+        if (hasVariants && productId) {
+          setUploadProgress({
+            stage: "saving",
+            message: "Saving variants...",
+          });
+
+          const activeVariants = variants.filter((v) => !v.isExcluded);
+          const validOptions = variantOptions.filter(
+            (opt) => opt.name.trim() && opt.values.length > 0
+          );
+
+          const variantResult = product
+            ? await updateProductVariantsInBulk(tenantId, productId, {
+                options: validOptions,
+                variants: activeVariants,
+              })
+            : await createProductVariantsInBulk(tenantId, productId, {
+                options: validOptions,
+                variants: activeVariants,
+              });
+
+          if (!variantResult.success) {
+            toast.error(
+              variantResult.error?.message || "Failed to save variants"
+            );
+            // Product was saved but variants failed - still redirect but show warning
+            toast.warning(
+              "Product saved, but some variants may not have been created"
+            );
+          }
+        }
+
         // Clean up object URLs for staged images on success
         images.forEach((img) => {
           if (img.isStaged && img.url.startsWith("blob:")) {
@@ -337,15 +835,18 @@ export function ProductForm({
           }
         });
 
+        setUploadProgress({ stage: "complete", message: "Success!" });
         toast.success(product ? "Product updated" : "Product created");
-        router.push(`/dashboard/${storeSlug}/products`);
-        router.refresh();
-      } else {
-        if (actionResult.error?.field) {
-          setErrors({ [actionResult.error.field]: actionResult.error.message });
-        } else {
-          toast.error(actionResult.error?.message || "Something went wrong");
-        }
+
+        // Small delay to show complete state, then navigate
+        setTimeout(() => {
+          setUploadProgress(null);
+          router.replace(`/dashboard/${storeSlug}/products`);
+        }, 500);
+      } catch (error) {
+        console.error("Product save error:", error);
+        toast.error("An unexpected error occurred");
+        setUploadProgress(null);
       }
     });
   };
@@ -353,12 +854,20 @@ export function ProductForm({
   const hasStagedImages = images.some((img) => img.isStaged);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Main Content */}
-        <div className="space-y-8 lg:col-span-2">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+          e.preventDefault();
+        }
+      }}
+      className="w-full max-w-full space-y-8"
+    >
+      <div className="grid w-full max-w-full gap-8 lg:grid-cols-3">
+        {/* Main Content - 2 columns */}
+        <div className="space-y-8 lg:col-span-2 min-w-0">
           {/* Basic Info */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
             </CardHeader>
@@ -370,7 +879,7 @@ export function ProductForm({
                 <Input
                   id="name"
                   value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="Enter product name"
                   aria-invalid={!!errors.name}
                 />
@@ -379,27 +888,7 @@ export function ProductForm({
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="slug">
-                  Product URL <span className="text-destructive">*</span>
-                </Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    /store/{storeSlug}/product/
-                  </span>
-                  <Input
-                    id="slug"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value.toLowerCase())}
-                    placeholder="product-url"
-                    className="flex-1"
-                    aria-invalid={!!errors.slug}
-                  />
-                </div>
-                {errors.slug && (
-                  <p className="text-sm text-destructive">{errors.slug}</p>
-                )}
-              </div>
+              {/* Note: Product URL slug is auto-generated from the name on the backend */}
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -461,11 +950,6 @@ export function ProductForm({
                           {index === 0 && (
                             <span className="absolute left-2 top-2 rounded bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
                               Main
-                            </span>
-                          )}
-                          {image.isStaged && (
-                            <span className="absolute right-2 top-2 rounded bg-amber-500 px-2 py-0.5 text-xs font-medium text-white">
-                              New
                             </span>
                           )}
                           {/* Drag handle overlay */}
@@ -553,22 +1037,74 @@ export function ProductForm({
 
                 <p className="text-sm text-muted-foreground">
                   The first image will be used as the main product image.
-                  {hasStagedImages && (
-                    <span className="block mt-1 text-amber-600">
-                      New images will be uploaded when you save the product.
-                    </span>
-                  )}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Pricing */}
+          {/* Variants */}
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <CardTitle>Variants</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6 overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>This product has variants</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Enable if this product comes in different options like size
+                    or color
+                  </p>
+                </div>
+                <Switch
+                  checked={hasVariants}
+                  onCheckedChange={handleHasVariantsChange}
+                  disabled={isPending}
+                />
+              </div>
+
+              {hasVariants && (
+                <>
+                  <Separator />
+
+                  {/* Variant Options Builder */}
+                  <VariantOptionsBuilder
+                    options={variantOptions}
+                    onChange={handleVariantOptionsChange}
+                    existingOptions={existingVariantOptions}
+                    error={variantError || undefined}
+                    disabled={isPending}
+                  />
+
+                  {/* Variant Matrix Table */}
+                  {variants.length > 0 && (
+                    <>
+                      <Separator />
+                      <VariantMatrixTable
+                        variants={variants}
+                        onChange={setVariants}
+                        currency={currency}
+                        productSlug={name || "product"}
+                        disabled={isPending}
+                        tenantId={tenantId}
+                        trackInventory={trackInventory}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar - 1 column */}
+        <div className="space-y-8">
+          {/* Pricing & Category */}
           <Card>
             <CardHeader>
-              <CardTitle>Pricing</CardTitle>
+              <CardTitle>Pricing & Category</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="price">
                   Price ({currency}) <span className="text-destructive">*</span>
@@ -580,12 +1116,165 @@ export function ProductForm({
                   min="0"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="0.00"
                   aria-invalid={!!errors.price}
                 />
+                {hasVariants && (
+                  <p className="text-sm text-muted-foreground">
+                    Base price (variants can override)
+                  </p>
+                )}
                 {errors.price && (
                   <p className="text-sm text-destructive">{errors.price}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="categories">Categories</Label>
+                <Popover
+                  open={showCategoryDropdown}
+                  onOpenChange={setShowCategoryDropdown}
+                >
+                  <PopoverAnchor asChild>
+                    <div
+                      className={cn(
+                        "flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border bg-background p-2",
+                        "focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+                      )}
+                      onClick={() => categoryInputRef.current?.focus()}
+                    >
+                      {/* Selected categories as badges */}
+                      {Array.from(selectedCategories).map((categoryId) => {
+                        const category = availableCategories.find(
+                          (c) => c.id === categoryId
+                        );
+                        if (!category) return null;
+
+                        return (
+                          <Badge
+                            key={categoryId}
+                            variant="secondary"
+                            className="gap-1 pr-1"
+                          >
+                            {category.name}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCategory(categoryId);
+                              }}
+                              className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20"
+                            >
+                              <X className="size-3" />
+                              <span className="sr-only">
+                                Remove {category.name}
+                              </span>
+                            </button>
+                          </Badge>
+                        );
+                      })}
+
+                      {/* Input for searching/adding categories */}
+                      <input
+                        ref={categoryInputRef}
+                        type="text"
+                        value={categorySearchInput}
+                        onChange={(e) => {
+                          setCategorySearchInput(e.target.value);
+                          // Open dropdown when typing
+                          if (!showCategoryDropdown) {
+                            setShowCategoryDropdown(true);
+                          }
+                        }}
+                        onFocus={() => {
+                          // Always open dropdown on focus if there are categories
+                          if (availableCategories.length > 0) {
+                            setShowCategoryDropdown(true);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Close dropdown when focus leaves the input
+                          // Use a small delay to allow click events on dropdown items to fire first
+                          const target = e.relatedTarget;
+                          if (!target || !target.closest('[role="dialog"]')) {
+                            setTimeout(() => {
+                              setShowCategoryDropdown(false);
+                            }, 150);
+                          }
+                        }}
+                        onKeyDown={handleCategoryKeyDown}
+                        placeholder={
+                          selectedCategories.size === 0
+                            ? "Type to search or add categories..."
+                            : "Add more..."
+                        }
+                        className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                      />
+                    </div>
+                  </PopoverAnchor>
+                  <PopoverContent
+                    className="w-(--radix-popover-trigger-width) p-0"
+                    align="start"
+                    side="bottom"
+                    sideOffset={4}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                  >
+                    <Command>
+                      <CommandList>
+                        <CommandEmpty>
+                          <div className="p-2 text-sm">
+                            <p className="text-muted-foreground">
+                              No matching categories.
+                            </p>
+                            {categorySearchInput.trim() && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="mt-2 w-full justify-start"
+                                onClick={handleCreateNewCategory}
+                              >
+                                <Plus className="mr-2 size-4" />
+                                Create &quot;{categorySearchInput.trim()}&quot;
+                              </Button>
+                            )}
+                          </div>
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {filteredCategories.map((category) => (
+                            <CommandItem
+                              key={category.id}
+                              value={category.name}
+                              onSelect={() => handleSelectCategory(category.id)}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className={cn(
+                                    "flex size-4 items-center justify-center rounded-sm border",
+                                    selectedCategories.has(category.id)
+                                      ? "bg-primary border-primary"
+                                      : "border-input"
+                                  )}
+                                >
+                                  {selectedCategories.has(category.id) && (
+                                    <Check className="size-3 text-primary-foreground" />
+                                  )}
+                                </div>
+                                <span>{category.name}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-sm text-muted-foreground">
+                  Click to browse categories, type to search or create new ones.
+                  Press Backspace to remove.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -600,7 +1289,9 @@ export function ProductForm({
                 <div className="space-y-0.5">
                   <Label>Track Inventory</Label>
                   <p className="text-sm text-muted-foreground">
-                    Enable stock tracking for this product
+                    {hasVariants
+                      ? "Enable stock tracking for variants (stock is tracked per variant)"
+                      : "Enable stock tracking for this product"}
                   </p>
                 </div>
                 <Switch
@@ -612,18 +1303,21 @@ export function ProductForm({
               {trackInventory && (
                 <>
                   <Separator />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="stock">Stock Quantity</Label>
-                      <Input
-                        id="stock"
-                        type="number"
-                        min="0"
-                        value={stock}
-                        onChange={(e) => setStock(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
+                  <div className="grid gap-4">
+                    {!hasVariants && (
+                      <div className="space-y-2">
+                        <Label htmlFor="stock">Stock Quantity</Label>
+                        <Input
+                          id="stock"
+                          type="number"
+                          min="0"
+                          value={stock}
+                          onChange={(e) => setStock(e.target.value)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="lowStockThreshold">
                         Low Stock Threshold
@@ -634,25 +1328,47 @@ export function ProductForm({
                         min="0"
                         value={lowStockThreshold}
                         onChange={(e) => setLowStockThreshold(e.target.value)}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="5"
                       />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Allow Backorders</Label>
                       <p className="text-sm text-muted-foreground">
-                        Allow orders when out of stock
+                        {hasVariants
+                          ? "Alert when total variant stock falls below this number"
+                          : "Alert when stock falls below this number"}
                       </p>
                     </div>
-                    <Switch
-                      checked={allowBackorder}
-                      onCheckedChange={setAllowBackorder}
-                    />
                   </div>
                 </>
               )}
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Allow Backorders</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {hasVariants
+                      ? "Allow orders when variant is out of stock"
+                      : "Allow orders when out of stock"}
+                  </p>
+                </div>
+                <Switch
+                  checked={allowBackorder}
+                  onCheckedChange={setAllowBackorder}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Show Stock on Storefront</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Display stock quantity to customers
+                  </p>
+                </div>
+                <Switch checked={showStock} onCheckedChange={setShowStock} />
+              </div>
             </CardContent>
           </Card>
 
@@ -661,7 +1377,7 @@ export function ProductForm({
             <CardHeader>
               <CardTitle>Shipping</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="weight">Weight (kg)</Label>
                 <Input
@@ -671,101 +1387,181 @@ export function ProductForm({
                   min="0"
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="0.000"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Used for calculating shipping rates
+                  Product weight for shipping
                 </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Active</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Show product in your store
-                  </p>
+              <Separator />
+
+              <div className="space-y-2">
+                <Label>Dimensions (cm)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="length"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Length
+                    </Label>
+                    <Input
+                      id="length"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={length}
+                      onChange={(e) => setLength(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="width"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Width
+                    </Label>
+                    <Input
+                      id="width"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={width}
+                      onChange={(e) => setWidth(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="height"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Height
+                    </Label>
+                    <Input
+                      id="height"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={height}
+                      onChange={(e) => setHeight(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
-                <Switch checked={isActive} onCheckedChange={setIsActive} />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Category */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={categoryId || "none"}
-                onValueChange={(value) =>
-                  setCategoryId(value === "none" ? "" : value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No category</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </CardContent>
           </Card>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-4">
+      <div className="flex items-center justify-between">
         <Button
           type="button"
           variant="outline"
           onClick={() => router.push(`/dashboard/${storeSlug}/products`)}
-          disabled={isPending}
+          disabled={isPending || uploadProgress !== null}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              {hasStagedImages
-                ? "Uploading..."
-                : product
-                ? "Saving..."
-                : "Creating..."}
-            </>
-          ) : product ? (
-            "Save Changes"
-          ) : (
-            "Create Product"
-          )}
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={isPending || uploadProgress !== null}
+            onClick={(e) => {
+              e.preventDefault();
+              // Capture form reference before async operation
+              const form = e.currentTarget.closest("form");
+              setIsActive(false);
+              // Trigger form submission after state update
+              setTimeout(() => {
+                form?.requestSubmit();
+              }, 0);
+            }}
+          >
+            {isPending || uploadProgress ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Saving draft...
+              </>
+            ) : (
+              "Save Draft"
+            )}
+          </Button>
+          <Button
+            type="submit"
+            disabled={isPending || uploadProgress !== null}
+            onClick={(e) => {
+              console.log("🖱️ [Publish Button] Clicked");
+              e.preventDefault();
+              // Capture form reference before async operation
+              const form = e.currentTarget.closest("form");
+              console.log("📝 [Publish Button] Form element:", form);
+              setIsActive(true);
+              // Trigger form submission after state update
+              setTimeout(() => {
+                console.log("⏰ [Publish Button] Calling requestSubmit");
+                form?.requestSubmit();
+              }, 0);
+            }}
+          >
+            {isPending || uploadProgress ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                {uploadProgress?.message ||
+                  (hasStagedImages ? "Publishing..." : "Publishing...")}
+              </>
+            ) : (
+              "Publish"
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Media Selector Dialog */}
-      <MediaSelector
+      <EnhancedMediaPicker
         tenantId={tenantId}
         open={mediaSelectorOpen}
         onOpenChange={setMediaSelectorOpen}
         onSelect={handleMediaSelect}
-        title="Select Product Image"
+        multiple
+        selectedIds={images.filter((img) => !img.isStaged).map((img) => img.id)}
+        title="Select Product Images"
       />
+
+      {/* Disable Variants Confirmation Dialog */}
+      <AlertDialog
+        open={showDisableVariantsDialog}
+        onOpenChange={setShowDisableVariantsDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove all variants?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all variant options and {variants.length} variant
+              {variants.length !== 1 ? "s" : ""} you have configured. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep variants</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDisableVariants}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove variants
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }

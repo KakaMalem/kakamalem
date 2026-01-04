@@ -51,7 +51,7 @@ export function UserNav({ user }: UserNavProps) {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push("/auth/login");
+    router.push("/login");
   };
 
   // Show skeleton until mounted to avoid hydration mismatch

@@ -15,7 +15,7 @@ export default async function SocialLinksPage({
   const user = await getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   const store = await getTenantBySlug(slug);

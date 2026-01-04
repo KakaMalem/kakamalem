@@ -67,10 +67,10 @@ export default async function Home() {
             ) : (
               <>
                 <Button variant="outline" asChild>
-                  <Link href="/auth/login">Login</Link>
+                  <Link href="/login">Login</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/auth/signup">Get Started</Link>
+                  <Link href="/signup">Get Started</Link>
                 </Button>
               </>
             )}
@@ -93,7 +93,7 @@ export default async function Home() {
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Button size="lg" className="w-full sm:w-auto" asChild>
-                <Link href={user ? "/dashboard" : "/auth/signup"}>
+                <Link href={user ? "/dashboard" : "/signup"}>
                   {user ? "Go to Dashboard" : "Start for Free"}
                 </Link>
               </Button>
@@ -103,7 +103,7 @@ export default async function Home() {
                 className="w-full sm:w-auto"
                 asChild
               >
-                <Link href="/store/demo">View Demo Store</Link>
+                <Link href="/store/kakamalem">View Demo Store</Link>
               </Button>
             </div>
           </div>
@@ -179,7 +179,7 @@ export default async function Home() {
               Kaka Malem.
             </p>
             <Button size="lg" className="mt-8" asChild>
-              <Link href={user ? "/dashboard" : "/auth/signup"}>
+              <Link href={user ? "/dashboard" : "/signup"}>
                 {user ? "Go to Dashboard" : "Create Your Store"}
               </Link>
             </Button>

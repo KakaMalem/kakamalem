@@ -12,7 +12,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const user = await getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   const store = await getTenantBySlug(slug);

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 // Slug validation pattern: lowercase letters, numbers, and hyphens only
-const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // Product validation schema
 export const productSchema = z.object({
@@ -11,15 +10,9 @@ export const productSchema = z.object({
     .min(1, "Product name is required")
     .min(2, "Product name must be at least 2 characters")
     .max(255, "Product name must be less than 255 characters"),
-  slug: z
-    .string()
-    .min(1, "Product URL is required")
-    .min(2, "Product URL must be at least 2 characters")
-    .max(255, "Product URL must be less than 255 characters")
-    .regex(
-      slugRegex,
-      "Product URL can only contain lowercase letters, numbers, and hyphens"
-    ),
+  // Note: slug is auto-generated on the backend from the name field
+  // It's kept optional here for backward compatibility but will be ignored
+  slug: z.string().optional(),
   description: z.string().optional().or(z.literal("")),
 
   // Pricing
@@ -31,8 +24,9 @@ export const productSchema = z.object({
       "Price must be a valid positive number"
     ),
 
-  // Category
+  // Categories (for backward compatibility, keep categoryId but also add categoryIds)
   categoryId: z.string().uuid().optional().or(z.literal("")),
+  categoryIds: z.array(z.string().uuid()).default([]),
 
   // Inventory
   trackInventory: z.boolean().default(true),
@@ -51,6 +45,7 @@ export const productSchema = z.object({
       "Low stock threshold must be a valid positive number"
     )
     .default("0"),
+  showStock: z.boolean().default(false),
 
   // Shipping
   weight: z
@@ -58,6 +53,32 @@ export const productSchema = z.object({
     .refine(
       (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
       "Weight must be a valid positive number"
+    )
+    .optional()
+    .or(z.literal("")),
+
+  // Dimensions (in cm)
+  length: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+      "Length must be a valid positive number"
+    )
+    .optional()
+    .or(z.literal("")),
+  width: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+      "Width must be a valid positive number"
+    )
+    .optional()
+    .or(z.literal("")),
+  height: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+      "Height must be a valid positive number"
     )
     .optional()
     .or(z.literal("")),

@@ -25,7 +25,6 @@ const segmentLabels: Record<string, string> = {
   billing: "Billing",
   settings: "Settings",
   account: "Account",
-  new: "New Store",
   edit: "Edit",
   // Settings sub-pages
   branding: "Branding",
@@ -38,6 +37,12 @@ const segmentLabels: Record<string, string> = {
 
 // Reserved dashboard paths that are not store slugs
 const reservedPaths = new Set(["new", "account"]);
+
+// Truncate long segments (like UUIDs) to a max length
+function truncateLabel(label: string, maxLength: number = 12): string {
+  if (label.length <= maxLength) return label;
+  return label.slice(0, maxLength) + "…";
+}
 
 // Check if a segment is a store slug (second segment after dashboard, not a reserved path)
 function isStoreSlug(
@@ -90,10 +95,11 @@ export function DashboardBreadcrumb() {
       .filter((seg, idx) => !isStoreSlug(seg, index + 1 + idx, segments));
     const isLast = remainingSegments.length === 0;
 
-    // Try to get a human-readable label, otherwise capitalize the segment
-    const label =
+    // Try to get a human-readable label, otherwise capitalize and truncate the segment
+    const rawLabel =
       segmentLabels[segment] ||
-      segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
+      segment.charAt(0).toUpperCase() + segment.slice(1);
+    const label = segmentLabels[segment] ? rawLabel : truncateLabel(rawLabel);
 
     breadcrumbItems.push({
       href: adjustedHref,

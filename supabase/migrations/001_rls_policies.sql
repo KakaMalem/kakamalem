@@ -14,10 +14,14 @@ CREATE OR REPLACE FUNCTION check_tenant_access(
   target_tenant_id UUID,
   required_role TEXT DEFAULT 'staff'
 )
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT 1 FROM tenant_members
+    SELECT 1 FROM public.tenant_members
     WHERE user_id = auth.uid()
     AND tenant_id = target_tenant_id
     AND (
@@ -27,21 +31,25 @@ BEGIN
     )
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ============================================================================
 -- HELPER FUNCTION: Check if user is tenant owner
 -- ============================================================================
 CREATE OR REPLACE FUNCTION is_tenant_owner(target_tenant_id UUID)
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT 1 FROM tenants
+    SELECT 1 FROM public.tenants
     WHERE id = target_tenant_id
     AND owner_id = auth.uid()
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ============================================================================
 -- PROFILES TABLE
@@ -647,6 +655,36 @@ CREATE POLICY "Staff can delete product variant options"
   USING (check_tenant_access(tenant_id, 'staff'));
 
 -- ============================================================================
+-- PRODUCT VARIANT IMAGES TABLE (junction table linking variants to media)
+-- ============================================================================
+ALTER TABLE product_variant_images ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can view product variant images (for storefront display)
+CREATE POLICY "Public can view product variant images"
+  ON product_variant_images FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+-- Staff+ can link images to variants
+CREATE POLICY "Staff can create product variant images"
+  ON product_variant_images FOR INSERT
+  TO authenticated
+  WITH CHECK (check_tenant_access(tenant_id, 'staff'));
+
+-- Staff+ can update product variant images (e.g., change position)
+CREATE POLICY "Staff can update product variant images"
+  ON product_variant_images FOR UPDATE
+  TO authenticated
+  USING (check_tenant_access(tenant_id, 'staff'))
+  WITH CHECK (check_tenant_access(tenant_id, 'staff'));
+
+-- Staff+ can delete product variant images
+CREATE POLICY "Staff can delete product variant images"
+  ON product_variant_images FOR DELETE
+  TO authenticated
+  USING (check_tenant_access(tenant_id, 'staff'));
+
+-- ============================================================================
 -- INVENTORY MOVEMENTS TABLE (audit log)
 -- ============================================================================
 ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY;
@@ -684,7 +722,11 @@ CREATE POLICY "Owner can delete inventory movements"
 -- TRIGGER: Auto-create profile on user signup
 -- ============================================================================
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, role)
   VALUES (
@@ -695,7 +737,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Drop trigger if exists and recreate
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

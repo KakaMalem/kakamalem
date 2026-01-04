@@ -1,0 +1,404 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  ShoppingCart,
+  Minus,
+  Plus,
+  Trash2,
+  Loader2,
+  ArrowRight,
+  ShoppingBag,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { Separator } from "@/components/ui/separator";
+import { formatPrice, cn } from "@/lib/utils";
+import {
+  useCartItems,
+  useCartSubtotal,
+  useCartItemCount,
+  useCartIsOpen,
+  useCartStore,
+} from "@/lib/stores/use-cart-store";
+import { useDebouncedCartSync } from "@/lib/hooks/use-debounced-cart-sync";
+
+import type { CartItem } from "@/lib/stores/use-cart-store";
+
+interface CartDrawerProps {
+  tenantId: string;
+  storeSlug: string;
+  currency: string;
+}
+
+// Hook to detect if we're on mobile (< 640px)
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  return isMobile;
+}
+
+export function CartDrawer({ tenantId, storeSlug, currency }: CartDrawerProps) {
+  const isOpen = useCartIsOpen();
+  const setIsOpen = useCartStore((state) => state.setIsOpen);
+  const items = useCartItems();
+  const subtotal = useCartSubtotal();
+  const itemCount = useCartItemCount();
+  const isMobile = useIsMobile();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isAtTop, setIsAtTop] = useState(true);
+
+  // Track scroll position to enable/disable drawer dismissal
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const isScrolledToTop = scrollRef.current.scrollTop === 0;
+      setIsAtTop(isScrolledToTop);
+    }
+  };
+
+  return (
+    <Drawer
+      direction={isMobile ? "bottom" : "right"}
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      dismissible={true}
+      shouldScaleBackground={false}
+    >
+      <DrawerContent
+        className={cn(
+          isMobile ? "max-h-[96vh]" : "h-full w-full sm:max-w-md",
+          "flex flex-col"
+        )}
+      >
+        {/* Header */}
+        <DrawerHeader className="shrink-0 border-b px-4 py-4">
+          <div className="flex items-center justify-between">
+            <DrawerTitle className="flex items-center gap-2 text-lg">
+              <ShoppingBag className="size-5" />
+              Your Cart
+              {itemCount > 0 && (
+                <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+                  {itemCount}
+                </span>
+              )}
+            </DrawerTitle>
+            <DrawerClose asChild>
+              <Button variant="ghost" size="icon" className="size-8">
+                <X className="size-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </DrawerClose>
+          </div>
+        </DrawerHeader>
+
+        {items.length === 0 ? (
+          /* Empty Cart State */
+          <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+            <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-muted">
+              <ShoppingCart className="size-10 text-muted-foreground" />
+            </div>
+            <h3 className="mb-2 text-lg font-semibold">Your cart is empty</h3>
+            <p className="mb-6 max-w-60 text-sm text-muted-foreground">
+              Looks like you haven&apos;t added anything to your cart yet.
+            </p>
+            <DrawerClose asChild>
+              <Button size="lg" asChild>
+                <Link href={`/store/${storeSlug}`}>Start Shopping</Link>
+              </Button>
+            </DrawerClose>
+          </div>
+        ) : (
+          <>
+            {/* Cart Items */}
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto overflow-x-hidden px-4"
+              onScroll={handleScroll}
+              {...(!isAtTop && { "data-vaul-no-drag": "" })}
+            >
+              <div className="py-4">
+                {items.map((item, index) => (
+                  <div key={item.id}>
+                    <CartDrawerItem
+                      item={item}
+                      tenantId={tenantId}
+                      storeSlug={storeSlug}
+                      currency={currency}
+                    />
+                    {index < items.length - 1 && <Separator className="my-4" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer with Summary */}
+            <DrawerFooter className="shrink-0 border-t bg-muted/30 px-4 pb-6 pt-4">
+              {/* Subtotal */}
+              <div className="mx-auto w-full max-w-sm space-y-2 sm:mx-0 sm:max-w-none">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium">
+                    {formatPrice(subtotal, currency)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Shipping and taxes calculated at checkout
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="mx-auto mt-4 flex w-full max-w-sm flex-col gap-2 sm:mx-0 sm:max-w-none">
+                <DrawerClose asChild>
+                  <Button size="lg" className="w-full" asChild>
+                    <Link href={`/store/${storeSlug}/checkout`}>
+                      Checkout
+                      <ArrowRight className="ml-2 size-4" />
+                    </Link>
+                  </Button>
+                </DrawerClose>
+                <DrawerClose asChild>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="w-full"
+                    asChild
+                  >
+                    <Link href={`/store/${storeSlug}/cart`}>
+                      View Full Cart
+                    </Link>
+                  </Button>
+                </DrawerClose>
+              </div>
+            </DrawerFooter>
+          </>
+        )}
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+interface CartDrawerItemProps {
+  item: CartItem;
+  tenantId: string;
+  storeSlug: string;
+  currency: string;
+}
+
+function CartDrawerItem({
+  item,
+  tenantId,
+  storeSlug,
+  currency,
+}: CartDrawerItemProps) {
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingValue, setEditingValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const { updateQuantity, isItemSyncing } = useDebouncedCartSync({
+    tenantId,
+    storeSlug,
+  });
+
+  const isSyncing = isItemSyncing(item.id);
+
+  const price = item.variant?.price
+    ? parseFloat(item.variant.price)
+    : parseFloat(item.product.price);
+
+  const lineTotal = price * item.quantity;
+
+  const availableStock = item.variant ? item.variant.stock : item.product.stock;
+  const trackInventory = item.product.trackInventory;
+  const allowBackorder = item.product.allowBackorder;
+
+  const productName = item.variant?.displayName
+    ? `${item.product.name} - ${item.variant.displayName}`
+    : item.product.name;
+
+  // Display value: use editingValue while editing, otherwise item.quantity
+  const displayValue = isEditing ? editingValue : String(item.quantity);
+
+  const handleQuantityChange = (newQuantity: number) => {
+    if (newQuantity < 1) return;
+
+    if (trackInventory && !allowBackorder && newQuantity > availableStock) {
+      toast.error(`Only ${availableStock} items available`);
+      return;
+    }
+
+    // Use debounced sync - handles optimistic updates internally
+    updateQuantity(item.id, newQuantity, item.quantity);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === "" || /^\d+$/.test(value)) {
+      setEditingValue(value);
+    }
+  };
+
+  const handleInputBlur = () => {
+    setIsEditing(false);
+    const parsed = parseInt(editingValue, 10);
+
+    if (isNaN(parsed) || parsed < 1) {
+      return;
+    }
+
+    if (parsed !== item.quantity) {
+      handleQuantityChange(parsed);
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      inputRef.current?.blur();
+    } else if (e.key === "Escape") {
+      setIsEditing(false);
+      inputRef.current?.blur();
+    }
+  };
+
+  const handleInputFocus = () => {
+    setIsEditing(true);
+    setEditingValue(String(item.quantity));
+    setTimeout(() => inputRef.current?.select(), 0);
+  };
+
+  const handleRemove = () => {
+    if (isRemoving) return;
+
+    setIsRemoving(true);
+    updateQuantity(item.id, 0, item.quantity);
+    toast.success("Item removed from cart");
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex gap-4 transition-opacity",
+        (isSyncing || isRemoving) && "opacity-50"
+      )}
+    >
+      {/* Product Image */}
+      <Link
+        href={`/store/${storeSlug}/product/${item.product.slug}`}
+        className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-muted"
+      >
+        {item.product.image ? (
+          <Image
+            src={item.product.image.url}
+            alt={item.product.image.altText || item.product.name}
+            fill
+            className="object-cover transition-transform hover:scale-105"
+            sizes="80px"
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center">
+            <ShoppingBag className="size-6 text-muted-foreground" />
+          </div>
+        )}
+      </Link>
+
+      {/* Product Details */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Name & Remove */}
+        <div className="flex items-start justify-between gap-2">
+          <Link
+            href={`/store/${storeSlug}/product/${item.product.slug}`}
+            className="line-clamp-2 text-sm font-medium leading-tight hover:underline"
+          >
+            {productName}
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={handleRemove}
+            disabled={isRemoving}
+          >
+            {isRemoving ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
+            <span className="sr-only">Remove</span>
+          </Button>
+        </div>
+
+        {/* Price */}
+        <p className="mt-1 text-sm text-muted-foreground">
+          {formatPrice(price, currency)} each
+        </p>
+
+        {/* Quantity & Line Total */}
+        <div className="mt-auto flex items-center justify-between pt-2">
+          {/* Quantity Controls */}
+          <div className="flex items-center rounded-lg border bg-background">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-r-none"
+              onClick={() => handleQuantityChange(item.quantity - 1)}
+              disabled={item.quantity <= 1}
+            >
+              <Minus className="size-3" />
+            </Button>
+            <Input
+              ref={inputRef}
+              type="text"
+              inputMode="numeric"
+              value={displayValue}
+              onChange={handleInputChange}
+              onBlur={handleInputBlur}
+              onKeyDown={handleInputKeyDown}
+              onFocus={handleInputFocus}
+              className="h-8 w-12 rounded-none border-0 border-x bg-transparent text-center text-sm font-medium focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              disabled={isSyncing}
+              aria-label="Quantity"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-l-none"
+              onClick={() => handleQuantityChange(item.quantity + 1)}
+              disabled={
+                trackInventory &&
+                !allowBackorder &&
+                item.quantity >= availableStock
+              }
+            >
+              <Plus className="size-3" />
+            </Button>
+          </div>
+
+          {/* Line Total */}
+          <span className="text-sm font-semibold">
+            {formatPrice(lineTotal, currency)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}

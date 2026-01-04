@@ -22,32 +22,55 @@ import {
   uploadMedia,
 } from "@/lib/supabase/media";
 
-interface MediaSelectorProps {
+type MediaSelection = { id: string; url: string };
+
+interface MediaSelectorBaseProps {
   tenantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (media: { id: string; url: string } | null) => void;
-  selectedId?: string | null;
   title?: string;
 }
 
-export function MediaSelector({
-  tenantId,
-  open,
-  onOpenChange,
-  onSelect,
-  selectedId,
-  title = "Select Image",
-}: MediaSelectorProps) {
+interface SingleSelectProps extends MediaSelectorBaseProps {
+  multiple?: false;
+  onSelect: (media: MediaSelection | null) => void;
+  selectedId?: string | null;
+  selectedIds?: never;
+}
+
+interface MultiSelectProps extends MediaSelectorBaseProps {
+  multiple: true;
+  onSelect: (media: MediaSelection[]) => void;
+  selectedIds?: string[];
+  selectedId?: never;
+}
+
+type MediaSelectorProps = SingleSelectProps | MultiSelectProps;
+
+export function MediaSelector(props: MediaSelectorProps) {
+  const {
+    tenantId,
+    open,
+    onOpenChange,
+    onSelect,
+    title = "Select Image",
+  } = props;
+
+  const multiple = props.multiple ?? false;
+  const initialSelectedIds = multiple
+    ? props.selectedIds ?? []
+    : props.selectedId
+    ? [props.selectedId]
+    : [];
+
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(
-    selectedId ?? null
-  );
+  const [selectedMediaIds, setSelectedMediaIds] =
+    useState<string[]>(initialSelectedIds);
 
   const loadMedia = useCallback(
     async (pageNum: number, searchTerm: string, append = false) => {
@@ -77,10 +100,11 @@ export function MediaSelector({
   useEffect(() => {
     if (open) {
       setPage(1);
-      setSelectedMedia(selectedId ?? null);
+      setSelectedMediaIds(initialSelectedIds);
       loadMedia(1, search);
     }
-  }, [open, selectedId, loadMedia, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, loadMedia, search]);
 
   const handleSearch = (value: string) => {
     setSearch(value);
@@ -95,41 +119,67 @@ export function MediaSelector({
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
+    // Validate all files first
+    const validFiles: File[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) {
+        toast.error(`${file.name} is not an image file`);
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} must be less than 5MB`);
+        continue;
+      }
+      validFiles.push(file);
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be less than 5MB");
-      return;
-    }
+    if (validFiles.length === 0) return;
 
     setIsUploading(true);
 
-    const result = await uploadMedia(tenantId, file);
+    const uploadedIds: string[] = [];
+    const newItems: MediaItem[] = [];
 
-    if (result.success && result.data) {
+    for (const file of validFiles) {
+      const result = await uploadMedia(tenantId, file);
+
+      if (result.success && result.data) {
+        const newItem: MediaItem = {
+          id: result.data.id,
+          tenantId,
+          uploadedById: "",
+          url: result.data.url,
+          fileName: result.data.fileName,
+          altText: null,
+          fileSize: file.size,
+          mimeType: file.type,
+          createdAt: new Date(),
+        };
+        newItems.push(newItem);
+        uploadedIds.push(result.data.id);
+      } else {
+        toast.error(result.error?.message || `Failed to upload ${file.name}`);
+      }
+    }
+
+    if (newItems.length > 0) {
       // Add new media to the beginning of the list
-      const newItem: MediaItem = {
-        id: result.data.id,
-        tenantId,
-        uploadedById: "", // Will be filled by server
-        url: result.data.url,
-        fileName: result.data.fileName,
-        altText: null,
-        fileSize: file.size,
-        mimeType: file.type,
-        createdAt: new Date(),
-      };
-      setMediaItems((prev) => [newItem, ...prev]);
-      setSelectedMedia(result.data.id);
-      toast.success("Image uploaded");
-    } else {
-      toast.error(result.error?.message || "Failed to upload image");
+      setMediaItems((prev) => [...newItems, ...prev]);
+      // Auto-select the newly uploaded images
+      if (multiple) {
+        setSelectedMediaIds((prev) => [...prev, ...uploadedIds]);
+      } else {
+        // For single select, only select the first uploaded image
+        setSelectedMediaIds([uploadedIds[0]]);
+      }
+      toast.success(
+        newItems.length === 1
+          ? "Image uploaded"
+          : `${newItems.length} images uploaded`
+      );
     }
 
     setIsUploading(false);
@@ -137,19 +187,42 @@ export function MediaSelector({
   };
 
   const handleSelect = () => {
-    if (!selectedMedia) {
-      onSelect(null);
+    if (multiple) {
+      const selectedMedia = selectedMediaIds
+        .map((id) => mediaItems.find((m) => m.id === id))
+        .filter((m): m is MediaItem => m !== undefined)
+        .map((m) => ({ id: m.id, url: m.url }));
+      (onSelect as (media: MediaSelection[]) => void)(selectedMedia);
     } else {
-      const media = mediaItems.find((m) => m.id === selectedMedia);
-      if (media) {
-        onSelect({ id: media.id, url: media.url });
+      if (selectedMediaIds.length === 0) {
+        (onSelect as (media: MediaSelection | null) => void)(null);
+      } else {
+        const media = mediaItems.find((m) => m.id === selectedMediaIds[0]);
+        if (media) {
+          (onSelect as (media: MediaSelection | null) => void)({
+            id: media.id,
+            url: media.url,
+          });
+        }
       }
     }
     onOpenChange(false);
   };
 
   const handleClearSelection = () => {
-    setSelectedMedia(null);
+    setSelectedMediaIds([]);
+  };
+
+  const handleToggleSelection = (itemId: string) => {
+    if (multiple) {
+      setSelectedMediaIds((prev) =>
+        prev.includes(itemId)
+          ? prev.filter((id) => id !== itemId)
+          : [...prev, itemId]
+      );
+    } else {
+      setSelectedMediaIds((prev) => (prev.includes(itemId) ? [] : [itemId]));
+    }
   };
 
   return (
@@ -174,6 +247,7 @@ export function MediaSelector({
             <input
               type="file"
               accept="image/*"
+              multiple
               onChange={handleUpload}
               disabled={isUploading}
               className="sr-only"
@@ -218,14 +292,13 @@ export function MediaSelector({
             <>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                 {mediaItems.map((item) => {
-                  const isSelected = selectedMedia === item.id;
+                  const isSelected = selectedMediaIds.includes(item.id);
+                  const selectionIndex = selectedMediaIds.indexOf(item.id);
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() =>
-                        setSelectedMedia(isSelected ? null : item.id)
-                      }
+                      onClick={() => handleToggleSelection(item.id)}
                       className={cn(
                         "relative aspect-square rounded-lg overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                         isSelected
@@ -243,7 +316,13 @@ export function MediaSelector({
                       {isSelected && (
                         <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
                           <div className="bg-primary rounded-full p-1">
-                            <Check className="size-4 text-primary-foreground" />
+                            {multiple && selectionIndex >= 0 ? (
+                              <span className="size-4 flex items-center justify-center text-xs font-bold text-primary-foreground">
+                                {selectionIndex + 1}
+                              </span>
+                            ) : (
+                              <Check className="size-4 text-primary-foreground" />
+                            )}
                           </div>
                         </div>
                       )}
@@ -276,8 +355,8 @@ export function MediaSelector({
         </div>
 
         {/* Footer */}
-        <DialogFooter className="shrink-0 gap-2 sm:gap-0">
-          {selectedMedia && (
+        <DialogFooter className="shrink-0 gap-2">
+          {selectedMediaIds.length > 0 && (
             <Button
               type="button"
               variant="ghost"
@@ -285,7 +364,10 @@ export function MediaSelector({
               className="mr-auto"
             >
               <X className="mr-2 size-4" />
-              Clear Selection
+              Clear
+              {multiple && selectedMediaIds.length > 1
+                ? ` (${selectedMediaIds.length})`
+                : ""}
             </Button>
           )}
           <Button
@@ -296,7 +378,13 @@ export function MediaSelector({
             Cancel
           </Button>
           <Button type="button" onClick={handleSelect}>
-            {selectedMedia ? "Select Image" : "No Image"}
+            {selectedMediaIds.length > 0
+              ? multiple
+                ? `Select ${selectedMediaIds.length} Image${
+                    selectedMediaIds.length > 1 ? "s" : ""
+                  }`
+                : "Select Image"
+              : "No Image"}
           </Button>
         </DialogFooter>
       </DialogContent>

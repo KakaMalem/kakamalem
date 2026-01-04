@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-// Slug validation pattern: lowercase letters, numbers, and hyphens only
-const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
 // Category validation schema
 export const categorySchema = z.object({
   name: z
@@ -10,15 +7,9 @@ export const categorySchema = z.object({
     .min(1, "Category name is required")
     .min(2, "Category name must be at least 2 characters")
     .max(255, "Category name must be less than 255 characters"),
-  slug: z
-    .string()
-    .min(1, "Category URL is required")
-    .min(2, "Category URL must be at least 2 characters")
-    .max(255, "Category URL must be less than 255 characters")
-    .regex(
-      slugRegex,
-      "Category URL can only contain lowercase letters, numbers, and hyphens"
-    ),
+  // Note: slug is auto-generated on the backend from the name field
+  // It's kept optional here for backward compatibility but will be ignored
+  slug: z.string().optional(),
   description: z.string().optional().or(z.literal("")),
   imageId: z.string().uuid().optional().or(z.literal("")),
   displayOrder: z

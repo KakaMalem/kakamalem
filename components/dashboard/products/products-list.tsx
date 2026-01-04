@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +30,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type { ProductWithCategory } from "@/lib/db/queries/products";
-import { deleteProduct, reorderProducts } from "@/lib/supabase/products";
+import {
+  deleteProduct,
+  reorderProducts,
+  bulkDeleteProducts,
+} from "@/lib/supabase/products";
 import { QuickAdjustDialog } from "@/components/dashboard/inventory/quick-adjust-dialog";
 
 interface ProductsListProps {
@@ -51,6 +56,11 @@ export function ProductsList({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] =
     useState<ProductWithCategory | null>(null);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Quick adjust dialog state
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false);
@@ -163,10 +173,61 @@ export function ProductsList({
       toast.success("Product deleted");
       setDeleteDialogOpen(false);
       setProductToDelete(null);
+      // Optimistic update - remove from list immediately
+      setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
       startTransition(() => router.refresh());
     } else {
       toast.error(result.error?.message || "Failed to delete product");
     }
+  };
+
+  // Toggle selection for a single product
+  const toggleSelection = (productId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
+  // Toggle select all
+  const toggleSelectAll = () => {
+    if (selectedIds.size === products.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(products.map((p) => p.id)));
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsBulkDeleting(true);
+    const productIds = Array.from(selectedIds);
+
+    const result = await bulkDeleteProducts(tenantId, productIds);
+
+    if (result.success) {
+      toast.success(
+        `${productIds.length} product${
+          productIds.length > 1 ? "s" : ""
+        } deleted`
+      );
+      setBulkDeleteDialogOpen(false);
+      // Optimistic update - remove from list immediately
+      setProducts((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+      setSelectedIds(new Set());
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.error?.message || "Failed to delete products");
+    }
+
+    setIsBulkDeleting(false);
   };
 
   const formatPrice = (price: string) => {
@@ -181,9 +242,13 @@ export function ProductsList({
         </Badge>
       );
     }
+
+    // Out of stock
     if (product.stock === 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
     }
+
+    // Low stock (only if threshold is set and stock is below it)
     if (
       product.lowStockThreshold > 0 &&
       product.stock <= product.lowStockThreshold
@@ -194,6 +259,8 @@ export function ProductsList({
         </Badge>
       );
     }
+
+    // In stock (stock > 0 and either no threshold or stock > threshold)
     return (
       <Badge variant="outline" className="border-green-500 text-green-600">
         In Stock
@@ -220,8 +287,39 @@ export function ProductsList({
     );
   }
 
+  const allSelected =
+    products.length > 0 && selectedIds.size === products.length;
+
   return (
     <>
+      {/* Bulk Actions Header */}
+      {selectedIds.size > 0 && (
+        <Card className="mb-4 border-primary">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={toggleSelectAll}
+                aria-label="Select all products"
+              />
+              <span className="font-medium">
+                {selectedIds.size} product{selectedIds.size > 1 ? "s" : ""}{" "}
+                selected
+              </span>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setBulkDeleteDialogOpen(true)}
+              disabled={isBulkDeleting}
+            >
+              <Trash2 className="mr-2 size-4" />
+              Delete Selected
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-2">
         {products.map((product, index) => {
           const isDragging = draggedIndex === index || touchDragIndex === index;
@@ -250,6 +348,14 @@ export function ProductsList({
               }`}
             >
               <CardContent className="flex items-center gap-4 p-4">
+                {/* Checkbox */}
+                <Checkbox
+                  checked={selectedIds.has(product.id)}
+                  onCheckedChange={() => toggleSelection(product.id)}
+                  aria-label={`Select ${product.name}`}
+                  onClick={(e) => e.stopPropagation()}
+                />
+
                 {/* Drag Handle */}
                 <div
                   data-drag-handle
@@ -285,10 +391,18 @@ export function ProductsList({
                   <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     <span>{formatPrice(product.price)}</span>
                     <span>•</span>
-                    {product.categoryName ? (
-                      <Badge variant="secondary" className="text-xs">
-                        {product.categoryName}
-                      </Badge>
+                    {product.categories && product.categories.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {product.categories.map((cat) => (
+                          <Badge
+                            key={cat.id}
+                            variant="secondary"
+                            className="text-xs"
+                          >
+                            {cat.name}
+                          </Badge>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-xs">Uncategorized</span>
                     )}
@@ -378,6 +492,36 @@ export function ProductsList({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={handleDelete}>
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={setBulkDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedIds.size} Products
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.size} product
+              {selectedIds.size > 1 ? "s" : ""}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+            >
+              {isBulkDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

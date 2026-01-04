@@ -14,7 +14,7 @@ export default async function DangerSettingsPage({
   const user = await getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   const store = await getTenantBySlug(slug);

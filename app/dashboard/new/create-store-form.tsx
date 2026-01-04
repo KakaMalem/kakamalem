@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition, useRef, useCallback } from "react";
+import { useState, useTransition, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -31,14 +32,26 @@ import {
   Palette,
   Settings,
   Upload,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   createStoreSchema,
+  generateSlug,
   type CreateStoreInput,
 } from "@/lib/validations/stores";
-import { createStore, checkSlugAvailability } from "@/lib/supabase/stores";
+import {
+  createStoreWithLogo,
+  checkSlugAvailability,
+} from "@/lib/supabase/stores";
 import { ZodError } from "zod";
+import { toast } from "sonner";
+
+// Logo state type - staged file for preview
+type LogoState = {
+  url: string;
+  file: File;
+};
 
 interface CreateStoreFormProps {
   userEmail: string;
@@ -60,7 +73,18 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
   const [isPending, startTransition] = useTransition();
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const slugCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Logo state - staged file for preview
+  const [logo, setLogo] = useState<LogoState | null>(null);
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (logo?.url) URL.revokeObjectURL(logo.url);
+    };
+  }, [logo]);
 
   // Form state
   const [formData, setFormData] = useState<{
@@ -110,10 +134,49 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
     if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
+    // Auto-generate slug when name changes (if slug hasn't been manually edited)
+    if (field === "name" && !slugManuallyEdited) {
+      const generatedSlug = generateSlug(value);
+      setFormData((prev) => ({ ...prev, slug: generatedSlug }));
+      checkSlug(generatedSlug);
+    }
     // Check slug availability when slug field changes
     if (field === "slug") {
+      setSlugManuallyEdited(true);
       checkSlug(value);
     }
+  };
+
+  // Handle logo upload
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Logo must be less than 2MB");
+      return;
+    }
+
+    // Cleanup previous URL
+    if (logo?.url) {
+      URL.revokeObjectURL(logo.url);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setLogo({ url: previewUrl, file });
+    e.target.value = "";
+  };
+
+  const removeLogo = () => {
+    if (logo?.url) {
+      URL.revokeObjectURL(logo.url);
+    }
+    setLogo(null);
   };
 
   const validateStep = (step: number): boolean => {
@@ -185,13 +248,8 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
         }
       }
 
-      // Create FormData for server action
-      const submitData = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        submitData.append(key, value);
-      });
-
-      const result = await createStore(submitData);
+      // Use the new createStoreWithLogo action
+      const result = await createStoreWithLogo(formData, logo?.file || null);
 
       if (result.error) {
         if (result.error.field) {
@@ -328,15 +386,73 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
           <div className="space-y-6">
             <Field>
               <FieldLabel>Store logo (optional)</FieldLabel>
-              <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Upload your store logo
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Coming soon - you can add a logo in settings later
-                </p>
-              </div>
+              {logo ? (
+                <div className="relative w-32 h-32 mx-auto">
+                  <Image
+                    src={logo.url}
+                    alt="Store logo preview"
+                    fill
+                    className="rounded-lg object-contain border bg-muted/30"
+                    unoptimized
+                  />
+                  <span className="absolute -top-2 -left-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
+                    New
+                  </span>
+                  <button
+                    type="button"
+                    onClick={removeLogo}
+                    className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
+                    disabled={isPending}
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg bg-muted/50 cursor-pointer hover:border-muted-foreground/50 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="sr-only"
+                    disabled={isPending}
+                  />
+                  <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Click to upload logo
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PNG, JPG up to 2MB
+                  </p>
+                </label>
+              )}
+              {logo && (
+                <div className="flex justify-center mt-3">
+                  <label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="sr-only"
+                      disabled={isPending}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      disabled={isPending}
+                    >
+                      <span className="cursor-pointer">
+                        <Upload className="mr-2 size-4" />
+                        Change Logo
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+              )}
+              <FieldDescription className="text-center mt-2">
+                This logo will appear in your store header
+              </FieldDescription>
             </Field>
 
             <Field>

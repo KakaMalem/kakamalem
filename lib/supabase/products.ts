@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { products, productImages, media } from "@/lib/db/schema";
+import { products, productImages, productCategories, media } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
-import { checkProductSlugAvailable } from "@/lib/db/queries/products";
+import { generateUniqueProductSlug } from "@/lib/db/queries/slugs";
 import { getUser } from "@/lib/supabase/auth";
 
 export type ProductActionResult = {
@@ -43,17 +43,8 @@ export async function createProduct(
 
     const data = result.data;
 
-    // Check if slug is available
-    const slugAvailable = await checkProductSlugAvailable(tenantId, data.slug);
-    if (!slugAvailable) {
-      return {
-        success: false,
-        error: {
-          message: "This product URL is already in use",
-          field: "slug",
-        },
-      };
-    }
+    // Auto-generate unique slug from product name (industry standard approach)
+    const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name);
 
     // Create product
     const [newProduct] = await db
@@ -61,7 +52,7 @@ export async function createProduct(
       .values({
         tenantId,
         name: data.name,
-        slug: data.slug,
+        slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
         categoryId: data.categoryId || null,
@@ -84,6 +75,16 @@ export async function createProduct(
       }));
 
       await db.insert(productImages).values(imageValues);
+    }
+
+    // Add product categories if provided
+    if (data.categoryIds && data.categoryIds.length > 0) {
+      const categoryValues = data.categoryIds.map((categoryId) => ({
+        productId: newProduct.id,
+        categoryId,
+      }));
+
+      await db.insert(productCategories).values(categoryValues);
     }
 
     revalidatePath(`/dashboard`);
@@ -124,7 +125,7 @@ async function uploadFileToStorage(
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from("product-images")
+      .from("media")
       .upload(fileName, file, {
         cacheControl: "3600",
         upsert: false,
@@ -138,7 +139,7 @@ async function uploadFileToStorage(
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabase.storage.from("product-images").getPublicUrl(fileName);
+    } = supabase.storage.from("media").getPublicUrl(fileName);
 
     // Save to media table
     const [newMedia] = await db
@@ -193,17 +194,8 @@ export async function createProductWithImages(
 
     const data = result.data;
 
-    // Check if slug is available
-    const slugAvailable = await checkProductSlugAvailable(tenantId, data.slug);
-    if (!slugAvailable) {
-      return {
-        success: false,
-        error: {
-          message: "This product URL is already in use",
-          field: "slug",
-        },
-      };
-    }
+    // Auto-generate unique slug from product name
+    const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name);
 
     // Upload staged files first
     const uploadedMediaIds: string[] = [];
@@ -224,7 +216,7 @@ export async function createProductWithImages(
       .values({
         tenantId,
         name: data.name,
-        slug: data.slug,
+        slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
         categoryId: data.categoryId || null,
@@ -247,6 +239,16 @@ export async function createProductWithImages(
       }));
 
       await db.insert(productImages).values(imageValues);
+    }
+
+    // Add product categories if provided
+    if (data.categoryIds && data.categoryIds.length > 0) {
+      const categoryValues = data.categoryIds.map((categoryId) => ({
+        productId: newProduct.id,
+        categoryId,
+      }));
+
+      await db.insert(productCategories).values(categoryValues);
     }
 
     revalidatePath(`/dashboard`);
@@ -303,21 +305,8 @@ export async function updateProductWithImages(
 
     const data = result.data;
 
-    // Check if slug is available (excluding current product)
-    const slugAvailable = await checkProductSlugAvailable(
-      tenantId,
-      data.slug,
-      productId
-    );
-    if (!slugAvailable) {
-      return {
-        success: false,
-        error: {
-          message: "This product URL is already in use",
-          field: "slug",
-        },
-      };
-    }
+    // Auto-generate unique slug from product name (update case)
+    const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name, productId);
 
     // Upload staged files first
     const uploadedMediaIds: string[] = [];
@@ -336,7 +325,7 @@ export async function updateProductWithImages(
       .update(products)
       .set({
         name: data.name,
-        slug: data.slug,
+        slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
         categoryId: data.categoryId || null,
@@ -376,6 +365,22 @@ export async function updateProductWithImages(
       }));
 
       await db.insert(productImages).values(imageValues);
+    }
+
+    // Update product categories
+    // First, delete existing categories
+    await db
+      .delete(productCategories)
+      .where(eq(productCategories.productId, productId));
+
+    // Then, add new categories
+    if (data.categoryIds && data.categoryIds.length > 0) {
+      const categoryValues = data.categoryIds.map((categoryId) => ({
+        productId: productId,
+        categoryId,
+      }));
+
+      await db.insert(productCategories).values(categoryValues);
     }
 
     revalidatePath(`/dashboard`);
@@ -422,28 +427,15 @@ export async function updateProduct(
 
     const data = result.data;
 
-    // Check if slug is available (excluding current product)
-    const slugAvailable = await checkProductSlugAvailable(
-      tenantId,
-      data.slug,
-      productId
-    );
-    if (!slugAvailable) {
-      return {
-        success: false,
-        error: {
-          message: "This product URL is already in use",
-          field: "slug",
-        },
-      };
-    }
+    // Auto-generate unique slug from product name (update case)
+    const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name, productId);
 
     // Update product
     const [updatedProduct] = await db
       .update(products)
       .set({
         name: data.name,
-        slug: data.slug,
+        slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
         categoryId: data.categoryId || null,
@@ -692,7 +684,7 @@ export async function uploadProductImage(
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from("product-images")
+      .from("media")
       .upload(fileName, file, {
         cacheControl: "3600",
         upsert: false,
@@ -706,7 +698,7 @@ export async function uploadProductImage(
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabase.storage.from("product-images").getPublicUrl(fileName);
+    } = supabase.storage.from("media").getPublicUrl(fileName);
 
     // Save to media table
     const [newMedia] = await db

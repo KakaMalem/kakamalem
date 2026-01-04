@@ -136,6 +136,82 @@ export async function createStore(formData: FormData): Promise<StoreActionResult
 }
 
 /**
+ * Create a new store with optional logo upload
+ */
+export async function createStoreWithLogo(
+  formValues: CreateStoreInput,
+  logoFile: File | null
+): Promise<StoreActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in to create a store" } };
+  }
+
+  // Server-side validation
+  try {
+    createStoreSchema.parse(formValues);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed",
+          field: firstError?.path[0] as string,
+        },
+      };
+    }
+  }
+
+  // Check slug availability
+  const slugAvailable = await checkSlugAvailable(formValues.slug);
+  if (!slugAvailable) {
+    return {
+      error: {
+        message: "This store URL is already taken. Please choose another.",
+        field: "slug",
+      },
+    };
+  }
+
+  // Create the store first to get an ID for the logo upload
+  try {
+    const newStore = await createTenant({
+      name: formValues.name,
+      slug: formValues.slug,
+      ownerId: user.id,
+      tagline: formValues.tagline,
+      headerDisplay: formValues.headerDisplay,
+      contactEmail: formValues.contactEmail,
+      contactPhone: formValues.contactPhone,
+      currency: formValues.currency,
+    });
+
+    if (!newStore) {
+      return { error: { message: "Failed to create store. Please try again." } };
+    }
+
+    // Upload logo if provided
+    let logoUrl: string | null = null;
+    if (logoFile) {
+      logoUrl = await uploadBrandingImage(newStore.id, logoFile, "logo");
+      if (logoUrl) {
+        // Update store with logo URL
+        await updateTenant(newStore.id, { logoUrl });
+      }
+    }
+
+    revalidatePath("/dashboard", "layout");
+    return { success: true, storeId: newStore.id, logoUrl: logoUrl || undefined };
+  } catch {
+    return { error: { message: "An unexpected error occurred. Please try again." } };
+  }
+}
+
+/**
  * Check if a slug is available (for real-time validation)
  */
 export async function checkSlugAvailability(slug: string): Promise<boolean> {

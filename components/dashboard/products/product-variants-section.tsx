@@ -3,15 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Package,
-  X,
-  Upload,
-  Loader2,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, Package, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -53,15 +45,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MediaSelector } from "@/components/dashboard/media/media-selector";
 
 import type { VariantOptionWithValues } from "@/lib/db/queries/variants";
-import type { ProductVariant, Media } from "@/lib/db/schema";
+import type {
+  ProductVariant,
+  Media,
+  ProductVariantImage,
+} from "@/lib/db/schema";
 import {
   createProductVariant,
   updateProductVariant,
   deleteProductVariant,
 } from "@/lib/supabase/variants";
-import { uploadProductImage } from "@/lib/supabase/products";
+
+type VariantImageWithMedia = ProductVariantImage & {
+  media: Media;
+};
 
 type VariantWithOptions = ProductVariant & {
   options: {
@@ -72,6 +72,7 @@ type VariantWithOptions = ProductVariant & {
     };
   }[];
   image?: Media | null;
+  images?: VariantImageWithMedia[];
 };
 
 interface ProductVariantsSectionProps {
@@ -83,6 +84,12 @@ interface ProductVariantsSectionProps {
   variants: VariantWithOptions[];
 }
 
+type VariantImage = {
+  mediaId: string;
+  url: string;
+  position: number;
+};
+
 type FormData = {
   sku: string;
   price: string;
@@ -90,8 +97,7 @@ type FormData = {
   stock: string;
   isActive: boolean;
   optionValues: Record<string, string>;
-  imageId: string;
-  imageUrl: string;
+  images: VariantImage[];
 };
 
 // Form component extracted outside to avoid creating during render
@@ -101,16 +107,18 @@ function VariantFormFields({
   variantOptions,
   currency,
   basePrice,
-  isUploading,
-  onImageUpload,
+  tenantId,
+  mediaSelectorOpen,
+  setMediaSelectorOpen,
 }: {
   formData: FormData;
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
   variantOptions: VariantOptionWithValues[];
   currency: string;
   basePrice: string;
-  isUploading: boolean;
-  onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  tenantId: string;
+  mediaSelectorOpen: boolean;
+  setMediaSelectorOpen: (open: boolean) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -216,52 +224,71 @@ function VariantFormFields({
         />
       </div>
 
-      {/* Image */}
+      {/* Images */}
       <div className="space-y-2">
-        <Label>Variant Image (optional)</Label>
-        <div className="flex items-center gap-4">
-          {formData.imageUrl ? (
-            <div className="relative size-16 overflow-hidden rounded-md border">
+        <Label>Variant Images (optional)</Label>
+        <p className="text-xs text-muted-foreground">
+          Add multiple images for this variant. The first image will be the
+          primary image.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {formData.images.map((img, index) => (
+            <div
+              key={img.mediaId}
+              className="group relative size-16 overflow-hidden rounded-md border"
+            >
               <Image
-                src={formData.imageUrl}
-                alt="Variant"
+                src={img.url}
+                alt={`Variant image ${index + 1}`}
                 fill
                 className="object-cover"
               />
+              {index === 0 && (
+                <div className="absolute left-1 top-1 rounded bg-primary px-1 py-0.5 text-[10px] font-medium text-primary-foreground">
+                  Primary
+                </div>
+              )}
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
                   setFormData((prev) => ({
                     ...prev,
-                    imageId: "",
-                    imageUrl: "",
-                  }))
-                }
-                className="absolute right-1 top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground"
+                    images: prev.images.filter((_, i) => i !== index),
+                  }));
+                }}
+                className="absolute right-1 top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
               >
                 <X className="size-3" />
               </button>
             </div>
-          ) : (
-            <label className="flex size-16 cursor-pointer items-center justify-center rounded-md border-2 border-dashed hover:border-primary hover:bg-muted/50">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={onImageUpload}
-                disabled={isUploading}
-                className="sr-only"
-              />
-              {isUploading ? (
-                <Loader2 className="size-5 animate-spin text-muted-foreground" />
-              ) : (
-                <Upload className="size-5 text-muted-foreground" />
-              )}
-            </label>
-          )}
-          <p className="text-sm text-muted-foreground">
-            Upload a specific image for this variant
-          </p>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMediaSelectorOpen(true)}
+            className="flex size-16 cursor-pointer items-center justify-center rounded-md border-2 border-dashed hover:border-primary hover:bg-muted/50"
+          >
+            <Plus className="size-5 text-muted-foreground" />
+          </button>
         </div>
+        <MediaSelector
+          tenantId={tenantId}
+          open={mediaSelectorOpen}
+          onOpenChange={setMediaSelectorOpen}
+          multiple
+          selectedIds={formData.images.map((img) => img.mediaId)}
+          onSelect={(selectedMedia) => {
+            // Replace all images with the new selection
+            setFormData((prev) => ({
+              ...prev,
+              images: selectedMedia.map((media, index) => ({
+                mediaId: media.id,
+                url: media.url,
+                position: index,
+              })),
+            }));
+          }}
+          title="Select Variant Images"
+        />
       </div>
 
       {/* Active Status */}
@@ -293,12 +320,12 @@ export function ProductVariantsSection({
 }: ProductVariantsSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [isUploading, setIsUploading] = useState(false);
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [mediaSelectorOpen, setMediaSelectorOpen] = useState(false);
   const [selectedVariant, setSelectedVariant] =
     useState<VariantWithOptions | null>(null);
 
@@ -310,8 +337,7 @@ export function ProductVariantsSection({
     stock: "0",
     isActive: true,
     optionValues: {},
-    imageId: "",
-    imageUrl: "",
+    images: [],
   });
 
   const resetForm = () => {
@@ -322,8 +348,7 @@ export function ProductVariantsSection({
       stock: "0",
       isActive: true,
       optionValues: {},
-      imageId: "",
-      imageUrl: "",
+      images: [],
     });
   };
 
@@ -333,6 +358,24 @@ export function ProductVariantsSection({
     variant.options.forEach((opt) => {
       optionValues[opt.optionValue.option.id] = opt.optionValue.id;
     });
+
+    // Convert variant images to form format
+    const images: VariantImage[] =
+      variant.images?.map((img, index) => ({
+        mediaId: img.mediaId,
+        url: img.media.url,
+        position: img.position ?? index,
+      })) ?? [];
+
+    // If no images array but has legacy imageId, use that
+    if (images.length === 0 && variant.image) {
+      images.push({
+        mediaId: variant.imageId!,
+        url: variant.image.url,
+        position: 0,
+      });
+    }
+
     setFormData({
       sku: variant.sku || "",
       price: variant.price || "",
@@ -340,41 +383,9 @@ export function ProductVariantsSection({
       stock: String(variant.stock),
       isActive: variant.isActive,
       optionValues,
-      imageId: variant.imageId || "",
-      imageUrl: variant.image?.url || "",
+      images,
     });
     setEditDialogOpen(true);
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be less than 5MB");
-      return;
-    }
-
-    setIsUploading(true);
-    const result = await uploadProductImage(tenantId, file);
-    setIsUploading(false);
-
-    if (result.success && result.data) {
-      setFormData((prev) => ({
-        ...prev,
-        imageId: result.data!.id,
-        imageUrl: result.data!.url,
-      }));
-      toast.success("Image uploaded");
-    } else {
-      toast.error(result.error || "Failed to upload image");
-    }
-
-    e.target.value = "";
   };
 
   const handleCreate = async () => {
@@ -396,7 +407,7 @@ export function ProductVariantsSection({
       stock: formData.stock,
       isActive: formData.isActive,
       optionValues: formData.optionValues,
-      imageId: formData.imageId,
+      images: formData.images,
       displayOrder: variants.length,
     });
 
@@ -420,7 +431,7 @@ export function ProductVariantsSection({
       stock: formData.stock,
       isActive: formData.isActive,
       optionValues: formData.optionValues,
-      imageId: formData.imageId,
+      images: formData.images,
       displayOrder: selectedVariant.displayOrder,
     });
 
@@ -523,13 +534,25 @@ export function ProductVariantsSection({
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="relative size-10 overflow-hidden rounded-md bg-muted">
-                            {variant.image?.url ? (
-                              <Image
-                                src={variant.image.url}
-                                alt={getVariantDisplayName(variant)}
-                                fill
-                                className="object-cover"
-                              />
+                            {variant.images?.[0]?.media?.url ||
+                            variant.image?.url ? (
+                              <>
+                                <Image
+                                  src={
+                                    variant.images?.[0]?.media?.url ||
+                                    variant.image?.url ||
+                                    ""
+                                  }
+                                  alt={getVariantDisplayName(variant)}
+                                  fill
+                                  className="object-cover"
+                                />
+                                {(variant.images?.length ?? 0) > 1 && (
+                                  <div className="absolute bottom-0.5 right-0.5 rounded bg-black/70 px-1 py-0.5 text-[10px] font-medium text-white">
+                                    +{(variant.images?.length ?? 0) - 1}
+                                  </div>
+                                )}
+                              </>
                             ) : (
                               <div className="flex size-full items-center justify-center">
                                 <Package className="size-5 text-muted-foreground" />
@@ -600,8 +623,9 @@ export function ProductVariantsSection({
             variantOptions={variantOptions}
             currency={currency}
             basePrice={basePrice}
-            isUploading={isUploading}
-            onImageUpload={handleImageUpload}
+            tenantId={tenantId}
+            mediaSelectorOpen={mediaSelectorOpen}
+            setMediaSelectorOpen={setMediaSelectorOpen}
           />
           <DialogFooter>
             <Button
@@ -611,11 +635,7 @@ export function ProductVariantsSection({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={handleCreate}
-              disabled={isPending || isUploading}
-            >
+            <Button type="button" onClick={handleCreate} disabled={isPending}>
               Create Variant
             </Button>
           </DialogFooter>
@@ -635,8 +655,9 @@ export function ProductVariantsSection({
             variantOptions={variantOptions}
             currency={currency}
             basePrice={basePrice}
-            isUploading={isUploading}
-            onImageUpload={handleImageUpload}
+            tenantId={tenantId}
+            mediaSelectorOpen={mediaSelectorOpen}
+            setMediaSelectorOpen={setMediaSelectorOpen}
           />
           <DialogFooter>
             <Button
@@ -646,11 +667,7 @@ export function ProductVariantsSection({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={handleUpdate}
-              disabled={isPending || isUploading}
-            >
+            <Button type="button" onClick={handleUpdate} disabled={isPending}>
               Save Changes
             </Button>
           </DialogFooter>

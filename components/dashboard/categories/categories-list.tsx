@@ -10,6 +10,7 @@ import {
   Trash2,
   FolderTree,
   Package,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,6 +47,7 @@ export function CategoriesList({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] =
     useState<CategoryWithProductCount | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Drag state (mouse)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -147,16 +149,22 @@ export function CategoriesList({
   const handleDelete = async () => {
     if (!categoryToDelete) return;
 
+    setIsDeleting(true);
+
     const result = await deleteCategory(tenantId, categoryToDelete.id);
 
     if (result.success) {
       toast.success("Category deleted");
       setDeleteDialogOpen(false);
       setCategoryToDelete(null);
+      // Optimistic update - remove from list immediately
+      setCategories((prev) => prev.filter((c) => c.id !== categoryToDelete.id));
       startTransition(() => router.refresh());
     } else {
       toast.error(result.error?.message || "Failed to delete category");
     }
+
+    setIsDeleting(false);
   };
 
   if (categories.length === 0) {
@@ -300,9 +308,20 @@ export function CategoriesList({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={handleDelete}>
-              Delete
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -23,6 +23,15 @@ export const variantOptionValueSchema = z.object({
 
 export type VariantOptionValueInput = z.infer<typeof variantOptionValueSchema>;
 
+// Variant image with position
+export const variantImageSchema = z.object({
+  mediaId: z.string().uuid(),
+  url: z.string().url(),
+  position: z.number().int().min(0).default(0),
+});
+
+export type VariantImageInput = z.infer<typeof variantImageSchema>;
+
 // Product variant validation
 export const productVariantSchema = z.object({
   sku: z
@@ -53,7 +62,10 @@ export const productVariantSchema = z.object({
       "Stock must be a valid positive number"
     )
     .default("0"),
+  // Legacy single image support (deprecated, use images array instead)
   imageId: z.string().uuid().optional().or(z.literal("")),
+  // Multiple images with position
+  images: z.array(variantImageSchema).default([]),
   isActive: z.boolean().default(true),
   displayOrder: z.number().int().min(0).default(0),
   // Option values: Map of optionId -> optionValueId

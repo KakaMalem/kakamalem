@@ -7,7 +7,7 @@ export default async function DashboardPage() {
   const user = await getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   // Get user's stores

@@ -172,34 +172,42 @@ export function CategoryForm({
     // Get staged file if any
     const stagedFile = image?.isStaged && image.file ? image.file : null;
 
+    // Use startTransition to show pending state
     startTransition(async () => {
-      let actionResult;
+      try {
+        let actionResult;
 
-      if (category) {
-        actionResult = await updateCategoryWithImage(
-          tenantId,
-          category.id,
-          formData,
-          stagedFile
-        );
-      } else {
-        actionResult = await createCategoryWithImage(
-          tenantId,
-          formData,
-          stagedFile
-        );
-      }
-
-      if (actionResult.success) {
-        toast.success(category ? "Category updated" : "Category created");
-        router.push(`/dashboard/${storeSlug}/categories`);
-        router.refresh();
-      } else {
-        if (actionResult.error?.field) {
-          setErrors({ [actionResult.error.field]: actionResult.error.message });
+        if (category) {
+          actionResult = await updateCategoryWithImage(
+            tenantId,
+            category.id,
+            formData,
+            stagedFile
+          );
         } else {
-          toast.error(actionResult.error?.message || "Something went wrong");
+          actionResult = await createCategoryWithImage(
+            tenantId,
+            formData,
+            stagedFile
+          );
         }
+
+        if (actionResult.success) {
+          toast.success(category ? "Category updated" : "Category created");
+          // Use window.location for immediate navigation that exits transition
+          window.location.href = `/dashboard/${storeSlug}/categories`;
+        } else {
+          if (actionResult.error?.field) {
+            setErrors({
+              [actionResult.error.field]: actionResult.error.message,
+            });
+          } else {
+            toast.error(actionResult.error?.message || "Something went wrong");
+          }
+        }
+      } catch (error) {
+        console.error("Error in form submission:", error);
+        toast.error("Something went wrong. Please try again.");
       }
     });
   };

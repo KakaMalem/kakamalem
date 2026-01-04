@@ -25,7 +25,7 @@ export default async function DashboardLayout({
   const user = await getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   // Get current path to determine active store
@@ -77,7 +77,7 @@ export default async function DashboardLayout({
         storeSlug={storeSlug}
       />
       <SidebarInset>
-        <DashboardHeader />
+        <DashboardHeader storeSlug={storeSlug} />
         <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>

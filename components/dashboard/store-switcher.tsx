@@ -17,8 +17,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import Image from "next/image";
+import { Logo } from "@/components/ui/logo";
 import { useLastStore } from "@/lib/hooks/use-last-store";
+import { cn } from "@/lib/utils";
 
 export type StoreInfo = {
   id: string;
@@ -139,16 +140,20 @@ export function StoreSwitcher({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                {currentStore.logoUrl ? (
-                  <Image
-                    src={currentStore.logoUrl}
-                    alt={currentStore.name}
-                    className="size-6 rounded object-cover"
-                  />
-                ) : (
-                  <Store className="size-4" />
+              <div
+                className={cn(
+                  "flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden",
+                  currentStore.logoUrl
+                    ? "bg-muted"
+                    : "bg-primary text-primary-foreground"
                 )}
+              >
+                <Logo
+                  logoUrl={currentStore.logoUrl}
+                  alt={currentStore.name}
+                  size="md"
+                  fallback={<Store className="size-4" />}
+                />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">
@@ -177,15 +182,12 @@ export function StoreSwitcher({
                 className="gap-2 p-2"
               >
                 <div className="flex size-6 items-center justify-center rounded-sm border bg-background">
-                  {store.logoUrl ? (
-                    <Image
-                      src={store.logoUrl}
-                      alt={store.name}
-                      className="size-4 rounded-sm object-cover"
-                    />
-                  ) : (
-                    <Store className="size-3" />
-                  )}
+                  <Logo
+                    logoUrl={store.logoUrl}
+                    alt={store.name}
+                    size="sm"
+                    fallback={<Store className="size-3" />}
+                  />
                 </div>
                 <span className="flex-1 truncate">{store.name}</span>
                 {store.id === currentStore.id && (

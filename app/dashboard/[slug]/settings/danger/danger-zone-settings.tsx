@@ -41,7 +41,6 @@ interface DangerZoneSettingsProps {
 export function DangerZoneSettings({
   storeId,
   storeName,
-  storeSlug,
   isActive,
 }: DangerZoneSettingsProps) {
   const router = useRouter();

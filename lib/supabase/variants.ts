@@ -6,6 +6,7 @@ import {
   variantOptionValues,
   productVariants,
   productVariantOptions,
+  productVariantImages,
   products,
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
@@ -32,6 +33,40 @@ type ActionResult<T = void> = {
     field?: string;
   };
 };
+
+/**
+ * Helper function to recalculate and sync product stock from its active variants.
+ * This ensures the product.stock field always matches the sum of active variant stocks.
+ * Should be called after any operation that modifies variant stocks or active status.
+ */
+export async function syncProductStockFromVariants(
+  tenantId: string,
+  productId: string
+): Promise<void> {
+  // Get all active variants for this product
+  const activeVariants = await db.query.productVariants.findMany({
+    where: and(
+      eq(productVariants.tenantId, tenantId),
+      eq(productVariants.productId, productId),
+      eq(productVariants.isActive, true)
+    ),
+    columns: {
+      stock: true,
+    },
+  });
+
+  // Calculate total stock
+  const totalStock = activeVariants.reduce((sum, variant) => sum + variant.stock, 0);
+
+  // Update product stock
+  await db
+    .update(products)
+    .set({
+      stock: totalStock,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(products.tenantId, tenantId), eq(products.id, productId)));
+}
 
 // ============================================================================
 // VARIANT OPTIONS (Size, Color, etc.)
@@ -394,6 +429,11 @@ export async function createProductVariant(
 
   const displayName = generateDisplayName(optionValueIds, optionValuesMap);
 
+  // Determine primary image (first image or legacy imageId)
+  const primaryImageId = input.images.length > 0
+    ? input.images[0].mediaId
+    : (input.imageId || null);
+
   // Create variant
   const [variant] = await db
     .insert(productVariants)
@@ -406,7 +446,7 @@ export async function createProductVariant(
       weight: input.weight ? input.weight : null,
       stock: parseInt(input.stock) || 0,
       stockStatus: parseInt(input.stock) > 0 ? "in_stock" : "out_of_stock",
-      imageId: input.imageId || null,
+      imageId: primaryImageId,
       isActive: input.isActive,
       displayOrder: input.displayOrder,
     })
@@ -419,6 +459,18 @@ export async function createProductVariant(
         tenantId,
         variantId: variant.id,
         optionValueId,
+      }))
+    );
+  }
+
+  // Create variant images
+  if (input.images.length > 0) {
+    await db.insert(productVariantImages).values(
+      input.images.map((img, index) => ({
+        tenantId,
+        variantId: variant.id,
+        mediaId: img.mediaId,
+        position: img.position ?? index,
       }))
     );
   }
@@ -500,6 +552,11 @@ export async function updateProductVariant(
 
   const stockNum = parseInt(input.stock) || 0;
 
+  // Determine primary image (first image or legacy imageId)
+  const primaryImageId = input.images.length > 0
+    ? input.images[0].mediaId
+    : (input.imageId || null);
+
   // Update variant
   await db
     .update(productVariants)
@@ -510,7 +567,7 @@ export async function updateProductVariant(
       weight: input.weight ? input.weight : null,
       stock: stockNum,
       stockStatus: stockNum > 0 ? "in_stock" : "out_of_stock",
-      imageId: input.imageId || null,
+      imageId: primaryImageId,
       isActive: input.isActive,
       displayOrder: input.displayOrder,
       updatedAt: new Date(),
@@ -530,6 +587,22 @@ export async function updateProductVariant(
         tenantId,
         variantId,
         optionValueId,
+      }))
+    );
+  }
+
+  // Update variant images - delete old and insert new
+  await db
+    .delete(productVariantImages)
+    .where(eq(productVariantImages.variantId, variantId));
+
+  if (input.images.length > 0) {
+    await db.insert(productVariantImages).values(
+      input.images.map((img, index) => ({
+        tenantId,
+        variantId,
+        mediaId: img.mediaId,
+        position: img.position ?? index,
       }))
     );
   }
@@ -630,4 +703,548 @@ export async function bulkDeleteProductVariants(
   }
 
   return { success: true };
+}
+
+// ============================================================================
+// BULK VARIANT CREATION FOR INLINE VARIANT BUILDER
+// ============================================================================
+
+import type {
+  InlineOption,
+  GeneratedVariant,
+} from "@/lib/validations/variant-form";
+
+/**
+ * Input for creating variants in bulk from the inline builder
+ */
+export type BulkVariantCreationInput = {
+  options: InlineOption[];
+  variants: GeneratedVariant[];
+};
+
+/**
+ * Create or update all variants for a product in bulk.
+ * This handles:
+ * - Creating new variant options (if marked as new)
+ * - Creating new variant option values (if marked as new)
+ * - Creating all product variants with their option links
+ */
+export async function createProductVariantsInBulk(
+  tenantId: string,
+  productId: string,
+  input: BulkVariantCreationInput
+): Promise<ActionResult<{ variantIds: string[] }>> {
+  const { options, variants } = input;
+
+  // Filter out excluded variants
+  const activeVariants = variants.filter((v) => !v.isExcluded);
+
+  if (activeVariants.length === 0) {
+    return {
+      success: false,
+      error: { message: "At least one variant is required" },
+    };
+  }
+
+  // Validate variant count
+  if (activeVariants.length > 100) {
+    return {
+      success: false,
+      error: { message: "Maximum 100 variants allowed" },
+    };
+  }
+
+  try {
+    // Step 1: Create or find variant options and their values
+    // Map: tempId/id -> actualId for options
+    const optionIdMap = new Map<string, string>();
+    // Map: value string (within option) -> actualValueId
+    const valueIdMap = new Map<string, string>();
+
+    for (const option of options) {
+      let optionId: string;
+
+      if (option.isNew || !option.id) {
+        // Create new option
+        const existingOption = await db.query.variantOptions.findFirst({
+          where: and(
+            eq(variantOptions.tenantId, tenantId),
+            eq(variantOptions.name, option.name)
+          ),
+        });
+
+        if (existingOption) {
+          optionId = existingOption.id;
+        } else {
+          const [newOption] = await db
+            .insert(variantOptions)
+            .values({
+              tenantId,
+              name: option.name,
+              displayOrder: options.indexOf(option),
+            })
+            .returning({ id: variantOptions.id });
+          optionId = newOption.id;
+        }
+      } else {
+        optionId = option.id;
+      }
+
+      // Store mapping
+      const optionKey = option.id || option.tempId || option.name;
+      optionIdMap.set(optionKey, optionId);
+
+      // Step 2: Create or find option values
+      for (const val of option.values) {
+        let valueId: string;
+
+        if (val.isNew || !val.id) {
+          // Check if value exists
+          const existingValue = await db.query.variantOptionValues.findFirst({
+            where: and(
+              eq(variantOptionValues.tenantId, tenantId),
+              eq(variantOptionValues.optionId, optionId),
+              eq(variantOptionValues.value, val.value)
+            ),
+          });
+
+          if (existingValue) {
+            valueId = existingValue.id;
+          } else {
+            const [newValue] = await db
+              .insert(variantOptionValues)
+              .values({
+                tenantId,
+                optionId,
+                value: val.value,
+                displayOrder: option.values.indexOf(val),
+              })
+              .returning({ id: variantOptionValues.id });
+            valueId = newValue.id;
+          }
+        } else {
+          valueId = val.id;
+        }
+
+        // Store mapping: use "optionKey:value" as key
+        valueIdMap.set(`${optionKey}:${val.value}`, valueId);
+      }
+    }
+
+    // Step 3: Create product variants
+    const createdVariantIds: string[] = [];
+
+    for (let i = 0; i < activeVariants.length; i++) {
+      const variant = activeVariants[i];
+
+      // Build optionValues map for this variant (optionId -> valueId)
+      const optionValuesForVariant: Record<string, string> = {};
+
+      for (const ov of variant.optionValues) {
+        // Find the option key
+        const optionKey = ov.optionId;
+        const actualOptionId = optionIdMap.get(optionKey);
+
+        if (!actualOptionId) {
+          // Try to find by name
+          for (const [key, id] of optionIdMap) {
+            const option = options.find(
+              (o) => o.id === key || o.tempId === key || o.name === key
+            );
+            if (option?.name === ov.optionName) {
+              optionValuesForVariant[id] = valueIdMap.get(`${key}:${ov.value}`) || "";
+              break;
+            }
+          }
+        } else {
+          const valueKey = `${optionKey}:${ov.value}`;
+          optionValuesForVariant[actualOptionId] = valueIdMap.get(valueKey) || "";
+        }
+      }
+
+      // Get actual value IDs for display name
+      const actualValueIds = Object.values(optionValuesForVariant).filter(Boolean);
+
+      // Fetch values for display name
+      const valuesData = actualValueIds.length > 0
+        ? await db.query.variantOptionValues.findMany({
+            where: inArray(variantOptionValues.id, actualValueIds),
+            with: { option: true },
+          })
+        : [];
+
+      const displayName = valuesData.map((v) => v.value).join(" / ");
+
+      // Check SKU uniqueness
+      if (variant.sku) {
+        const isSkuAvailable = await checkVariantSkuAvailable(
+          tenantId,
+          productId,
+          variant.sku
+        );
+        if (!isSkuAvailable) {
+          // Generate a unique SKU by appending index
+          variant.sku = `${variant.sku}-${i + 1}`;
+        }
+      }
+
+      // Create variant
+      const stockNum = parseInt(variant.stock) || 0;
+      const [newVariant] = await db
+        .insert(productVariants)
+        .values({
+          tenantId,
+          productId,
+          sku: variant.sku || null,
+          displayName: displayName || variant.displayName,
+          price: variant.price || null,
+          weight: variant.weight || null,
+          length: variant.length || null,
+          width: variant.width || null,
+          height: variant.height || null,
+          description: variant.description || null,
+          imageId: variant.imageId || null,
+          stock: stockNum,
+          stockStatus: stockNum > 0 ? "in_stock" : "out_of_stock",
+          isActive: variant.isActive,
+          displayOrder: i,
+        })
+        .returning({ id: productVariants.id });
+
+      createdVariantIds.push(newVariant.id);
+
+      // Create variant option links
+      if (actualValueIds.length > 0) {
+        await db.insert(productVariantOptions).values(
+          actualValueIds.map((valueId) => ({
+            tenantId,
+            variantId: newVariant.id,
+            optionValueId: valueId,
+          }))
+        );
+      }
+
+      // Create variant images
+      if (variant.imageIds && variant.imageIds.length > 0) {
+        await db.insert(productVariantImages).values(
+          variant.imageIds.map((mediaId, index) => ({
+            tenantId,
+            variantId: newVariant.id,
+            mediaId,
+            position: index,
+          }))
+        );
+      }
+    }
+
+    // Step 4: Update product hasVariants flag and sync stock
+    // Calculate total stock from active variants
+    const totalStock = activeVariants.reduce((sum, v) => {
+      const stock = parseInt(v.stock) || 0;
+      return sum + (v.isActive ? stock : 0);
+    }, 0);
+
+    await db
+      .update(products)
+      .set({
+        hasVariants: true,
+        stock: totalStock, // Sync stock with variant totals
+        updatedAt: new Date()
+      })
+      .where(and(eq(products.tenantId, tenantId), eq(products.id, productId)));
+
+    return { success: true, data: { variantIds: createdVariantIds } };
+  } catch (error) {
+    console.error("Error creating variants in bulk:", error);
+    return {
+      success: false,
+      error: { message: "Failed to create variants" },
+    };
+  }
+}
+
+/**
+ * Update all variants for a product, handling adds/updates/deletes
+ */
+export async function updateProductVariantsInBulk(
+  tenantId: string,
+  productId: string,
+  input: BulkVariantCreationInput
+): Promise<ActionResult> {
+  const { options, variants } = input;
+
+  // Filter out excluded variants
+  const activeVariants = variants.filter((v) => !v.isExcluded);
+
+  try {
+    // Get existing variants
+    const existingVariants = await db.query.productVariants.findMany({
+      where: and(
+        eq(productVariants.tenantId, tenantId),
+        eq(productVariants.productId, productId)
+      ),
+    });
+
+    const existingIds = new Set(existingVariants.map((v) => v.id));
+    const newVariantExistingIds = new Set(
+      activeVariants.filter((v) => v.existingId).map((v) => v.existingId!)
+    );
+
+    // Delete variants that are no longer in the list
+    const toDelete = existingVariants.filter((v) => !newVariantExistingIds.has(v.id));
+    if (toDelete.length > 0) {
+      await db
+        .delete(productVariants)
+        .where(
+          and(
+            eq(productVariants.tenantId, tenantId),
+            inArray(productVariants.id, toDelete.map((v) => v.id))
+          )
+        );
+    }
+
+    // If no active variants remain after this update
+    if (activeVariants.length === 0) {
+      await db
+        .update(products)
+        .set({
+          hasVariants: false,
+          stock: 0, // Reset stock when no variants
+          updatedAt: new Date()
+        })
+        .where(and(eq(products.tenantId, tenantId), eq(products.id, productId)));
+      return { success: true };
+    }
+
+    // Create new options/values as needed (same logic as create)
+    const optionIdMap = new Map<string, string>();
+    const valueIdMap = new Map<string, string>();
+
+    for (const option of options) {
+      let optionId: string;
+
+      if (option.isNew || !option.id) {
+        const existingOption = await db.query.variantOptions.findFirst({
+          where: and(
+            eq(variantOptions.tenantId, tenantId),
+            eq(variantOptions.name, option.name)
+          ),
+        });
+
+        if (existingOption) {
+          optionId = existingOption.id;
+        } else {
+          const [newOption] = await db
+            .insert(variantOptions)
+            .values({
+              tenantId,
+              name: option.name,
+              displayOrder: options.indexOf(option),
+            })
+            .returning({ id: variantOptions.id });
+          optionId = newOption.id;
+        }
+      } else {
+        optionId = option.id;
+      }
+
+      const optionKey = option.id || option.tempId || option.name;
+      optionIdMap.set(optionKey, optionId);
+
+      for (const val of option.values) {
+        let valueId: string;
+
+        if (val.isNew || !val.id) {
+          const existingValue = await db.query.variantOptionValues.findFirst({
+            where: and(
+              eq(variantOptionValues.tenantId, tenantId),
+              eq(variantOptionValues.optionId, optionId),
+              eq(variantOptionValues.value, val.value)
+            ),
+          });
+
+          if (existingValue) {
+            valueId = existingValue.id;
+          } else {
+            const [newValue] = await db
+              .insert(variantOptionValues)
+              .values({
+                tenantId,
+                optionId,
+                value: val.value,
+                displayOrder: option.values.indexOf(val),
+              })
+              .returning({ id: variantOptionValues.id });
+            valueId = newValue.id;
+          }
+        } else {
+          valueId = val.id;
+        }
+
+        valueIdMap.set(`${optionKey}:${val.value}`, valueId);
+      }
+    }
+
+    // Update or create variants
+    for (let i = 0; i < activeVariants.length; i++) {
+      const variant = activeVariants[i];
+
+      // Build optionValues
+      const optionValuesForVariant: Record<string, string> = {};
+      for (const ov of variant.optionValues) {
+        const optionKey = ov.optionId;
+        const actualOptionId = optionIdMap.get(optionKey);
+
+        if (!actualOptionId) {
+          for (const [key, id] of optionIdMap) {
+            const option = options.find(
+              (o) => o.id === key || o.tempId === key || o.name === key
+            );
+            if (option?.name === ov.optionName) {
+              optionValuesForVariant[id] = valueIdMap.get(`${key}:${ov.value}`) || "";
+              break;
+            }
+          }
+        } else {
+          optionValuesForVariant[actualOptionId] = valueIdMap.get(`${optionKey}:${ov.value}`) || "";
+        }
+      }
+
+      const actualValueIds = Object.values(optionValuesForVariant).filter(Boolean);
+      const valuesData = actualValueIds.length > 0
+        ? await db.query.variantOptionValues.findMany({
+            where: inArray(variantOptionValues.id, actualValueIds),
+          })
+        : [];
+      const displayName = valuesData.map((v) => v.value).join(" / ");
+
+      const stockNum = parseInt(variant.stock) || 0;
+
+      if (variant.existingId && existingIds.has(variant.existingId)) {
+        // Update existing variant
+        await db
+          .update(productVariants)
+          .set({
+            sku: variant.sku || null,
+            displayName: displayName || variant.displayName,
+            price: variant.price || null,
+            weight: variant.weight || null,
+            length: variant.length || null,
+            width: variant.width || null,
+            height: variant.height || null,
+            description: variant.description || null,
+            imageId: variant.imageId || null,
+            stock: stockNum,
+            stockStatus: stockNum > 0 ? "in_stock" : "out_of_stock",
+            isActive: variant.isActive,
+            displayOrder: i,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(productVariants.tenantId, tenantId),
+              eq(productVariants.id, variant.existingId)
+            )
+          );
+
+        // Update option links
+        await db
+          .delete(productVariantOptions)
+          .where(eq(productVariantOptions.variantId, variant.existingId));
+
+        if (actualValueIds.length > 0) {
+          await db.insert(productVariantOptions).values(
+            actualValueIds.map((valueId) => ({
+              tenantId,
+              variantId: variant.existingId!,
+              optionValueId: valueId,
+            }))
+          );
+        }
+
+        // Update variant images - delete old and insert new
+        await db
+          .delete(productVariantImages)
+          .where(eq(productVariantImages.variantId, variant.existingId));
+
+        if (variant.imageIds && variant.imageIds.length > 0) {
+          await db.insert(productVariantImages).values(
+            variant.imageIds.map((mediaId, index) => ({
+              tenantId,
+              variantId: variant.existingId!,
+              mediaId,
+              position: index,
+            }))
+          );
+        }
+      } else {
+        // Create new variant
+        const [newVariant] = await db
+          .insert(productVariants)
+          .values({
+            tenantId,
+            productId,
+            sku: variant.sku || null,
+            displayName: displayName || variant.displayName,
+            price: variant.price || null,
+            weight: variant.weight || null,
+            length: variant.length || null,
+            width: variant.width || null,
+            height: variant.height || null,
+            description: variant.description || null,
+            imageId: variant.imageId || null,
+            stock: stockNum,
+            stockStatus: stockNum > 0 ? "in_stock" : "out_of_stock",
+            isActive: variant.isActive,
+            displayOrder: i,
+          })
+          .returning({ id: productVariants.id });
+
+        if (actualValueIds.length > 0) {
+          await db.insert(productVariantOptions).values(
+            actualValueIds.map((valueId) => ({
+              tenantId,
+              variantId: newVariant.id,
+              optionValueId: valueId,
+            }))
+          );
+        }
+
+        // Create variant images for new variant
+        if (variant.imageIds && variant.imageIds.length > 0) {
+          await db.insert(productVariantImages).values(
+            variant.imageIds.map((mediaId, index) => ({
+              tenantId,
+              variantId: newVariant.id,
+              mediaId,
+              position: index,
+            }))
+          );
+        }
+      }
+    }
+
+    // Calculate total stock from active variants and update product
+    const totalStock = activeVariants.reduce((sum, v) => {
+      const stock = parseInt(v.stock) || 0;
+      return sum + (v.isActive ? stock : 0);
+    }, 0);
+
+    await db
+      .update(products)
+      .set({
+        hasVariants: true,
+        stock: totalStock, // Sync stock with variant totals
+        updatedAt: new Date()
+      })
+      .where(and(eq(products.tenantId, tenantId), eq(products.id, productId)));
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating variants in bulk:", error);
+    return {
+      success: false,
+      error: { message: "Failed to update variants" },
+    };
+  }
 }

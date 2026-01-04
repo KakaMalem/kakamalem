@@ -24,6 +24,15 @@ pnpm db:migrate   # Run migrations (production)
 pnpm db:studio    # Open Drizzle Studio GUI
 ```
 
+Local Supabase commands:
+
+```bash
+pnpm dlx supabase start    # Start local Supabase (Docker required)
+pnpm dlx supabase stop     # Stop local Supabase
+pnpm dlx supabase status   # Check local Supabase status
+pnpm dlx supabase db reset # Reset local database (WARNING: deletes all data)
+```
+
 Add shadcn/ui components:
 
 ```bash
@@ -94,8 +103,11 @@ components/
 └── auth/                   # Auth-related components
 
 supabase/
+├── config.toml              # Local Supabase configuration
+├── seed.sql                 # Seed data (storage buckets, initial data)
 └── migrations/
-    └── 001_rls_policies.sql  # RLS policies (run after db:push)
+    ├── 000_initial_schema.sql  # Combined Drizzle schema (all tables)
+    └── 001_rls_policies.sql    # RLS policies and helper functions
 ```
 
 ### Path Alias
@@ -267,14 +279,14 @@ const handleSubmit = async (e: FormEvent) => {
 
 1. User submits form → client-side Zod validation
 2. Server action validates again → calls `supabase.auth.signUp/signInWithPassword`
-3. For signup: email confirmation sent → user clicks link → `/auth/callback` processes
+3. For signup: email confirmation sent → user clicks link → `/callback` processes
 4. Session stored in cookies via `@supabase/ssr`
 
 ### OAuth (Google/Facebook)
 
 1. User clicks OAuth button → `supabase.auth.signInWithOAuth`
 2. Redirect to provider → user authorizes
-3. Callback to `/auth/callback` → exchanges code for session
+3. Callback to `/callback` → exchanges code for session
 4. Redirect to `/dashboard`
 
 ### Server Actions
@@ -290,7 +302,7 @@ export async function getSession(): Promise<Session | null>;
 
 ## Environment Variables
 
-Required in `.env`:
+### Production (`.env`)
 
 ```bash
 # Supabase PostgreSQL (pooled for app runtime)
@@ -303,6 +315,22 @@ DATABASE_URL_UNPOOLED="postgresql://..."
 NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
 ```
+
+### Local Development (`.env.local`)
+
+When running local Supabase with `pnpm dlx supabase start`, use these values:
+
+```bash
+# Local PostgreSQL (no pooling needed)
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+DATABASE_URL_UNPOOLED=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+# Local Supabase client
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+```
+
+**Note:** `.env.local` takes precedence over `.env` in Next.js. Delete or rename `.env.local` to use production environment.
 
 ## Development Notes
 

@@ -6,6 +6,8 @@ import {
   categories,
   media,
   productImages,
+  productCategories,
+  productVariants,
 } from "@/lib/db/schema";
 import { eq, and, or, ilike, desc, asc, count, sql, inArray } from "drizzle-orm";
 
@@ -53,7 +55,13 @@ export async function getProducts(
   }
 
   if (filters.categoryId) {
-    conditions.push(eq(products.categoryId, filters.categoryId));
+    // Filter by category using the productCategories junction table
+    const productsInCategory = db
+      .select({ productId: productCategories.productId })
+      .from(productCategories)
+      .where(eq(productCategories.categoryId, filters.categoryId));
+
+    conditions.push(inArray(products.id, productsInCategory));
   }
 
   if (filters.isActive !== undefined) {
@@ -127,8 +135,9 @@ export async function getProducts(
     .limit(limit)
     .offset(offset);
 
-  // Get first image for each product
   const productIds = productsList.map((p) => p.id);
+
+  // Get first image for each product
   const images =
     productIds.length > 0
       ? await db
@@ -147,12 +156,74 @@ export async function getProducts(
           )
       : [];
 
-  // Map images to products
+  // Get all categories for each product from junction table
+  const productCategoriesData =
+    productIds.length > 0
+      ? await db
+          .select({
+            productId: sql<string>`${productCategories.productId}`.as("productId"),
+            categoryId: categories.id,
+            categoryName: categories.name,
+            categorySlug: categories.slug,
+          })
+          .from(productCategories)
+          .innerJoin(categories, eq(productCategories.categoryId, categories.id))
+          .where(inArray(productCategories.productId, productIds))
+      : [];
+
+  // Get variant stock sums for products with variants (only active variants)
+  const variantStockSums =
+    productIds.length > 0
+      ? await db
+          .select({
+            productId: sql<string>`${productVariants.productId}`.as("productId"),
+            totalStock: sql<number>`COALESCE(SUM(${productVariants.stock}), 0)`.as("totalStock"),
+          })
+          .from(productVariants)
+          .where(
+            and(
+              inArray(productVariants.productId, productIds),
+              eq(productVariants.isActive, true)
+            )
+          )
+          .groupBy(productVariants.productId)
+      : [];
+
+  // Map images, categories, and variant stocks to products
   const imageMap = new Map(images.map((img) => [img.productId, img]));
-  const productsWithImages = productsList.map((product) => ({
-    ...product,
-    image: imageMap.get(product.id) || null,
-  }));
+  const variantStockMap = new Map(variantStockSums.map((vs) => [vs.productId, vs.totalStock]));
+
+  // Group categories by product
+  const categoriesMap = new Map<string, Array<{ id: string; name: string; slug: string }>>();
+  productCategoriesData.forEach((pc) => {
+    if (!categoriesMap.has(pc.productId)) {
+      categoriesMap.set(pc.productId, []);
+    }
+    categoriesMap.get(pc.productId)!.push({
+      id: pc.categoryId,
+      name: pc.categoryName,
+      slug: pc.categorySlug,
+    });
+  });
+
+  const productsWithImages = productsList.map((product) => {
+    const productCategories = categoriesMap.get(product.id) || [];
+    const variantTotalStock = variantStockMap.get(product.id) || 0;
+
+    // Use variant stock sum if product has variants, otherwise use product.stock
+    const effectiveStock = product.hasVariants ? variantTotalStock : product.stock;
+
+    return {
+      ...product,
+      image: imageMap.get(product.id) || null,
+      categories: productCategories,
+      // Keep the first category for backwards compatibility
+      categoryName: productCategories[0]?.name || product.categoryName,
+      categorySlug: productCategories[0]?.slug || product.categorySlug,
+      // Override stock with variant sum if applicable
+      stock: effectiveStock,
+    };
+  });
 
   // Get total count
   const [{ total }] = await db
@@ -179,6 +250,11 @@ export async function getProductById(tenantId: string, productId: string) {
     where: and(eq(products.tenantId, tenantId), eq(products.id, productId)),
     with: {
       category: true,
+      productCategories: {
+        columns: {
+          categoryId: true,
+        },
+      },
       images: {
         with: {
           media: true,
@@ -197,6 +273,12 @@ export async function getProductById(tenantId: string, productId: string) {
             },
           },
           image: true,
+          images: {
+            with: {
+              media: true,
+            },
+            orderBy: (vi, { asc }) => [asc(vi.position)],
+          },
         },
         orderBy: (v, { asc }) => [asc(v.displayOrder)],
       },
@@ -216,6 +298,49 @@ export async function getProductBySlug(tenantId: string, slug: string) {
 
   return product;
 }
+
+/**
+ * Get product by slug with all details (for product detail page)
+ */
+export async function getProductBySlugWithDetails(tenantId: string, slug: string) {
+  const product = await db.query.products.findFirst({
+    where: and(eq(products.tenantId, tenantId), eq(products.slug, slug)),
+    with: {
+      category: true,
+      images: {
+        with: {
+          media: true,
+        },
+        orderBy: (pi, { asc }) => [asc(pi.position)],
+      },
+      variants: {
+        with: {
+          options: {
+            with: {
+              optionValue: {
+                with: {
+                  option: true,
+                },
+              },
+            },
+          },
+          image: true,
+          images: {
+            with: {
+              media: true,
+            },
+            orderBy: (vi, { asc }) => [asc(vi.position)],
+          },
+        },
+        orderBy: (v, { asc }) => [asc(v.displayOrder)],
+      },
+    },
+  });
+
+  return product;
+}
+
+export type ProductWithDetails = NonNullable<Awaited<ReturnType<typeof getProductBySlugWithDetails>>>;
 
 /**
  * Check if a product slug is available within a tenant

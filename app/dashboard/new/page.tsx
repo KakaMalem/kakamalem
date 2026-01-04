@@ -6,7 +6,7 @@ export default async function CreateStorePage() {
   const user = await getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   return (

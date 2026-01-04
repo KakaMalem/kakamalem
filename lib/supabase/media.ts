@@ -110,7 +110,7 @@ export async function uploadMedia(
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from("product-images")
+      .from("media")
       .upload(storagePath, file, {
         cacheControl: "3600",
         upsert: false,
@@ -124,7 +124,7 @@ export async function uploadMedia(
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabase.storage.from("product-images").getPublicUrl(storagePath);
+    } = supabase.storage.from("media").getPublicUrl(storagePath);
 
     // Save to media table
     const [newMedia] = await db
@@ -224,16 +224,16 @@ export async function deleteMedia(
   }
 
   // Extract storage path from URL
-  // URL format: https://xxx.supabase.co/storage/v1/object/public/product-images/[path]
+  // URL format: https://xxx.supabase.co/storage/v1/object/public/media/[path]
   const url = new URL(mediaItem.url);
-  const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/product-images\/(.+)/);
+  const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/media\/(.+)/);
 
   if (pathMatch) {
     const storagePath = pathMatch[1];
     const supabase = await createClient();
 
     // Delete from storage (don't fail if storage delete fails)
-    await supabase.storage.from("product-images").remove([storagePath]);
+    await supabase.storage.from("media").remove([storagePath]);
   }
 
   // Delete from database

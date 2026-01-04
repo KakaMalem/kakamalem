@@ -4,3 +4,25 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+/**
+ * Format a price with currency symbol
+ * Supports AFN (Afghan Afghani) and USD
+ */
+export function formatPrice(price: number, currency: string = "AFN"): string {
+  if (currency === "USD") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(price);
+  }
+
+  // AFN - Afghan Afghani
+  // Format: AFN 1,234.00 or ؋ 1,234.00
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "AFN",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(price);
+}

@@ -285,6 +285,7 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
     references: [media.id],
   }),
   products: many(products),
+  productCategories: many(productCategories),
 }));
 
 // ============================================================================
@@ -316,8 +317,13 @@ export const products = pgTable(
     trackInventory: boolean("track_inventory").default(true).notNull(),
     allowBackorder: boolean("allow_backorder").default(false).notNull(),
     lowStockThreshold: integer("low_stock_threshold").default(5).notNull(),
+    showStock: boolean("show_stock").default(false).notNull(),
     // Shipping weight (in kg) for weight-based shipping calculations
     weight: decimal("weight", { precision: 10, scale: 3 }),
+    // Dimensions (in cm) for shipping calculations
+    length: decimal("length", { precision: 10, scale: 2 }),
+    width: decimal("width", { precision: 10, scale: 2 }),
+    height: decimal("height", { precision: 10, scale: 2 }),
     // Display & status
     displayOrder: integer("display_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -392,6 +398,37 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
   media: one(media, {
     fields: [productImages.mediaId],
     references: [media.id],
+  }),
+}));
+
+// ============================================================================
+// PRODUCT CATEGORIES (junction table for many-to-many product-category relationship)
+// ============================================================================
+export const productCategories = pgTable(
+  "product_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("product_categories_product_category_idx").on(table.productId, table.categoryId),
+  ]
+);
+
+export const productCategoriesRelations = relations(productCategories, ({ one }) => ({
+  product: one(products, {
+    fields: [productCategories.productId],
+    references: [products.id],
+  }),
+  category: one(categories, {
+    fields: [productCategories.categoryId],
+    references: [categories.id],
   }),
 }));
 
@@ -488,6 +525,12 @@ export const productVariants = pgTable(
     price: decimal("price", { precision: 10, scale: 2 }),
     // Weight: null means use product's base weight; set to override
     weight: decimal("weight", { precision: 10, scale: 3 }),
+    // Dimensions: null means use product's base dimensions; set to override
+    length: decimal("length", { precision: 10, scale: 2 }),
+    width: decimal("width", { precision: 10, scale: 2 }),
+    height: decimal("height", { precision: 10, scale: 2 }),
+    // Optional variant-specific description
+    description: text("description"),
     // Inventory
     stock: integer("stock").default(0).notNull(),
     reservedStock: integer("reserved_stock").default(0).notNull(), // Stock reserved for pending orders
@@ -522,8 +565,55 @@ export const productVariantsRelations = relations(productVariants, ({ one, many 
     fields: [productVariants.imageId],
     references: [media.id],
   }),
+  images: many(productVariantImages),
   options: many(productVariantOptions),
   inventoryMovements: many(inventoryMovements),
+}));
+
+// ============================================================================
+// PRODUCT VARIANT IMAGES (junction table linking variants to media)
+// ============================================================================
+// Allows variants to have multiple images (e.g., iPhone Orange - 3 angles)
+// Similar pattern to productImages but for variants
+export const productVariantImages = pgTable(
+  "product_variant_images",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id")
+      .notNull()
+      .references(() => productVariants.id, { onDelete: "cascade" }),
+    mediaId: uuid("media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "cascade" }),
+    position: integer("position").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Tenant_id first for RLS performance
+    uniqueIndex("product_variant_images_tenant_variant_media_idx").on(
+      table.tenantId,
+      table.variantId,
+      table.mediaId
+    ),
+  ]
+);
+
+export const productVariantImagesRelations = relations(productVariantImages, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [productVariantImages.tenantId],
+    references: [tenants.id],
+  }),
+  variant: one(productVariants, {
+    fields: [productVariantImages.variantId],
+    references: [productVariants.id],
+  }),
+  media: one(media, {
+    fields: [productVariantImages.mediaId],
+    references: [media.id],
+  }),
 }));
 
 // ============================================================================
@@ -631,6 +721,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     fields: [products.categoryId],
     references: [categories.id],
   }),
+  productCategories: many(productCategories),
   images: many(productImages),
   variants: many(productVariants),
   inventoryMovements: many(inventoryMovements),
@@ -1625,6 +1716,8 @@ export type ProductVariant = typeof productVariants.$inferSelect;
 export type NewProductVariant = typeof productVariants.$inferInsert;
 export type ProductVariantOption = typeof productVariantOptions.$inferSelect;
 export type NewProductVariantOption = typeof productVariantOptions.$inferInsert;
+export type ProductVariantImage = typeof productVariantImages.$inferSelect;
+export type NewProductVariantImage = typeof productVariantImages.$inferInsert;
 export type StockStatus = (typeof stockStatusEnum.enumValues)[number];
 // Inventory types
 export type InventoryMovement = typeof inventoryMovements.$inferSelect;

@@ -15,7 +15,7 @@ export default async function TeamSettingsPage({
   const user = await getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   const store = await getTenantBySlug(slug);

@@ -1,0 +1,148 @@
+"use client";
+
+import Link from "next/link";
+import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { CartItem } from "./cart-item";
+import { CartSummary } from "./cart-summary";
+import { EmptyCart } from "./empty-cart";
+import { useCartItems, useCartActions } from "@/lib/stores/use-cart-store";
+import { clearCartAction } from "@/lib/cart/actions";
+
+interface CartContentProps {
+  tenantId: string;
+  storeSlug: string;
+  currency: string;
+}
+
+export function CartContent({
+  tenantId,
+  storeSlug,
+  currency,
+}: CartContentProps) {
+  const items = useCartItems();
+  const { clearCart } = useCartActions();
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearCart = async () => {
+    setIsClearing(true);
+
+    // Optimistic clear
+    clearCart();
+
+    const result = await clearCartAction(tenantId, storeSlug);
+
+    if (!result.success) {
+      toast.error(result.error || "Failed to clear cart");
+    } else {
+      toast.success("Cart cleared");
+    }
+
+    setIsClearing(false);
+  };
+
+  if (items.length === 0) {
+    return <EmptyCart storeSlug={storeSlug} />;
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+            Shopping Cart
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {items.length} {items.length === 1 ? "item" : "items"} in your cart
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/store/${storeSlug}`}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Continue Shopping
+            </Link>
+          </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                disabled={isClearing}
+              >
+                {isClearing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Clear Cart
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear shopping cart?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove all {items.length}{" "}
+                  {items.length === 1 ? "item" : "items"} from your cart. This
+                  action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleClearCart}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Clear Cart
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+
+      {/* Cart Content */}
+      <div className="grid gap-8 lg:grid-cols-3">
+        {/* Cart Items */}
+        <div className="lg:col-span-2">
+          <div className="space-y-4">
+            {items.map((item) => (
+              <CartItem
+                key={item.id}
+                item={item}
+                tenantId={tenantId}
+                storeSlug={storeSlug}
+                currency={currency}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Order Summary */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-24">
+            <CartSummary storeSlug={storeSlug} currency={currency} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

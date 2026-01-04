@@ -5,6 +5,7 @@ import {
   variantOptions,
   variantOptionValues,
   productVariants,
+  productVariantImages,
 } from "@/lib/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 
@@ -96,6 +97,12 @@ export async function getProductVariants(tenantId: string, productId: string) {
         },
       },
       image: true,
+      images: {
+        with: {
+          media: true,
+        },
+        orderBy: [asc(productVariantImages.position)],
+      },
     },
     orderBy: [asc(productVariants.displayOrder)],
   });
@@ -123,6 +130,12 @@ export async function getVariantById(tenantId: string, variantId: string) {
         },
       },
       image: true,
+      images: {
+        with: {
+          media: true,
+        },
+        orderBy: [asc(productVariantImages.position)],
+      },
       product: true,
     },
   });
@@ -154,4 +167,103 @@ export async function checkVariantSkuAvailable(
   if (excludeVariantId && existing.id === excludeVariantId) return true;
 
   return false;
+}
+
+/**
+ * Get the unique variant options used by a specific product.
+ * This reconstructs which options (Size, Color) and their values (S, M, L, Red, Blue)
+ * are used by the product's variants.
+ *
+ * Used when editing a product to populate the variant options builder.
+ */
+export type ProductVariantOptionType = {
+  id: string;
+  name: string;
+  displayOrder: number;
+  values: {
+    id: string;
+    value: string;
+    displayOrder: number;
+  }[];
+};
+
+export async function getProductVariantOptionTypes(
+  tenantId: string,
+  productId: string
+): Promise<ProductVariantOptionType[]> {
+  // Get all variants for this product with their option values
+  const variants = await db.query.productVariants.findMany({
+    where: and(
+      eq(productVariants.tenantId, tenantId),
+      eq(productVariants.productId, productId)
+    ),
+    with: {
+      options: {
+        with: {
+          optionValue: {
+            with: {
+              option: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Build a map of optionId -> { option, values: Set<valueId> }
+  const optionsMap = new Map<
+    string,
+    {
+      option: { id: string; name: string; displayOrder: number };
+      valuesMap: Map<string, { id: string; value: string; displayOrder: number }>;
+    }
+  >();
+
+  for (const variant of variants) {
+    for (const variantOption of variant.options) {
+      const optionValue = variantOption.optionValue;
+      const option = optionValue.option;
+
+      if (!optionsMap.has(option.id)) {
+        optionsMap.set(option.id, {
+          option: {
+            id: option.id,
+            name: option.name,
+            displayOrder: option.displayOrder,
+          },
+          valuesMap: new Map(),
+        });
+      }
+
+      const entry = optionsMap.get(option.id)!;
+      if (!entry.valuesMap.has(optionValue.id)) {
+        entry.valuesMap.set(optionValue.id, {
+          id: optionValue.id,
+          value: optionValue.value,
+          displayOrder: optionValue.displayOrder,
+        });
+      }
+    }
+  }
+
+  // Convert map to array, sorted by option display order
+  const result: ProductVariantOptionType[] = [];
+
+  for (const [, entry] of optionsMap) {
+    const values = Array.from(entry.valuesMap.values()).sort(
+      (a, b) => a.displayOrder - b.displayOrder
+    );
+
+    result.push({
+      id: entry.option.id,
+      name: entry.option.name,
+      displayOrder: entry.option.displayOrder,
+      values,
+    });
+  }
+
+  // Sort by display order
+  result.sort((a, b) => a.displayOrder - b.displayOrder);
+
+  return result;
 }
