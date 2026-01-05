@@ -52,6 +52,23 @@ END;
 $$;
 
 -- ============================================================================
+-- HELPER FUNCTION: Get current session ID from headers
+-- ============================================================================
+CREATE OR REPLACE FUNCTION get_session_id()
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+SET search_path = public
+AS $$
+BEGIN
+  RETURN current_setting('request.headers', true)::json->>'x-session-id';
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$;
+
+-- ============================================================================
 -- PROFILES TABLE
 -- ============================================================================
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -60,14 +77,14 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own profile"
   ON profiles FOR SELECT
   TO authenticated
-  USING (id = auth.uid());
+  USING (id = (select auth.uid()));
 
 -- Users can update their own profile
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   TO authenticated
-  USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
+  USING (id = (select auth.uid()))
+  WITH CHECK (id = (select auth.uid()));
 
 -- Profile is created via trigger on auth.users (handled separately)
 -- Allow insert for the trigger/service role
@@ -91,20 +108,20 @@ CREATE POLICY "Public can view active tenants"
 CREATE POLICY "Authenticated users can create tenants"
   ON tenants FOR INSERT
   TO authenticated
-  WITH CHECK (owner_id = auth.uid());
+  WITH CHECK (owner_id = (select auth.uid()));
 
 -- Only owner can update their tenant
 CREATE POLICY "Owner can update tenant"
   ON tenants FOR UPDATE
   TO authenticated
-  USING (owner_id = auth.uid())
-  WITH CHECK (owner_id = auth.uid());
+  USING (owner_id = (select auth.uid()))
+  WITH CHECK (owner_id = (select auth.uid()));
 
 -- Only owner can delete tenant
 CREATE POLICY "Owner can delete tenant"
   ON tenants FOR DELETE
   TO authenticated
-  USING (owner_id = auth.uid());
+  USING (owner_id = (select auth.uid()));
 
 -- ============================================================================
 -- TENANT MEMBERS TABLE
@@ -171,17 +188,14 @@ CREATE POLICY "Admin can delete categories"
 -- ============================================================================
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 
--- Anyone can view active products (for public storefronts)
-CREATE POLICY "Public can view active products"
+-- Combined policy: Public can view active OR staff can view all tenant products
+CREATE POLICY "View products policy"
   ON products FOR SELECT
   TO anon, authenticated
-  USING (is_active = true);
-
--- Staff can view all products (including inactive) for their tenant
-CREATE POLICY "Staff can view all tenant products"
-  ON products FOR SELECT
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'));
+  USING (
+    is_active = true
+    OR check_tenant_access(tenant_id, 'staff')
+  );
 
 -- Staff+ can create products
 CREATE POLICY "Staff can create products"
@@ -219,7 +233,7 @@ CREATE POLICY "Staff can upload media"
   TO authenticated
   WITH CHECK (
     check_tenant_access(tenant_id, 'staff')
-    AND uploaded_by_id = auth.uid()
+    AND uploaded_by_id = (select auth.uid())
   );
 
 -- Staff+ can update media metadata (alt text, etc.)
@@ -234,6 +248,53 @@ CREATE POLICY "Admin can delete media"
   ON media FOR DELETE
   TO authenticated
   USING (check_tenant_access(tenant_id, 'admin'));
+
+-- ============================================================================
+-- PRODUCT CATEGORIES TABLE (junction table for many-to-many)
+-- ============================================================================
+ALTER TABLE product_categories ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can view product categories (for public storefronts)
+CREATE POLICY "Public can view product categories"
+  ON product_categories FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+-- Staff+ can link products to categories
+CREATE POLICY "Staff can create product categories"
+  ON product_categories FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM products
+      WHERE products.id = product_id
+      AND check_tenant_access(products.tenant_id, 'staff')
+    )
+  );
+
+-- Staff+ can update product categories (rare, mostly delete and recreate)
+CREATE POLICY "Staff can update product categories"
+  ON product_categories FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM products
+      WHERE products.id = product_id
+      AND check_tenant_access(products.tenant_id, 'staff')
+    )
+  );
+
+-- Staff+ can unlink products from categories
+CREATE POLICY "Staff can delete product categories"
+  ON product_categories FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM products
+      WHERE products.id = product_id
+      AND check_tenant_access(products.tenant_id, 'staff')
+    )
+  );
 
 -- ============================================================================
 -- PRODUCT IMAGES TABLE (junction table)
@@ -292,8 +353,8 @@ CREATE POLICY "Users can view own carts"
   ON carts FOR SELECT
   TO anon, authenticated
   USING (
-    session_id = current_setting('request.headers', true)::json->>'x-session-id'
-    OR customer_id = auth.uid()
+    session_id = (SELECT get_session_id())
+    OR customer_id = (SELECT auth.uid())
   );
 
 -- Anyone can create a cart
@@ -307,8 +368,8 @@ CREATE POLICY "Users can update own carts"
   ON carts FOR UPDATE
   TO anon, authenticated
   USING (
-    session_id = current_setting('request.headers', true)::json->>'x-session-id'
-    OR customer_id = auth.uid()
+    session_id = (SELECT get_session_id())
+    OR customer_id = (SELECT auth.uid())
   );
 
 -- Users can delete their own carts
@@ -316,8 +377,8 @@ CREATE POLICY "Users can delete own carts"
   ON carts FOR DELETE
   TO anon, authenticated
   USING (
-    session_id = current_setting('request.headers', true)::json->>'x-session-id'
-    OR customer_id = auth.uid()
+    session_id = (SELECT get_session_id())
+    OR customer_id = (SELECT auth.uid())
   );
 
 -- ============================================================================
@@ -334,8 +395,8 @@ CREATE POLICY "Users can view own cart items"
       SELECT 1 FROM carts
       WHERE carts.id = cart_id
       AND (
-        carts.session_id = current_setting('request.headers', true)::json->>'x-session-id'
-        OR carts.customer_id = auth.uid()
+        carts.session_id = (SELECT get_session_id())
+        OR carts.customer_id = (SELECT auth.uid())
       )
     )
   );
@@ -349,8 +410,8 @@ CREATE POLICY "Users can add cart items"
       SELECT 1 FROM carts
       WHERE carts.id = cart_id
       AND (
-        carts.session_id = current_setting('request.headers', true)::json->>'x-session-id'
-        OR carts.customer_id = auth.uid()
+        carts.session_id = (SELECT get_session_id())
+        OR carts.customer_id = (SELECT auth.uid())
       )
     )
   );
@@ -364,8 +425,8 @@ CREATE POLICY "Users can update cart items"
       SELECT 1 FROM carts
       WHERE carts.id = cart_id
       AND (
-        carts.session_id = current_setting('request.headers', true)::json->>'x-session-id'
-        OR carts.customer_id = auth.uid()
+        carts.session_id = (SELECT get_session_id())
+        OR carts.customer_id = (SELECT auth.uid())
       )
     )
   );
@@ -379,8 +440,8 @@ CREATE POLICY "Users can delete cart items"
       SELECT 1 FROM carts
       WHERE carts.id = cart_id
       AND (
-        carts.session_id = current_setting('request.headers', true)::json->>'x-session-id'
-        OR carts.customer_id = auth.uid()
+        carts.session_id = (SELECT get_session_id())
+        OR carts.customer_id = (SELECT auth.uid())
       )
     )
   );
@@ -390,19 +451,14 @@ CREATE POLICY "Users can delete cart items"
 -- ============================================================================
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 
--- Customers can view their own orders (by email)
-CREATE POLICY "Customers can view own orders"
+-- Combined policy: Customers can view own orders OR staff can view tenant orders
+CREATE POLICY "View orders policy"
   ON orders FOR SELECT
   TO anon, authenticated
   USING (
-    customer_email = (SELECT email FROM profiles WHERE id = auth.uid())
+    customer_email = (SELECT email FROM profiles WHERE id = (select auth.uid()))
+    OR check_tenant_access(tenant_id, 'staff')
   );
-
--- Staff can view all orders for their tenant
-CREATE POLICY "Staff can view tenant orders"
-  ON orders FOR SELECT
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'));
 
 -- Anyone can create orders (checkout)
 CREATE POLICY "Anyone can create orders"
@@ -437,7 +493,7 @@ CREATE POLICY "Users can view own order items"
       SELECT 1 FROM orders
       WHERE orders.id = order_id
       AND (
-        orders.customer_email = (SELECT email FROM profiles WHERE id = auth.uid())
+        orders.customer_email = (SELECT email FROM profiles WHERE id = (select auth.uid()))
         OR check_tenant_access(orders.tenant_id, 'staff')
       )
     )
@@ -480,20 +536,18 @@ CREATE POLICY "Users can create reviews"
   TO authenticated
   WITH CHECK (true);
 
--- Users can update their own reviews (edit their comment/rating)
-CREATE POLICY "Users can update own reviews"
+-- Combined policy: Users can update own reviews OR staff can reply
+CREATE POLICY "Update reviews policy"
   ON reviews FOR UPDATE
   TO authenticated
   USING (
-    customer_email = (SELECT email FROM profiles WHERE id = auth.uid())
+    customer_email = (SELECT email FROM profiles WHERE id = (select auth.uid()))
+    OR check_tenant_access(tenant_id, 'staff')
+  )
+  WITH CHECK (
+    customer_email = (SELECT email FROM profiles WHERE id = (select auth.uid()))
+    OR check_tenant_access(tenant_id, 'staff')
   );
-
--- Staff+ can update reviews (for adding owner replies only)
-CREATE POLICY "Staff can reply to reviews"
-  ON reviews FOR UPDATE
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'))
-  WITH CHECK (check_tenant_access(tenant_id, 'staff'));
 
 -- Admin+ can delete reviews (for spam/abuse only)
 CREATE POLICY "Admin can delete reviews"
@@ -592,17 +646,14 @@ CREATE POLICY "Admin can delete variant option values"
 -- NOTE: tenant_id is denormalized for RLS performance (no joins needed)
 ALTER TABLE product_variants ENABLE ROW LEVEL SECURITY;
 
--- Anyone can view active product variants (for storefront display)
-CREATE POLICY "Public can view active product variants"
+-- Combined policy: Public can view active OR staff can view all tenant variants
+CREATE POLICY "View product variants policy"
   ON product_variants FOR SELECT
   TO anon, authenticated
-  USING (is_active = true);
-
--- Staff can view all variants (including inactive) for their tenant
-CREATE POLICY "Staff can view all tenant product variants"
-  ON product_variants FOR SELECT
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'));
+  USING (
+    is_active = true
+    OR check_tenant_access(tenant_id, 'staff')
+  );
 
 -- Staff+ can create product variants
 CREATE POLICY "Staff can create product variants"
@@ -701,7 +752,7 @@ CREATE POLICY "Staff can create inventory movements"
   TO authenticated
   WITH CHECK (
     check_tenant_access(tenant_id, 'staff')
-    AND (user_id = auth.uid() OR user_id IS NULL)
+    AND (user_id = (select auth.uid()) OR user_id IS NULL)
   );
 
 -- Inventory movements should generally not be updated (audit log)
@@ -750,17 +801,14 @@ CREATE TRIGGER on_auth_user_created
 -- ============================================================================
 ALTER TABLE shipping_zones ENABLE ROW LEVEL SECURITY;
 
--- Anyone can view active shipping zones (needed for checkout)
-CREATE POLICY "Public can view active shipping zones"
+-- Combined policy: Public can view active OR staff can view all tenant zones
+CREATE POLICY "View shipping zones policy"
   ON shipping_zones FOR SELECT
   TO anon, authenticated
-  USING (is_active = true);
-
--- Staff can view all zones (including inactive) for their tenant
-CREATE POLICY "Staff can view all tenant shipping zones"
-  ON shipping_zones FOR SELECT
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'));
+  USING (
+    is_active = true
+    OR check_tenant_access(tenant_id, 'staff')
+  );
 
 -- Staff+ can create shipping zones
 CREATE POLICY "Staff can create shipping zones"
@@ -786,17 +834,14 @@ CREATE POLICY "Admin can delete shipping zones"
 -- ============================================================================
 ALTER TABLE shipping_methods ENABLE ROW LEVEL SECURITY;
 
--- Anyone can view active shipping methods (needed for checkout)
-CREATE POLICY "Public can view active shipping methods"
+-- Combined policy: Public can view active OR staff can view all tenant methods
+CREATE POLICY "View shipping methods policy"
   ON shipping_methods FOR SELECT
   TO anon, authenticated
-  USING (is_active = true);
-
--- Staff can view all methods (including inactive) for their tenant
-CREATE POLICY "Staff can view all tenant shipping methods"
-  ON shipping_methods FOR SELECT
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'));
+  USING (
+    is_active = true
+    OR check_tenant_access(tenant_id, 'staff')
+  );
 
 -- Staff+ can create shipping methods
 CREATE POLICY "Staff can create shipping methods"
@@ -822,23 +867,18 @@ CREATE POLICY "Admin can delete shipping methods"
 -- ============================================================================
 ALTER TABLE shipments ENABLE ROW LEVEL SECURITY;
 
--- Customers can view shipments for their own orders (by email match)
-CREATE POLICY "Customers can view own order shipments"
+-- Combined policy: Customers can view own shipments OR staff can view tenant shipments
+CREATE POLICY "View shipments policy"
   ON shipments FOR SELECT
   TO anon, authenticated
   USING (
     EXISTS (
       SELECT 1 FROM orders
       WHERE orders.id = order_id
-      AND orders.customer_email = (SELECT email FROM profiles WHERE id = auth.uid())
+      AND orders.customer_email = (SELECT email FROM profiles WHERE id = (select auth.uid()))
     )
+    OR check_tenant_access(tenant_id, 'staff')
   );
-
--- Staff can view all shipments for their tenant
-CREATE POLICY "Staff can view tenant shipments"
-  ON shipments FOR SELECT
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'));
 
 -- Staff+ can create shipments
 CREATE POLICY "Staff can create shipments"
@@ -864,8 +904,8 @@ CREATE POLICY "Admin can delete shipments"
 -- ============================================================================
 ALTER TABLE shipment_tracking_events ENABLE ROW LEVEL SECURITY;
 
--- Customers can view tracking events for their own shipments
-CREATE POLICY "Customers can view own shipment tracking"
+-- Combined policy: Customers can view own tracking OR staff can view tenant tracking
+CREATE POLICY "View shipment tracking policy"
   ON shipment_tracking_events FOR SELECT
   TO anon, authenticated
   USING (
@@ -873,16 +913,9 @@ CREATE POLICY "Customers can view own shipment tracking"
       SELECT 1 FROM shipments
       JOIN orders ON orders.id = shipments.order_id
       WHERE shipments.id = shipment_id
-      AND orders.customer_email = (SELECT email FROM profiles WHERE id = auth.uid())
+      AND orders.customer_email = (SELECT email FROM profiles WHERE id = (select auth.uid()))
     )
-  );
-
--- Staff can view all tracking events for their tenant's shipments
-CREATE POLICY "Staff can view tenant shipment tracking"
-  ON shipment_tracking_events FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
+    OR EXISTS (
       SELECT 1 FROM shipments
       WHERE shipments.id = shipment_id
       AND check_tenant_access(shipments.tenant_id, 'staff')
@@ -931,8 +964,8 @@ CREATE POLICY "Admin can delete tracking events"
 -- ============================================================================
 ALTER TABLE shipment_items ENABLE ROW LEVEL SECURITY;
 
--- Customers can view shipment items for their own orders
-CREATE POLICY "Customers can view own shipment items"
+-- Combined policy: Customers can view own items OR staff can view tenant items
+CREATE POLICY "View shipment items policy"
   ON shipment_items FOR SELECT
   TO anon, authenticated
   USING (
@@ -940,16 +973,9 @@ CREATE POLICY "Customers can view own shipment items"
       SELECT 1 FROM shipments
       JOIN orders ON orders.id = shipments.order_id
       WHERE shipments.id = shipment_id
-      AND orders.customer_email = (SELECT email FROM profiles WHERE id = auth.uid())
+      AND orders.customer_email = (SELECT email FROM profiles WHERE id = (select auth.uid()))
     )
-  );
-
--- Staff can view all shipment items for their tenant
-CREATE POLICY "Staff can view tenant shipment items"
-  ON shipment_items FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
+    OR EXISTS (
       SELECT 1 FROM shipments
       WHERE shipments.id = shipment_id
       AND check_tenant_access(shipments.tenant_id, 'staff')
@@ -1007,17 +1033,14 @@ CREATE POLICY "Staff can delete shipment items"
 -- - Transactions are immutable (no update/delete for audit integrity)
 ALTER TABLE commission_transactions ENABLE ROW LEVEL SECURITY;
 
--- Store owner can view their own commission transactions (for transparency)
-CREATE POLICY "Owner can view own commission transactions"
+-- Combined policy: Owner OR staff can view commission transactions
+CREATE POLICY "View commission transactions policy"
   ON commission_transactions FOR SELECT
   TO authenticated
-  USING (is_tenant_owner(tenant_id));
-
--- Staff can also view commission transactions for their tenant
-CREATE POLICY "Staff can view tenant commission transactions"
-  ON commission_transactions FOR SELECT
-  TO authenticated
-  USING (check_tenant_access(tenant_id, 'staff'));
+  USING (
+    is_tenant_owner(tenant_id)
+    OR check_tenant_access(tenant_id, 'staff')
+  );
 
 -- Commission transactions are created by the system (via service role)
 -- This allows order processing hooks to add commissions automatically

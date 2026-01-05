@@ -2,7 +2,7 @@ CREATE TYPE "public"."analytics_event_type" AS ENUM('add_to_cart', 'remove_from_
 CREATE TYPE "public"."billing_status" AS ENUM('free_tier', 'active', 'grace_period', 'suspended', 'forgiven');--> statement-breakpoint
 CREATE TYPE "public"."commission_transaction_type" AS ENUM('order_commission', 'payment', 'adjustment', 'forgiveness');--> statement-breakpoint
 CREATE TYPE "public"."inventory_movement_type" AS ENUM('adjustment', 'sale', 'return', 'restock', 'reserved', 'released');--> statement-breakpoint
-CREATE TYPE "public"."order_status" AS ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."order_status" AS ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded', 'partially_refunded');--> statement-breakpoint
 CREATE TYPE "public"."shipment_status" AS ENUM('pending', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered', 'failed', 'returned');--> statement-breakpoint
 CREATE TYPE "public"."shipping_rate_type" AS ENUM('flat', 'weight_based', 'price_based');--> statement-breakpoint
 CREATE TYPE "public"."stock_status" AS ENUM('in_stock', 'low_stock', 'out_of_stock', 'on_backorder');--> statement-breakpoint
@@ -135,6 +135,7 @@ CREATE TABLE "analytics_product_performance" (
 	"add_to_cart_count" integer DEFAULT 0 NOT NULL,
 	"view_to_cart_rate" numeric(5, 2) DEFAULT '0' NOT NULL,
 	"cart_to_purchase_rate" numeric(5, 2) DEFAULT '0' NOT NULL,
+	"revenue_per_view" numeric(10, 2) DEFAULT '0' NOT NULL,
 	"reviews_received" integer DEFAULT 0 NOT NULL,
 	"average_rating" numeric(3, 2),
 	"stock_at_end_of_day" integer DEFAULT 0 NOT NULL,
@@ -173,8 +174,8 @@ CREATE TABLE "carts" (
 	"tenant_id" uuid NOT NULL,
 	"session_id" varchar(255) NOT NULL,
 	"customer_id" uuid,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "categories" (
@@ -257,13 +258,29 @@ CREATE TABLE "orders" (
 	"status" "order_status" DEFAULT 'pending' NOT NULL,
 	"customer_notes" text,
 	"staff_notes" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "product_categories" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"product_id" uuid NOT NULL,
+	"category_id" uuid NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "product_images" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"product_id" uuid NOT NULL,
+	"media_id" uuid NOT NULL,
+	"position" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "product_variant_images" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"variant_id" uuid NOT NULL,
 	"media_id" uuid NOT NULL,
 	"position" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
@@ -285,6 +302,10 @@ CREATE TABLE "product_variants" (
 	"display_name" varchar(255),
 	"price" numeric(10, 2),
 	"weight" numeric(10, 3),
+	"length" numeric(10, 2),
+	"width" numeric(10, 2),
+	"height" numeric(10, 2),
+	"description" text,
 	"stock" integer DEFAULT 0 NOT NULL,
 	"reserved_stock" integer DEFAULT 0 NOT NULL,
 	"stock_status" "stock_status" DEFAULT 'in_stock' NOT NULL,
@@ -308,7 +329,11 @@ CREATE TABLE "products" (
 	"track_inventory" boolean DEFAULT true NOT NULL,
 	"allow_backorder" boolean DEFAULT false NOT NULL,
 	"low_stock_threshold" integer DEFAULT 5 NOT NULL,
+	"show_stock" boolean DEFAULT false NOT NULL,
 	"weight" numeric(10, 3),
+	"length" numeric(10, 2),
+	"width" numeric(10, 2),
+	"height" numeric(10, 2),
 	"display_order" integer DEFAULT 0 NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -321,8 +346,8 @@ CREATE TABLE "profiles" (
 	"full_name" varchar(255),
 	"avatar_url" text,
 	"role" "user_role" DEFAULT 'customer' NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "review_media" (
@@ -517,8 +542,13 @@ ALTER TABLE "order_items" ADD CONSTRAINT "order_items_order_id_orders_id_fk" FOR
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "orders" ADD CONSTRAINT "orders_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_categories" ADD CONSTRAINT "product_categories_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_categories" ADD CONSTRAINT "product_categories_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_images" ADD CONSTRAINT "product_images_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_images" ADD CONSTRAINT "product_images_media_id_media_id_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_variant_images" ADD CONSTRAINT "product_variant_images_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_variant_images" ADD CONSTRAINT "product_variant_images_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_variant_images" ADD CONSTRAINT "product_variant_images_media_id_media_id_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_variant_options" ADD CONSTRAINT "product_variant_options_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_variant_options" ADD CONSTRAINT "product_variant_options_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_variant_options" ADD CONSTRAINT "product_variant_options_option_value_id_variant_option_values_id_fk" FOREIGN KEY ("option_value_id") REFERENCES "public"."variant_option_values"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -555,19 +585,26 @@ CREATE UNIQUE INDEX "analytics_hourly_tenant_hour_idx" ON "analytics_hourly_metr
 CREATE UNIQUE INDEX "analytics_product_perf_tenant_product_date_idx" ON "analytics_product_performance" USING btree ("tenant_id","product_id","snapshot_date");--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_traffic_tenant_date_source_idx" ON "analytics_traffic_sources" USING btree ("tenant_id","snapshot_date","source","medium");--> statement-breakpoint
 CREATE UNIQUE INDEX "cart_items_cart_product_variant_idx" ON "cart_items" USING btree ("cart_id","product_id","variant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "carts_tenant_session_idx" ON "carts" USING btree ("tenant_id","session_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "categories_tenant_slug_idx" ON "categories" USING btree ("tenant_id","slug");--> statement-breakpoint
+CREATE UNIQUE INDEX "orders_tenant_created_idx" ON "orders" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "orders_tenant_status_idx" ON "orders" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "orders_tenant_email_idx" ON "orders" USING btree ("tenant_id","customer_email");--> statement-breakpoint
+CREATE UNIQUE INDEX "product_categories_product_category_idx" ON "product_categories" USING btree ("product_id","category_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_images_product_media_idx" ON "product_images" USING btree ("product_id","media_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "product_variant_images_tenant_variant_media_idx" ON "product_variant_images" USING btree ("tenant_id","variant_id","media_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_variant_options_variant_value_idx" ON "product_variant_options" USING btree ("variant_id","option_value_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_variant_options_tenant_id_idx" ON "product_variant_options" USING btree ("tenant_id","id");--> statement-breakpoint
-CREATE UNIQUE INDEX "product_variants_product_sku_idx" ON "product_variants" USING btree ("product_id","sku");--> statement-breakpoint
+CREATE UNIQUE INDEX "product_variants_tenant_product_sku_idx" ON "product_variants" USING btree ("tenant_id","product_id","sku");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_variants_tenant_id_idx" ON "product_variants" USING btree ("tenant_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "products_tenant_slug_idx" ON "products" USING btree ("tenant_id","slug");--> statement-breakpoint
-CREATE UNIQUE INDEX "review_media_review_media_idx" ON "review_media" USING btree ("review_id","media_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "profiles_email_idx" ON "profiles" USING btree ("email");--> statement-breakpoint
+CREATE UNIQUE INDEX "review_media_tenant_review_media_idx" ON "review_media" USING btree ("tenant_id","review_id","media_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "reviews_tenant_id_idx" ON "reviews" USING btree ("tenant_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "reviews_order_product_idx" ON "reviews" USING btree ("order_id","product_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "shipment_items_shipment_order_item_idx" ON "shipment_items" USING btree ("shipment_id","order_item_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "shipping_methods_zone_name_idx" ON "shipping_methods" USING btree ("zone_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX "shipping_methods_tenant_zone_name_idx" ON "shipping_methods" USING btree ("tenant_id","zone_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "shipping_zones_tenant_name_idx" ON "shipping_zones" USING btree ("tenant_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "tenant_members_tenant_user_idx" ON "tenant_members" USING btree ("tenant_id","user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "variant_option_values_option_value_idx" ON "variant_option_values" USING btree ("option_id","value");--> statement-breakpoint
+CREATE UNIQUE INDEX "variant_option_values_tenant_option_value_idx" ON "variant_option_values" USING btree ("tenant_id","option_id","value");--> statement-breakpoint
 CREATE UNIQUE INDEX "variant_options_tenant_name_idx" ON "variant_options" USING btree ("tenant_id","name");

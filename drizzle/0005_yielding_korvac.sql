@@ -1,1 +1,0 @@
-ALTER TABLE "products" ADD COLUMN "show_stock" boolean DEFAULT false NOT NULL;

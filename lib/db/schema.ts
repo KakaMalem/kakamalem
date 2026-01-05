@@ -10,6 +10,7 @@ import {
   integer,
   boolean,
   uniqueIndex,
+  index,
   jsonb,
 } from "drizzle-orm/pg-core";
 
@@ -133,15 +134,23 @@ export const commissionTransactionTypeEnum = pgEnum("commission_transaction_type
 // ============================================================================
 // This table links to Supabase Auth's auth.users table via the id field.
 // The id should match the user's Supabase Auth UUID.
-export const profiles = pgTable("profiles", {
-  id: uuid("id").primaryKey(), // References auth.users.id (not auto-generated)
-  email: varchar("email", { length: 255 }).notNull(),
-  fullName: varchar("full_name", { length: 255 }),
-  avatarUrl: text("avatar_url"),
-  role: userRoleEnum("role").default("customer").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const profiles = pgTable(
+  "profiles",
+  {
+    id: uuid("id").primaryKey(), // References auth.users.id (not auto-generated)
+    email: varchar("email", { length: 255 }).notNull(),
+    fullName: varchar("full_name", { length: 255 }),
+    avatarUrl: text("avatar_url"),
+    role: userRoleEnum("role").default("customer").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("profiles_email_idx").on(table.email)]
+);
 
 export const profilesRelations = relations(profiles, ({ many }) => ({
   ownedTenants: many(tenants),
@@ -170,6 +179,8 @@ export const tenantMembers = pgTable(
   },
   (table) => [
     uniqueIndex("tenant_members_tenant_user_idx").on(table.tenantId, table.userId),
+    // Index for finding all tenants a user belongs to (dashboard sidebar)
+    index("tenant_members_user_id_idx").on(table.userId),
   ]
 );
 
@@ -339,21 +350,28 @@ export const products = pgTable(
 // MEDIA (centralized media library - tenant-isolated)
 // ============================================================================
 // All uploaded files go here. Reusable across products, store logos, etc.
-export const media = pgTable("media", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  uploadedById: uuid("uploaded_by_id")
-    .notNull()
-    .references(() => profiles.id),
-  url: text("url").notNull(),
-  altText: varchar("alt_text", { length: 255 }),
-  fileName: text("file_name"),
-  fileSize: integer("file_size"), // in bytes
-  mimeType: varchar("mime_type", { length: 100 }), // image/png, image/jpeg, etc.
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const media = pgTable(
+  "media",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    uploadedById: uuid("uploaded_by_id")
+      .notNull()
+      .references(() => profiles.id),
+    url: text("url").notNull(),
+    altText: varchar("alt_text", { length: 255 }),
+    fileName: text("file_name"),
+    fileSize: integer("file_size"), // in bytes
+    mimeType: varchar("mime_type", { length: 100 }), // image/png, image/jpeg, etc.
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Index for media library queries (list all media for a tenant)
+    index("media_tenant_id_idx").on(table.tenantId),
+  ]
+);
 
 export const mediaRelations = relations(media, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -418,6 +436,8 @@ export const productCategories = pgTable(
   },
   (table) => [
     uniqueIndex("product_categories_product_category_idx").on(table.productId, table.categoryId),
+    // Index for fetching all products in a category (critical for category browsing)
+    index("product_categories_category_id_idx").on(table.categoryId),
   ]
 );
 
@@ -549,6 +569,8 @@ export const productVariants = pgTable(
     uniqueIndex("product_variants_tenant_product_sku_idx").on(table.tenantId, table.productId, table.sku),
     // Index for fast RLS lookups by ID
     uniqueIndex("product_variants_tenant_id_idx").on(table.tenantId, table.id),
+    // Index for fetching all variants of a product (critical for product detail pages)
+    index("product_variants_product_id_idx").on(table.productId),
   ]
 );
 
@@ -731,16 +753,27 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 // ============================================================================
 // CARTS (tenant-isolated)
 // ============================================================================
-export const carts = pgTable("carts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  sessionId: varchar("session_id", { length: 255 }).notNull(),
-  customerId: uuid("customer_id"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const carts = pgTable(
+  "carts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    sessionId: varchar("session_id", { length: 255 }).notNull(),
+    customerId: uuid("customer_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Index for fast cart lookups by session
+    uniqueIndex("carts_tenant_session_idx").on(table.tenantId, table.sessionId),
+  ]
+);
 
 export const cartsRelations = relations(carts, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -796,33 +829,50 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
 // ============================================================================
 // ORDERS (tenant-isolated)
 // ============================================================================
-export const orders = pgTable("orders", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  // Customer info
-  customerName: varchar("customer_name", { length: 255 }).notNull(),
-  customerEmail: varchar("customer_email", { length: 255 }).notNull(),
-  customerPhone: varchar("customer_phone", { length: 50 }),
-  // Structured shipping address - enables zone matching and proper invoices
-  shippingAddress: jsonb("shipping_address").$type<Address>().notNull(),
-  // Billing address (optional, defaults to shipping if not provided)
-  billingAddress: jsonb("billing_address").$type<Address>(),
-  // Financial breakdown - required for refunds, invoices, and accounting
-  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(), // Sum of all items
-  shippingTotal: decimal("shipping_total", { precision: 10, scale: 2 }).default("0").notNull(),
-  taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).default("0").notNull(),
-  discountTotal: decimal("discount_total", { precision: 10, scale: 2 }).default("0").notNull(),
-  total: decimal("total", { precision: 10, scale: 2 }).notNull(), // subtotal + shipping + tax - discount
-  // Status
-  status: orderStatusEnum("status").default("pending").notNull(),
-  // Notes
-  customerNotes: text("customer_notes"), // Notes from customer during checkout
-  staffNotes: text("staff_notes"), // Internal notes for staff
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    // Customer info
+    customerName: varchar("customer_name", { length: 255 }).notNull(),
+    customerEmail: varchar("customer_email", { length: 255 }).notNull(),
+    customerPhone: varchar("customer_phone", { length: 50 }),
+    // Structured shipping address - enables zone matching and proper invoices
+    shippingAddress: jsonb("shipping_address").$type<Address>().notNull(),
+    // Billing address (optional, defaults to shipping if not provided)
+    billingAddress: jsonb("billing_address").$type<Address>(),
+    // Financial breakdown - required for refunds, invoices, and accounting
+    subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(), // Sum of all items
+    shippingTotal: decimal("shipping_total", { precision: 10, scale: 2 })
+      .default("0")
+      .notNull(),
+    taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).default("0").notNull(),
+    discountTotal: decimal("discount_total", { precision: 10, scale: 2 }).default("0").notNull(),
+    total: decimal("total", { precision: 10, scale: 2 }).notNull(), // subtotal + shipping + tax - discount
+    // Status
+    status: orderStatusEnum("status").default("pending").notNull(),
+    // Notes
+    customerNotes: text("customer_notes"), // Notes from customer during checkout
+    staffNotes: text("staff_notes"), // Internal notes for staff
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Index for order history queries (most recent first)
+    uniqueIndex("orders_tenant_created_idx").on(table.tenantId, table.createdAt),
+    // Index for status filtering
+    uniqueIndex("orders_tenant_status_idx").on(table.tenantId, table.status),
+    // Index for customer email lookups
+    uniqueIndex("orders_tenant_email_idx").on(table.tenantId, table.customerEmail),
+  ]
+);
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -838,24 +888,31 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
 // ============================================================================
 // Order items capture a snapshot of the product/variant at time of purchase.
 // This ensures order history remains accurate even if products change later.
-export const orderItems = pgTable("order_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orderId: uuid("order_id")
-    .notNull()
-    .references(() => orders.id, { onDelete: "cascade" }),
-  productId: uuid("product_id")
-    .notNull()
-    .references(() => products.id, { onDelete: "restrict" }),
-  // Link to variant if applicable
-  variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "restrict" }),
-  // Snapshot of product info at time of purchase (for historical accuracy)
-  productName: varchar("product_name", { length: 255 }).notNull(),
-  variantName: varchar("variant_name", { length: 255 }), // e.g., "Blue / Large"
-  sku: varchar("sku", { length: 100 }), // SKU at time of purchase
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  quantity: integer("quantity").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const orderItems = pgTable(
+  "order_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    // Link to variant if applicable
+    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "restrict" }),
+    // Snapshot of product info at time of purchase (for historical accuracy)
+    productName: varchar("product_name", { length: 255 }).notNull(),
+    variantName: varchar("variant_name", { length: 255 }), // e.g., "Blue / Large"
+    sku: varchar("sku", { length: 100 }), // SKU at time of purchase
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    quantity: integer("quantity").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Index for fetching all items in an order (critical for order details page)
+    index("order_items_order_id_idx").on(table.orderId),
+  ]
+);
 
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   order: one(orders, {
@@ -973,36 +1030,43 @@ export const shippingMethodsRelations = relations(shippingMethods, ({ one }) => 
 // Tracks the physical shipment of an order with carrier and tracking info.
 // An order can have multiple shipments (split shipments).
 // Use shipmentItems to track which specific items are in each shipment.
-export const shipments = pgTable("shipments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  orderId: uuid("order_id")
-    .notNull()
-    .references(() => orders.id, { onDelete: "cascade" }),
-  // Which shipping method was selected
-  shippingMethodId: uuid("shipping_method_id").references(() => shippingMethods.id, {
-    onDelete: "set null",
-  }),
-  // Carrier info
-  carrierName: varchar("carrier_name", { length: 255 }), // "Afghan Post", "DHL", local courier
-  trackingNumber: varchar("tracking_number", { length: 255 }),
-  trackingUrl: text("tracking_url"), // Direct link to carrier tracking page
-  // Shipping cost for this shipment (portion of order's shippingTotal)
-  shippingCost: decimal("shipping_cost", { precision: 10, scale: 2 }).default("0").notNull(),
-  // Status
-  status: shipmentStatusEnum("status").default("pending").notNull(),
-  // Dates
-  shippedAt: timestamp("shipped_at"),
-  deliveredAt: timestamp("delivered_at"),
-  // Delivery address snapshot (structured, in case order address changes)
-  deliveryAddress: jsonb("delivery_address").$type<Address>(),
-  // Notes
-  notes: text("notes"), // Internal notes for staff
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const shipments = pgTable(
+  "shipments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    // Which shipping method was selected
+    shippingMethodId: uuid("shipping_method_id").references(() => shippingMethods.id, {
+      onDelete: "set null",
+    }),
+    // Carrier info
+    carrierName: varchar("carrier_name", { length: 255 }), // "Afghan Post", "DHL", local courier
+    trackingNumber: varchar("tracking_number", { length: 255 }),
+    trackingUrl: text("tracking_url"), // Direct link to carrier tracking page
+    // Shipping cost for this shipment (portion of order's shippingTotal)
+    shippingCost: decimal("shipping_cost", { precision: 10, scale: 2 }).default("0").notNull(),
+    // Status
+    status: shipmentStatusEnum("status").default("pending").notNull(),
+    // Dates
+    shippedAt: timestamp("shipped_at"),
+    deliveredAt: timestamp("delivered_at"),
+    // Delivery address snapshot (structured, in case order address changes)
+    deliveryAddress: jsonb("delivery_address").$type<Address>(),
+    // Notes
+    notes: text("notes"), // Internal notes for staff
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Index for fetching all shipments for an order (critical for order tracking)
+    index("shipments_order_id_idx").on(table.orderId),
+  ]
+);
 
 export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -1044,6 +1108,8 @@ export const shipmentItems = pgTable(
   (table) => [
     // An order item can be split across shipments, but each entry is unique
     uniqueIndex("shipment_items_shipment_order_item_idx").on(table.shipmentId, table.orderItemId),
+    // Index for finding which shipments contain a specific order item
+    index("shipment_items_order_item_id_idx").on(table.orderItemId),
   ]
 );
 
@@ -1126,6 +1192,8 @@ export const reviews = pgTable(
     uniqueIndex("reviews_tenant_id_idx").on(table.tenantId, table.id),
     // Ensure one review per product per order
     uniqueIndex("reviews_order_product_idx").on(table.orderId, table.productId),
+    // Index for fetching all reviews for a product (critical for product detail pages)
+    index("reviews_product_id_idx").on(table.productId),
   ]
 );
 
