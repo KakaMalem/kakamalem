@@ -41,7 +41,7 @@ export type RecentOrder = {
   customerName: string;
   total: string;
   status: string;
-  createdAt: Date;
+  createdAt: string;
   itemCount: number;
 };
 
@@ -54,6 +54,10 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
   today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
+
+  // Convert to ISO strings for comparison (orders.createdAt is mode: "string")
+  const todayStr = today.toISOString();
+  const yesterdayStr = yesterday.toISOString();
 
   // Run queries in parallel for performance
   const [
@@ -113,7 +117,7 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
         revenue: sum(orders.total),
       })
       .from(orders)
-      .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, today))),
+      .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, todayStr))),
 
     // Yesterday's stats (for comparison)
     db
@@ -125,8 +129,8 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
       .where(
         and(
           eq(orders.tenantId, tenantId),
-          gte(orders.createdAt, yesterday),
-          lte(orders.createdAt, today)
+          gte(orders.createdAt, yesterdayStr),
+          lte(orders.createdAt, todayStr)
         )
       ),
   ]);
@@ -198,6 +202,7 @@ export async function getDailyMetrics(
   }
 
   // Fall back to aggregating from orders table
+  const startDateStr = startDate.toISOString();
   const result = await db
     .select({
       date: sql<string>`date(${orders.createdAt})`,
@@ -205,7 +210,7 @@ export async function getDailyMetrics(
       orders: count(),
     })
     .from(orders)
-    .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startDate)))
+    .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startDateStr)))
     .groupBy(sql`date(${orders.createdAt})`)
     .orderBy(sql`date(${orders.createdAt})`);
 

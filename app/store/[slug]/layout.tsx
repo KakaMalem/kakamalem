@@ -117,8 +117,8 @@ export default async function StoreLayout({
         sessionId: "",
         customerId: user?.id || null,
         items: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
   const cartItemCount = cart.items.reduce(
     (sum, item) => sum + item.quantity,

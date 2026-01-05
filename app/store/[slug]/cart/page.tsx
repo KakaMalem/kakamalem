@@ -52,8 +52,8 @@ export default async function CartPage({ params }: CartPageProps) {
         sessionId: "",
         customerId: user?.id || null,
         items: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
   return (

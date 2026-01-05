@@ -39,9 +39,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Step 3: Update database schema
-echo -e "${GREEN}🗄️  Updating database schema...${NC}"
-pnpm db:push || pnpm db:migrate || echo -e "${YELLOW}⚠️  Schema update failed. Check manually.${NC}"
+# Step 3: Run database migrations
+echo -e "${GREEN}🗄️  Running database migrations...${NC}"
+pnpm db:migrate
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Database migration failed. Aborting deployment.${NC}"
+    exit 1
+fi
 
 # Step 4: Build application
 echo -e "${GREEN}🔨 Building application...${NC}"

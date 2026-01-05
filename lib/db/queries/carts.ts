@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { carts, cartItems, products, productVariants } from "@/lib/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 // ============================================================================
 // TYPES
@@ -43,8 +43,8 @@ export type Cart = {
   sessionId: string;
   customerId: string | null;
   items: CartItemWithProduct[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type CartSummary = {
@@ -154,8 +154,8 @@ function transformCartData(rawCart: {
   tenantId: string;
   sessionId: string;
   customerId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
   items: Array<{
     id: string;
     productId: string;
@@ -366,7 +366,7 @@ export async function addToCart(
       .update(cartItems)
       .set({
         quantity: newQuantity,
-        updatedAt: new Date(),
+        updatedAt: sql`NOW()`,
       })
       .where(eq(cartItems.id, existingItem.id));
   } else {
@@ -382,7 +382,7 @@ export async function addToCart(
   // Update cart timestamp
   await db
     .update(carts)
-    .set({ updatedAt: new Date() })
+    .set({ updatedAt: sql`NOW()` })
     .where(eq(carts.id, cart.id));
 
   // Return updated cart
@@ -437,14 +437,14 @@ export async function updateCartItemQuantity(
     .update(cartItems)
     .set({
       quantity,
-      updatedAt: new Date(),
+      updatedAt: sql`NOW()`,
     })
     .where(eq(cartItems.id, cartItemId));
 
   // Update cart timestamp
   await db
     .update(carts)
-    .set({ updatedAt: new Date() })
+    .set({ updatedAt: sql`NOW()` })
     .where(eq(carts.id, cart.id));
 
   // Return updated cart
@@ -483,7 +483,7 @@ export async function removeFromCart(
   // Update cart timestamp
   await db
     .update(carts)
-    .set({ updatedAt: new Date() })
+    .set({ updatedAt: sql`NOW()` })
     .where(eq(carts.id, cart.id));
 
   // Return updated cart
@@ -509,7 +509,7 @@ export async function clearCart(
   // Update cart timestamp
   await db
     .update(carts)
-    .set({ updatedAt: new Date() })
+    .set({ updatedAt: sql`NOW()` })
     .where(eq(carts.id, cart.id));
 
   return { success: true };
@@ -547,7 +547,7 @@ export async function mergeGuestCartToCustomer(
     // Assign guest cart to customer
     await db
       .update(carts)
-      .set({ customerId, updatedAt: new Date() })
+      .set({ customerId, updatedAt: sql`NOW()` })
       .where(eq(carts.id, guestCart.id));
     return;
   }
@@ -566,7 +566,7 @@ export async function mergeGuestCartToCustomer(
         .update(cartItems)
         .set({
           quantity: existingItem.quantity + guestItem.quantity,
-          updatedAt: new Date(),
+          updatedAt: sql`NOW()`,
         })
         .where(eq(cartItems.id, existingItem.id));
     } else {
@@ -575,7 +575,7 @@ export async function mergeGuestCartToCustomer(
         .update(cartItems)
         .set({
           cartId: customerCart.id,
-          updatedAt: new Date(),
+          updatedAt: sql`NOW()`,
         })
         .where(eq(cartItems.id, guestItem.id));
     }
@@ -587,7 +587,7 @@ export async function mergeGuestCartToCustomer(
   // Update customer cart timestamp
   await db
     .update(carts)
-    .set({ updatedAt: new Date() })
+    .set({ updatedAt: sql`NOW()` })
     .where(eq(carts.id, customerCart.id));
 }
 

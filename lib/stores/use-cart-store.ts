@@ -47,8 +47,8 @@ export type Cart = {
   sessionId: string;
   customerId: string | null;
   items: CartItem[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type CartStore = {
