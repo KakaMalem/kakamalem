@@ -143,9 +143,9 @@ log "${BLUE}Updated from $BEFORE_COMMIT to $AFTER_COMMIT${NC}"
 log "${GREEN}📦 Installing dependencies...${NC}"
 pnpm install --frozen-lockfile 2>&1 | tee -a "$DEPLOY_LOG" || error_exit "Failed to install dependencies"
 
-# Step 3: Run database migrations
-log "${GREEN}🗄️  Running database migrations...${NC}"
-pnpm db:migrate 2>&1 | tee -a "$DEPLOY_LOG" || error_exit "Failed to run migrations"
+# Step 3: Sync database schema
+log "${GREEN}🗄️  Syncing database schema...${NC}"
+pnpm db:push 2>&1 | tee -a "$DEPLOY_LOG" || error_exit "Failed to sync database schema"
 
 # Step 4: Build application
 log "${GREEN}🔨 Building application...${NC}"
