@@ -229,7 +229,20 @@ export async function createProductWithImages(
       const uploaded = await uploadFileToStorage(tenantId, user.id, file);
       if (uploaded) {
         uploadedMediaIds.push(uploaded.id);
+      } else {
+        // Log upload failure but continue - user might have some images uploaded
+        console.error(`Failed to upload file: ${file.name}`);
       }
+    }
+
+    // If ALL uploads failed but files were provided, return error
+    if (stagedFiles.length > 0 && uploadedMediaIds.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: "Failed to upload all images. Please check your internet connection and try again.",
+        },
+      };
     }
 
     // Combine existing media IDs with newly uploaded ones
@@ -380,7 +393,20 @@ export async function updateProductWithImages(
       const uploaded = await uploadFileToStorage(tenantId, user.id, file);
       if (uploaded) {
         uploadedMediaIds.push(uploaded.id);
+      } else {
+        // Log upload failure but continue - user might have some images uploaded
+        console.error(`Failed to upload file: ${file.name}`);
       }
+    }
+
+    // If ALL uploads failed but files were provided, return error
+    if (stagedFiles.length > 0 && uploadedMediaIds.length === 0) {
+      return {
+        success: false,
+        error: {
+          message: "Failed to upload all images. Please check your internet connection and try again.",
+        },
+      };
     }
 
     // Combine existing media IDs with newly uploaded ones

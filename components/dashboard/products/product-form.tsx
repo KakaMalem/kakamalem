@@ -607,7 +607,9 @@ export function ProductForm({
         (opt) => opt.name.trim() && opt.values.length > 0
       );
       if (validOptions.length === 0) {
-        setVariantError("Please add at least one variant option with values");
+        const errorMsg = "Please add at least one variant option with values";
+        setVariantError(errorMsg);
+        toast.error(errorMsg);
         setUploadProgress(null);
         return;
       }
@@ -615,7 +617,9 @@ export function ProductForm({
       // Must have at least one non-excluded variant
       const activeVariants = variants.filter((v) => !v.isExcluded);
       if (activeVariants.length === 0) {
-        setVariantError("Please include at least one variant");
+        const errorMsg = "Please include at least one variant";
+        setVariantError(errorMsg);
+        toast.error(errorMsg);
         setUploadProgress(null);
         return;
       }
@@ -624,6 +628,7 @@ export function ProductForm({
       const validation = validateVariantCount(activeVariants.length);
       if (validation.status === "error") {
         setVariantError(validation.message);
+        toast.error(validation.message);
         setUploadProgress(null);
         return;
       }
@@ -679,12 +684,15 @@ export function ProductForm({
     if (!result.success) {
       console.log("❌ [handleSubmit] Validation failed:", result.error.issues);
       const fieldErrors: FormErrors = {};
+      const firstError = result.error.issues[0];
       result.error.issues.forEach((issue) => {
         const field = issue.path[0] as keyof ProductInput;
         fieldErrors[field] = issue.message;
       });
       setErrors(fieldErrors);
       setUploadProgress(null);
+      // Show toast with first validation error
+      toast.error(firstError.message);
       return;
     }
     console.log("✅ [handleSubmit] Validation passed");
@@ -852,15 +860,32 @@ export function ProductForm({
 
         setUploadProgress({ stage: "complete", message: "Success!" });
         toast.success(product ? "Product updated" : "Product created");
+        console.log(
+          "✅ [handleSubmit] Product saved successfully, navigating..."
+        );
 
         // Small delay to show complete state, then navigate
         setTimeout(() => {
           setUploadProgress(null);
-          router.replace(`/dashboard/${storeSlug}/products`);
+          const targetUrl = `/dashboard/${storeSlug}/products`;
+          console.log(`🔄 [handleSubmit] Navigating to: ${targetUrl}`);
+          try {
+            router.replace(targetUrl);
+          } catch (navError) {
+            console.error("❌ [handleSubmit] Navigation failed:", navError);
+            toast.error(
+              "Navigation failed. Please manually return to products page."
+            );
+          }
         }, 500);
       } catch (error) {
-        console.error("Product save error:", error);
-        toast.error("An unexpected error occurred");
+        console.error("❌ [handleSubmit] Product save error:", error);
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "An unexpected error occurred";
+        console.error("❌ [handleSubmit] Error details:", errorMessage);
+        toast.error(`Error: ${errorMessage}`);
         setUploadProgress(null);
       }
     });
