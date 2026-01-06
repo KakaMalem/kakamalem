@@ -121,7 +121,7 @@ export function DashboardBreadcrumb() {
             <BreadcrumbItem
               className={`${
                 index === 0 ? "hidden md:block" : ""
-              } font-extrabold text-lg`}
+              } font-bold text-lg`}
             >
               {item.isLast ? (
                 <BreadcrumbPage>{item.label}</BreadcrumbPage>
