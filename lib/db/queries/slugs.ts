@@ -1,13 +1,13 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { db, getDbWithRLS } from "@/lib/db";
 import { products, categories, tenants } from "@/lib/db/schema";
 import { eq, and, ne, sql } from "drizzle-orm";
 import { slugify } from "@/lib/utils/slug";
 
 /**
  * Generate a unique product slug for a tenant
- * Automatically appends numbers if slug already exists
+ * Automatically appends sequential numbers (-1, -2, etc.) if slug already exists
  * This is the industry-standard approach used by Amazon, eBay, etc.
  */
 export async function generateUniqueProductSlug(
@@ -17,26 +17,29 @@ export async function generateUniqueProductSlug(
 ): Promise<string> {
   const baseSlug = slugify(name);
 
-  // If no base slug could be generated, use fallback
+  // If no base slug could be generated, use a generic fallback
   if (!baseSlug) {
-    return generateUniqueProductSlug(tenantId, `product-${Date.now()}`, existingProductId);
+    return generateUniqueProductSlug(tenantId, "product", existingProductId);
   }
 
   try {
+    // Use RLS-aware client to ensure queries work with policies
+    const dbClient = await getDbWithRLS();
+
     // Check if base slug is available (excluding current product if updating)
     const existingProduct = existingProductId
-      ? await db.query.products.findFirst({
+      ? await dbClient.query.products.findFirst({
           where: and(
             eq(products.tenantId, tenantId),
             eq(products.slug, baseSlug),
             ne(products.id, existingProductId)
           ),
         })
-      : await db.query.products.findFirst({
+      : await dbClient.query.products.findFirst({
           where: and(eq(products.tenantId, tenantId), eq(products.slug, baseSlug)),
         });
 
-    // If slug is available, return it
+    // If slug is available, return it as-is (no suffix needed)
     if (!existingProduct) {
       return baseSlug;
     }
@@ -52,7 +55,7 @@ export async function generateUniqueProductSlug(
         ]
       : [eq(products.tenantId, tenantId), sql`${products.slug} LIKE ${pattern}`];
 
-    const existingSlugs = await db
+    const existingSlugs = await dbClient
       .select({ slug: products.slug })
       .from(products)
       .where(and(...conditions));
@@ -67,18 +70,19 @@ export async function generateUniqueProductSlug(
       counter++;
       candidateSlug = `${baseSlug}-${counter}`;
 
-      // Safety check to prevent infinite loops
+      // Safety check to prevent infinite loops (very unlikely to hit)
       if (counter > 10000) {
-        // Use timestamp as last resort
-        return `${baseSlug}-${Date.now()}`;
+        return `${baseSlug}-${counter}`;
       }
     }
 
     return candidateSlug;
   } catch (error) {
     console.error("Error generating unique product slug:", error);
-    // If query fails (e.g., RLS policy), use timestamp-based slug as fallback
-    return `${baseSlug}-${Date.now()}`;
+    // On error, append a short random suffix to avoid collisions
+    // Using 4 random chars is cleaner than full timestamp
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    return `${baseSlug}-${randomSuffix}`;
   }
 }
 
@@ -93,19 +97,22 @@ export async function generateUniqueCategorySlug(
   const baseSlug = slugify(name);
 
   if (!baseSlug) {
-    return generateUniqueCategorySlug(tenantId, `category-${Date.now()}`, existingCategoryId);
+    return generateUniqueCategorySlug(tenantId, "category", existingCategoryId);
   }
 
   try {
+    // Use RLS-aware client to ensure queries work with policies
+    const dbClient = await getDbWithRLS();
+
     const existingCategory = existingCategoryId
-      ? await db.query.categories.findFirst({
+      ? await dbClient.query.categories.findFirst({
           where: and(
             eq(categories.tenantId, tenantId),
             eq(categories.slug, baseSlug),
             ne(categories.id, existingCategoryId)
           ),
         })
-      : await db.query.categories.findFirst({
+      : await dbClient.query.categories.findFirst({
           where: and(eq(categories.tenantId, tenantId), eq(categories.slug, baseSlug)),
         });
 
@@ -122,7 +129,7 @@ export async function generateUniqueCategorySlug(
         ]
       : [eq(categories.tenantId, tenantId), sql`${categories.slug} LIKE ${pattern}`];
 
-    const existingSlugs = await db
+    const existingSlugs = await dbClient
       .select({ slug: categories.slug })
       .from(categories)
       .where(and(...conditions));
@@ -137,15 +144,15 @@ export async function generateUniqueCategorySlug(
       candidateSlug = `${baseSlug}-${counter}`;
 
       if (counter > 10000) {
-        return `${baseSlug}-${Date.now()}`;
+        return `${baseSlug}-${counter}`;
       }
     }
 
     return candidateSlug;
   } catch (error) {
     console.error("Error generating unique category slug:", error);
-    // If query fails (e.g., RLS policy), use timestamp-based slug as fallback
-    return `${baseSlug}-${Date.now()}`;
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    return `${baseSlug}-${randomSuffix}`;
   }
 }
 

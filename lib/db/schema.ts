@@ -866,11 +866,11 @@ export const orders = pgTable(
   },
   (table) => [
     // Index for order history queries (most recent first)
-    uniqueIndex("orders_tenant_created_idx").on(table.tenantId, table.createdAt),
+    index("orders_tenant_created_idx").on(table.tenantId, table.createdAt),
     // Index for status filtering
-    uniqueIndex("orders_tenant_status_idx").on(table.tenantId, table.status),
+    index("orders_tenant_status_idx").on(table.tenantId, table.status),
     // Index for customer email lookups
-    uniqueIndex("orders_tenant_email_idx").on(table.tenantId, table.customerEmail),
+    index("orders_tenant_email_idx").on(table.tenantId, table.customerEmail),
   ]
 );
 

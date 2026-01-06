@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "TodoWrite",
+      "WebFetch",
+      "WebSearch",
+      "AskUserQuestion",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "Task",
+      "TaskOutput",
+      "Skill",
+      "Bash"
+    ],
+    "deny": [
+      "Bash(git:*)",
+      "Bash(gh:*)"
+    ]
+  }
+}

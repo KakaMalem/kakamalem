@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
+import { db, getDbWithRLS } from "@/lib/db";
 import { products, productImages, productCategories, media } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
@@ -55,7 +55,7 @@ export async function createProduct(
         slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
-        categoryId: data.categoryId || null,
+        categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
         trackInventory: data.trackInventory,
         stock: parseInt(data.stock || "0"),
         allowBackorder: data.allowBackorder,
@@ -259,8 +259,11 @@ export async function createProductWithImages(
       allImageIds,
     });
 
+    // Get database client with RLS context
+    const dbWithRLS = await getDbWithRLS();
+
     // Use database transaction for all DB operations (atomic)
-    const newProduct = await db.transaction(async (tx) => {
+    const newProduct = await dbWithRLS.transaction(async (tx) => {
       console.log("📦 [createProductWithImages] Inside transaction, creating product...");
 
       // Create product
@@ -272,7 +275,7 @@ export async function createProductWithImages(
           slug: uniqueSlug,
           description: data.description || null,
           price: data.price,
-          categoryId: data.categoryId || null,
+          categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
           trackInventory: data.trackInventory,
           stock: parseInt(data.stock || "0"),
           allowBackorder: data.allowBackorder,
@@ -450,7 +453,7 @@ export async function updateProductWithImages(
           slug: uniqueSlug,
           description: data.description || null,
           price: data.price,
-          categoryId: data.categoryId || null,
+          categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
           trackInventory: data.trackInventory,
           stock: parseInt(data.stock || "0"),
           allowBackorder: data.allowBackorder,
@@ -591,7 +594,7 @@ export async function updateProduct(
         slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
-        categoryId: data.categoryId || null,
+        categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
         trackInventory: data.trackInventory,
         stock: parseInt(data.stock || "0"),
         allowBackorder: data.allowBackorder,

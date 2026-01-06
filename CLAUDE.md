@@ -18,11 +18,20 @@ pnpm lint         # Run ESLint
 Database commands (Drizzle):
 
 ```bash
-pnpm db:generate  # Generate migrations from schema changes
-pnpm db:push      # Push schema directly to database (dev only)
-pnpm db:migrate   # Run migrations (production)
+# Development workflow
+pnpm db:generate  # Generate migration files from schema changes
+pnpm db:push      # Push schema directly to database (dev only, no migration files)
 pnpm db:studio    # Open Drizzle Studio GUI
+
+# Production workflow (automated in deploy.sh)
+pnpm db:migrate   # Apply migrations from drizzle/ folder
 ```
+
+**IMPORTANT:**
+
+- Use `db:push` for quick prototyping in development
+- Use `db:generate` → commit migrations → `db:migrate` for production
+- NEVER use `db:push` in production - it skips migration tracking
 
 Local Supabase commands:
 

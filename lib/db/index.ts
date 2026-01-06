@@ -26,3 +26,23 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export const db = drizzle(client, { schema });
+
+/**
+ * Create a database client with RLS context for the authenticated user
+ * This sets the auth.uid() session variable so RLS policies work correctly
+ */
+export async function getDbWithRLS() {
+  const { getUser } = await import("@/lib/supabase/auth");
+  const user = await getUser();
+
+  if (!user) {
+    // Return regular db client if no user (public access)
+    return db;
+  }
+
+  // Set the user context for RLS
+  // This makes auth.uid() return the current user's ID in RLS policies
+  await client`SELECT set_config('request.jwt.claims', '{"sub":"${client(user.id)}"}', TRUE)`;
+
+  return db;
+}

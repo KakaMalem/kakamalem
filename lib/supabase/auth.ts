@@ -43,6 +43,7 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
     email: formValues.email,
     password: formValues.password,
     options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://kakamalem.com'}/callback?type=signup`,
       data: {
         full_name: formValues.fullName,
       },

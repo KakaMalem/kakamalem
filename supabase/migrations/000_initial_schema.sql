@@ -609,4 +609,18 @@ CREATE UNIQUE INDEX "variant_option_values_tenant_option_value_idx" ON "variant_
 ALTER TABLE "product_variant_images" ADD CONSTRAINT "product_variant_images_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_variant_images" ADD CONSTRAINT "product_variant_images_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_variant_images" ADD CONSTRAINT "product_variant_images_media_id_media_id_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "product_variant_images_tenant_variant_media_idx" ON "product_variant_images" USING btree ("tenant_id","variant_id","media_id");
+CREATE UNIQUE INDEX "product_variant_images_tenant_variant_media_idx" ON "product_variant_images" USING btree ("tenant_id","variant_id","media_id");--> statement-breakpoint
+-- Missing indexes from schema.ts (added to match)
+CREATE UNIQUE INDEX "profiles_email_idx" ON "profiles" USING btree ("email");--> statement-breakpoint
+CREATE INDEX "tenant_members_user_id_idx" ON "tenant_members" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "media_tenant_id_idx" ON "media" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "product_categories_category_id_idx" ON "product_categories" USING btree ("category_id");--> statement-breakpoint
+CREATE INDEX "product_variants_product_id_idx" ON "product_variants" USING btree ("product_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "carts_tenant_session_idx" ON "carts" USING btree ("tenant_id","session_id");--> statement-breakpoint
+CREATE INDEX "orders_tenant_created_idx" ON "orders" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "orders_tenant_status_idx" ON "orders" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "orders_tenant_email_idx" ON "orders" USING btree ("tenant_id","customer_email");--> statement-breakpoint
+CREATE INDEX "order_items_order_id_idx" ON "order_items" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX "shipments_order_id_idx" ON "shipments" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX "shipment_items_order_item_id_idx" ON "shipment_items" USING btree ("order_item_id");--> statement-breakpoint
+CREATE INDEX "reviews_product_id_idx" ON "reviews" USING btree ("product_id");
