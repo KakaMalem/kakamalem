@@ -771,8 +771,16 @@ export function ProductForm({
 
         let actionResult;
 
+        console.log("📤 [handleSubmit] Sending to server:", {
+          tenantId,
+          formData,
+          stagedFilesCount: stagedFiles.length,
+          isUpdate: !!product,
+        });
+
         if (product) {
           // Update existing product
+          console.log("🔄 [handleSubmit] Updating product:", product.id);
           actionResult = await updateProductWithImages(
             tenantId,
             product.id,
@@ -781,6 +789,7 @@ export function ProductForm({
           );
         } else {
           // Create new product
+          console.log("➕ [handleSubmit] Creating new product");
           actionResult = await createProductWithImages(
             tenantId,
             formData,
@@ -788,7 +797,20 @@ export function ProductForm({
           );
         }
 
+        console.log("📥 [handleSubmit] Server response:", actionResult);
+
         if (!actionResult.success) {
+          console.error("❌ [handleSubmit] Product creation failed");
+          console.error("❌ [handleSubmit] Error:", actionResult.error);
+          console.error(
+            "❌ [handleSubmit] Error message:",
+            actionResult.error?.message
+          );
+          console.error(
+            "❌ [handleSubmit] Error field:",
+            actionResult.error?.field
+          );
+
           // Rollback: Delete newly created categories if product creation failed
           if (newlyCreatedIds.length > 0) {
             console.warn(
@@ -808,6 +830,7 @@ export function ProductForm({
             setErrors({
               [actionResult.error.field]: actionResult.error.message,
             });
+            toast.error(actionResult.error.message);
           } else {
             toast.error(actionResult.error?.message || "Something went wrong");
           }

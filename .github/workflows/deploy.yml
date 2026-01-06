@@ -1,0 +1,97 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+# Prevent concurrent deployments
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://kakamalem.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get commit information
+        id: commit
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "author=$(git log -1 --pretty=format:'%an')" >> $GITHUB_OUTPUT
+          echo "message=$(git log -1 --pretty=format:'%s')" >> $GITHUB_OUTPUT
+
+      - name: Notify deployment start
+        run: |
+          echo "🚀 Starting deployment"
+          echo "📝 Commit: ${{ steps.commit.outputs.sha_short }}"
+          echo "👤 Author: ${{ steps.commit.outputs.author }}"
+          echo "💬 Message: ${{ steps.commit.outputs.message }}"
+
+      - name: Deploy to VPS via SSH
+        id: deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 15m
+          script: |
+            set -e
+            cd /var/www/kakamalem
+            echo "Starting deployment at $(date)"
+            bash scripts/deploy.sh
+            echo "Deployment completed at $(date)"
+
+      - name: Verify deployment
+        if: success()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /var/www/kakamalem
+            if pm2 describe kakamalem | grep -q "online"; then
+              echo "✅ Application is running"
+              exit 0
+            else
+              echo "❌ Application verification failed"
+              exit 1
+            fi
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ steps.commit.outputs.sha_short }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author**: ${{ steps.commit.outputs.author }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Message**: ${{ steps.commit.outputs.message }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment completed successfully!"
+            echo "🌐 Application is live at: https://kakamalem.com"
+          else
+            echo "❌ Deployment failed!"
+            echo "🔍 Check the logs above for details"
+            echo "🔄 Automatic rollback should have been triggered"
+            exit 1
+          fi

@@ -44,3 +44,8 @@ next-env.d.ts
 # logs
 logs/
 *.log
+
+# Deployment artifacts (VPS only)
+.backups/
+.logs/
+deploy_*.log

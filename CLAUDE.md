@@ -39,6 +39,29 @@ Add shadcn/ui components:
 pnpm dlx shadcn-ui@latest add [component-name]
 ```
 
+## Deployment
+
+Automated deployment is configured via GitHub Actions. See [DEPLOYMENT.md](DEPLOYMENT.md) for full setup instructions.
+
+**Quick deploy**: Just push to `main` branch
+
+```bash
+git push origin main
+```
+
+**Manual deployment on VPS**:
+
+```bash
+cd /var/www/kakamalem
+bash scripts/deploy.sh
+```
+
+**Health check**:
+
+```bash
+bash scripts/health-check.sh
+```
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 with App Router (RSC by default)
