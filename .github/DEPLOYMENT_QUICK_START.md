@@ -35,9 +35,14 @@ cd kakamalem
 
 # Configure
 pnpm install
-nano .env  # Add production environment variables
+nano .env  # Add production environment variables (see note below)
 pnpm db:migrate
 pnpm build
+
+# IMPORTANT .env Configuration
+# Use SESSION POOLER (port 5432), NOT transaction pooler (port 6543)
+# DATABASE_URL=postgresql://...pooler.supabase.com:5432/postgres
+# DATABASE_URL_UNPOOLED=postgresql://...pooler.supabase.com:5432/postgres
 
 # Start with PM2
 pm2 start pnpm --name "kakamalem" -- start
