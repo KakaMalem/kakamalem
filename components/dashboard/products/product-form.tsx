@@ -781,6 +781,21 @@ export function ProductForm({
         }
 
         if (!actionResult.success) {
+          // Rollback: Delete newly created categories if product creation failed
+          if (newlyCreatedIds.length > 0) {
+            console.warn(
+              "⚠️ Product creation failed. Rolling back created categories..."
+            );
+            const { deleteCategory } = await import(
+              "@/lib/supabase/categories"
+            );
+            for (const categoryId of newlyCreatedIds) {
+              await deleteCategory(tenantId, categoryId).catch((err) => {
+                console.error("Failed to rollback category:", err);
+              });
+            }
+          }
+
           if (actionResult.error?.field) {
             setErrors({
               [actionResult.error.field]: actionResult.error.message,

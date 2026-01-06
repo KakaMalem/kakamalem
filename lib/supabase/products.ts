@@ -60,7 +60,11 @@ export async function createProduct(
         stock: parseInt(data.stock || "0"),
         allowBackorder: data.allowBackorder,
         lowStockThreshold: parseInt(data.lowStockThreshold || "0"),
-        weight: data.weight || null,
+        showStock: data.showStock,
+        weight: data.weight && data.weight !== "" ? data.weight : null,
+        length: data.length && data.length !== "" ? data.length : null,
+        width: data.width && data.width !== "" ? data.width : null,
+        height: data.height && data.height !== "" ? data.height : null,
         isActive: data.isActive,
         displayOrder: parseInt(data.displayOrder || "0"),
       })
@@ -98,10 +102,30 @@ export async function createProduct(
     };
   } catch (error) {
     console.error("Error creating product:", error);
+
+    // Provide more specific error messages based on error type
+    let errorMessage = "Failed to create product. Please try again.";
+
+    if (error instanceof Error) {
+      // Database constraint violations
+      if (error.message.includes("unique constraint")) {
+        errorMessage = "A product with this name already exists in your store.";
+      } else if (error.message.includes("foreign key constraint")) {
+        errorMessage = "Invalid category or media reference.";
+      } else if (error.message.includes("not null constraint")) {
+        errorMessage = "Missing required product information.";
+      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+        errorMessage = "You don't have permission to create products.";
+      } else {
+        // Include error details in development/debugging
+        errorMessage = `Failed to create product: ${error.message}`;
+      }
+    }
+
     return {
       success: false,
       error: {
-        message: "Failed to create product. Please try again.",
+        message: errorMessage,
       },
     };
   }
@@ -164,12 +188,15 @@ async function uploadFileToStorage(
 /**
  * Create a new product with staged image uploads
  * Images are uploaded during form submission, not before
+ * Uses database transaction for atomicity
  */
 export async function createProductWithImages(
   tenantId: string,
   input: ProductInput,
   stagedFiles: File[]
 ): Promise<ProductActionResult> {
+  const uploadedMediaIds: string[] = [];
+
   try {
     const user = await getUser();
     if (!user) {
@@ -197,8 +224,7 @@ export async function createProductWithImages(
     // Auto-generate unique slug from product name
     const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name);
 
-    // Upload staged files first
-    const uploadedMediaIds: string[] = [];
+    // Upload staged files first (storage operations cannot be in transaction)
     for (const file of stagedFiles) {
       const uploaded = await uploadFileToStorage(tenantId, user.id, file);
       if (uploaded) {
@@ -210,46 +236,55 @@ export async function createProductWithImages(
     // Existing IDs come first, then new uploads (to maintain order)
     const allImageIds = [...(data.imageIds || []), ...uploadedMediaIds];
 
-    // Create product
-    const [newProduct] = await db
-      .insert(products)
-      .values({
-        tenantId,
-        name: data.name,
-        slug: uniqueSlug,
-        description: data.description || null,
-        price: data.price,
-        categoryId: data.categoryId || null,
-        trackInventory: data.trackInventory,
-        stock: parseInt(data.stock || "0"),
-        allowBackorder: data.allowBackorder,
-        lowStockThreshold: parseInt(data.lowStockThreshold || "0"),
-        weight: data.weight || null,
-        isActive: data.isActive,
-        displayOrder: parseInt(data.displayOrder || "0"),
-      })
-      .returning({ id: products.id, slug: products.slug });
+    // Use database transaction for all DB operations (atomic)
+    const newProduct = await db.transaction(async (tx) => {
+      // Create product
+      const [product] = await tx
+        .insert(products)
+        .values({
+          tenantId,
+          name: data.name,
+          slug: uniqueSlug,
+          description: data.description || null,
+          price: data.price,
+          categoryId: data.categoryId || null,
+          trackInventory: data.trackInventory,
+          stock: parseInt(data.stock || "0"),
+          allowBackorder: data.allowBackorder,
+          lowStockThreshold: parseInt(data.lowStockThreshold || "0"),
+          showStock: data.showStock,
+          weight: data.weight && data.weight !== "" ? data.weight : null,
+          length: data.length && data.length !== "" ? data.length : null,
+          width: data.width && data.width !== "" ? data.width : null,
+          height: data.height && data.height !== "" ? data.height : null,
+          isActive: data.isActive,
+          displayOrder: parseInt(data.displayOrder || "0"),
+        })
+        .returning({ id: products.id, slug: products.slug });
 
-    // Add product images if provided
-    if (allImageIds.length > 0) {
-      const imageValues = allImageIds.map((mediaId, index) => ({
-        productId: newProduct.id,
-        mediaId,
-        position: index,
-      }));
+      // Add product images if provided
+      if (allImageIds.length > 0) {
+        const imageValues = allImageIds.map((mediaId, index) => ({
+          productId: product.id,
+          mediaId,
+          position: index,
+        }));
 
-      await db.insert(productImages).values(imageValues);
-    }
+        await tx.insert(productImages).values(imageValues);
+      }
 
-    // Add product categories if provided
-    if (data.categoryIds && data.categoryIds.length > 0) {
-      const categoryValues = data.categoryIds.map((categoryId) => ({
-        productId: newProduct.id,
-        categoryId,
-      }));
+      // Add product categories if provided
+      if (data.categoryIds && data.categoryIds.length > 0) {
+        const categoryValues = data.categoryIds.map((categoryId) => ({
+          productId: product.id,
+          categoryId,
+        }));
 
-      await db.insert(productCategories).values(categoryValues);
-    }
+        await tx.insert(productCategories).values(categoryValues);
+      }
+
+      return product;
+    });
 
     revalidatePath(`/dashboard`);
 
@@ -261,11 +296,40 @@ export async function createProductWithImages(
       },
     };
   } catch (error) {
-    console.error("Error creating product:", error);
+    console.error("Error creating product with images:", error);
+
+    // Clean up uploaded media if product creation failed
+    if (uploadedMediaIds.length > 0) {
+      await cleanupOrphanedMedia(uploadedMediaIds).catch(cleanupError => {
+        console.error("Error cleaning up orphaned media:", cleanupError);
+      });
+    }
+
+    // Provide more specific error messages based on error type
+    let errorMessage = "Failed to create product. Please try again.";
+
+    if (error instanceof Error) {
+      // Storage/upload errors
+      if (error.message.includes("storage") || error.message.includes("upload")) {
+        errorMessage = "Failed to upload product images. Please try again.";
+      } else if (error.message.includes("unique constraint")) {
+        errorMessage = "A product with this name already exists in your store.";
+      } else if (error.message.includes("foreign key constraint")) {
+        errorMessage = "Invalid category or media reference.";
+      } else if (error.message.includes("not null constraint")) {
+        errorMessage = "Missing required product information.";
+      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+        errorMessage = "You don't have permission to create products.";
+      } else {
+        // Include error details in development/debugging
+        errorMessage = `Failed to create product: ${error.message}`;
+      }
+    }
+
     return {
       success: false,
       error: {
-        message: "Failed to create product. Please try again.",
+        message: errorMessage,
       },
     };
   }
@@ -274,6 +338,7 @@ export async function createProductWithImages(
 /**
  * Update an existing product with staged image uploads
  * Images are uploaded during form submission, not before
+ * Uses database transaction for atomicity
  */
 export async function updateProductWithImages(
   tenantId: string,
@@ -281,6 +346,8 @@ export async function updateProductWithImages(
   input: ProductInput,
   stagedFiles: File[]
 ): Promise<ProductActionResult> {
+  const uploadedMediaIds: string[] = [];
+
   try {
     const user = await getUser();
     if (!user) {
@@ -308,8 +375,7 @@ export async function updateProductWithImages(
     // Auto-generate unique slug from product name (update case)
     const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name, productId);
 
-    // Upload staged files first
-    const uploadedMediaIds: string[] = [];
+    // Upload staged files first (storage operations cannot be in transaction)
     for (const file of stagedFiles) {
       const uploaded = await uploadFileToStorage(tenantId, user.id, file);
       if (uploaded) {
@@ -320,68 +386,72 @@ export async function updateProductWithImages(
     // Combine existing media IDs with newly uploaded ones
     const allImageIds = [...(data.imageIds || []), ...uploadedMediaIds];
 
-    // Update product
-    const [updatedProduct] = await db
-      .update(products)
-      .set({
-        name: data.name,
-        slug: uniqueSlug,
-        description: data.description || null,
-        price: data.price,
-        categoryId: data.categoryId || null,
-        trackInventory: data.trackInventory,
-        stock: parseInt(data.stock || "0"),
-        allowBackorder: data.allowBackorder,
-        lowStockThreshold: parseInt(data.lowStockThreshold || "0"),
-        weight: data.weight || null,
-        isActive: data.isActive,
-        displayOrder: parseInt(data.displayOrder || "0"),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(products.id, productId), eq(products.tenantId, tenantId)))
-      .returning({ id: products.id, slug: products.slug });
+    // Use database transaction for all DB operations (atomic)
+    const updatedProduct = await db.transaction(async (tx) => {
+      // Update product
+      const [product] = await tx
+        .update(products)
+        .set({
+          name: data.name,
+          slug: uniqueSlug,
+          description: data.description || null,
+          price: data.price,
+          categoryId: data.categoryId || null,
+          trackInventory: data.trackInventory,
+          stock: parseInt(data.stock || "0"),
+          allowBackorder: data.allowBackorder,
+          lowStockThreshold: parseInt(data.lowStockThreshold || "0"),
+          showStock: data.showStock,
+          weight: data.weight && data.weight !== "" ? data.weight : null,
+          length: data.length && data.length !== "" ? data.length : null,
+          width: data.width && data.width !== "" ? data.width : null,
+          height: data.height && data.height !== "" ? data.height : null,
+          isActive: data.isActive,
+          displayOrder: parseInt(data.displayOrder || "0"),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(products.id, productId), eq(products.tenantId, tenantId)))
+        .returning({ id: products.id, slug: products.slug });
 
-    if (!updatedProduct) {
-      return {
-        success: false,
-        error: {
-          message: "Product not found",
-        },
-      };
-    }
+      if (!product) {
+        throw new Error("Product not found");
+      }
 
-    // Update product images
-    // First, delete existing images
-    await db
-      .delete(productImages)
-      .where(eq(productImages.productId, productId));
+      // Update product images
+      // First, delete existing images
+      await tx
+        .delete(productImages)
+        .where(eq(productImages.productId, productId));
 
-    // Then, add new images
-    if (allImageIds.length > 0) {
-      const imageValues = allImageIds.map((mediaId, index) => ({
-        productId: productId,
-        mediaId,
-        position: index,
-      }));
+      // Then, add new images
+      if (allImageIds.length > 0) {
+        const imageValues = allImageIds.map((mediaId, index) => ({
+          productId: productId,
+          mediaId,
+          position: index,
+        }));
 
-      await db.insert(productImages).values(imageValues);
-    }
+        await tx.insert(productImages).values(imageValues);
+      }
 
-    // Update product categories
-    // First, delete existing categories
-    await db
-      .delete(productCategories)
-      .where(eq(productCategories.productId, productId));
+      // Update product categories
+      // First, delete existing categories
+      await tx
+        .delete(productCategories)
+        .where(eq(productCategories.productId, productId));
 
-    // Then, add new categories
-    if (data.categoryIds && data.categoryIds.length > 0) {
-      const categoryValues = data.categoryIds.map((categoryId) => ({
-        productId: productId,
-        categoryId,
-      }));
+      // Then, add new categories
+      if (data.categoryIds && data.categoryIds.length > 0) {
+        const categoryValues = data.categoryIds.map((categoryId) => ({
+          productId: productId,
+          categoryId,
+        }));
 
-      await db.insert(productCategories).values(categoryValues);
-    }
+        await tx.insert(productCategories).values(categoryValues);
+      }
+
+      return product;
+    });
 
     revalidatePath(`/dashboard`);
 
@@ -393,11 +463,40 @@ export async function updateProductWithImages(
       },
     };
   } catch (error) {
-    console.error("Error updating product:", error);
+    console.error("Error updating product with images:", error);
+
+    // Clean up uploaded media if product update failed
+    if (uploadedMediaIds.length > 0) {
+      await cleanupOrphanedMedia(uploadedMediaIds).catch(cleanupError => {
+        console.error("Error cleaning up orphaned media:", cleanupError);
+      });
+    }
+
+    // Provide more specific error messages based on error type
+    let errorMessage = "Failed to update product. Please try again.";
+
+    if (error instanceof Error) {
+      // Storage/upload errors
+      if (error.message.includes("storage") || error.message.includes("upload")) {
+        errorMessage = "Failed to upload product images. Please try again.";
+      } else if (error.message.includes("unique constraint")) {
+        errorMessage = "A product with this name already exists in your store.";
+      } else if (error.message.includes("foreign key constraint")) {
+        errorMessage = "Invalid category or media reference.";
+      } else if (error.message.includes("not null constraint")) {
+        errorMessage = "Missing required product information.";
+      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+        errorMessage = "You don't have permission to update this product.";
+      } else {
+        // Include error details in development/debugging
+        errorMessage = `Failed to update product: ${error.message}`;
+      }
+    }
+
     return {
       success: false,
       error: {
-        message: "Failed to update product. Please try again.",
+        message: errorMessage,
       },
     };
   }
@@ -443,7 +542,11 @@ export async function updateProduct(
         stock: parseInt(data.stock || "0"),
         allowBackorder: data.allowBackorder,
         lowStockThreshold: parseInt(data.lowStockThreshold || "0"),
-        weight: data.weight || null,
+        showStock: data.showStock,
+        weight: data.weight && data.weight !== "" ? data.weight : null,
+        length: data.length && data.length !== "" ? data.length : null,
+        width: data.width && data.width !== "" ? data.width : null,
+        height: data.height && data.height !== "" ? data.height : null,
         isActive: data.isActive,
         displayOrder: parseInt(data.displayOrder || "0"),
         updatedAt: new Date(),
@@ -488,10 +591,30 @@ export async function updateProduct(
     };
   } catch (error) {
     console.error("Error updating product:", error);
+
+    // Provide more specific error messages based on error type
+    let errorMessage = "Failed to update product. Please try again.";
+
+    if (error instanceof Error) {
+      // Database constraint violations
+      if (error.message.includes("unique constraint")) {
+        errorMessage = "A product with this name already exists in your store.";
+      } else if (error.message.includes("foreign key constraint")) {
+        errorMessage = "Invalid category or media reference.";
+      } else if (error.message.includes("not null constraint")) {
+        errorMessage = "Missing required product information.";
+      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+        errorMessage = "You don't have permission to update this product.";
+      } else {
+        // Include error details in development/debugging
+        errorMessage = `Failed to update product: ${error.message}`;
+      }
+    }
+
     return {
       success: false,
       error: {
-        message: "Failed to update product. Please try again.",
+        message: errorMessage,
       },
     };
   }
@@ -723,5 +846,43 @@ export async function uploadProductImage(
   } catch (error) {
     console.error("Error uploading image:", error);
     return { success: false, error: "Failed to upload image" };
+  }
+}
+
+/**
+ * Clean up orphaned media records and storage files
+ * Used when product creation fails after media upload
+ */
+async function cleanupOrphanedMedia(mediaIds: string[]): Promise<void> {
+  try {
+    if (mediaIds.length === 0) return;
+
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+
+    // Get media records to find storage paths
+    const mediaRecords = await db
+      .select({ url: media.url })
+      .from(media)
+      .where(inArray(media.id, mediaIds));
+
+    // Delete from storage
+    for (const record of mediaRecords) {
+      // Extract file path from public URL
+      const url = new URL(record.url);
+      const pathParts = url.pathname.split('/storage/v1/object/public/media/');
+      if (pathParts.length > 1) {
+        const filePath = pathParts[1];
+        await supabase.storage.from("media").remove([filePath]);
+      }
+    }
+
+    // Delete media records from database
+    await db.delete(media).where(inArray(media.id, mediaIds));
+
+    console.log(`Cleaned up ${mediaIds.length} orphaned media records`);
+  } catch (error) {
+    console.error("Error in cleanupOrphanedMedia:", error);
+    // Don't throw - this is a cleanup operation
   }
 }
