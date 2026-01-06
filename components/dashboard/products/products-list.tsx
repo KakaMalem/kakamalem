@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef, useCallback } from "react";
+import { useState, useTransition, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,13 +11,13 @@ import {
   Package,
   Eye,
   PackagePlus,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,18 +30,19 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type { ProductWithCategory } from "@/lib/db/queries/products";
-import {
-  deleteProduct,
-  reorderProducts,
-  bulkDeleteProducts,
-} from "@/lib/supabase/products";
+import { deleteProduct, reorderProducts } from "@/lib/supabase/products";
 import { QuickAdjustDialog } from "@/components/dashboard/inventory/quick-adjust-dialog";
+import { cn } from "@/lib/utils";
 
 interface ProductsListProps {
   tenantId: string;
   storeSlug: string;
   currency: string;
   products: ProductWithCategory[];
+  // Selection props from parent
+  selectedIds: Set<string>;
+  onSelectionChange: (ids: Set<string>) => void;
+  selectionMode: boolean;
 }
 
 export function ProductsList({
@@ -49,6 +50,9 @@ export function ProductsList({
   storeSlug,
   currency,
   products: initialProducts,
+  selectedIds,
+  onSelectionChange,
+  selectionMode,
 }: ProductsListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -56,11 +60,6 @@ export function ProductsList({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] =
     useState<ProductWithCategory | null>(null);
-
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Quick adjust dialog state
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false);
@@ -76,6 +75,11 @@ export function ProductsList({
   const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
   const touchStartY = useRef<number>(0);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Sync products when initialProducts change
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
 
   // Save reordered products
   const saveOrder = useCallback(
@@ -183,51 +187,13 @@ export function ProductsList({
 
   // Toggle selection for a single product
   const toggleSelection = (productId: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
-      return next;
-    });
-  };
-
-  // Toggle select all
-  const toggleSelectAll = () => {
-    if (selectedIds.size === products.length) {
-      setSelectedIds(new Set());
+    const next = new Set(selectedIds);
+    if (next.has(productId)) {
+      next.delete(productId);
     } else {
-      setSelectedIds(new Set(products.map((p) => p.id)));
+      next.add(productId);
     }
-  };
-
-  // Handle bulk delete
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-
-    setIsBulkDeleting(true);
-    const productIds = Array.from(selectedIds);
-
-    const result = await bulkDeleteProducts(tenantId, productIds);
-
-    if (result.success) {
-      toast.success(
-        `${productIds.length} product${
-          productIds.length > 1 ? "s" : ""
-        } deleted`
-      );
-      setBulkDeleteDialogOpen(false);
-      // Optimistic update - remove from list immediately
-      setProducts((prev) => prev.filter((p) => !selectedIds.has(p.id)));
-      setSelectedIds(new Set());
-      startTransition(() => router.refresh());
-    } else {
-      toast.error(result.error?.message || "Failed to delete products");
-    }
-
-    setIsBulkDeleting(false);
+    onSelectionChange(next);
   };
 
   const formatPrice = (price: string) => {
@@ -270,56 +236,26 @@ export function ProductsList({
 
   if (products.length === 0) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Package className="mb-4 size-12 text-muted-foreground" />
-          <h3 className="mb-2 text-lg font-medium">No products yet</h3>
-          <p className="mb-4 text-center text-muted-foreground">
-            Create products to start selling in your store.
-          </p>
-          <Button asChild>
-            <Link href={`/dashboard/${storeSlug}/products/new`}>
-              Add your first product
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 px-4">
+        <div className="mb-4 rounded-full bg-muted p-4">
+          <Package className="size-8 text-muted-foreground" />
+        </div>
+        <h3 className="mb-1 text-lg font-semibold">No products yet</h3>
+        <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
+          Add your first product to start selling in your store.
+        </p>
+        <Button asChild>
+          <Link href={`/dashboard/${storeSlug}/products/new`}>
+            <Package className="size-4" />
+            Add your first product
+          </Link>
+        </Button>
+      </div>
     );
   }
 
-  const allSelected =
-    products.length > 0 && selectedIds.size === products.length;
-
   return (
     <>
-      {/* Bulk Actions Header */}
-      {selectedIds.size > 0 && (
-        <Card className="mb-4 border-primary">
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <Checkbox
-                checked={allSelected}
-                onCheckedChange={toggleSelectAll}
-                aria-label="Select all products"
-              />
-              <span className="font-medium">
-                {selectedIds.size} product{selectedIds.size > 1 ? "s" : ""}{" "}
-                selected
-              </span>
-            </div>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setBulkDeleteDialogOpen(true)}
-              disabled={isBulkDeleting}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete Selected
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="space-y-2">
         {products.map((product, index) => {
           const isDragging = draggedIndex === index || touchDragIndex === index;
@@ -339,30 +275,94 @@ export function ProductsList({
               onTouchStart={(e) => handleTouchStart(e, index)}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className={`transition-all ${
-                isDragging ? "opacity-50 scale-[1.02] shadow-lg" : ""
-              } ${
-                isDragOver
-                  ? "border-primary ring-2 ring-primary ring-offset-2"
-                  : ""
-              }`}
+              className={cn(
+                "transition-all",
+                isDragging && "opacity-50 scale-[1.02] shadow-lg",
+                isDragOver && "border-primary ring-2 ring-primary ring-offset-2"
+              )}
             >
               <CardContent className="flex items-center gap-4 p-4">
-                {/* Checkbox */}
-                <Checkbox
-                  checked={selectedIds.has(product.id)}
-                  onCheckedChange={() => toggleSelection(product.id)}
-                  aria-label={`Select ${product.name}`}
-                  onClick={(e) => e.stopPropagation()}
-                />
-
-                {/* Drag Handle */}
-                <div
-                  data-drag-handle
-                  className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                {/* Desktop: Always show select button */}
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={selectedIds.has(product.id)}
+                  data-checked={selectedIds.has(product.id)}
+                  onClick={() => toggleSelection(product.id)}
+                  className="group relative hidden shrink-0 items-center justify-center outline-none sm:flex"
                 >
-                  <GripVertical className="size-5" />
-                </div>
+                  {/* Outer ring - always visible on desktop */}
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-0 flex items-center justify-center rounded-full border bg-background transition-all duration-150",
+                      selectedIds.has(product.id)
+                        ? "border-foreground"
+                        : "border-muted-foreground/40 group-hover:border-muted-foreground/60"
+                    )}
+                  >
+                    {/* Checkmark container */}
+                    <div
+                      className={cn(
+                        "rounded-full bg-foreground p-0.5 transition-all duration-100",
+                        selectedIds.has(product.id)
+                          ? "scale-100 opacity-100"
+                          : "scale-90 opacity-0"
+                      )}
+                    >
+                      <Check
+                        className="size-3 text-background"
+                        strokeWidth={3}
+                      />
+                    </div>
+                  </div>
+                  {/* Placeholder for consistent sizing */}
+                  <div className="size-5" />
+                </button>
+
+                {/* Mobile: Drag Handle or Select Button based on selection mode */}
+                {selectionMode ? (
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={selectedIds.has(product.id)}
+                    data-checked={selectedIds.has(product.id)}
+                    onClick={() => toggleSelection(product.id)}
+                    className="group relative flex shrink-0 items-center justify-center outline-none sm:hidden"
+                  >
+                    {/* Ring always visible on mobile */}
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute inset-0 flex items-center justify-center rounded-full border border-muted-foreground/30 ring ring-black/5 transition-all duration-150",
+                        selectedIds.has(product.id) &&
+                          "border-muted-foreground/50"
+                      )}
+                    >
+                      {/* Checkmark container */}
+                      <div
+                        className={cn(
+                          "rounded-full bg-foreground p-0.5 transition-all duration-100",
+                          selectedIds.has(product.id)
+                            ? "scale-100 opacity-100"
+                            : "scale-90 opacity-0"
+                        )}
+                      >
+                        <Check
+                          className="size-3 text-background"
+                          strokeWidth={3}
+                        />
+                      </div>
+                    </div>
+                    {/* Placeholder for consistent sizing */}
+                    <div className="size-5" />
+                  </button>
+                ) : (
+                  <div
+                    data-drag-handle
+                    className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing sm:hidden"
+                  >
+                    <GripVertical className="size-5" />
+                  </div>
+                )}
 
                 {/* Product Image */}
                 <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
@@ -382,43 +382,45 @@ export function ProductsList({
 
                 {/* Product Info */}
                 <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/dashboard/${storeSlug}/products/${product.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {product.name}
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/dashboard/${storeSlug}/products/${product.id}`}
+                      className="truncate font-medium hover:underline"
+                    >
+                      {product.name}
+                    </Link>
+                    {/* Mobile stock badge */}
+                    <div className="sm:hidden">{getStockBadge(product)}</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                     <span>{formatPrice(product.price)}</span>
-                    <span>•</span>
-                    {product.categories && product.categories.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {product.categories.map((cat) => (
-                          <Badge
-                            key={cat.id}
-                            variant="secondary"
-                            className="text-xs"
-                          >
-                            {cat.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-xs">Uncategorized</span>
+                    {product.trackInventory && (
+                      <span className="sm:hidden">
+                        • {product.stock} in stock
+                      </span>
+                    )}
+                    {product.categories && product.categories.length > 0 && (
+                      <>
+                        <span className="hidden sm:inline">•</span>
+                        <div className="hidden flex-wrap gap-1 sm:flex">
+                          {product.categories.map((cat) => (
+                            <Badge
+                              key={cat.id}
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              {cat.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
 
                 {/* Status Badges */}
-                <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
-                  <div className="flex items-center gap-2">
-                    {product.isActive ? (
-                      <Badge>Active</Badge>
-                    ) : (
-                      <Badge variant="secondary">Draft</Badge>
-                    )}
-                    {getStockBadge(product)}
-                  </div>
+                <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                  {getStockBadge(product)}
                   {product.trackInventory && (
                     <span className="text-xs text-muted-foreground">
                       {product.stock} in stock
@@ -492,36 +494,6 @@ export function ProductsList({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction variant="destructive" onClick={handleDelete}>
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk Delete Confirmation Dialog */}
-      <AlertDialog
-        open={bulkDeleteDialogOpen}
-        onOpenChange={setBulkDeleteDialogOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selectedIds.size} Products
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedIds.size} product
-              {selectedIds.size > 1 ? "s" : ""}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isBulkDeleting}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={handleBulkDelete}
-              disabled={isBulkDeleting}
-            >
-              {isBulkDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -118,7 +118,11 @@ export function DashboardBreadcrumb() {
       <BreadcrumbList>
         {breadcrumbItems.map((item, index) => (
           <Fragment key={item.href}>
-            <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
+            <BreadcrumbItem
+              className={`${
+                index === 0 ? "hidden md:block" : ""
+              } font-extrabold text-lg`}
+            >
               {item.isLast ? (
                 <BreadcrumbPage>{item.label}</BreadcrumbPage>
               ) : (

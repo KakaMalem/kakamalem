@@ -226,16 +226,25 @@ export function ProductForm({
 
   const handleCategoryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      // If there's text in the input, create the category first
+      // Always prevent default Enter behavior to avoid mobile keyboard moving to next field
+      e.preventDefault();
+      e.stopPropagation();
+
+      // If there's text in the input, create the category
       if (categorySearchInput.trim()) {
-        e.preventDefault();
-        e.stopPropagation();
         handleCreateNewCategory();
-        // Don't submit form - user needs to press Enter again or click submit
         return;
       }
-      // If input is empty, allow the Enter to propagate to form submission
-      // (the form's onSubmit will handle it)
+
+      // If dropdown is open and there are filtered categories, select the first one
+      if (showCategoryDropdown && filteredCategories.length > 0) {
+        handleSelectCategory(filteredCategories[0].id);
+        return;
+      }
+
+      // Otherwise just close the dropdown and blur (do nothing else)
+      setShowCategoryDropdown(false);
+      categoryInputRef.current?.blur();
     }
 
     // Remove last category on Backspace when input is empty
@@ -801,7 +810,10 @@ export function ProductForm({
 
         if (!actionResult.success) {
           console.error("❌ [handleSubmit] Product creation failed");
-          console.error("❌ [handleSubmit] Full actionResult:", JSON.stringify(actionResult, null, 2));
+          console.error(
+            "❌ [handleSubmit] Full actionResult:",
+            JSON.stringify(actionResult, null, 2)
+          );
           console.error("❌ [handleSubmit] Error:", actionResult.error);
           console.error(
             "❌ [handleSubmit] Error message:",
@@ -914,8 +926,6 @@ export function ProductForm({
       }
     });
   };
-
-  const hasStagedImages = images.some((img) => img.isStaged);
 
   return (
     <form
@@ -1242,7 +1252,10 @@ export function ProductForm({
                       {/* Input for searching/adding categories */}
                       <input
                         ref={categoryInputRef}
-                        type="text"
+                        type="search"
+                        inputMode="search"
+                        enterKeyHint="done"
+                        autoComplete="off"
                         value={categorySearchInput}
                         onChange={(e) => {
                           setCategorySearchInput(e.target.value);
@@ -1273,7 +1286,7 @@ export function ProductForm({
                             ? "Type to search or add categories..."
                             : "Add more..."
                         }
-                        className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                        className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                       />
                     </div>
                   </PopoverAnchor>
@@ -1551,7 +1564,7 @@ export function ProductForm({
               }, 0);
             }}
           >
-            {isPending || uploadProgress ? (
+            {(isPending || uploadProgress) && !isActive ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
                 Saving draft...
@@ -1577,11 +1590,10 @@ export function ProductForm({
               }, 0);
             }}
           >
-            {isPending || uploadProgress ? (
+            {(isPending || uploadProgress) && isActive ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                {uploadProgress?.message ||
-                  (hasStagedImages ? "Publishing..." : "Publishing...")}
+                {uploadProgress?.message || "Publishing..."}
               </>
             ) : (
               "Publish"

@@ -2,26 +2,14 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Search, X } from "lucide-react";
+import Link from "next/link";
+import { Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { Category } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
 
 interface ProductsFiltersProps {
-  categories: Category[];
-  currentFilters: {
-    search?: string;
-    categoryId?: string;
-    isActive?: boolean;
-    stockStatus?: string;
-  };
+  showArchived: boolean;
   currentSort?: {
     field: string;
     direction: string;
@@ -30,15 +18,13 @@ interface ProductsFiltersProps {
 }
 
 export function ProductsFilters({
-  categories,
-  currentFilters,
-  currentSort,
+  showArchived,
   storeSlug,
 }: ProductsFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [search, setSearch] = useState(currentFilters.search || "");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
 
   const updateParams = (updates: Record<string, string | undefined>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -64,135 +50,64 @@ export function ProductsFilters({
     updateParams({ search: search || undefined });
   };
 
-  const clearFilters = () => {
-    setSearch("");
-    startTransition(() => {
-      router.push(`/dashboard/${storeSlug}/products`);
-    });
+  const handleToggle = (archived: boolean) => {
+    updateParams({ status: archived ? "archived" : undefined });
   };
 
-  const hasFilters =
-    currentFilters.search ||
-    currentFilters.categoryId ||
-    currentFilters.isActive !== undefined ||
-    currentFilters.stockStatus;
-
-  const statusValue =
-    currentFilters.isActive === true
-      ? "active"
-      : currentFilters.isActive === false
-      ? "draft"
-      : "all";
-
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      {/* Search */}
-      <form onSubmit={handleSearch} className="flex-1">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search products..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-1 items-center gap-3">
+        {/* Search */}
+        <form onSubmit={handleSearch} className="flex-1 sm:max-w-xs">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </form>
+
+        {/* Active/Archived Toggle */}
+        <div className="relative z-0 inline-flex items-center gap-1 rounded-xl border border-border bg-background p-1">
+          <button
+            type="button"
+            onClick={() => handleToggle(false)}
+            disabled={isPending}
+            className={cn(
+              "relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors",
+              !showArchived
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => handleToggle(true)}
+            disabled={isPending}
+            className={cn(
+              "relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors",
+              showArchived
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Archived
+          </button>
         </div>
-      </form>
+      </div>
 
-      {/* Category Filter */}
-      <Select
-        value={currentFilters.categoryId || "all"}
-        onValueChange={(value) =>
-          updateParams({ category: value === "all" ? undefined : value })
-        }
-      >
-        <SelectTrigger className="w-full sm:w-45">
-          <SelectValue placeholder="All Categories" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Categories</SelectItem>
-          {categories.map((category) => (
-            <SelectItem key={category.id} value={category.id}>
-              {category.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Status Filter */}
-      <Select
-        value={statusValue}
-        onValueChange={(value) =>
-          updateParams({ status: value === "all" ? undefined : value })
-        }
-      >
-        <SelectTrigger className="w-full sm:w-35">
-          <SelectValue placeholder="All Status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Status</SelectItem>
-          <SelectItem value="active">Active</SelectItem>
-          <SelectItem value="draft">Draft</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {/* Stock Filter */}
-      <Select
-        value={currentFilters.stockStatus || "all"}
-        onValueChange={(value) =>
-          updateParams({ stock: value === "all" ? undefined : value })
-        }
-      >
-        <SelectTrigger className="w-full sm:w-37.5">
-          <SelectValue placeholder="All Stock" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Stock</SelectItem>
-          <SelectItem value="in_stock">In Stock</SelectItem>
-          <SelectItem value="low_stock">Low Stock</SelectItem>
-          <SelectItem value="out_of_stock">Out of Stock</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {/* Sort */}
-      <Select
-        value={
-          currentSort
-            ? `${currentSort.field}-${currentSort.direction}`
-            : "createdAt-desc"
-        }
-        onValueChange={(value) => {
-          const [field, order] = value.split("-");
-          updateParams({ sort: field, order });
-        }}
-      >
-        <SelectTrigger className="w-full sm:w-40">
-          <SelectValue placeholder="Sort by" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="createdAt-desc">Newest First</SelectItem>
-          <SelectItem value="createdAt-asc">Oldest First</SelectItem>
-          <SelectItem value="name-asc">Name A-Z</SelectItem>
-          <SelectItem value="name-desc">Name Z-A</SelectItem>
-          <SelectItem value="price-asc">Price Low-High</SelectItem>
-          <SelectItem value="price-desc">Price High-Low</SelectItem>
-          <SelectItem value="stock-asc">Stock Low-High</SelectItem>
-          <SelectItem value="stock-desc">Stock High-Low</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {/* Clear Filters */}
-      {hasFilters && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearFilters}
-          disabled={isPending}
-        >
-          <X className="size-4" />
-          Clear
-        </Button>
-      )}
+      {/* Add Product Button - Desktop */}
+      <Button asChild className="hidden sm:inline-flex">
+        <Link href={`/dashboard/${storeSlug}/products/new`}>
+          <Plus className="size-4" />
+          Add Product
+        </Link>
+      </Button>
     </div>
   );
 }
