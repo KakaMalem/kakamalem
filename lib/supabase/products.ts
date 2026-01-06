@@ -249,8 +249,20 @@ export async function createProductWithImages(
     // Existing IDs come first, then new uploads (to maintain order)
     const allImageIds = [...(data.imageIds || []), ...uploadedMediaIds];
 
+    console.log("🔄 [createProductWithImages] Starting transaction...");
+    console.log("🔄 [createProductWithImages] Product data:", {
+      tenantId,
+      name: data.name,
+      slug: uniqueSlug,
+      price: data.price,
+      categoryIds: data.categoryIds,
+      allImageIds,
+    });
+
     // Use database transaction for all DB operations (atomic)
     const newProduct = await db.transaction(async (tx) => {
+      console.log("📦 [createProductWithImages] Inside transaction, creating product...");
+
       // Create product
       const [product] = await tx
         .insert(products)
@@ -275,8 +287,11 @@ export async function createProductWithImages(
         })
         .returning({ id: products.id, slug: products.slug });
 
+      console.log("✅ [createProductWithImages] Product created:", product);
+
       // Add product images if provided
       if (allImageIds.length > 0) {
+        console.log("🖼️ [createProductWithImages] Adding product images:", allImageIds);
         const imageValues = allImageIds.map((mediaId, index) => ({
           productId: product.id,
           mediaId,
@@ -284,20 +299,26 @@ export async function createProductWithImages(
         }));
 
         await tx.insert(productImages).values(imageValues);
+        console.log("✅ [createProductWithImages] Product images added");
       }
 
       // Add product categories if provided
       if (data.categoryIds && data.categoryIds.length > 0) {
+        console.log("🏷️ [createProductWithImages] Adding product categories:", data.categoryIds);
         const categoryValues = data.categoryIds.map((categoryId) => ({
           productId: product.id,
           categoryId,
         }));
 
         await tx.insert(productCategories).values(categoryValues);
+        console.log("✅ [createProductWithImages] Product categories added");
       }
 
+      console.log("✅ [createProductWithImages] Transaction complete, returning product");
       return product;
     });
+
+    console.log("✅ [createProductWithImages] Transaction successful:", newProduct);
 
     revalidatePath(`/dashboard`);
 
@@ -309,7 +330,14 @@ export async function createProductWithImages(
       },
     };
   } catch (error) {
-    console.error("Error creating product with images:", error);
+    console.error("❌ [createProductWithImages] Error creating product with images:", error);
+    console.error("❌ [createProductWithImages] Error type:", typeof error);
+    console.error("❌ [createProductWithImages] Error instanceof Error:", error instanceof Error);
+    if (error instanceof Error) {
+      console.error("❌ [createProductWithImages] Error message:", error.message);
+      console.error("❌ [createProductWithImages] Error stack:", error.stack);
+    }
+    console.error("❌ [createProductWithImages] Stringified error:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
 
     // Clean up uploaded media if product creation failed
     if (uploadedMediaIds.length > 0) {

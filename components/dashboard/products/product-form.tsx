@@ -801,6 +801,7 @@ export function ProductForm({
 
         if (!actionResult.success) {
           console.error("❌ [handleSubmit] Product creation failed");
+          console.error("❌ [handleSubmit] Full actionResult:", JSON.stringify(actionResult, null, 2));
           console.error("❌ [handleSubmit] Error:", actionResult.error);
           console.error(
             "❌ [handleSubmit] Error message:",

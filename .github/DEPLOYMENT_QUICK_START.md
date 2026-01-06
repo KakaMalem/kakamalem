@@ -16,7 +16,7 @@ Add these secrets:
 - `VPS_HOST`: Your VPS IP or domain
 - `VPS_USERNAME`: SSH username (e.g., `root`)
 - `VPS_SSH_KEY`: Content of `~/.ssh/github-actions` (entire private key)
-- `VPS_PORT`: SSH port (optional, default: 22)
+- `VPS_PORT`: SSH port (default: 22)
 
 ## Step 3: Setup VPS (One-Time)
 

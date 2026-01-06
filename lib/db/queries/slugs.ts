@@ -22,58 +22,64 @@ export async function generateUniqueProductSlug(
     return generateUniqueProductSlug(tenantId, `product-${Date.now()}`, existingProductId);
   }
 
-  // Check if base slug is available (excluding current product if updating)
-  const existingProduct = existingProductId
-    ? await db.query.products.findFirst({
-        where: and(
-          eq(products.tenantId, tenantId),
-          eq(products.slug, baseSlug),
-          ne(products.id, existingProductId)
-        ),
-      })
-    : await db.query.products.findFirst({
-        where: and(eq(products.tenantId, tenantId), eq(products.slug, baseSlug)),
-      });
+  try {
+    // Check if base slug is available (excluding current product if updating)
+    const existingProduct = existingProductId
+      ? await db.query.products.findFirst({
+          where: and(
+            eq(products.tenantId, tenantId),
+            eq(products.slug, baseSlug),
+            ne(products.id, existingProductId)
+          ),
+        })
+      : await db.query.products.findFirst({
+          where: and(eq(products.tenantId, tenantId), eq(products.slug, baseSlug)),
+        });
 
-  // If slug is available, return it
-  if (!existingProduct) {
-    return baseSlug;
-  }
-
-  // Slug exists, find the next available number suffix
-  // Query for all slugs that match the pattern: baseSlug, baseSlug-1, baseSlug-2, etc.
-  const pattern = `${baseSlug}%`;
-  const conditions = existingProductId
-    ? [
-        eq(products.tenantId, tenantId),
-        sql`${products.slug} LIKE ${pattern}`,
-        ne(products.id, existingProductId),
-      ]
-    : [eq(products.tenantId, tenantId), sql`${products.slug} LIKE ${pattern}`];
-
-  const existingSlugs = await db
-    .select({ slug: products.slug })
-    .from(products)
-    .where(and(...conditions));
-
-  const slugSet = new Set(existingSlugs.map((p) => p.slug));
-
-  // Find the next available number
-  let counter = 1;
-  let candidateSlug = `${baseSlug}-${counter}`;
-
-  while (slugSet.has(candidateSlug)) {
-    counter++;
-    candidateSlug = `${baseSlug}-${counter}`;
-
-    // Safety check to prevent infinite loops
-    if (counter > 10000) {
-      // Use timestamp as last resort
-      return `${baseSlug}-${Date.now()}`;
+    // If slug is available, return it
+    if (!existingProduct) {
+      return baseSlug;
     }
-  }
 
-  return candidateSlug;
+    // Slug exists, find the next available number suffix
+    // Query for all slugs that match the pattern: baseSlug, baseSlug-1, baseSlug-2, etc.
+    const pattern = `${baseSlug}%`;
+    const conditions = existingProductId
+      ? [
+          eq(products.tenantId, tenantId),
+          sql`${products.slug} LIKE ${pattern}`,
+          ne(products.id, existingProductId),
+        ]
+      : [eq(products.tenantId, tenantId), sql`${products.slug} LIKE ${pattern}`];
+
+    const existingSlugs = await db
+      .select({ slug: products.slug })
+      .from(products)
+      .where(and(...conditions));
+
+    const slugSet = new Set(existingSlugs.map((p) => p.slug));
+
+    // Find the next available number
+    let counter = 1;
+    let candidateSlug = `${baseSlug}-${counter}`;
+
+    while (slugSet.has(candidateSlug)) {
+      counter++;
+      candidateSlug = `${baseSlug}-${counter}`;
+
+      // Safety check to prevent infinite loops
+      if (counter > 10000) {
+        // Use timestamp as last resort
+        return `${baseSlug}-${Date.now()}`;
+      }
+    }
+
+    return candidateSlug;
+  } catch (error) {
+    console.error("Error generating unique product slug:", error);
+    // If query fails (e.g., RLS policy), use timestamp-based slug as fallback
+    return `${baseSlug}-${Date.now()}`;
+  }
 }
 
 /**
@@ -90,51 +96,57 @@ export async function generateUniqueCategorySlug(
     return generateUniqueCategorySlug(tenantId, `category-${Date.now()}`, existingCategoryId);
   }
 
-  const existingCategory = existingCategoryId
-    ? await db.query.categories.findFirst({
-        where: and(
-          eq(categories.tenantId, tenantId),
-          eq(categories.slug, baseSlug),
-          ne(categories.id, existingCategoryId)
-        ),
-      })
-    : await db.query.categories.findFirst({
-        where: and(eq(categories.tenantId, tenantId), eq(categories.slug, baseSlug)),
-      });
+  try {
+    const existingCategory = existingCategoryId
+      ? await db.query.categories.findFirst({
+          where: and(
+            eq(categories.tenantId, tenantId),
+            eq(categories.slug, baseSlug),
+            ne(categories.id, existingCategoryId)
+          ),
+        })
+      : await db.query.categories.findFirst({
+          where: and(eq(categories.tenantId, tenantId), eq(categories.slug, baseSlug)),
+        });
 
-  if (!existingCategory) {
-    return baseSlug;
-  }
-
-  const pattern = `${baseSlug}%`;
-  const conditions = existingCategoryId
-    ? [
-        eq(categories.tenantId, tenantId),
-        sql`${categories.slug} LIKE ${pattern}`,
-        ne(categories.id, existingCategoryId),
-      ]
-    : [eq(categories.tenantId, tenantId), sql`${categories.slug} LIKE ${pattern}`];
-
-  const existingSlugs = await db
-    .select({ slug: categories.slug })
-    .from(categories)
-    .where(and(...conditions));
-
-  const slugSet = new Set(existingSlugs.map((c) => c.slug));
-
-  let counter = 1;
-  let candidateSlug = `${baseSlug}-${counter}`;
-
-  while (slugSet.has(candidateSlug)) {
-    counter++;
-    candidateSlug = `${baseSlug}-${counter}`;
-
-    if (counter > 10000) {
-      return `${baseSlug}-${Date.now()}`;
+    if (!existingCategory) {
+      return baseSlug;
     }
-  }
 
-  return candidateSlug;
+    const pattern = `${baseSlug}%`;
+    const conditions = existingCategoryId
+      ? [
+          eq(categories.tenantId, tenantId),
+          sql`${categories.slug} LIKE ${pattern}`,
+          ne(categories.id, existingCategoryId),
+        ]
+      : [eq(categories.tenantId, tenantId), sql`${categories.slug} LIKE ${pattern}`];
+
+    const existingSlugs = await db
+      .select({ slug: categories.slug })
+      .from(categories)
+      .where(and(...conditions));
+
+    const slugSet = new Set(existingSlugs.map((c) => c.slug));
+
+    let counter = 1;
+    let candidateSlug = `${baseSlug}-${counter}`;
+
+    while (slugSet.has(candidateSlug)) {
+      counter++;
+      candidateSlug = `${baseSlug}-${counter}`;
+
+      if (counter > 10000) {
+        return `${baseSlug}-${Date.now()}`;
+      }
+    }
+
+    return candidateSlug;
+  } catch (error) {
+    console.error("Error generating unique category slug:", error);
+    // If query fails (e.g., RLS policy), use timestamp-based slug as fallback
+    return `${baseSlug}-${Date.now()}`;
+  }
 }
 
 /**
