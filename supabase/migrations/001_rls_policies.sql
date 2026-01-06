@@ -2,7 +2,8 @@
 -- ROW LEVEL SECURITY POLICIES FOR KAKA MALEM
 -- ============================================================================
 -- This migration sets up RLS policies for tenant isolation and role-based access.
--- Run this in the Supabase SQL Editor after pushing your Drizzle schema.
+-- Run this once in the Supabase SQL Editor after initial database setup.
+-- RLS policies are NOT managed by Drizzle migrations.
 
 -- ============================================================================
 -- HELPER FUNCTION: Check tenant access with role hierarchy

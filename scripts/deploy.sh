@@ -143,18 +143,17 @@ log "${BLUE}Updated from $BEFORE_COMMIT to $AFTER_COMMIT${NC}"
 log "${GREEN}📦 Installing dependencies...${NC}"
 pnpm install --frozen-lockfile 2>&1 | tee -a "$DEPLOY_LOG" || error_exit "Failed to install dependencies"
 
-# Step 3: Sync database schema
-log "${GREEN}🗄️  Syncing database schema...${NC}"
-# Check if schema changes are needed
-if git diff --name-only "$BEFORE_COMMIT" "$AFTER_COMMIT" | grep -q "lib/db/schema.ts"; then
-  log "${BLUE}📝 Schema changes detected${NC}"
-  # Use db:push for now (schema already in prod, migrations not tracked yet)
-  # TODO: Switch to db:migrate once migration tracking is set up properly
-  pnpm db:push 2>&1 | tee -a "$DEPLOY_LOG" || {
-    log "${YELLOW}⚠️  Schema sync had warnings, but continuing...${NC}"
+# Step 3: Run database migrations
+log "${GREEN}🗄️  Running database migrations...${NC}"
+# Check if there are pending migrations
+if [ -d "drizzle" ] && ls drizzle/*.sql 1> /dev/null 2>&1; then
+  pnpm db:migrate 2>&1 | tee -a "$DEPLOY_LOG" || {
+    log "${RED}ERROR: Failed to run migrations${NC}"
+    error_exit "Database migration failed"
   }
+  log "${GREEN}✓ Migrations applied${NC}"
 else
-  log "${BLUE}ℹ️  No schema changes detected${NC}"
+  log "${BLUE}ℹ️  No migrations to apply${NC}"
 fi
 
 # Step 4: Build application

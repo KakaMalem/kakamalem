@@ -42,7 +42,8 @@ export async function getDbWithRLS() {
 
   // Set the user context for RLS
   // This makes auth.uid() return the current user's ID in RLS policies
-  await client`SELECT set_config('request.jwt.claims', '{"sub":"${client(user.id)}"}', TRUE)`;
+  const claims = JSON.stringify({ sub: user.id });
+  await client`SELECT set_config('request.jwt.claims', ${claims}, TRUE)`;
 
   return db;
 }

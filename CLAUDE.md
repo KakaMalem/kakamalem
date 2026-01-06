@@ -18,20 +18,44 @@ pnpm lint         # Run ESLint
 Database commands (Drizzle):
 
 ```bash
-# Development workflow
 pnpm db:generate  # Generate migration files from schema changes
-pnpm db:push      # Push schema directly to database (dev only, no migration files)
-pnpm db:studio    # Open Drizzle Studio GUI
-
-# Production workflow (automated in deploy.sh)
 pnpm db:migrate   # Apply migrations from drizzle/ folder
+pnpm db:studio    # Open Drizzle Studio GUI
+pnpm db:push      # Push schema directly (DEV ONLY - clears RLS!)
 ```
 
-**IMPORTANT:**
+## Database Migration Workflow
 
-- Use `db:push` for quick prototyping in development
-- Use `db:generate` → commit migrations → `db:migrate` for production
-- NEVER use `db:push` in production - it skips migration tracking
+**IMPORTANT: Always use migrations, never use `db:push` in production!**
+
+### Making Schema Changes
+
+1. **Edit the schema** in `lib/db/schema.ts`
+2. **Generate migration**:
+   ```bash
+   pnpm db:generate
+   ```
+3. **Review the generated SQL** in `drizzle/XXXX_*.sql`
+4. **Commit the migration**:
+   ```bash
+   git add drizzle/
+   git commit -m "migration: description of changes"
+   ```
+5. **Push to deploy** - migrations run automatically via `deploy.sh`
+
+### RLS Policies
+
+RLS policies are managed separately in `supabase/migrations/001_rls_policies.sql`:
+- Drizzle does NOT manage RLS policies
+- Run `001_rls_policies.sql` once via Supabase SQL Editor after initial setup
+- If you ever need to re-apply RLS, run this file again in SQL Editor
+
+### Why NOT to use db:push
+
+- `db:push` clears ALL RLS policies (security risk!)
+- No migration history (can't rollback)
+- No team collaboration (no files to review)
+- Can accidentally drop columns/data
 
 Local Supabase commands:
 
