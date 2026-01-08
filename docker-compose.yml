@@ -8,14 +8,12 @@
 #   docker compose up -d          # Start the app
 #   docker compose down           # Stop the app
 #   docker compose logs -f app    # View logs
-#   docker compose pull && docker compose up -d  # Update to new image
+#   docker compose build && docker compose up -d  # Rebuild and deploy
 # =============================================================================
 
 services:
   app:
-    # Use pre-built image from GHCR (after GitHub Actions builds it)
-    # image: ghcr.io/kakamalem/kakamalem:latest
-    # Build locally on VPS:
+    # Build locally on VPS (NEXT_PUBLIC_* vars must be set at build time)
     build:
       context: .
       dockerfile: Dockerfile
@@ -27,12 +25,11 @@ services:
     container_name: kakamalem-app
     restart: unless-stopped
 
-    # Port mapping: container:host
-    # Nginx on host proxies to this port
+    # Port mapping: Nginx on host proxies to this port
     ports:
       - "3000:3000"
 
-    # Environment variables (runtime, not baked into image)
+    # Environment variables (runtime)
     env_file:
       - .env
 
@@ -40,13 +37,13 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
+      # Optimize Node.js for available memory (8GB allocated)
+      - NODE_OPTIONS=--max-old-space-size=6144
       # DATABASE_URL and DATABASE_URL_UNPOOLED come from .env file
 
     # Mount volumes
     volumes:
-      # Uploads directory - persist across container restarts
       - /var/www/kakamalem-uploads:/app/uploads:rw
-      # Temp directory for upload processing
       - /tmp/kakamalem-uploads:/tmp/kakamalem-uploads:rw
 
     # Health check
@@ -57,26 +54,34 @@ services:
       retries: 3
       start_period: 40s
 
-    # Resource limits (adjust based on your VPS)
+    # ==========================================================================
+    # Resource allocation for 16GB RAM / 4 CPU VPS
+    # ==========================================================================
+    # System breakdown:
+    #   - PostgreSQL (native): ~2GB
+    #   - PgBouncer (native):  ~50MB
+    #   - Nginx (native):      ~50MB
+    #   - OS/system:           ~1GB
+    #   - Docker overhead:     ~500MB
+    #   - Available for app:   ~12GB
+    # ==========================================================================
     deploy:
       resources:
         limits:
-          memory: 2G
+          cpus: "3.0"      # Use 3 of 4 cores (leave 1 for DB/system)
+          memory: 10G      # Hard limit - container killed if exceeded
         reservations:
-          memory: 512M
+          cpus: "1.0"      # Guaranteed minimum
+          memory: 2G       # Guaranteed minimum
 
-    # Logging configuration
+    # Logging - more retention for production debugging
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "50m"
+        max-file: "5"
 
-    # Network mode: Use host network for easier DB access on Linux
-    # Uncomment this and remove ports section if using host network
-    # network_mode: host
-
-    # Extra hosts for Linux (map host.docker.internal to host IP)
+    # Map host.docker.internal to host IP for DB access
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -92,6 +97,6 @@ services:
 # To migrate to a new server:
 # 1. Copy this file and .env to new server
 # 2. Set up PostgreSQL/PgBouncer/Nginx natively (use server-setup/install.sh)
-# 3. docker compose pull && docker compose up -d
+# 3. docker compose build && docker compose up -d
 # 4. Done!
 # =============================================================================
