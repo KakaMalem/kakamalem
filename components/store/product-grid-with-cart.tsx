@@ -16,7 +16,7 @@ interface Product {
   stock: number;
   hasVariants: boolean;
   trackInventory: boolean;
-  isActive: boolean;
+  status: "draft" | "active" | "archived";
   image: { url: string; altText: string | null } | null;
   rating?: number;
   reviewCount?: number;

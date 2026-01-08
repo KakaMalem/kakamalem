@@ -130,7 +130,7 @@ export async function updateTenant(
     .update(tenants)
     .set({
       ...data,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     })
     .where(eq(tenants.id, tenantId))
     .returning();

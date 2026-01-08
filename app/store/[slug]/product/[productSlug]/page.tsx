@@ -42,7 +42,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!store) return null;
 
   const product = await getProductBySlugWithDetails(store.id, productSlug);
-  if (!product || !product.isActive) {
+  if (!product || product.status !== "active") {
     notFound();
   }
 

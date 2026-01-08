@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Upload,
   Search,
   Trash2,
   Loader2,
@@ -44,14 +44,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import { Dropzone, type UploadedFile } from "@/components/ui/dropzone";
 
 import {
   type MediaItem,
-  uploadMedia,
   updateMediaAltText,
   deleteMedia,
   getMediaLibrary,
-} from "@/lib/supabase/media";
+  createMediaRecord,
+} from "@/lib/actions/media";
 
 interface MediaLibraryProps {
   tenantId: string;
@@ -67,6 +68,20 @@ interface MediaLibraryProps {
   initialSearch: string;
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.03 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, scale: 0.9 },
+  visible: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.9 },
+};
+
 export function MediaLibrary({
   tenantId,
   initialItems,
@@ -75,7 +90,6 @@ export function MediaLibrary({
 }: MediaLibraryProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [isUploading, setIsUploading] = useState(false);
   const [items, setItems] = useState(initialItems);
   const [pagination, setPagination] = useState(initialPagination);
   const [search, setSearch] = useState(initialSearch);
@@ -119,36 +133,38 @@ export function MediaLibrary({
     return () => clearTimeout(timeout);
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleUploadComplete = async (files: UploadedFile[]) => {
+    // Create media records in database for each uploaded file
+    for (const file of files) {
+      try {
+        const result = await createMediaRecord(tenantId, {
+          url: file.url,
+          fileName: file.filename,
+          fileSize: file.size,
+          mimeType: file.mimeType,
+        });
 
-    setIsUploading(true);
-
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith("image/")) {
-        toast.error(`${file.name} is not an image`);
-        continue;
-      }
-
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} is too large (max 5MB)`);
-        continue;
-      }
-
-      const result = await uploadMedia(tenantId, file);
-
-      if (result.success && result.data) {
-        toast.success(`${file.name} uploaded`);
-        // Refresh the list
-        loadMedia(1, search);
-      } else {
-        toast.error(result.error?.message || `Failed to upload ${file.name}`);
+        if (result.success && result.data) {
+          // Add to the beginning of the list
+          setItems((prev) => [
+            {
+              id: result.data!.id,
+              tenantId,
+              uploadedById: "",
+              url: result.data!.url,
+              fileName: result.data!.fileName,
+              altText: null,
+              fileSize: file.size,
+              mimeType: file.mimeType,
+              createdAt: new Date().toISOString(),
+            },
+            ...prev,
+          ]);
+        }
+      } catch {
+        toast.error(`Failed to save ${file.originalName}`);
       }
     }
-
-    setIsUploading(false);
-    e.target.value = "";
   };
 
   const handleEditOpen = (item: MediaItem) => {
@@ -212,38 +228,24 @@ export function MediaLibrary({
 
   return (
     <div className="space-y-6">
-      {/* Search and Upload */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Search images..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <label>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleUpload}
-            disabled={isUploading}
-            className="sr-only"
-          />
-          <Button disabled={isUploading} asChild>
-            <span className="cursor-pointer">
-              {isUploading ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <Upload className="mr-2 size-4" />
-              )}
-              Upload Images
-            </span>
-          </Button>
-        </label>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input
+          placeholder="Search images..."
+          value={search}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
+
+      {/* Upload Zone */}
+      <Dropzone
+        tenantId={tenantId}
+        folder="media"
+        onUploadComplete={handleUploadComplete}
+        maxFiles={10}
+      />
 
       {/* Media Grid */}
       {isLoading ? (
@@ -255,92 +257,86 @@ export function MediaLibrary({
           <CardContent className="flex flex-col items-center justify-center py-12">
             <ImageIcon className="mb-4 size-12 text-muted-foreground" />
             <h3 className="mb-2 text-lg font-medium">No images yet</h3>
-            <p className="mb-4 text-center text-muted-foreground">
+            <p className="text-center text-muted-foreground">
               {search
                 ? "No images match your search"
                 : "Upload images to use in your products and categories"}
             </p>
-            {!search && (
-              <label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleUpload}
-                  disabled={isUploading}
-                  className="sr-only"
-                />
-                <Button disabled={isUploading} asChild>
-                  <span className="cursor-pointer">
-                    <Upload className="mr-2 size-4" />
-                    Upload your first image
-                  </span>
-                </Button>
-              </label>
-            )}
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
-              >
-                <Image
-                  src={item.url}
-                  alt={item.altText || item.fileName || "Image"}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
-                />
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+          >
+            <AnimatePresence>
+              {items.map((item) => (
+                <motion.div
+                  key={item.id}
+                  variants={itemVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  layout
+                  className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
+                >
+                  <Image
+                    src={item.url}
+                    alt={item.altText || item.fileName || "Image"}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
+                  />
 
-                {/* Overlay with actions */}
-                <div className="absolute inset-0 flex items-start justify-end bg-linear-to-b from-black/50 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon-sm"
-                        className="size-7"
-                      >
-                        <MoreVertical className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleCopyUrl(item)}>
-                        {copiedId === item.id ? (
-                          <Check className="mr-2 size-4" />
-                        ) : (
-                          <Copy className="mr-2 size-4" />
-                        )}
-                        Copy URL
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleEditOpen(item)}>
-                        <Pencil className="mr-2 size-4" />
-                        Edit Alt Text
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDeleteOpen(item)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="mr-2 size-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                  {/* Overlay with actions */}
+                  <div className="absolute inset-0 flex items-start justify-end bg-linear-to-b from-black/50 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon-sm"
+                          className="size-7"
+                        >
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleCopyUrl(item)}>
+                          {copiedId === item.id ? (
+                            <Check className="mr-2 size-4" />
+                          ) : (
+                            <Copy className="mr-2 size-4" />
+                          )}
+                          Copy URL
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditOpen(item)}>
+                          <Pencil className="mr-2 size-4" />
+                          Edit Alt Text
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteOpen(item)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 size-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
 
-                {/* File name tooltip */}
-                <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
-                  <p className="truncate text-xs text-white">
-                    {item.fileName || "Untitled"}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                  {/* File name tooltip */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <p className="truncate text-xs text-white">
+                      {item.fileName || "Untitled"}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (

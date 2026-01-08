@@ -7,7 +7,7 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
 import { getOrCreateCart } from "@/lib/db/queries/carts";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { StoreHeaderWrapper } from "@/components/store/store-header-wrapper";
 import { StoreCategoriesBar } from "@/components/store/store-categories-bar";
 import { StoreFooter } from "@/components/store/store-footer";
@@ -134,9 +134,9 @@ export default async function StoreLayout({
           user={
             user
               ? {
-                  name: user.user_metadata?.full_name,
+                  name: user.name,
                   email: user.email,
-                  avatarUrl: user.user_metadata?.avatar_url,
+                  avatarUrl: user.image || undefined,
                 }
               : null
           }

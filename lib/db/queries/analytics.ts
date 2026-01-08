@@ -83,7 +83,7 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
     db
       .select({ count: count() })
       .from(products)
-      .where(and(eq(products.tenantId, tenantId), eq(products.isActive, true))),
+      .where(and(eq(products.tenantId, tenantId), eq(products.status, "active"))),
 
     // Orders ready to ship (confirmed status)
     db
@@ -98,7 +98,7 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
       .where(
         and(
           eq(products.tenantId, tenantId),
-          eq(products.isActive, true),
+          eq(products.status, "active"),
           eq(products.trackInventory, true),
           lte(products.stock, 5)
         )
@@ -290,7 +290,7 @@ export async function getRecentOrders(
   const recentOrders = await db
     .select({
       id: orders.id,
-      customerName: orders.customerName,
+      customerSnapshot: orders.customerSnapshot,
       total: orders.total,
       status: orders.status,
       createdAt: orders.createdAt,
@@ -303,7 +303,11 @@ export async function getRecentOrders(
   // Get item counts for each order
   // For now, return without item counts to keep it simple
   return recentOrders.map((o) => ({
-    ...o,
+    id: o.id,
+    customerName: o.customerSnapshot?.name || "Guest",
+    total: o.total,
+    status: o.status,
+    createdAt: o.createdAt,
     itemCount: 0, // Would need a subquery or join to get this
   }));
 }
@@ -317,7 +321,7 @@ export async function getActionableItems(tenantId: string) {
     db
       .select({
         id: orders.id,
-        customerName: orders.customerName,
+        customerSnapshot: orders.customerSnapshot,
         createdAt: orders.createdAt,
       })
       .from(orders)
@@ -336,7 +340,7 @@ export async function getActionableItems(tenantId: string) {
       .where(
         and(
           eq(products.tenantId, tenantId),
-          eq(products.isActive, true),
+          eq(products.status, "active"),
           eq(products.trackInventory, true),
           lte(products.stock, 5)
         )

@@ -23,7 +23,7 @@ import {
   bulkDeleteProducts,
   bulkActivateProducts,
   bulkDeactivateProducts,
-} from "@/lib/supabase/products";
+} from "@/lib/actions/products";
 
 interface ProductsPageClientProps {
   storeSlug: string;

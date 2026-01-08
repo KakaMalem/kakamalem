@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { signIn } from "@/lib/supabase/auth";
+import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
@@ -25,45 +25,48 @@ export function LoginForm() {
     Partial<Record<keyof LoginInput, string>>
   >({});
   const [success, setSuccess] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    startTransition(async () => {
-      setError(null);
-      setFieldErrors({});
+    setError(null);
+    setFieldErrors({});
+    setIsPending(true);
 
-      // Client-side validation
-      const formValues = {
-        email: formData.get("email") as string,
-        password: formData.get("password") as string,
-      };
+    // Client-side validation
+    const formValues = {
+      email: formData.get("email") as string,
+      password: formData.get("password") as string,
+    };
 
-      try {
-        loginSchema.parse(formValues);
-      } catch (err) {
-        if (err instanceof ZodError) {
-          const errors: Partial<Record<keyof LoginInput, string>> = {};
-          err.issues.forEach((issue) => {
-            if (issue.path[0]) {
-              errors[issue.path[0] as keyof LoginInput] = issue.message;
-            }
-          });
-          setFieldErrors(errors);
-          return;
-        }
+    try {
+      loginSchema.parse(formValues);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        const errors: Partial<Record<keyof LoginInput, string>> = {};
+        err.issues.forEach((issue) => {
+          if (issue.path[0]) {
+            errors[issue.path[0] as keyof LoginInput] = issue.message;
+          }
+        });
+        setFieldErrors(errors);
+        setIsPending(false);
+        return;
       }
+    }
 
-      // Ensure loading state is visible for at least 500ms
-      const [result] = await Promise.all([
-        signIn(formData),
-        new Promise((resolve) => setTimeout(resolve, 500)),
-      ]);
+    try {
+      // Use Better Auth client SDK - this properly sets cookies
+      const result = await authClient.signIn.email({
+        email: formValues.email,
+        password: formValues.password,
+      });
 
       if (result.error) {
-        setError(result.error.message);
+        setError(result.error.message || "Invalid email or password");
+        setIsPending(false);
         return;
       }
 
@@ -72,7 +75,11 @@ export function LoginForm() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       router.push(redirect);
       router.refresh();
-    });
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("An unexpected error occurred");
+      setIsPending(false);
+    }
   }
 
   if (success) {

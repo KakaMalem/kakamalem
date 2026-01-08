@@ -84,7 +84,7 @@ export const productSchema = z.object({
     .or(z.literal("")),
 
   // Status
-  isActive: z.boolean().default(true),
+  status: z.enum(["draft", "active", "archived"]).default("draft"),
 
   // Display
   displayOrder: z

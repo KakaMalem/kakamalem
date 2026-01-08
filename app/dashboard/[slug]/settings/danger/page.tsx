@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { DangerZoneSettings } from "./danger-zone-settings";
 

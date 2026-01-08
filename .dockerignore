@@ -1,0 +1,88 @@
+# =============================================================================
+# Docker Ignore - Kaka Malem
+# =============================================================================
+# Exclude files not needed in Docker build to reduce context size and build time
+# =============================================================================
+
+# Dependencies (installed fresh in container)
+node_modules
+.pnpm-store
+
+# Build outputs (built in container)
+.next
+out
+dist
+build
+
+# Development files
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# Environment files (passed at runtime, not baked into image)
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in runtime)
+*.md
+!README.md
+docs/
+playground.md
+
+# Test files
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage
+.nyc_output
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Server setup (not needed in app container)
+server-setup/
+
+# Database configs (PostgreSQL runs native, not in this container)
+database/
+
+# Drizzle migrations (run separately)
+drizzle/
+
+# Scripts (deployment scripts not needed inside container)
+scripts/
+
+# Backups
+.backups/
+*.sql
+*.dump
+
+# Uploads (mounted as volume, not baked into image)
+uploads/
+
+# Supabase (legacy, not used)
+supabase/
+
+# Temporary files
+tmp/
+temp/
+.temp/

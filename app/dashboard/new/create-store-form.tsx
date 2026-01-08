@@ -43,7 +43,7 @@ import {
 import {
   createStoreWithLogo,
   checkSlugAvailability,
-} from "@/lib/supabase/stores";
+} from "@/lib/actions/stores";
 import { ZodError } from "zod";
 import { toast } from "sonner";
 

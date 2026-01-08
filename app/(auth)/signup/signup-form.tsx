@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { signUp } from "@/lib/supabase/auth";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,69 +21,97 @@ import { signupSchema, type SignupInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
 
 export function SignupForm() {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<keyof SignupInput, string>>
   >({});
   const [success, setSuccess] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    startTransition(async () => {
-      setError(null);
-      setFieldErrors({});
+    setError(null);
+    setFieldErrors({});
+    setIsPending(true);
 
-      // Client-side validation
-      const formValues = {
-        fullName: formData.get("fullName") as string,
-        email: formData.get("email") as string,
-        password: formData.get("password") as string,
-        confirmPassword: formData.get("confirmPassword") as string,
-      };
+    // Client-side validation
+    const formValues = {
+      fullName: formData.get("fullName") as string,
+      email: formData.get("email") as string,
+      password: formData.get("password") as string,
+      confirmPassword: formData.get("confirmPassword") as string,
+    };
 
-      try {
-        signupSchema.parse(formValues);
-      } catch (err) {
-        if (err instanceof ZodError) {
-          const errors: Partial<Record<keyof SignupInput, string>> = {};
-          err.issues.forEach((issue) => {
-            if (issue.path[0]) {
-              errors[issue.path[0] as keyof SignupInput] = issue.message;
-            }
-          });
-          setFieldErrors(errors);
-          return;
-        }
+    try {
+      signupSchema.parse(formValues);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        const errors: Partial<Record<keyof SignupInput, string>> = {};
+        err.issues.forEach((issue) => {
+          if (issue.path[0]) {
+            errors[issue.path[0] as keyof SignupInput] = issue.message;
+          }
+        });
+        setFieldErrors(errors);
+        setIsPending(false);
+        return;
       }
+    }
 
-      // Ensure loading state is visible for at least 500ms
-      const [result] = await Promise.all([
-        signUp(formData),
-        new Promise((resolve) => setTimeout(resolve, 500)),
-      ]);
+    try {
+      // Use Better Auth client SDK - this properly sets cookies
+      const result = await authClient.signUp.email({
+        name: formValues.fullName,
+        email: formValues.email,
+        password: formValues.password,
+      });
 
       if (result.error) {
-        setError(result.error.message);
+        setError(result.error.message || "Failed to create account");
+        setIsPending(false);
         return;
       }
 
-      setSuccess(true);
-    });
+      // In development, auto sign-in is enabled so redirect to dashboard
+      // In production, show email verification message
+      if (process.env.NODE_ENV === "development") {
+        setSuccess(true);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        setSuccess(true);
+      }
+    } catch (err) {
+      console.error("Signup error:", err);
+      setError("An unexpected error occurred");
+      setIsPending(false);
+    }
   }
 
   if (success) {
+    // In development, show redirect message; in production, show email verification
+    const isDev = process.env.NODE_ENV === "development";
     return (
       <AuthStatusCard
         variant="success"
-        title="Check your email"
-        description="We've sent you a confirmation link. Please check your email to verify your account."
-        secondaryAction={{
-          label: "Back to login",
-          href: "/login",
-        }}
+        title={isDev ? "Account created!" : "Check your email"}
+        description={
+          isDev
+            ? "Redirecting you to your dashboard..."
+            : "We've sent you a confirmation link. Please check your email to verify your account."
+        }
+        secondaryAction={
+          isDev
+            ? undefined
+            : {
+                label: "Back to login",
+                href: "/login",
+              }
+        }
       />
     );
   }

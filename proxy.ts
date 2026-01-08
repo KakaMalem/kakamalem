@@ -1,24 +1,81 @@
-import { type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { NextResponse, type NextRequest } from "next/server";
 
-export async function proxy(request: NextRequest) {
-  const response = await updateSession(request);
+// =============================================================================
+// PROXY (Next.js 16)
+// =============================================================================
+// Handles route protection and redirects
+// Replaces middleware.ts - runs on Node.js runtime
+// Better Auth handles session validation via API routes
+// =============================================================================
 
-  // Add pathname header for server components to access
-  response.headers.set("x-pathname", request.nextUrl.pathname);
+export default function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-  return response;
+  // -------------------------------------------------------------------------
+  // ROUTE PATTERNS
+  // -------------------------------------------------------------------------
+  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/signup");
+  const isProtectedRoute = pathname.startsWith("/dashboard");
+  const isApiRoute = pathname.startsWith("/api");
+  const isPublicRoute =
+    pathname === "/" ||
+    pathname.startsWith("/store/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon");
+
+  // Skip proxy for API routes (Better Auth handles its own routes)
+  if (isApiRoute) {
+    return NextResponse.next();
+  }
+
+  // Skip for public routes
+  if (isPublicRoute && !isProtectedRoute && !isAuthRoute) {
+    return NextResponse.next();
+  }
+
+  // -------------------------------------------------------------------------
+  // SESSION CHECK
+  // -------------------------------------------------------------------------
+  // Check for session cookie (Better Auth sets this)
+  const sessionCookie = request.cookies.get("kaka_malem.session_token");
+  const hasSession = !!sessionCookie?.value;
+
+  // -------------------------------------------------------------------------
+  // PROTECTED ROUTES
+  // -------------------------------------------------------------------------
+  if (isProtectedRoute && !hasSession) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // -------------------------------------------------------------------------
+  // AUTH ROUTES (login/signup)
+  // -------------------------------------------------------------------------
+  // Redirect authenticated users away from auth pages
+  if (isAuthRoute && hasSession) {
+    const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
+    const url = request.nextUrl.clone();
+    url.pathname = redirectTo;
+    url.searchParams.delete("redirect");
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
 }
 
+// -------------------------------------------------------------------------
+// MATCHER CONFIG
+// -------------------------------------------------------------------------
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder files (images, etc.)
-     * Feel free to modify this pattern to include more paths.
+     * - public folder
      */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],

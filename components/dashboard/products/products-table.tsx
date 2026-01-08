@@ -52,7 +52,7 @@ import {
   bulkActivateProducts,
   bulkDeactivateProducts,
   bulkDeleteProducts,
-} from "@/lib/supabase/products";
+} from "@/lib/actions/products";
 
 interface ProductsTableProps {
   products: ProductWithCategory[];
@@ -325,8 +325,10 @@ export function ProductsTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    {product.isActive ? (
+                    {product.status === "active" ? (
                       <Badge>Active</Badge>
+                    ) : product.status === "archived" ? (
+                      <Badge variant="outline">Archived</Badge>
                     ) : (
                       <Badge variant="secondary">Draft</Badge>
                     )}

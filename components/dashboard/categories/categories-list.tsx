@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type { CategoryWithProductCount } from "@/lib/db/queries/categories";
-import { deleteCategory, reorderCategories } from "@/lib/supabase/categories";
+import { deleteCategory, reorderCategories } from "@/lib/actions/categories";
 
 interface CategoriesListProps {
   tenantId: string;

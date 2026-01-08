@@ -43,28 +43,11 @@ pnpm db:push      # Push schema directly (DEV ONLY - clears RLS!)
    ```
 5. **Push to deploy** - migrations run automatically via `deploy.sh`
 
-### RLS Policies
-
-RLS policies are managed separately in `supabase/migrations/001_rls_policies.sql`:
-- Drizzle does NOT manage RLS policies
-- Run `001_rls_policies.sql` once via Supabase SQL Editor after initial setup
-- If you ever need to re-apply RLS, run this file again in SQL Editor
-
 ### Why NOT to use db:push
 
-- `db:push` clears ALL RLS policies (security risk!)
 - No migration history (can't rollback)
 - No team collaboration (no files to review)
 - Can accidentally drop columns/data
-
-Local Supabase commands:
-
-```bash
-pnpm dlx supabase start    # Start local Supabase (Docker required)
-pnpm dlx supabase stop     # Stop local Supabase
-pnpm dlx supabase status   # Check local Supabase status
-pnpm dlx supabase db reset # Reset local database (WARNING: deletes all data)
-```
 
 Add shadcn/ui components:
 
@@ -74,9 +57,9 @@ pnpm dlx shadcn-ui@latest add [component-name]
 
 ## Deployment
 
-Automated deployment is configured via GitHub Actions. See [DEPLOYMENT.md](DEPLOYMENT.md) for full setup instructions.
+Automated deployment via GitHub Actions. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full setup.
 
-**Quick deploy**: Just push to `main` branch
+**Quick deploy**: Push to `main` branch
 
 ```bash
 git push origin main
@@ -86,13 +69,89 @@ git push origin main
 
 ```bash
 cd /var/www/kakamalem
-bash scripts/deploy.sh
+./scripts/docker-deploy.sh
 ```
 
-**Health check**:
+**Rollback**:
 
 ```bash
-bash scripts/health-check.sh
+./scripts/docker-deploy.sh --rollback
+```
+
+## Infrastructure (Docker + Native Hybrid)
+
+The production setup uses a hybrid approach for optimal performance:
+
+| Component | Where | Why |
+|-----------|-------|-----|
+| Next.js App | Docker | Portable, reproducible, easy rollback |
+| PostgreSQL 18 | Native | Performance, tuned configs in `database/` |
+| PgBouncer | Native | Minimal overhead, connection pooling |
+| Nginx | Native | SSL termination, static files faster |
+| File Storage | Bind mount | Docker accesses native filesystem |
+
+### Docker Deployment
+
+```bash
+# Pull and deploy latest image
+cd /var/www/kakamalem
+docker compose pull
+docker compose up -d
+
+# View logs
+docker compose logs -f app
+
+# Rollback to previous version
+./scripts/docker-deploy.sh --rollback
+```
+
+### Server Setup (Fresh Ubuntu)
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete setup guide.
+
+### Key Infrastructure Files
+
+```
+Dockerfile              # Multi-stage build for Next.js
+docker-compose.yml      # App orchestration (DB runs native)
+.dockerignore           # Exclude files from Docker context
+docs/DEPLOYMENT.md      # Complete deployment guide
+
+scripts/
+├── docker-deploy.sh    # Docker deployment with rollback
+├── backup-database.sh  # PostgreSQL backup with rotation
+└── health-check.sh     # System health verification
+
+.github/workflows/
+├── ci.yml              # Lint, type check, build
+└── docker.yml          # Build & push Docker image to GHCR
+```
+
+### Database Backups
+
+```bash
+# Manual backup
+./scripts/backup-database.sh
+
+# Backup with cleanup (removes backups older than 14 days)
+./scripts/backup-database.sh --cleanup
+
+# Cron (daily at 3 AM)
+0 3 * * * /var/www/kakamalem/scripts/backup-database.sh --cleanup
+```
+
+### Health Check Endpoint
+
+`GET /api/health` returns:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "uptime": 86400,
+  "checks": {
+    "database": { "status": "ok", "latency": 5 }
+  }
+}
 ```
 
 ## Tech Stack
@@ -101,9 +160,9 @@ bash scripts/health-check.sh
 - **Language**: TypeScript 5 (strict mode)
 - **Styling**: Tailwind CSS 4 with CSS variables in OKLCH color space
 - **State Management**: Zustand (for client-side state like cart)
-- **Database**: Supabase PostgreSQL with Drizzle ORM
-- **Authentication**: Supabase Auth (email/password, Google OAuth, Facebook OAuth)
-- **File Storage**: Supabase Storage (product images, shop assets)
+- **Database**: PostgreSQL 18 with PgBouncer + Drizzle ORM
+- **Authentication**: Better Auth (email/password, Google OAuth, Facebook OAuth)
+- **File Storage**: Local NVMe storage (served via Next.js API route)
 - **UI Components**: shadcn/ui (new-york style)
 - **Validation**: Zod
 - **Package Manager**: pnpm
@@ -145,11 +204,13 @@ lib/
 │   ├── index.ts            # Drizzle client
 │   ├── schema.ts           # Database schema (see below)
 │   └── queries/            # Reusable query functions
-├── supabase/
-│   ├── client.ts           # Browser Supabase client
-│   ├── server.ts           # Server Supabase client
-│   ├── middleware.ts       # Session refresh middleware
-│   └── auth.ts             # Server actions (signIn, signUp, signOut)
+├── auth/
+│   ├── index.ts            # Better Auth configuration
+│   ├── client.ts           # Client-side auth hooks
+│   └── server.ts           # Server-side auth helpers
+├── storage/
+│   └── index.ts            # Local file storage utilities
+├── actions/                # Server actions for data mutations
 ├── validations/
 │   └── auth.ts             # Zod schemas for auth forms
 └── utils.ts                # cn() helper for Tailwind classes
@@ -158,12 +219,10 @@ components/
 ├── ui/                     # shadcn/ui components
 └── auth/                   # Auth-related components
 
-supabase/
-├── config.toml              # Local Supabase configuration
-├── seed.sql                 # Seed data (storage buckets, initial data)
-└── migrations/
-    ├── 000_initial_schema.sql  # Combined Drizzle schema (all tables)
-    └── 001_rls_policies.sql    # RLS policies and helper functions
+database/                   # PostgreSQL configuration files
+├── postgresql.conf         # Optimized PostgreSQL 18 config
+├── pg_hba.conf            # Client authentication config
+└── pgbouncer.ini          # Connection pooling config
 ```
 
 ### Path Alias
@@ -176,7 +235,7 @@ supabase/
 
 | Table            | Purpose                                                     |
 | ---------------- | ----------------------------------------------------------- |
-| `profiles`       | User profiles linked to Supabase Auth (id = auth.users.id)  |
+| `profiles`       | User profiles linked to Better Auth (id = user.id)          |
 | `tenants`        | Stores/storefronts with branding, billing status, analytics |
 | `tenant_members` | Staff/collaborators per store (owner, admin, staff roles)   |
 | `categories`     | Product categories per tenant (image, displayOrder)         |
@@ -265,7 +324,7 @@ Helper functions in SQL:
 
 ### Auto Profile Creation
 
-Trigger on `auth.users` INSERT automatically creates `profiles` row with matching UUID.
+Better Auth handles profile creation automatically when users sign up.
 
 ## Validation Patterns
 
@@ -331,29 +390,32 @@ const handleSubmit = async (e: FormEvent) => {
 
 ## Authentication Flow
 
+Using Better Auth (https://www.better-auth.com) - a self-hosted, PostgreSQL-backed auth solution.
+
 ### Email/Password
 
 1. User submits form → client-side Zod validation
-2. Server action validates again → calls `supabase.auth.signUp/signInWithPassword`
-3. For signup: email confirmation sent → user clicks link → `/callback` processes
-4. Session stored in cookies via `@supabase/ssr`
+2. Better Auth handles signup/signin via `/api/auth/[...all]` route
+3. For signup: email confirmation sent → user clicks link → verified
+4. Session stored in cookies (HTTP-only, secure)
 
 ### OAuth (Google/Facebook)
 
-1. User clicks OAuth button → `supabase.auth.signInWithOAuth`
-2. Redirect to provider → user authorizes
-3. Callback to `/callback` → exchanges code for session
+1. User clicks OAuth button → redirects to provider
+2. Provider redirects back to `/api/auth/callback/{provider}`
+3. Better Auth exchanges code for session
 4. Redirect to `/dashboard`
 
-### Server Actions
+### Auth Helpers
 
 ```typescript
-// lib/supabase/auth.ts
-export async function signIn(formData: FormData): Promise<AuthResult>;
-export async function signUp(formData: FormData): Promise<AuthResult>;
-export async function signOut(): Promise<AuthResult>;
-export async function getUser(): Promise<User | null>;
-export async function getSession(): Promise<Session | null>;
+// lib/auth/server.ts - Server-side
+import { auth } from "@/lib/auth";
+const session = await auth.api.getSession({ headers: await headers() });
+
+// lib/auth/client.ts - Client-side
+import { authClient } from "@/lib/auth/client";
+const { data: session } = authClient.useSession();
 ```
 
 ## Environment Variables
@@ -361,29 +423,35 @@ export async function getSession(): Promise<Session | null>;
 ### Production (`.env`)
 
 ```bash
-# Supabase PostgreSQL (pooled for app runtime)
-DATABASE_URL="postgresql://..."
+# PostgreSQL 18 via PgBouncer (pooled for app runtime)
+DATABASE_URL="postgresql://kakamalem_app:password@localhost:6543/kakamalem"
 
-# Supabase PostgreSQL (unpooled for drizzle-kit migrations)
-DATABASE_URL_UNPOOLED="postgresql://..."
+# PostgreSQL 18 direct (for drizzle-kit migrations)
+DATABASE_URL_UNPOOLED="postgresql://kakamalem_migrations:password@localhost:5432/kakamalem"
 
-# Supabase client (exposed to browser)
-NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
+# Better Auth secret (generate with: openssl rand -base64 32)
+BETTER_AUTH_SECRET="your-secret-key"
+
+# App URL for auth redirects
+NEXT_PUBLIC_APP_URL="https://kakamalem.com"
+
+# Local file storage path
+STORAGE_PATH="/var/www/kakamalem-uploads"
 ```
 
 ### Local Development (`.env.local`)
 
-When running local Supabase with `pnpm dlx supabase start`, use these values:
-
 ```bash
 # Local PostgreSQL (no pooling needed)
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
-DATABASE_URL_UNPOOLED=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/kakamalem"
+DATABASE_URL_UNPOOLED="postgresql://postgres:postgres@localhost:5432/kakamalem"
 
-# Local Supabase client
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+# Better Auth
+BETTER_AUTH_SECRET="dev-secret-at-least-32-characters-long"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+# Local storage path (Windows example)
+STORAGE_PATH="C:/Users/YourName/kakamalem-uploads"
 ```
 
 **Note:** `.env.local` takes precedence over `.env` in Next.js. Delete or rename `.env.local` to use production environment.

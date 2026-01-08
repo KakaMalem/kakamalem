@@ -49,7 +49,7 @@ import {
   inviteMember,
   updateMemberRole,
   removeMember,
-} from "@/lib/supabase/team";
+} from "@/lib/actions/team";
 import type { TeamMemberWithProfile } from "@/lib/db/queries/team";
 
 interface TeamSettingsProps {

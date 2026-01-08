@@ -1,18 +1,17 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
-import { Upload, X, Loader2, ImageIcon } from "lucide-react";
+import { X, Loader2, ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MediaSelector } from "@/components/dashboard/media/media-selector";
+import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
 
 import type { Category, Media } from "@/lib/db/schema";
 import {
@@ -21,16 +20,13 @@ import {
   type CategoryInput,
 } from "@/lib/validations/categories";
 import {
-  createCategoryWithImage,
-  updateCategoryWithImage,
-} from "@/lib/supabase/categories";
+  createCategoryWithUrl,
+  updateCategoryWithUrl,
+} from "@/lib/actions/categories";
 
-// Image can be either from media library (existing) or staged (new upload)
 type ImageState = {
-  id: string; // For existing: media ID. For staged: empty string
-  url: string; // For existing: media URL. For staged: object URL
-  file?: File; // Only for staged uploads
-  isStaged?: boolean; // True for new uploads not yet saved
+  id: string;
+  url: string;
 };
 
 interface CategoryFormProps {
@@ -56,26 +52,16 @@ export function CategoryForm({
   const [slug, setSlug] = useState(category?.slug || "");
   const [description, setDescription] = useState(category?.description || "");
 
-  // Image state - can be existing (from media library) or staged (new upload)
+  // Image state - always from media library
   const [image, setImage] = useState<ImageState | null>(() => {
     if (category?.image) {
       return {
         id: category.imageId || "",
         url: category.image.url,
-        isStaged: false,
       };
     }
     return null;
   });
-
-  // Cleanup object URLs on unmount
-  useEffect(() => {
-    return () => {
-      if (image?.isStaged && image.url) {
-        URL.revokeObjectURL(image.url);
-      }
-    };
-  }, [image]);
 
   const handleNameChange = (value: string) => {
     setName(value);
@@ -85,49 +71,11 @@ export function CategoryForm({
     }
   };
 
-  // Stage image locally instead of uploading immediately
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be less than 5MB");
-      return;
-    }
-
-    // Clean up previous staged image URL if any
-    if (image?.isStaged && image.url) {
-      URL.revokeObjectURL(image.url);
-    }
-
-    // Create object URL for preview
-    const previewUrl = URL.createObjectURL(file);
-    setImage({
-      id: "",
-      url: previewUrl,
-      file,
-      isStaged: true,
-    });
-    toast.success("Image added");
-    e.target.value = "";
-  };
-
-  const handleMediaSelect = (media: { id: string; url: string } | null) => {
-    // Clean up previous staged image URL if any
-    if (image?.isStaged && image.url) {
-      URL.revokeObjectURL(image.url);
-    }
-
+  const handleMediaSelect = (media: MediaSelection | null) => {
     if (media) {
       setImage({
         id: media.id,
         url: media.url,
-        isStaged: false,
       });
     } else {
       setImage(null);
@@ -135,10 +83,6 @@ export function CategoryForm({
   };
 
   const removeImage = () => {
-    // Clean up object URL if staged
-    if (image?.isStaged && image.url) {
-      URL.revokeObjectURL(image.url);
-    }
     setImage(null);
   };
 
@@ -146,14 +90,11 @@ export function CategoryForm({
     e.preventDefault();
     setErrors({});
 
-    // Determine existing image ID (only if not staged)
-    const existingImageId = image && !image.isStaged ? image.id : "";
-
     const formData: CategoryInput = {
       name,
       slug,
       description,
-      imageId: existingImageId,
+      imageId: image?.id || "",
       displayOrder: category?.displayOrder ?? 0,
     };
 
@@ -169,26 +110,23 @@ export function CategoryForm({
       return;
     }
 
-    // Get staged file if any
-    const stagedFile = image?.isStaged && image.file ? image.file : null;
-
     // Use startTransition to show pending state
     startTransition(async () => {
       try {
         let actionResult;
 
         if (category) {
-          actionResult = await updateCategoryWithImage(
+          actionResult = await updateCategoryWithUrl(
             tenantId,
             category.id,
             formData,
-            stagedFile
+            null // No longer passing uploaded URL since media is already in library
           );
         } else {
-          actionResult = await createCategoryWithImage(
+          actionResult = await createCategoryWithUrl(
             tenantId,
             formData,
-            stagedFile
+            null
           );
         }
 
@@ -291,12 +229,7 @@ export function CategoryForm({
                       alt={name || "Category image"}
                       fill
                       className="object-cover"
-                      unoptimized={image.isStaged}
                     />
-                    {/* Show "New" badge for staged images */}
-                    {image.isStaged && (
-                      <Badge className="absolute left-2 top-2">New</Badge>
-                    )}
                     <button
                       type="button"
                       onClick={removeImage}
@@ -326,36 +259,9 @@ export function CategoryForm({
                     onClick={() => setMediaSelectorOpen(true)}
                   >
                     <ImageIcon className="mr-2 size-4" />
-                    Select from Library
+                    {image ? "Change Image" : "Select Image"}
                   </Button>
-                  <label className="flex-1">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="sr-only"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      asChild
-                    >
-                      <span className="cursor-pointer">
-                        <Upload className="mr-2 size-4" />
-                        Upload New
-                      </span>
-                    </Button>
-                  </label>
                 </div>
-
-                {/* Message about staged uploads */}
-                {image?.isStaged && (
-                  <p className="text-sm text-muted-foreground">
-                    Image will be uploaded when you save the category.
-                  </p>
-                )}
 
                 <p className="text-sm text-muted-foreground">
                   This image will be displayed on the category page and in
@@ -392,12 +298,13 @@ export function CategoryForm({
       </div>
 
       {/* Media Selector Dialog */}
-      <MediaSelector
+      <UnifiedMediaSelector
         tenantId={tenantId}
         open={mediaSelectorOpen}
         onOpenChange={setMediaSelectorOpen}
+        multiple={false}
         onSelect={handleMediaSelect}
-        selectedId={image && !image.isStaged ? image.id : undefined}
+        selectedId={image?.id || null}
         title="Select Category Image"
       />
     </form>

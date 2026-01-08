@@ -26,9 +26,9 @@ import {
   seoSettingsSchema,
   type SeoSettingsInput,
 } from "@/lib/validations/stores";
-import { updateSeoSettings } from "@/lib/supabase/stores";
+import { updateSeoSettings } from "@/lib/actions/stores";
 import { toast } from "sonner";
-import { MediaSelector } from "@/components/dashboard/media/media-selector";
+import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
 
 interface SeoSettingsFormProps {
   storeId: string;
@@ -61,7 +61,7 @@ export function SeoSettingsForm({
   const [ogImageUrl, setOgImageUrl] = useState(initialData.ogImageUrl);
   const [mediaSelectorOpen, setMediaSelectorOpen] = useState(false);
 
-  const handleMediaSelect = (media: { id: string; url: string } | null) => {
+  const handleMediaSelect = (media: MediaSelection | null) => {
     setOgImageUrl(media?.url || "");
     setSuccess(false);
   };
@@ -305,10 +305,11 @@ export function SeoSettingsForm({
         </Card>
       </form>
 
-      <MediaSelector
+      <UnifiedMediaSelector
         tenantId={storeId}
         open={mediaSelectorOpen}
         onOpenChange={setMediaSelectorOpen}
+        multiple={false}
         onSelect={handleMediaSelect}
         title="Select OG Image"
       />

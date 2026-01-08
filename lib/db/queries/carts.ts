@@ -21,7 +21,7 @@ export type CartItemWithProduct = {
     stock: number;
     trackInventory: boolean;
     allowBackorder: boolean;
-    isActive: boolean;
+    status: "draft" | "active" | "archived";
     hasVariants: boolean;
     image: {
       url: string;
@@ -40,7 +40,7 @@ export type CartItemWithProduct = {
 export type Cart = {
   id: string;
   tenantId: string;
-  sessionId: string;
+  sessionId: string | null;
   customerId: string | null;
   items: CartItemWithProduct[];
   createdAt: string;
@@ -69,18 +69,25 @@ export async function getOrCreateCart(
 
   if (!cart) {
     // Create new cart
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
     const [newCart] = await db
       .insert(carts)
       .values({
         tenantId,
         sessionId,
-        customerId: customerId || null,
+        userId: customerId || null,
+        expiresAt,
       })
       .returning();
 
     cart = {
-      ...newCart,
+      id: newCart.id,
+      tenantId: newCart.tenantId,
+      sessionId: newCart.sessionId,
+      customerId: newCart.userId,
       items: [],
+      createdAt: newCart.createdAt,
+      updatedAt: newCart.updatedAt,
     };
   }
 
@@ -98,7 +105,7 @@ async function findCart(
   // If we have a customer ID, try to find their cart first
   if (customerId) {
     const customerCart = await db.query.carts.findFirst({
-      where: and(eq(carts.tenantId, tenantId), eq(carts.customerId, customerId)),
+      where: and(eq(carts.tenantId, tenantId), eq(carts.userId, customerId)),
       with: {
         items: {
           with: {
@@ -152,10 +159,11 @@ async function findCart(
 function transformCartData(rawCart: {
   id: string;
   tenantId: string;
-  sessionId: string;
-  customerId: string | null;
+  sessionId: string | null;
+  userId: string | null;
   createdAt: string;
   updatedAt: string;
+  expiresAt: string;
   items: Array<{
     id: string;
     productId: string;
@@ -169,7 +177,7 @@ function transformCartData(rawCart: {
       stock: number;
       trackInventory: boolean;
       allowBackorder: boolean;
-      isActive: boolean;
+      status: "draft" | "active" | "archived";
       hasVariants: boolean;
       images: Array<{
         media: {
@@ -191,11 +199,11 @@ function transformCartData(rawCart: {
     id: rawCart.id,
     tenantId: rawCart.tenantId,
     sessionId: rawCart.sessionId,
-    customerId: rawCart.customerId,
+    customerId: rawCart.userId,
     createdAt: rawCart.createdAt,
     updatedAt: rawCart.updatedAt,
     items: rawCart.items
-      .filter((item) => item.product.isActive) // Only include active products
+      .filter((item) => item.product.status === "active") // Only include active products
       .map((item) => ({
         id: item.id,
         productId: item.productId,
@@ -209,7 +217,7 @@ function transformCartData(rawCart: {
           stock: item.product.stock,
           trackInventory: item.product.trackInventory,
           allowBackorder: item.product.allowBackorder,
-          isActive: item.product.isActive,
+          status: item.product.status,
           hasVariants: item.product.hasVariants,
           image: item.product.images[0]?.media
             ? {
@@ -298,7 +306,7 @@ export async function addToCart(
     return { success: false, error: "Product not found" };
   }
 
-  if (!product.isActive) {
+  if (product.status !== "active") {
     return { success: false, error: "Product is not available" };
   }
 
@@ -528,7 +536,7 @@ export async function mergeGuestCartToCustomer(
     where: and(
       eq(carts.tenantId, tenantId),
       eq(carts.sessionId, guestSessionId),
-      isNull(carts.customerId)
+      isNull(carts.userId)
     ),
     with: { items: true },
   });
@@ -539,7 +547,7 @@ export async function mergeGuestCartToCustomer(
 
   // Find or create customer cart
   const customerCart = await db.query.carts.findFirst({
-    where: and(eq(carts.tenantId, tenantId), eq(carts.customerId, customerId)),
+    where: and(eq(carts.tenantId, tenantId), eq(carts.userId, customerId)),
     with: { items: true },
   });
 
@@ -547,7 +555,7 @@ export async function mergeGuestCartToCustomer(
     // Assign guest cart to customer
     await db
       .update(carts)
-      .set({ customerId, updatedAt: sql`NOW()` })
+      .set({ userId: customerId, updatedAt: sql`NOW()` })
       .where(eq(carts.id, guestCart.id));
     return;
   }
@@ -617,7 +625,7 @@ export async function validateCartForCheckout(
 
   for (const item of cart.items) {
     // Check product is still active
-    if (!item.product.isActive) {
+    if (item.product.status !== "active") {
       errors.push({
         itemId: item.id,
         productName: item.product.name,

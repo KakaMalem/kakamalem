@@ -20,7 +20,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { signOut } from "@/lib/supabase/auth";
+import { signOut } from "@/lib/auth/actions";
 
 interface UserNavProps {
   user: {

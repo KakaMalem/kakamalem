@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { signOut } from "@/lib/supabase/auth";
+import { signOut } from "@/lib/auth/actions";
 
 import type { Tenant } from "@/lib/db/schema";
 

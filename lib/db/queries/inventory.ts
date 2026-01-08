@@ -6,7 +6,7 @@ import {
   productVariants,
   inventoryMovements,
   categories,
-  profiles,
+  user,
 } from "@/lib/db/schema";
 import { eq, and, sql, desc, lte, gte } from "drizzle-orm";
 
@@ -58,7 +58,7 @@ export type InventoryMovementWithDetails = {
   userId: string | null;
   userName: string | null;
   reason: string | null;
-  createdAt: Date;
+  createdAt: string;
 };
 
 /**
@@ -223,11 +223,11 @@ export async function getInventoryMovements(
   }
 
   if (options?.startDate) {
-    conditions.push(gte(inventoryMovements.createdAt, options.startDate));
+    conditions.push(gte(inventoryMovements.createdAt, options.startDate.toISOString()));
   }
 
   if (options?.endDate) {
-    conditions.push(lte(inventoryMovements.createdAt, options.endDate));
+    conditions.push(lte(inventoryMovements.createdAt, options.endDate.toISOString()));
   }
 
   // Get total count
@@ -254,7 +254,7 @@ export async function getInventoryMovements(
       newStock: inventoryMovements.newStock,
       orderId: inventoryMovements.orderId,
       userId: inventoryMovements.userId,
-      userName: profiles.fullName,
+      userName: user.name,
       reason: inventoryMovements.reason,
       createdAt: inventoryMovements.createdAt,
     })
@@ -264,7 +264,7 @@ export async function getInventoryMovements(
       productVariants,
       eq(productVariants.id, inventoryMovements.variantId)
     )
-    .leftJoin(profiles, eq(profiles.id, inventoryMovements.userId))
+    .leftJoin(user, eq(user.id, inventoryMovements.userId))
     .where(and(...conditions))
     .orderBy(desc(inventoryMovements.createdAt))
     .limit(limit)

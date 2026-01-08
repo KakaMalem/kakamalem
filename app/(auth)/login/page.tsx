@@ -1,5 +1,5 @@
 import { LoginForm } from "./login-form";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 
 export default async function LoginPage() {

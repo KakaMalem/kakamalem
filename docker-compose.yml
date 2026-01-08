@@ -1,0 +1,100 @@
+# =============================================================================
+# Kaka Malem - Docker Compose
+# =============================================================================
+# This file orchestrates ONLY the Next.js app container.
+# PostgreSQL, PgBouncer, and Nginx run NATIVE on the host for performance.
+#
+# Usage:
+#   docker compose up -d          # Start the app
+#   docker compose down           # Stop the app
+#   docker compose logs -f app    # View logs
+#   docker compose pull && docker compose up -d  # Update to new image
+# =============================================================================
+
+services:
+  app:
+    image: ghcr.io/KakaMalem/kakamalem:latest
+    # Or build locally:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   args:
+    #     NEXT_PUBLIC_APP_URL: https://kakamalem.com
+    #     NEXT_PUBLIC_SITE_URL: https://kakamalem.com
+    #     NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
+    #     NEXT_PUBLIC_UPLOADS_URL: /uploads
+    container_name: kakamalem-app
+    restart: unless-stopped
+
+    # Port mapping: container:host
+    # Nginx on host proxies to this port
+    ports:
+      - "3000:3000"
+
+    # Environment variables (runtime, not baked into image)
+    env_file:
+      - .env
+
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      # Connect to host's PostgreSQL via PgBouncer
+      # host.docker.internal works on Docker Desktop
+      # On Linux, use 172.17.0.1 or the host's actual IP
+      - DATABASE_URL=postgresql://kakamalem_app:${DB_PASSWORD}@host.docker.internal:6543/kakamalem
+      - DATABASE_URL_UNPOOLED=postgresql://kakamalem_migrations:${DB_MIGRATION_PASSWORD}@host.docker.internal:5432/kakamalem
+
+    # Mount volumes
+    volumes:
+      # Uploads directory - persist across container restarts
+      - /var/www/kakamalem-uploads:/app/uploads:rw
+      # Temp directory for upload processing
+      - /tmp/kakamalem-uploads:/tmp/kakamalem-uploads:rw
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits (adjust based on your VPS)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Network mode: Use host network for easier DB access on Linux
+    # Uncomment this and remove ports section if using host network
+    # network_mode: host
+
+    # Extra hosts for Linux (map host.docker.internal to host IP)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+# =============================================================================
+# Notes:
+# =============================================================================
+#
+# Why PostgreSQL/PgBouncer/Nginx are NOT in this compose file:
+# - PostgreSQL: Better performance native, easier backup/restore
+# - PgBouncer: Minimal overhead native, simpler config
+# - Nginx: Native handles SSL termination, static files faster
+#
+# To migrate to a new server:
+# 1. Copy this file and .env to new server
+# 2. Set up PostgreSQL/PgBouncer/Nginx natively (use server-setup/install.sh)
+# 3. docker compose pull && docker compose up -d
+# 4. Done!
+# =============================================================================

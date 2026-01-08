@@ -1,14 +1,14 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { tenantMembers, profiles } from "@/lib/db/schema";
+import { tenantMembers, user } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export type TeamMemberWithProfile = {
   id: string;
   userId: string;
   role: "owner" | "admin" | "staff";
-  createdAt: Date;
+  createdAt: string;
   user: {
     id: string;
     email: string;
@@ -30,14 +30,14 @@ export async function getTeamMembers(
       role: tenantMembers.role,
       createdAt: tenantMembers.createdAt,
       user: {
-        id: profiles.id,
-        email: profiles.email,
-        fullName: profiles.fullName,
-        avatarUrl: profiles.avatarUrl,
+        id: user.id,
+        email: user.email,
+        fullName: user.name,
+        avatarUrl: user.image,
       },
     })
     .from(tenantMembers)
-    .innerJoin(profiles, eq(tenantMembers.userId, profiles.id))
+    .innerJoin(user, eq(tenantMembers.userId, user.id))
     .where(eq(tenantMembers.tenantId, tenantId))
     .orderBy(tenantMembers.createdAt);
 
@@ -54,7 +54,7 @@ export async function updateTeamMemberRole(
 ) {
   const [updated] = await db
     .update(tenantMembers)
-    .set({ role, updatedAt: new Date() })
+    .set({ role, updatedAt: new Date().toISOString() })
     .where(
       and(eq(tenantMembers.id, memberId), eq(tenantMembers.tenantId, tenantId))
     )
@@ -115,15 +115,23 @@ export async function isUserMember(
  * Find a user by email
  */
 export async function findUserByEmail(email: string) {
-  const user = await db.query.profiles.findFirst({
-    where: eq(profiles.email, email),
+  const foundUser = await db.query.user.findFirst({
+    where: eq(user.email, email),
     columns: {
       id: true,
       email: true,
-      fullName: true,
-      avatarUrl: true,
+      name: true,
+      image: true,
     },
   });
 
-  return user;
+  if (!foundUser) return null;
+
+  // Return in expected format for compatibility
+  return {
+    id: foundUser.id,
+    email: foundUser.email,
+    fullName: foundUser.name,
+    avatarUrl: foundUser.image,
+  };
 }

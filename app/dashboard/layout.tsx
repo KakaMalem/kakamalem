@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { getUserStores } from "@/lib/db/queries/tenants";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
@@ -69,8 +69,8 @@ export default async function DashboardLayout({
       <AppSidebar
         user={{
           email: user.email || "",
-          fullName: user.user_metadata?.full_name,
-          avatarUrl: user.user_metadata?.avatar_url,
+          fullName: user.name,
+          avatarUrl: user.image || undefined,
         }}
         stores={stores}
         currentStore={currentStore}

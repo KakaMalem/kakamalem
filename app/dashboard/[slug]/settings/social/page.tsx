@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { SocialLinksForm } from "./social-links-form";
 import type { SocialLinks } from "@/lib/db/schema";

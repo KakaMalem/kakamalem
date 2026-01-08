@@ -24,7 +24,7 @@ import {
   socialLinksSchema,
   type SocialLinksInput,
 } from "@/lib/validations/stores";
-import { updateSocialLinks } from "@/lib/supabase/stores";
+import { updateSocialLinks } from "@/lib/actions/stores";
 import { ZodError } from "zod";
 
 interface SocialLinksFormProps {

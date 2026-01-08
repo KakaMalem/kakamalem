@@ -65,7 +65,7 @@ export async function ProductReviews({
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-base">
-                      {review.customerName}
+                      {review.customerSnapshot.name}
                     </CardTitle>
                     <div className="mt-1 flex items-center gap-2">
                       <div className="flex">

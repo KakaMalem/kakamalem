@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getOrCreateCart } from "@/lib/db/queries/carts";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { CartProvider } from "@/components/store/cart-provider";
 import { CartContent } from "@/components/store/cart-content";
 

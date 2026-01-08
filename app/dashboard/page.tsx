@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { getUserStores } from "@/lib/db/queries/tenants";
 import { DashboardRedirect } from "./dashboard-redirect";
 

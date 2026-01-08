@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type { ProductWithCategory } from "@/lib/db/queries/products";
-import { deleteProduct, reorderProducts } from "@/lib/supabase/products";
+import { deleteProduct, reorderProducts } from "@/lib/actions/products";
 import { QuickAdjustDialog } from "@/components/dashboard/inventory/quick-adjust-dialog";
 import { cn } from "@/lib/utils";
 

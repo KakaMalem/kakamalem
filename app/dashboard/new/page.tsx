@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { CreateStoreForm } from "./create-store-form";
 
 export default async function CreateStorePage() {

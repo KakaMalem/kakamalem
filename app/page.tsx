@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Rocket, Palette, Package, ClipboardList } from "lucide-react";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
 
 const features = [

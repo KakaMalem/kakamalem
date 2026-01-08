@@ -45,7 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MediaSelector } from "@/components/dashboard/media/media-selector";
+import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
 
 import type { VariantOptionWithValues } from "@/lib/db/queries/variants";
 import type {
@@ -57,7 +57,7 @@ import {
   createProductVariant,
   updateProductVariant,
   deleteProductVariant,
-} from "@/lib/supabase/variants";
+} from "@/lib/actions/variants";
 
 type VariantImageWithMedia = ProductVariantImage & {
   media: Media;
@@ -270,19 +270,21 @@ function VariantFormFields({
             <Plus className="size-5 text-muted-foreground" />
           </button>
         </div>
-        <MediaSelector
+        <UnifiedMediaSelector
           tenantId={tenantId}
           open={mediaSelectorOpen}
           onOpenChange={setMediaSelectorOpen}
           multiple
+          showReorderSection
           selectedIds={formData.images.map((img) => img.mediaId)}
           onSelect={(selectedMedia) => {
             // Replace all images with the new selection
+            const media = selectedMedia as MediaSelection[];
             setFormData((prev) => ({
               ...prev,
-              images: selectedMedia.map((media, index) => ({
-                mediaId: media.id,
-                url: media.url,
+              images: media.map((m, index) => ({
+                mediaId: m.id,
+                url: m.url,
                 position: index,
               })),
             }));

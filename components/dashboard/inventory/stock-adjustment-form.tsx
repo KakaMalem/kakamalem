@@ -19,7 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-import { adjustStock, type AdjustmentInput } from "@/lib/supabase/inventory";
+import { adjustStock, type AdjustmentInput } from "@/lib/actions/inventory";
 import { getProductForAdjustment } from "@/lib/db/queries/inventory";
 
 type ProductOption = {

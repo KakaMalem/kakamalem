@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { getUserStores, getTenantBySlug } from "@/lib/db/queries/tenants";
 
 interface StoreLayoutProps {

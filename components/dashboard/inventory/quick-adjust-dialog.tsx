@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-import { adjustStock } from "@/lib/supabase/inventory";
+import { adjustStock } from "@/lib/actions/inventory";
 
 interface QuickAdjustDialogProps {
   open: boolean;

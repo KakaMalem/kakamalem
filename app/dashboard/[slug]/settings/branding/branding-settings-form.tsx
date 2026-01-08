@@ -18,7 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle, Check, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { brandingSettingsSchema } from "@/lib/validations/stores";
-import { updateBrandingSettingsWithImages } from "@/lib/supabase/stores";
+import { updateBrandingSettingsWithImages } from "@/lib/actions/stores";
 import { toast } from "sonner";
 
 // Image state type - can be existing URL or staged file

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
-import { getMediaLibrary } from "@/lib/supabase/media";
+import { getMediaLibrary } from "@/lib/actions/media";
 import { MediaLibrary } from "@/components/dashboard/media/media-library";
 
 interface MediaPageProps {

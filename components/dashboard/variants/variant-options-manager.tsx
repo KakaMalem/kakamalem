@@ -37,7 +37,7 @@ import {
   addVariantOptionValue,
   updateVariantOptionValue,
   deleteVariantOptionValue,
-} from "@/lib/supabase/variants";
+} from "@/lib/actions/variants";
 
 interface VariantOptionsManagerProps {
   tenantId: string;

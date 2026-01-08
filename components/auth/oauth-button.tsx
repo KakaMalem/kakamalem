@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle } from "lucide-react";
@@ -65,19 +65,12 @@ export function OAuthButton({
     setError(null);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Better Auth social sign in
+      await authClient.signIn.social({
         provider,
-        options: {
-          redirectTo: `${window.location.origin}/callback?next=${redirectTo}`,
-        },
+        callbackURL: redirectTo,
       });
-
-      if (error) {
-        setError(error.message);
-        setIsLoading(false);
-      }
-      // If successful, the user will be redirected to Google
+      // If successful, the user will be redirected to the provider
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unexpected error occurred"

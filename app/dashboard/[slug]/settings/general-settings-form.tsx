@@ -33,7 +33,7 @@ import {
   generalSettingsSchema,
   type GeneralSettingsInput,
 } from "@/lib/validations/stores";
-import { updateGeneralSettings } from "@/lib/supabase/stores";
+import { updateGeneralSettings } from "@/lib/actions/stores";
 import { ZodError } from "zod";
 
 interface GeneralSettingsFormProps {

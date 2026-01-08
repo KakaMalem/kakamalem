@@ -1,6 +1,6 @@
 "use server";
 
-import { db, getDbWithRLS } from "@/lib/db";
+import { db } from "@/lib/db";
 import { products, categories, tenants } from "@/lib/db/schema";
 import { eq, and, ne, sql } from "drizzle-orm";
 import { slugify } from "@/lib/utils/slug";
@@ -23,19 +23,16 @@ export async function generateUniqueProductSlug(
   }
 
   try {
-    // Use RLS-aware client to ensure queries work with policies
-    const dbClient = await getDbWithRLS();
-
     // Check if base slug is available (excluding current product if updating)
     const existingProduct = existingProductId
-      ? await dbClient.query.products.findFirst({
+      ? await db.query.products.findFirst({
           where: and(
             eq(products.tenantId, tenantId),
             eq(products.slug, baseSlug),
             ne(products.id, existingProductId)
           ),
         })
-      : await dbClient.query.products.findFirst({
+      : await db.query.products.findFirst({
           where: and(eq(products.tenantId, tenantId), eq(products.slug, baseSlug)),
         });
 
@@ -55,7 +52,7 @@ export async function generateUniqueProductSlug(
         ]
       : [eq(products.tenantId, tenantId), sql`${products.slug} LIKE ${pattern}`];
 
-    const existingSlugs = await dbClient
+    const existingSlugs = await db
       .select({ slug: products.slug })
       .from(products)
       .where(and(...conditions));
@@ -101,18 +98,15 @@ export async function generateUniqueCategorySlug(
   }
 
   try {
-    // Use RLS-aware client to ensure queries work with policies
-    const dbClient = await getDbWithRLS();
-
     const existingCategory = existingCategoryId
-      ? await dbClient.query.categories.findFirst({
+      ? await db.query.categories.findFirst({
           where: and(
             eq(categories.tenantId, tenantId),
             eq(categories.slug, baseSlug),
             ne(categories.id, existingCategoryId)
           ),
         })
-      : await dbClient.query.categories.findFirst({
+      : await db.query.categories.findFirst({
           where: and(eq(categories.tenantId, tenantId), eq(categories.slug, baseSlug)),
         });
 
@@ -129,7 +123,7 @@ export async function generateUniqueCategorySlug(
         ]
       : [eq(categories.tenantId, tenantId), sql`${categories.slug} LIKE ${pattern}`];
 
-    const existingSlugs = await dbClient
+    const existingSlugs = await db
       .select({ slug: categories.slug })
       .from(categories)
       .where(and(...conditions));

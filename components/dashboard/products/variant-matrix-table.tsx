@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
 
 import type { GeneratedVariant } from "@/lib/validations/variant-form";
 import { groupVariantsByFirstOptionGeneric } from "@/lib/variants/cartesian";
-import { EnhancedMediaPicker } from "@/components/dashboard/media/enhanced-media-picker";
+import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
 
 interface VariantMatrixTableProps {
   /** Generated variants to display */
@@ -871,13 +871,13 @@ function VariantRow({
 
       {/* Media Selector Dialog */}
       {tenantId && (
-        <EnhancedMediaPicker
+        <UnifiedMediaSelector
           tenantId={tenantId}
           open={mediaDialogOpen}
           onOpenChange={setMediaDialogOpen}
           multiple
           selectedIds={variant.imageIds || []}
-          onSelect={(media) => {
+          onSelect={(media: MediaSelection[]) => {
             const imageIds = media.map((m) => m.id);
             onUpdate(variant.tempId, "imageIds", imageIds);
           }}

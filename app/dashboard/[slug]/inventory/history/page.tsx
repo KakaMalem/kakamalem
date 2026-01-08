@@ -61,7 +61,7 @@ export default async function InventoryHistoryPage({
     productId: search.productId,
   });
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: string) => {
     return new Intl.DateTimeFormat("en-US", {
       year: "numeric",
       month: "short",

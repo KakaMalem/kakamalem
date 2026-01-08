@@ -65,7 +65,12 @@ export async function getProducts(
   }
 
   if (filters.isActive !== undefined) {
-    conditions.push(eq(products.isActive, filters.isActive));
+    // isActive maps to status: 'active' (true) or 'draft'/'archived' (false)
+    if (filters.isActive) {
+      conditions.push(eq(products.status, "active"));
+    } else {
+      conditions.push(sql`${products.status} != 'active'`);
+    }
   }
 
   if (filters.stockStatus) {
@@ -121,7 +126,7 @@ export async function getProducts(
       lowStockThreshold: products.lowStockThreshold,
       weight: products.weight,
       displayOrder: products.displayOrder,
-      isActive: products.isActive,
+      status: products.status,
       categoryId: products.categoryId,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt,
@@ -391,12 +396,12 @@ export async function getProductCounts(tenantId: string) {
   const [activeResult] = await db
     .select({ count: count() })
     .from(products)
-    .where(and(eq(products.tenantId, tenantId), eq(products.isActive, true)));
+    .where(and(eq(products.tenantId, tenantId), eq(products.status, "active")));
 
   const [draftResult] = await db
     .select({ count: count() })
     .from(products)
-    .where(and(eq(products.tenantId, tenantId), eq(products.isActive, false)));
+    .where(and(eq(products.tenantId, tenantId), eq(products.status, "draft")));
 
   const [lowStockResult] = await db
     .select({ count: count() })

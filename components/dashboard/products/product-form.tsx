@@ -53,7 +53,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { EnhancedMediaPicker } from "@/components/dashboard/media/enhanced-media-picker";
+import {
+  UnifiedMediaSelector,
+  type MediaSelection,
+} from "@/components/dashboard/media/unified-media-selector";
 import {
   VariantOptionsBuilder,
   type ExistingOption,
@@ -69,11 +72,11 @@ import type {
 import {
   createProductWithImages,
   updateProductWithImages,
-} from "@/lib/supabase/products";
+} from "@/lib/actions/products";
 import {
   createProductVariantsInBulk,
   updateProductVariantsInBulk,
-} from "@/lib/supabase/variants";
+} from "@/lib/actions/variants";
 import { cn } from "@/lib/utils";
 import {
   generateVariantCombinations,
@@ -162,7 +165,9 @@ export function ProductForm({
   const [length, setLength] = useState(product?.length || "");
   const [width, setWidth] = useState(product?.width || "");
   const [height, setHeight] = useState(product?.height || "");
-  const [isActive, setIsActive] = useState(product?.isActive ?? true);
+  const [status, setStatus] = useState<"draft" | "active" | "archived">(
+    product?.status ?? "draft"
+  );
 
   // Variant state
   const [hasVariants, setHasVariants] = useState(product?.hasVariants ?? false);
@@ -305,8 +310,8 @@ export function ProductForm({
       description: null,
       imageId: null,
       displayOrder: availableCategories.length,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     // Add to available categories
@@ -682,7 +687,7 @@ export function ProductForm({
       length,
       width,
       height,
-      isActive,
+      status,
       displayOrder: String(product?.displayOrder ?? 0),
       imageIds: existingImageIds, // Only existing media IDs
     };
@@ -730,9 +735,7 @@ export function ProductForm({
             if (!category) continue;
 
             // Create category via server action (slug is auto-generated on backend)
-            const { createCategory } = await import(
-              "@/lib/supabase/categories"
-            );
+            const { createCategory } = await import("@/lib/actions/categories");
             const categoryResult = await createCategory(tenantId, {
               name: category.name,
               slug: "", // Auto-generated on the backend
@@ -829,9 +832,7 @@ export function ProductForm({
             console.warn(
               "⚠️ Product creation failed. Rolling back created categories..."
             );
-            const { deleteCategory } = await import(
-              "@/lib/supabase/categories"
-            );
+            const { deleteCategory } = await import("@/lib/actions/categories");
             for (const categoryId of newlyCreatedIds) {
               await deleteCategory(tenantId, categoryId).catch((err) => {
                 console.error("Failed to rollback category:", err);
@@ -1557,14 +1558,14 @@ export function ProductForm({
               e.preventDefault();
               // Capture form reference before async operation
               const form = e.currentTarget.closest("form");
-              setIsActive(false);
+              setStatus("draft");
               // Trigger form submission after state update
               setTimeout(() => {
                 form?.requestSubmit();
               }, 0);
             }}
           >
-            {(isPending || uploadProgress) && !isActive ? (
+            {(isPending || uploadProgress) && status === "draft" ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
                 Saving draft...
@@ -1582,7 +1583,7 @@ export function ProductForm({
               // Capture form reference before async operation
               const form = e.currentTarget.closest("form");
               console.log("📝 [Publish Button] Form element:", form);
-              setIsActive(true);
+              setStatus("active");
               // Trigger form submission after state update
               setTimeout(() => {
                 console.log("⏰ [Publish Button] Calling requestSubmit");
@@ -1590,7 +1591,7 @@ export function ProductForm({
               }, 0);
             }}
           >
-            {(isPending || uploadProgress) && isActive ? (
+            {(isPending || uploadProgress) && status === "active" ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
                 {uploadProgress?.message || "Publishing..."}
@@ -1603,12 +1604,13 @@ export function ProductForm({
       </div>
 
       {/* Media Selector Dialog */}
-      <EnhancedMediaPicker
+      <UnifiedMediaSelector
         tenantId={tenantId}
         open={mediaSelectorOpen}
         onOpenChange={setMediaSelectorOpen}
-        onSelect={handleMediaSelect}
+        onSelect={(media) => handleMediaSelect(media as MediaSelection[])}
         multiple
+        showReorderSection
         selectedIds={images.filter((img) => !img.isStaged).map((img) => img.id)}
         title="Select Product Images"
       />

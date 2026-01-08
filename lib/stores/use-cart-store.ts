@@ -16,7 +16,7 @@ export type CartItemProduct = {
   stock: number;
   trackInventory: boolean;
   allowBackorder: boolean;
-  isActive: boolean;
+  status: "draft" | "active" | "archived";
   hasVariants: boolean;
   image: {
     url: string;
@@ -44,7 +44,7 @@ export type CartItem = {
 export type Cart = {
   id: string;
   tenantId: string;
-  sessionId: string;
+  sessionId: string | null;
   customerId: string | null;
   items: CartItem[];
   createdAt: string;

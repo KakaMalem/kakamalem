@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getUser } from "@/lib/supabase/auth";
+import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import {
   getDashboardStats,
@@ -51,7 +51,7 @@ export default async function StoreDashboardPage({ params }: StorePageProps) {
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  const firstName = user?.user_metadata?.full_name?.split(" ")[0] || "there";
+  const firstName = user?.name?.split(" ")[0] || "there";
 
   return (
     <div className="space-y-6">

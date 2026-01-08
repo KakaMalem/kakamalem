@@ -29,7 +29,7 @@ import {
   deactivateStore,
   reactivateStore,
   deleteStore,
-} from "@/lib/supabase/stores";
+} from "@/lib/actions/stores";
 
 interface DangerZoneSettingsProps {
   storeId: string;
