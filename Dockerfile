@@ -52,12 +52,9 @@ RUN pnpm build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-# Install production dependencies only
-RUN apk add --no-cache \
-    # Required for sharp (image processing)
-    vips-dev \
-    # Required for healthcheck
-    curl
+# Install runtime dependencies
+# Note: sharp is already bundled in Next.js standalone output with precompiled binaries
+RUN apk add --no-cache curl
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs
