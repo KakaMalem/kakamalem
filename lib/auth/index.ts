@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import {
@@ -165,6 +166,15 @@ export const auth = betterAuth({
   // ==========================================================================
   // These run after authentication events
   // Use to create related records (userProfiles, etc.)
+
+  // ==========================================================================
+  // PLUGINS
+  // ==========================================================================
+  plugins: [
+    // Next.js cookie handling - must be last plugin
+    // Automatically sets cookies when Set-Cookie header is present
+    nextCookies(),
+  ],
 });
 
 // =============================================================================
