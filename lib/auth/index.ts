@@ -17,7 +17,8 @@ import {
 
 export const auth = betterAuth({
   // Secret for signing tokens/cookies (REQUIRED)
-  secret: process.env.BETTER_AUTH_SECRET,
+  // In production, this is passed as a Docker build arg from .env
+  secret: process.env.BETTER_AUTH_SECRET!,
 
   // Base URL for auth (used for callbacks, redirects)
   baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
@@ -45,7 +46,7 @@ export const auth = betterAuth({
     enabled: true,
     // Require email verification before allowing login
     // Temporarily disabled to debug login redirect loop
-    requireEmailVerification: false,
+    requireEmailVerification: true,
     // Password requirements
     minPasswordLength: 8,
     // Auto sign in after registration (enabled in dev for faster testing)

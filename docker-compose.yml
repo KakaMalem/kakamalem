@@ -13,7 +13,7 @@
 
 services:
   app:
-    # Build locally on VPS (NEXT_PUBLIC_* vars must be set at build time)
+    # Build locally on VPS (NEXT_PUBLIC_* and auth vars must be set at build time)
     build:
       context: .
       dockerfile: Dockerfile
@@ -22,6 +22,8 @@ services:
         NEXT_PUBLIC_SITE_URL: https://kakamalem.com
         NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
         NEXT_PUBLIC_UPLOADS_URL: /uploads
+        # Read from .env file for build-time access (Better Auth needs this during Next.js build)
+        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
     container_name: kakamalem-app
     restart: unless-stopped
 
