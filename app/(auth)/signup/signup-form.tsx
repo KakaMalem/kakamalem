@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +20,6 @@ import { signupSchema, type SignupInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
 
 export function SignupForm() {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<keyof SignupInput, string>>
@@ -79,9 +77,8 @@ export function SignupForm() {
       // In production, show email verification message
       if (process.env.NODE_ENV === "development") {
         setSuccess(true);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        router.push("/dashboard");
-        router.refresh();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        window.location.href = "/dashboard";
       } else {
         setSuccess(true);
       }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
 
@@ -70,11 +69,11 @@ export function LoginForm() {
         return;
       }
 
-      // Show success state for 1 second before redirect
+      // Show success state briefly, then do a hard navigation
+      // Hard navigation ensures cookies are properly read on the server
       setSuccess(true);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      router.push(redirect);
-      router.refresh();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      window.location.href = redirect;
     } catch (err) {
       console.error("Login error:", err);
       setError("An unexpected error occurred");

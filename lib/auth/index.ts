@@ -74,10 +74,10 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     },
     // Facebook OAuth (common in Afghanistan market)
-    // facebook: {
-    //   clientId: process.env.FACEBOOK_CLIENT_ID!,
-    //   clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-    // },
+    facebook: {
+      clientId: process.env.FACEBOOK_APP_ID!,
+      clientSecret: process.env.FACEBOOK_APP_SECRET!,
+    },
   },
 
   // ==========================================================================
