@@ -25,9 +25,9 @@ services:
     container_name: kakamalem-app
     restart: unless-stopped
 
-    # Port mapping: Nginx on host proxies to this port
-    ports:
-      - "3000:3000"
+    # Use host network mode - container shares host's network stack
+    # This allows direct access to localhost services (PostgreSQL, PgBouncer)
+    network_mode: host
 
     # Environment variables (runtime)
     env_file:
@@ -39,10 +39,8 @@ services:
       - HOSTNAME=0.0.0.0
       # Optimize Node.js for available memory (8GB allocated)
       - NODE_OPTIONS=--max-old-space-size=6144
-      # Override DATABASE_URL for Docker (172.17.0.1 is the default Docker bridge gateway)
-      # The .env file uses localhost which works for native tools (drizzle-kit, etc)
-      - DATABASE_URL=postgresql://kakamalem_app:IOM3HXlseEOYZy5KdnH70LIck7puSi47@172.17.0.1:6543/kakamalem
-      - DATABASE_URL_UNPOOLED=postgresql://kakamalem_migrations:TazS9nAYaH4jJaNUvHsQXaqQ3UFnPKay@172.17.0.1:5432/kakamalem
+      # With host network mode, localhost works directly
+      # DATABASE_URL and DATABASE_URL_UNPOOLED come from .env file (using localhost)
 
     # Mount volumes
     volumes:
@@ -84,9 +82,7 @@ services:
         max-size: "50m"
         max-file: "5"
 
-    # Map host.docker.internal to host IP for DB access
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # Note: extra_hosts not needed with network_mode: host
 
 # =============================================================================
 # Notes:
