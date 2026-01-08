@@ -2,6 +2,11 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
+import {
+  sendEmail,
+  getVerificationEmailHtml,
+  getPasswordResetEmailHtml,
+} from "@/lib/email";
 
 // =============================================================================
 // BETTER AUTH CONFIGURATION
@@ -39,12 +44,25 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     // Require email verification before allowing login
-    // Disabled in development since email isn't configured
     requireEmailVerification: process.env.NODE_ENV === "production",
     // Password requirements
     minPasswordLength: 8,
     // Auto sign in after registration (enabled in dev for faster testing)
     autoSignIn: process.env.NODE_ENV !== "production",
+    // Password reset email
+    sendResetPassword: async ({
+      user,
+      url,
+    }: {
+      user: { email: string; name: string | null };
+      url: string;
+    }) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your Kaka Malem password",
+        html: getPasswordResetEmailHtml(url, user.name || undefined),
+      });
+    },
   },
 
   // ==========================================================================
@@ -97,26 +115,24 @@ export const auth = betterAuth({
   // ==========================================================================
   // EMAIL CONFIGURATION
   // ==========================================================================
-  // Email verification only runs in production
-  ...(process.env.NODE_ENV === "production" && {
-    emailVerification: {
-      sendOnSignUp: true,
-      autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, url }: { user: { email: string; name: string | null }; url: string }) => {
-        // TODO: Implement email sending with Resend
-        console.log(`Verification email for ${user.email}: ${url}`);
-        await sendEmail({
-          to: user.email,
-          subject: "Verify your Kaka Malem account",
-          template: "email-verification",
-          data: { url, name: user.name },
-        });
-      },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({
+      user,
+      url,
+    }: {
+      user: { email: string; name: string | null };
+      url: string;
+    }) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify your Kaka Malem account",
+        html: getVerificationEmailHtml(url, user.name || undefined),
+      });
     },
-  }),
+  },
 
-  // Password reset emails
-  // This is configured in the emailAndPassword section callbacks
 
   // ==========================================================================
   // RATE LIMITING
@@ -149,38 +165,6 @@ export const auth = betterAuth({
   // These run after authentication events
   // Use to create related records (userProfiles, etc.)
 });
-
-// =============================================================================
-// HELPER: EMAIL SENDING FUNCTION
-// =============================================================================
-// Placeholder - implement with your email provider
-async function sendEmail({
-  to,
-  subject,
-  template,
-  data,
-}: {
-  to: string;
-  subject: string;
-  template: string;
-  data: Record<string, unknown>;
-}) {
-  // TODO: Implement with Nodemailer
-  // Example with Resend:
-  //
-  // import { Resend } from 'resend';
-  // const resend = new Resend(process.env.RESEND_API_KEY);
-  //
-  // await resend.emails.send({
-  //   from: 'Kaka Malem <noreply@kakamalem.com>',
-  //   to,
-  //   subject,
-  //   react: EmailTemplate({ ...data }),
-  // });
-
-  console.log(`[Email] To: ${to}, Subject: ${subject}, Template: ${template}`);
-  console.log(`[Email] Data:`, data);
-}
 
 // =============================================================================
 // AUTH TYPE EXPORTS
