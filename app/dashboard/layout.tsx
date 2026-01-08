@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 
 import { getUser } from "@/lib/auth/server";
+
+// Force dynamic rendering - auth state must be checked on every request
+export const dynamic = "force-dynamic";
 import { getUserStores } from "@/lib/db/queries/tenants";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";

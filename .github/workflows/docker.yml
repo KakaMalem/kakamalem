@@ -1,4 +1,4 @@
-name: Docker Build and Push
+name: Docker Build and Deploy
 
 on:
   push:
@@ -14,13 +14,14 @@ on:
       - "pnpm-lock.yaml"
       - "Dockerfile"
       - "next.config.ts"
+      - "drizzle/**"
       - ".github/workflows/docker.yml"
 
   # Allow manual trigger
   workflow_dispatch:
     inputs:
-      deploy:
-        description: "Deploy to production after build"
+      skip_deploy:
+        description: "Skip deployment (build only)"
         required: false
         default: false
         type: boolean
@@ -89,33 +90,65 @@ jobs:
           echo "Tags: ${{ steps.meta.outputs.tags }}"
           echo "Digest: ${{ steps.build.outputs.digest }}"
 
-  # Optional: Deploy to production server
   deploy:
     name: Deploy to Production
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event.inputs.deploy == 'true')
+    if: github.ref == 'refs/heads/main' && github.event.inputs.skip_deploy != 'true'
     environment: production
 
     steps:
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           port: ${{ secrets.VPS_PORT }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             cd /var/www/kakamalem
-            docker compose pull
+
+            echo "📥 Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "🔄 Stopping current container..."
+            docker compose down || true
+
+            echo "🏗️ Building new image..."
+            docker compose build --no-cache
+
+            echo "🚀 Starting new container..."
             docker compose up -d
-            # Health check
-            sleep 10
+
+            echo "⏳ Waiting for container to be healthy..."
+            # Wait up to 60 seconds for container to be healthy
+            for i in {1..12}; do
+              sleep 5
+              HEALTH=$(docker inspect -f '{{.State.Health.Status}}' kakamalem-app 2>/dev/null || echo "unknown")
+              echo "   Health status: $HEALTH"
+              if [ "$HEALTH" = "healthy" ]; then
+                echo "✅ Container is healthy!"
+                break
+              fi
+              if [ $i -eq 12 ]; then
+                echo "❌ Container failed to become healthy"
+                docker logs kakamalem-app --tail 50
+                exit 1
+              fi
+            done
+
+            echo "🔍 Running health check..."
             curl -f http://localhost:3000/api/health || exit 1
-            echo "Deployment successful!"
+
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+
+            echo "✅ Deployment successful!"
 
       - name: Notify on failure
         if: failure()
         run: |
-          echo "Deployment failed! Manual intervention may be required."
-          echo "SSH to server and run: cd /var/www/kakamalem && ./scripts/docker-deploy.sh --rollback"
+          echo "❌ Deployment failed! Manual intervention may be required."
+          echo "SSH to server and check logs: docker logs kakamalem-app"

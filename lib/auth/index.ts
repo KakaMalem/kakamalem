@@ -44,7 +44,8 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     // Require email verification before allowing login
-    requireEmailVerification: process.env.NODE_ENV === "production",
+    // Temporarily disabled to debug login redirect loop
+    requireEmailVerification: false,
     // Password requirements
     minPasswordLength: 8,
     // Auto sign in after registration (enabled in dev for faster testing)
@@ -88,10 +89,9 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30, // 30 days
     // Update session expiry on each request
     updateAge: 60 * 60 * 24, // Update every 24 hours
-    // Cookie configuration
+    // Disable cookie cache - can cause issues with server-side session reads
     cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5, // Cache for 5 minutes
+      enabled: false,
     },
   },
 
