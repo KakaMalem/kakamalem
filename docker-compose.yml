@@ -13,16 +13,17 @@
 
 services:
   app:
-    image: ghcr.io/kakamalem/kakamalem:latest
-    # Or build locally:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    #   args:
-    #     NEXT_PUBLIC_APP_URL: https://kakamalem.com
-    #     NEXT_PUBLIC_SITE_URL: https://kakamalem.com
-    #     NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
-    #     NEXT_PUBLIC_UPLOADS_URL: /uploads
+    # Use pre-built image from GHCR (after GitHub Actions builds it)
+    # image: ghcr.io/kakamalem/kakamalem:latest
+    # Build locally on VPS:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: https://kakamalem.com
+        NEXT_PUBLIC_SITE_URL: https://kakamalem.com
+        NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
+        NEXT_PUBLIC_UPLOADS_URL: /uploads
     container_name: kakamalem-app
     restart: unless-stopped
 
