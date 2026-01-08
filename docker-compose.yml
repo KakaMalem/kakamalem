@@ -13,7 +13,7 @@
 
 services:
   app:
-    image: ghcr.io/KakaMalem/kakamalem:latest
+    image: ghcr.io/kakamalem/kakamalem:latest
     # Or build locally:
     # build:
     #   context: .
@@ -39,11 +39,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      # Connect to host's PostgreSQL via PgBouncer
-      # host.docker.internal works on Docker Desktop
-      # On Linux, use 172.17.0.1 or the host's actual IP
-      - DATABASE_URL=postgresql://kakamalem_app:${DB_PASSWORD}@host.docker.internal:6543/kakamalem
-      - DATABASE_URL_UNPOOLED=postgresql://kakamalem_migrations:${DB_MIGRATION_PASSWORD}@host.docker.internal:5432/kakamalem
+      # DATABASE_URL and DATABASE_URL_UNPOOLED come from .env file
 
     # Mount volumes
     volumes:
