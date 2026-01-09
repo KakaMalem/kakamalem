@@ -45,8 +45,9 @@ services:
       # DATABASE_URL and DATABASE_URL_UNPOOLED come from .env file (using localhost)
 
     # Mount volumes
+    # Map host uploads dir to same path inside container (matches STORAGE_PATH env var)
     volumes:
-      - /var/www/kakamalem-uploads:/app/uploads:rw
+      - /var/www/kakamalem-uploads:/var/www/kakamalem-uploads:rw
       - /tmp/kakamalem-uploads:/tmp/kakamalem-uploads:rw
 
     # Health check

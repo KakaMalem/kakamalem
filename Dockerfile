@@ -75,7 +75,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Create uploads directory (will be mounted as volume)
-RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
+# Uses /var/www/kakamalem-uploads to match VPS STORAGE_PATH env var
+RUN mkdir -p /var/www/kakamalem-uploads && chown nextjs:nodejs /var/www/kakamalem-uploads
 
 # Switch to non-root user
 USER nextjs
