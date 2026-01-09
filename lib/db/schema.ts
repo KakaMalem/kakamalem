@@ -3268,9 +3268,42 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   orders: many(orders),
   carts: many(carts),
   wishlists: many(wishlists),
+  wishlistItems: many(wishlistItems),
+  // Variants
+  variantOptions: many(variantOptions),
+  variantOptionValues: many(variantOptionValues),
+  productVariants: many(productVariants),
+  productVariantOptions: many(productVariantOptions),
+  productVariantImages: many(productVariantImages),
+  // Inventory
+  inventoryLocations: many(inventoryLocations),
+  inventoryLevels: many(inventoryLevels),
+  inventoryCounts: many(inventoryCounts),
+  inventoryMovements: many(inventoryMovements),
+  // Shipping
   shippingZones: many(shippingZones),
+  shippingMethods: many(shippingMethods),
+  shippingWeightTiers: many(shippingWeightTiers),
+  shipments: many(shipments),
+  // Commission & Finance
   commissionTransactions: many(commissionTransactions),
+  commissionRules: many(commissionRules),
+  sellerPayoutMethods: many(sellerPayoutMethods),
+  sellerTransactions: many(sellerTransactions),
+  sellerPayouts: many(sellerPayouts),
+  // Reviews
   reviews: many(reviews),
+  reviewMedia: many(reviewMedia),
+  // Affiliates
+  affiliateTenantPartnerships: many(affiliateTenantPartnerships),
+  affiliateLinks: many(affiliateLinks),
+  affiliateClicks: many(affiliateClicks),
+  affiliateConversions: many(affiliateConversions),
+  affiliateRatings: many(affiliateRatings),
+  // Delivery
+  deliveryTenantPartnerships: many(deliveryTenantPartnerships),
+  deliveryAssignments: many(deliveryAssignments),
+  deliveryRatings: many(deliveryRatings),
   // Analytics
   dailySnapshots: many(analyticsDailySnapshots),
   hourlyMetrics: many(analyticsHourlyMetrics),
@@ -3293,7 +3326,7 @@ export const tenantMembersRelations = relations(tenantMembers, ({ one }) => ({
   }),
 }));
 
-export const storeCustomersRelations = relations(storeCustomers, ({ one }) => ({
+export const storeCustomersRelations = relations(storeCustomers, ({ one, many }) => ({
   tenant: one(tenants, {
     fields: [storeCustomers.tenantId],
     references: [tenants.id],
@@ -3302,6 +3335,7 @@ export const storeCustomersRelations = relations(storeCustomers, ({ one }) => ({
     fields: [storeCustomers.userId],
     references: [user.id],
   }),
+  orders: many(orders),
 }));
 
 export const wishlistsRelations = relations(wishlists, ({ one, many }) => ({
@@ -3346,6 +3380,12 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   }),
   products: many(products),
   productCategories: many(productCategories),
+  commissionRules: many(commissionRules),
+  affiliateLinks: many(affiliateLinks),
+  // Analytics
+  categoryPerformance: many(analyticsCategoryPerformance),
+  pageViews: many(analyticsPageViews),
+  conversionEvents: many(analyticsConversionEvents),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -3360,9 +3400,19 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   productCategories: many(productCategories),
   images: many(productImages),
   variants: many(productVariants),
+  inventoryLevels: many(inventoryLevels),
   inventoryMovements: many(inventoryMovements),
+  inventoryCountItems: many(inventoryCountItems),
+  cartItems: many(cartItems),
+  orderItems: many(orderItems),
   reviews: many(reviews),
   wishlistItems: many(wishlistItems),
+  commissionRules: many(commissionRules),
+  affiliateLinks: many(affiliateLinks),
+  // Analytics
+  productPerformance: many(analyticsProductPerformance),
+  pageViews: many(analyticsPageViews),
+  conversionEvents: many(analyticsConversionEvents),
 }));
 
 export const mediaRelations = relations(media, ({ one, many }) => ({
@@ -3375,7 +3425,10 @@ export const mediaRelations = relations(media, ({ one, many }) => ({
     references: [user.id],
   }),
   productImages: many(productImages),
+  productVariants: many(productVariants),
+  productVariantImages: many(productVariantImages),
   categories: many(categories),
+  reviewMedia: many(reviewMedia),
 }));
 
 export const productImagesRelations = relations(productImages, ({ one }) => ({
@@ -3435,8 +3488,14 @@ export const productVariantsRelations = relations(productVariants, ({ one, many 
   }),
   images: many(productVariantImages),
   options: many(productVariantOptions),
+  inventoryLevels: many(inventoryLevels),
   inventoryMovements: many(inventoryMovements),
+  inventoryCountItems: many(inventoryCountItems),
+  cartItems: many(cartItems),
+  orderItems: many(orderItems),
   wishlistItems: many(wishlistItems),
+  reviews: many(reviews),
+  conversionEvents: many(analyticsConversionEvents),
 }));
 
 export const productVariantImagesRelations = relations(productVariantImages, ({ one }) => ({
@@ -3474,6 +3533,10 @@ export const inventoryMovementsRelations = relations(inventoryMovements, ({ one 
     fields: [inventoryMovements.tenantId],
     references: [tenants.id],
   }),
+  location: one(inventoryLocations, {
+    fields: [inventoryMovements.locationId],
+    references: [inventoryLocations.id],
+  }),
   product: one(products, {
     fields: [inventoryMovements.productId],
     references: [products.id],
@@ -3485,6 +3548,10 @@ export const inventoryMovementsRelations = relations(inventoryMovements, ({ one 
   order: one(orders, {
     fields: [inventoryMovements.orderId],
     references: [orders.id],
+  }),
+  shipment: one(shipments, {
+    fields: [inventoryMovements.shipmentId],
+    references: [shipments.id],
   }),
   user: one(user, {
     fields: [inventoryMovements.userId],
@@ -3502,6 +3569,7 @@ export const cartsRelations = relations(carts, ({ one, many }) => ({
     references: [user.id],
   }),
   items: many(cartItems),
+  conversionEvents: many(analyticsConversionEvents),
 }));
 
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
@@ -3536,6 +3604,11 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   shipments: many(shipments),
   reviews: many(reviews),
   inventoryMovements: many(inventoryMovements),
+  commissionTransactions: many(commissionTransactions),
+  sellerTransactions: many(sellerTransactions),
+  affiliateClicks: many(affiliateClicks),
+  affiliateConversions: many(affiliateConversions),
+  conversionEvents: many(analyticsConversionEvents),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
@@ -3552,6 +3625,7 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
     references: [productVariants.id],
   }),
   shipmentItems: many(shipmentItems),
+  sellerTransactions: many(sellerTransactions),
 }));
 
 export const shippingZonesRelations = relations(shippingZones, ({ one, many }) => ({
@@ -3562,7 +3636,7 @@ export const shippingZonesRelations = relations(shippingZones, ({ one, many }) =
   methods: many(shippingMethods),
 }));
 
-export const shippingMethodsRelations = relations(shippingMethods, ({ one }) => ({
+export const shippingMethodsRelations = relations(shippingMethods, ({ one, many }) => ({
   tenant: one(tenants, {
     fields: [shippingMethods.tenantId],
     references: [tenants.id],
@@ -3571,6 +3645,8 @@ export const shippingMethodsRelations = relations(shippingMethods, ({ one }) => 
     fields: [shippingMethods.zoneId],
     references: [shippingZones.id],
   }),
+  weightTiers: many(shippingWeightTiers),
+  shipments: many(shipments),
 }));
 
 export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
@@ -3588,6 +3664,8 @@ export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
   }),
   items: many(shipmentItems),
   trackingEvents: many(shipmentTrackingEvents),
+  inventoryMovements: many(inventoryMovements),
+  deliveryAssignments: many(deliveryAssignments),
 }));
 
 export const shipmentItemsRelations = relations(shipmentItems, ({ one }) => ({
@@ -3880,7 +3958,7 @@ export const sellerPayoutMethodsRelations = relations(sellerPayoutMethods, ({ on
   payouts: many(sellerPayouts),
 }));
 
-export const sellerTransactionsRelations = relations(sellerTransactions, ({ one }) => ({
+export const sellerTransactionsRelations = relations(sellerTransactions, ({ one, many }) => ({
   tenant: one(tenants, {
     fields: [sellerTransactions.tenantId],
     references: [tenants.id],
@@ -3893,6 +3971,7 @@ export const sellerTransactionsRelations = relations(sellerTransactions, ({ one 
     fields: [sellerTransactions.orderItemId],
     references: [orderItems.id],
   }),
+  payoutItems: many(sellerPayoutItems),
 }));
 
 export const sellerPayoutsRelations = relations(sellerPayouts, ({ one, many }) => ({
@@ -3956,7 +4035,7 @@ export const affiliateTenantPartnershipsRelations = relations(affiliateTenantPar
   }),
   links: many(affiliateLinks),
   conversions: many(affiliateConversions),
-  rating: one(affiliateRatings),
+  ratings: many(affiliateRatings),
 }));
 
 export const affiliateLinksRelations = relations(affiliateLinks, ({ one, many }) => ({

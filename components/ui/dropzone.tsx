@@ -12,7 +12,6 @@ import {
   getAcceptString,
   getMaxSize,
 } from "@/lib/config/file-validation";
-import type { UploadResult } from "@/lib/storage";
 
 // =============================================================================
 // TYPES
