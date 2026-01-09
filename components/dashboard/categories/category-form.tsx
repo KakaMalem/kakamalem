@@ -11,7 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
+import {
+  UnifiedMediaSelector,
+  type MediaSelection,
+} from "@/components/dashboard/media/unified-media-selector";
 
 import type { Category, Media } from "@/lib/db/schema";
 import {
@@ -123,11 +126,7 @@ export function CategoryForm({
             null // No longer passing uploaded URL since media is already in library
           );
         } else {
-          actionResult = await createCategoryWithUrl(
-            tenantId,
-            formData,
-            null
-          );
+          actionResult = await createCategoryWithUrl(tenantId, formData, null);
         }
 
         if (actionResult.success) {

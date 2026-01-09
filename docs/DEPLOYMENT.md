@@ -38,6 +38,7 @@ Complete guide for deploying Kaka Malem to a VPS with Docker + native PostgreSQL
 ```
 
 **Why hybrid?**
+
 - **Docker for app**: Easy rollbacks, reproducible builds, no Node.js version conflicts
 - **Native PostgreSQL**: Better performance, direct filesystem access, tuned configs
 - **Native Nginx**: SSL termination, static file caching, no container overhead
@@ -237,13 +238,13 @@ docker compose logs -f app
 
 Add these secrets in GitHub (Settings > Secrets > Actions):
 
-| Secret | Value |
-|--------|-------|
-| `VPS_HOST` | Your server IP or domain |
-| `VPS_USERNAME` | SSH username (e.g., `root`) |
-| `VPS_SSH_KEY` | Private SSH key content |
-| `VPS_PORT` | SSH port (default: 22) |
-| `GHCR_TOKEN` | GitHub token with `packages:write` |
+| Secret         | Value                              |
+| -------------- | ---------------------------------- |
+| `VPS_HOST`     | Your server IP or domain           |
+| `VPS_USERNAME` | SSH username (e.g., `root`)        |
+| `VPS_SSH_KEY`  | Private SSH key content            |
+| `VPS_PORT`     | SSH port (default: 22)             |
+| `GHCR_TOKEN`   | GitHub token with `packages:write` |
 
 Generate SSH key:
 
@@ -363,13 +364,13 @@ find /var/backups/postgresql -name "*.dump" -mtime +14 -delete
 
 ## Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | Pooled connection (via PgBouncer) | `postgresql://app:pass@127.0.0.1:6543/kakamalem` |
+| Variable                | Description                        | Example                                                 |
+| ----------------------- | ---------------------------------- | ------------------------------------------------------- |
+| `DATABASE_URL`          | Pooled connection (via PgBouncer)  | `postgresql://app:pass@127.0.0.1:6543/kakamalem`        |
 | `DATABASE_URL_UNPOOLED` | Direct connection (for migrations) | `postgresql://migrations:pass@127.0.0.1:5432/kakamalem` |
-| `BETTER_AUTH_SECRET` | Auth secret (32+ chars) | `openssl rand -base64 32` |
-| `NEXT_PUBLIC_APP_URL` | Public URL | `https://kakamalem.com` |
-| `STORAGE_PATH` | Upload storage path | `/app/uploads` |
+| `BETTER_AUTH_SECRET`    | Auth secret (32+ chars)            | `openssl rand -base64 32`                               |
+| `NEXT_PUBLIC_APP_URL`   | Public URL                         | `https://kakamalem.com`                                 |
+| `STORAGE_PATH`          | Upload storage path                | `/app/uploads`                                          |
 
 ---
 

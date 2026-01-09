@@ -28,7 +28,10 @@ import {
 } from "@/lib/validations/stores";
 import { updateSeoSettings } from "@/lib/actions/stores";
 import { toast } from "sonner";
-import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
+import {
+  UnifiedMediaSelector,
+  type MediaSelection,
+} from "@/components/dashboard/media/unified-media-selector";
 
 interface SeoSettingsFormProps {
   storeId: string;

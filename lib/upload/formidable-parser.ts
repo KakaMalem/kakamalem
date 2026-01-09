@@ -22,7 +22,6 @@ import {
   ALLOWED_MIMES,
   ALLOWED_IMAGE_MIMES,
   MAX_SIZES,
-  formatFileSize,
 } from "@/lib/config/file-validation";
 
 // Configuration
