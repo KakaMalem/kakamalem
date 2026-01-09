@@ -252,8 +252,12 @@ deploy() {
 
     # Switch traffic to new container
     if [ "$current" = "none" ]; then
-        # First deployment - just set target as primary
-        update_nginx_upstream $target_port $target_port
+        # First deployment - set target as primary, other port as backup (won't be used)
+        if [ "$target" = "blue" ]; then
+            update_nginx_upstream $BLUE_PORT $GREEN_PORT
+        else
+            update_nginx_upstream $GREEN_PORT $BLUE_PORT
+        fi
     else
         # Normal deployment - target becomes primary, current becomes backup
         update_nginx_upstream $target_port $current_port
