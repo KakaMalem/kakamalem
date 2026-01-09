@@ -50,8 +50,6 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     // Password requirements
     minPasswordLength: 8,
-    // Auto sign in after registration (enabled in dev for faster testing)
-    autoSignIn: process.env.NODE_ENV !== "production",
     // Password reset email
     sendResetPassword: async ({
       user,
@@ -76,7 +74,7 @@ export const auth = betterAuth({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     },
-    // Facebook OAuth (common in Afghanistan market)
+    // Facebook OAuth
     facebook: {
       clientId: process.env.FACEBOOK_APP_ID!,
       clientSecret: process.env.FACEBOOK_APP_SECRET!,
@@ -90,7 +88,7 @@ export const auth = betterAuth({
     // Session expires after 30 days of inactivity
     expiresIn: 60 * 60 * 24 * 30, // 30 days
     // Update session expiry on each request
-    updateAge: 60 * 60 * 24, // Update every 24 hours
+    updateAge: 60 * 60 * 24 * 7, // Update every 24 hours
     // Disable cookie cache - can cause issues with server-side session reads
     cookieCache: {
       enabled: false,
