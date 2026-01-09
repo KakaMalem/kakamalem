@@ -57,7 +57,7 @@ pnpm dlx shadcn-ui@latest add [component-name]
 
 ## Deployment
 
-Automated deployment via GitHub Actions. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full setup.
+Automated deployment via GitHub Actions with **zero-downtime blue-green deployments**. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full setup.
 
 **Quick deploy**: Push to `main` branch
 
@@ -69,7 +69,9 @@ git push origin main
 
 ```bash
 cd /var/www/kakamalem
-./scripts/docker-deploy.sh
+./scripts/docker-deploy.sh          # Pull and deploy (zero-downtime)
+./scripts/docker-deploy.sh --build  # Build locally and deploy
+./scripts/docker-deploy.sh --status # Check deployment status
 ```
 
 **Rollback**:
@@ -77,6 +79,14 @@ cd /var/www/kakamalem
 ```bash
 ./scripts/docker-deploy.sh --rollback
 ```
+
+### Blue-Green Deployment
+
+The deployment uses blue-green strategy for zero downtime:
+- Two containers: `kakamalem-blue` (port 3000) and `kakamalem-green` (port 3001)
+- Nginx upstream switches between them during deployment
+- New container starts and passes health check before traffic switches
+- Old container stops only after traffic has moved
 
 ## Infrastructure (Docker + Native Hybrid)
 

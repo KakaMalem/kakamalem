@@ -1,24 +1,32 @@
 #!/bin/bash
 
 # =============================================================================
-# Kaka Malem - Docker Deployment Script
+# Kaka Malem - Zero-Downtime Blue-Green Deployment
 # =============================================================================
-# Deploys the application using Docker with zero-downtime updates
+# Deploys with zero downtime by running two containers (blue/green) and
+# switching Nginx between them.
 #
 # Usage:
 #   ./docker-deploy.sh              # Pull and deploy latest
 #   ./docker-deploy.sh --build      # Build locally and deploy
-#   ./docker-deploy.sh --rollback   # Rollback to previous image
+#   ./docker-deploy.sh --rollback   # Rollback to previous version
+#   ./docker-deploy.sh --status     # Show current deployment status
 # =============================================================================
 
 set -e
 
 # Configuration
 APP_DIR="/var/www/kakamalem"
-APP_NAME="kakamalem-app"
-IMAGE_NAME="ghcr.io/KakaMalem/kakamalem"  # Change this to your registry
-BACKUP_DIR="$APP_DIR/.backups"
+UPSTREAM_CONF="/etc/nginx/conf.d/kakamalem-upstream.conf"
+STATE_FILE="$APP_DIR/.deploy-state"
 LOG_FILE="$APP_DIR/.logs/docker-deploy_$(date +%Y%m%d_%H%M%S).log"
+
+BLUE_PORT=3000
+GREEN_PORT=3001
+BLUE_SERVICE="app-blue"
+GREEN_SERVICE="app-green"
+BLUE_CONTAINER="kakamalem-blue"
+GREEN_CONTAINER="kakamalem-green"
 
 # Color codes
 RED='\033[0;31m'
@@ -32,143 +40,325 @@ warn() { echo -e "${YELLOW}[$(date '+%H:%M:%S')] WARNING:${NC} $1" | tee -a "$LO
 error() { echo -e "${RED}[$(date '+%H:%M:%S')] ERROR:${NC} $1" | tee -a "$LOG_FILE"; exit 1; }
 
 # Ensure directories exist
-mkdir -p "$BACKUP_DIR" "$(dirname $LOG_FILE)"
+mkdir -p "$(dirname $LOG_FILE)"
 
 # Change to app directory
 cd "$APP_DIR" || error "Failed to change to $APP_DIR"
 
 # -----------------------------------------------------------------------------
-# Pre-flight checks
+# Helper Functions
 # -----------------------------------------------------------------------------
-log "Running pre-flight checks..."
 
-# Check Docker is running
-if ! docker info &> /dev/null; then
-    error "Docker is not running"
-fi
+get_current_active() {
+    if [ -f "$STATE_FILE" ]; then
+        cat "$STATE_FILE"
+    else
+        # Check which container is running, default to blue
+        if docker ps --format '{{.Names}}' | grep -q "$BLUE_CONTAINER"; then
+            echo "blue"
+        elif docker ps --format '{{.Names}}' | grep -q "$GREEN_CONTAINER"; then
+            echo "green"
+        else
+            echo "none"
+        fi
+    fi
+}
 
-# Check docker-compose.yml exists
-if [ ! -f "docker-compose.yml" ]; then
-    error "docker-compose.yml not found in $APP_DIR"
-fi
+set_active() {
+    echo "$1" > "$STATE_FILE"
+}
 
-# Check .env exists
-if [ ! -f ".env" ]; then
-    error ".env file not found in $APP_DIR"
-fi
+get_port_for_color() {
+    if [ "$1" = "blue" ]; then
+        echo "$BLUE_PORT"
+    else
+        echo "$GREEN_PORT"
+    fi
+}
 
-log "Pre-flight checks passed"
+get_service_for_color() {
+    if [ "$1" = "blue" ]; then
+        echo "$BLUE_SERVICE"
+    else
+        echo "$GREEN_SERVICE"
+    fi
+}
 
-# -----------------------------------------------------------------------------
-# Save current image ID for rollback
-# -----------------------------------------------------------------------------
-CURRENT_IMAGE=$(docker inspect --format='{{.Image}}' "$APP_NAME" 2>/dev/null || echo "none")
-if [ "$CURRENT_IMAGE" != "none" ]; then
-    echo "$CURRENT_IMAGE" > "$BACKUP_DIR/previous_image_id"
-    log "Saved current image ID for rollback: ${CURRENT_IMAGE:0:12}"
-fi
+get_container_for_color() {
+    if [ "$1" = "blue" ]; then
+        echo "$BLUE_CONTAINER"
+    else
+        echo "$GREEN_CONTAINER"
+    fi
+}
 
-# -----------------------------------------------------------------------------
-# Deployment
-# -----------------------------------------------------------------------------
-case "$1" in
-    --build)
-        log "Building Docker image locally..."
+wait_for_healthy() {
+    local port=$1
+    local max_retries=60
+    local retry_count=0
+    local health_url="http://localhost:$port/api/health"
 
-        # Build with build args from .env
-        docker compose build --no-cache app 2>&1 | tee -a "$LOG_FILE"
+    log "Waiting for app on port $port to be healthy..."
 
-        log "Starting new container..."
-        docker compose up -d app 2>&1 | tee -a "$LOG_FILE"
-        ;;
-
-    --rollback)
-        log "Rolling back to previous image..."
-
-        if [ ! -f "$BACKUP_DIR/previous_image_id" ]; then
-            error "No previous image ID found for rollback"
+    while [ $retry_count -lt $max_retries ]; do
+        if curl -sf "$health_url" > /dev/null 2>&1; then
+            log "App on port $port is healthy!"
+            return 0
         fi
 
-        PREVIOUS_IMAGE=$(cat "$BACKUP_DIR/previous_image_id")
-        log "Rolling back to: ${PREVIOUS_IMAGE:0:12}"
-
-        # Tag previous image as latest for docker-compose
-        docker tag "$PREVIOUS_IMAGE" "$IMAGE_NAME:latest"
-
-        # Restart with previous image
-        docker compose up -d app 2>&1 | tee -a "$LOG_FILE"
-        ;;
-
-    *)
-        log "Pulling latest image..."
-        docker compose pull app 2>&1 | tee -a "$LOG_FILE"
-
-        log "Starting new container..."
-        docker compose up -d app 2>&1 | tee -a "$LOG_FILE"
-        ;;
-esac
-
-# -----------------------------------------------------------------------------
-# Health check
-# -----------------------------------------------------------------------------
-log "Waiting for application to be healthy..."
-
-MAX_RETRIES=30
-RETRY_COUNT=0
-HEALTH_URL="http://localhost:3000/api/health"
-
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
-
-    if [ "$HEALTH_RESPONSE" = "200" ]; then
-        log "Application is healthy!"
-        break
-    fi
-
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-
-    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        retry_count=$((retry_count + 1))
         echo -n "."
         sleep 2
+    done
+
+    echo ""
+    warn "Health check failed after $max_retries attempts on port $port"
+    return 1
+}
+
+update_nginx_upstream() {
+    local primary_port=$1
+    local backup_port=$2
+
+    log "Updating Nginx upstream: primary=$primary_port, backup=$backup_port"
+
+    cat > "$UPSTREAM_CONF" << EOF
+# Auto-generated by docker-deploy.sh - DO NOT EDIT MANUALLY
+# Updated: $(date)
+upstream kakamalem_app {
+    server 127.0.0.1:$primary_port;
+    server 127.0.0.1:$backup_port backup;
+}
+EOF
+
+    # Test and reload nginx
+    if nginx -t 2>&1 | tee -a "$LOG_FILE"; then
+        systemctl reload nginx
+        log "Nginx reloaded successfully"
     else
-        warn "Health check failed after $MAX_RETRIES attempts"
-
-        # Show container logs for debugging
-        log "Container logs:"
-        docker compose logs --tail=50 app 2>&1 | tee -a "$LOG_FILE"
-
-        # Ask if user wants to rollback
-        if [ "$1" != "--rollback" ] && [ -f "$BACKUP_DIR/previous_image_id" ]; then
-            warn "Deployment may have failed. Consider running: $0 --rollback"
-        fi
-
-        exit 1
+        error "Nginx config test failed!"
     fi
-done
+}
+
+show_status() {
+    local current=$(get_current_active)
+
+    echo ""
+    echo "==========================================================================="
+    echo "Deployment Status"
+    echo "==========================================================================="
+    echo ""
+
+    echo "Active slot: $current"
+    echo ""
+
+    echo "Containers:"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|kakamalem)" || echo "  No containers running"
+    echo ""
+
+    echo "Nginx upstream config:"
+    if [ -f "$UPSTREAM_CONF" ]; then
+        cat "$UPSTREAM_CONF"
+    else
+        echo "  Not configured yet"
+    fi
+    echo ""
+
+    echo "Health checks:"
+    for port in $BLUE_PORT $GREEN_PORT; do
+        if curl -sf "http://localhost:$port/api/health" > /dev/null 2>&1; then
+            echo "  Port $port: ${GREEN}healthy${NC}"
+        else
+            echo "  Port $port: ${RED}not responding${NC}"
+        fi
+    done
+    echo ""
+}
 
 # -----------------------------------------------------------------------------
-# Cleanup
+# Pre-flight checks
 # -----------------------------------------------------------------------------
-log "Cleaning up old images..."
-docker image prune -f 2>&1 | tee -a "$LOG_FILE"
+
+preflight_checks() {
+    log "Running pre-flight checks..."
+
+    if ! docker info &> /dev/null; then
+        error "Docker is not running"
+    fi
+
+    if [ ! -f "docker-compose.yml" ]; then
+        error "docker-compose.yml not found in $APP_DIR"
+    fi
+
+    if [ ! -f ".env" ]; then
+        error ".env file not found in $APP_DIR"
+    fi
+
+    log "Pre-flight checks passed"
+}
 
 # -----------------------------------------------------------------------------
-# Summary
+# Main Deployment Logic
 # -----------------------------------------------------------------------------
-echo "" | tee -a "$LOG_FILE"
-log "============================================================================="
-log "Deployment completed successfully!"
-log "============================================================================="
-echo "" | tee -a "$LOG_FILE"
 
-# Show container status
-docker compose ps | tee -a "$LOG_FILE"
+deploy() {
+    local build_locally=$1
 
-echo "" | tee -a "$LOG_FILE"
-log "Health check: $HEALTH_URL"
-curl -s "$HEALTH_URL" | jq . 2>/dev/null || curl -s "$HEALTH_URL" | tee -a "$LOG_FILE"
+    preflight_checks
 
-echo "" | tee -a "$LOG_FILE"
-log "View logs: docker compose logs -f app"
-log "Rollback:  $0 --rollback"
-log "Log file:  $LOG_FILE"
+    # Determine current and target slots
+    local current=$(get_current_active)
+    local target
+
+    if [ "$current" = "blue" ] || [ "$current" = "none" ]; then
+        target="green"
+    else
+        target="blue"
+    fi
+
+    local target_port=$(get_port_for_color $target)
+    local target_service=$(get_service_for_color $target)
+    local target_container=$(get_container_for_color $target)
+
+    local current_port=$(get_port_for_color $current)
+
+    log "Current active: $current (port $current_port)"
+    log "Deploying to: $target (port $target_port)"
+
+    # Pull or build the new image
+    if [ "$build_locally" = "true" ]; then
+        log "Building Docker image locally..."
+        docker compose build --no-cache $target_service 2>&1 | tee -a "$LOG_FILE"
+    else
+        log "Pulling latest image..."
+        docker compose pull $target_service 2>&1 | tee -a "$LOG_FILE"
+    fi
+
+    # Stop target container if running (from previous deployment)
+    if docker ps -a --format '{{.Names}}' | grep -q "$target_container"; then
+        log "Stopping old $target container..."
+        docker compose stop $target_service 2>&1 | tee -a "$LOG_FILE"
+        docker compose rm -f $target_service 2>&1 | tee -a "$LOG_FILE"
+    fi
+
+    # Start the new container
+    log "Starting new $target container..."
+    docker compose up -d $target_service 2>&1 | tee -a "$LOG_FILE"
+
+    # Wait for it to be healthy
+    if ! wait_for_healthy $target_port; then
+        error "New container failed health check. Aborting deployment."
+    fi
+
+    # Switch traffic to new container
+    if [ "$current" = "none" ]; then
+        # First deployment - just set target as primary
+        update_nginx_upstream $target_port $target_port
+    else
+        # Normal deployment - target becomes primary, current becomes backup
+        update_nginx_upstream $target_port $current_port
+    fi
+
+    # Update state
+    set_active $target
+
+    # Wait a moment for traffic to drain, then stop old container
+    if [ "$current" != "none" ]; then
+        log "Waiting 10s for connections to drain..."
+        sleep 10
+
+        local current_service=$(get_service_for_color $current)
+        log "Stopping old $current container..."
+        docker compose stop $current_service 2>&1 | tee -a "$LOG_FILE"
+    fi
+
+    # Cleanup old images
+    log "Cleaning up old images..."
+    docker image prune -f 2>&1 | tee -a "$LOG_FILE"
+
+    log "============================================================================="
+    log "Deployment completed successfully!"
+    log "Active: $target (port $target_port)"
+    log "============================================================================="
+
+    show_status
+}
+
+rollback() {
+    preflight_checks
+
+    local current=$(get_current_active)
+    local target
+
+    if [ "$current" = "blue" ]; then
+        target="green"
+    elif [ "$current" = "green" ]; then
+        target="blue"
+    else
+        error "No previous deployment to rollback to"
+    fi
+
+    local target_port=$(get_port_for_color $target)
+    local target_service=$(get_service_for_color $target)
+    local current_port=$(get_port_for_color $current)
+    local current_service=$(get_service_for_color $current)
+
+    log "Rolling back from $current to $target..."
+
+    # Start the previous container (should still have the old image)
+    log "Starting $target container..."
+    docker compose up -d $target_service 2>&1 | tee -a "$LOG_FILE"
+
+    if ! wait_for_healthy $target_port; then
+        error "Rollback failed - previous container won't start"
+    fi
+
+    # Switch traffic
+    update_nginx_upstream $target_port $current_port
+
+    # Update state
+    set_active $target
+
+    # Stop the bad container
+    sleep 5
+    docker compose stop $current_service 2>&1 | tee -a "$LOG_FILE"
+
+    log "============================================================================="
+    log "Rollback completed!"
+    log "Active: $target (port $target_port)"
+    log "============================================================================="
+
+    show_status
+}
+
+# -----------------------------------------------------------------------------
+# Initialize upstream config if missing
+# -----------------------------------------------------------------------------
+
+init_upstream() {
+    if [ ! -f "$UPSTREAM_CONF" ]; then
+        log "Creating initial Nginx upstream config..."
+        update_nginx_upstream $BLUE_PORT $GREEN_PORT
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+
+case "$1" in
+    --build)
+        init_upstream
+        deploy "true"
+        ;;
+    --rollback)
+        rollback
+        ;;
+    --status)
+        show_status
+        ;;
+    *)
+        init_upstream
+        deploy "false"
+        ;;
+esac

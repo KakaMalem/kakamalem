@@ -1,56 +1,65 @@
 # =============================================================================
-# Kaka Malem - Docker Compose
+# Kaka Malem - Docker Compose (Blue-Green Deployment)
 # =============================================================================
-# This file orchestrates ONLY the Next.js app container.
+# This file orchestrates the Next.js app with zero-downtime deployments.
 # PostgreSQL, PgBouncer, and Nginx run NATIVE on the host for performance.
 #
+# Blue-Green Strategy:
+#   - app-blue runs on port 3000
+#   - app-green runs on port 3001
+#   - Nginx upstream switches between them during deployment
+#   - Only one container is "active" at a time, but both can run during transition
+#
 # Usage:
-#   docker compose up -d          # Start the app
-#   docker compose down           # Stop the app
-#   docker compose logs -f app    # View logs
-#   docker compose build && docker compose up -d  # Rebuild and deploy
+#   docker compose up -d app-blue   # Start blue
+#   docker compose up -d app-green  # Start green
+#   docker compose down             # Stop all
 # =============================================================================
 
+# Shared configuration for both blue and green
+x-app-common: &app-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      NEXT_PUBLIC_APP_URL: https://kakamalem.com
+      NEXT_PUBLIC_SITE_URL: https://kakamalem.com
+      NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
+      NEXT_PUBLIC_UPLOADS_URL: /uploads
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  restart: unless-stopped
+  network_mode: host
+  env_file:
+    - .env
+  volumes:
+    - /var/www/kakamalem-uploads:/var/www/kakamalem-uploads:rw
+    - /tmp/kakamalem-uploads:/tmp/kakamalem-uploads:rw
+  deploy:
+    resources:
+      limits:
+        cpus: "3.0"
+        memory: 10G
+      reservations:
+        cpus: "1.0"
+        memory: 2G
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "50m"
+      max-file: "5"
+
 services:
-  app:
-    # Build locally on VPS (NEXT_PUBLIC_* and auth vars must be set at build time)
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_APP_URL: https://kakamalem.com
-        NEXT_PUBLIC_SITE_URL: https://kakamalem.com
-        NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
-        NEXT_PUBLIC_UPLOADS_URL: /uploads
-        # Read from .env file for build-time access (Better Auth needs this during Next.js build)
-        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-    container_name: kakamalem-app
-    restart: unless-stopped
-
-    # Use host network mode - container shares host's network stack
-    # This allows direct access to localhost services (PostgreSQL, PgBouncer)
-    network_mode: host
-
-    # Environment variables (runtime)
-    env_file:
-      - .env
-
+  # =========================================================================
+  # Blue instance (port 3000)
+  # =========================================================================
+  app-blue:
+    <<: *app-common
+    container_name: kakamalem-blue
     environment:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
-      # Optimize Node.js for available memory (8GB allocated)
       - NODE_OPTIONS=--max-old-space-size=6144
-      # With host network mode, localhost works directly
-      # DATABASE_URL and DATABASE_URL_UNPOOLED come from .env file (using localhost)
-
-    # Mount volumes
-    # Map host uploads dir to same path inside container (matches STORAGE_PATH env var)
-    volumes:
-      - /var/www/kakamalem-uploads:/var/www/kakamalem-uploads:rw
-      - /tmp/kakamalem-uploads:/tmp/kakamalem-uploads:rw
-
-    # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
@@ -58,34 +67,23 @@ services:
       retries: 3
       start_period: 40s
 
-    # ==========================================================================
-    # Resource allocation for 16GB RAM / 4 CPU VPS
-    # ==========================================================================
-    # System breakdown:
-    #   - PostgreSQL (native): ~2GB
-    #   - PgBouncer (native):  ~50MB
-    #   - Nginx (native):      ~50MB
-    #   - OS/system:           ~1GB
-    #   - Docker overhead:     ~500MB
-    #   - Available for app:   ~12GB
-    # ==========================================================================
-    deploy:
-      resources:
-        limits:
-          cpus: "3.0"      # Use 3 of 4 cores (leave 1 for DB/system)
-          memory: 10G      # Hard limit - container killed if exceeded
-        reservations:
-          cpus: "1.0"      # Guaranteed minimum
-          memory: 2G       # Guaranteed minimum
-
-    # Logging - more retention for production debugging
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "5"
-
-    # Note: extra_hosts not needed with network_mode: host
+  # =========================================================================
+  # Green instance (port 3001)
+  # =========================================================================
+  app-green:
+    <<: *app-common
+    container_name: kakamalem-green
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - HOSTNAME=0.0.0.0
+      - NODE_OPTIONS=--max-old-space-size=6144
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 # =============================================================================
 # Notes:
