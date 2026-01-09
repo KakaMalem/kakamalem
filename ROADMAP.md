@@ -520,74 +520,273 @@ Your current cart implementation is **already well-architected**. The Gemini sug
 
 ---
 
-## Phase 3.5: Dual-Context Auth System
+## Phase 3.5: Hybrid Auth System (Store-Aware Authentication)
 
-The platform needs to support two distinct user contexts sharing the same Supabase Auth:
+A unified authentication system where one account works everywhere, with context-aware redirects based on WHERE the user logs in.
 
 ### Architecture Overview
 
-1. **Platform Users (Store Owners/Staff)**
+**Core Principle:** Single Better Auth account, context-aware experience.
 
-   - Sign up at `/signup` to create and manage stores
-   - Access `/dashboard` for store management
-   - Stored in `profiles` table with roles (admin, owner, staff)
-   - Can be members of multiple stores via `tenant_members`
+```
+User Account (Better Auth)
+    │
+    ├── As Store Owner/Staff → /dashboard/[slug]
+    │   └── Via tenant_members table
+    │
+    └── As Customer → /store/[slug]/*
+        ├── Orders reference user.id directly
+        ├── Addresses stored in user_addresses (platform-wide)
+        └── Store-specific metadata in store_customers (optional)
+```
 
-2. **Store Customers (Shoppers)**
-   - Sign up/login on individual store pages (`/store/[slug]/login`)
-   - Browse, add to cart, checkout on that store
-   - Stored in `customers` table (tenant-scoped)
-   - Access order history, saved addresses, wishlists per store
+**Route Architecture (Hybrid Approach):**
 
-### Database Schema
+| Route                       | Purpose                            | Redirect After Auth          |
+| --------------------------- | ---------------------------------- | ---------------------------- |
+| `/(auth)/login`             | Store owners/staff login           | `/dashboard` or `?redirect=` |
+| `/(auth)/signup`            | New users wanting to create stores | `/dashboard/new`             |
+| `/store/[slug]/auth/login`  | Customers shopping at a store      | Back to store or checkout    |
+| `/store/[slug]/auth/signup` | New customers (store-branded)      | Back to store                |
 
-- [ ] Create `customers` table (tenant-scoped)
-  - `id`, `tenant_id`, `user_id` (nullable for guest checkout)
-  - `email`, `name`, `phone`
-  - `default_shipping_address` (jsonb), `default_billing_address` (jsonb)
-  - `marketing_consent`, `created_at`, `updated_at`
-- [ ] Create `customer_addresses` table (multiple saved addresses per customer)
-- [ ] Create `wishlists` and `wishlist_items` tables
-- [ ] Add RLS policies for customer data isolation
+**Why This Works:**
 
-### Storefront Customer Auth
+- Same Better Auth backend for all routes
+- OAuth callbacks use `state` parameter to know where user came from
+- Session is shared across all routes (same domain)
+- Store-branded pages give immersive experience without extra complexity
 
-- [ ] `/store/[slug]/login` - Customer login page
-- [ ] `/store/[slug]/register` - Customer registration page
-- [ ] `/store/[slug]/forgot-password` - Password reset for customers
-- [ ] Store-specific auth redirects (customers stay on store after login)
-- [ ] Cart merge on customer login (guest cart → customer cart)
+### Database Schema (Already Complete!)
 
-### Customer Account Pages
+The schema already supports this architecture:
 
-- [ ] `/store/[slug]/account` - Customer account dashboard
-- [ ] `/store/[slug]/account/orders` - Order history
-- [ ] `/store/[slug]/account/orders/[orderId]` - Order detail with tracking
-- [ ] `/store/[slug]/account/addresses` - Saved addresses management
-- [ ] `/store/[slug]/account/wishlist` - Wishlist page
-- [ ] `/store/[slug]/account/settings` - Profile settings (name, email, password)
+- [x] `user` - Better Auth user table (centralized auth)
+- [x] `user_profiles` - Extended profile (platform role, preferences)
+- [x] `user_addresses` - Platform-wide saved addresses (work at ANY store)
+- [x] `store_customers` - Tenant-scoped metadata (NOT for auth)
+  - Created lazily on: first order, marketing opt-in, or staff tagging
+  - Stores: marketing consent, internal notes, tags, order stats
+- [x] `wishlists` / `wishlist_items` - Already exist, tenant-scoped
+- [x] RLS policies for tenant isolation
 
-### Checkout Enhancements
+**No new tables needed!** The existing schema is designed for this.
 
-- [ ] Guest checkout flow (no account required)
-- [ ] Optional account creation post-checkout
-- [ ] Save address to account option
-- [ ] Logged-in customer: pre-fill from saved addresses
-- [ ] Order placed → customer record created if guest with email
+### Phase 3.5.1: Store Auth Routes
 
-### Store Header Updates
+**Route Group Structure (for layout separation):**
 
-- [ ] Show customer name/avatar when logged in as customer
-- [ ] Show "My Account" dropdown for logged-in customers
-- [ ] Differentiate UI when store owner is viewing their own store
-- [ ] "Owner View" indicator/badge for store owners browsing their store
+```
+app/store/[slug]/
+├── (storefront)/     <- Full store layout (nav + footer)
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── account/
+│   ├── cart/
+│   └── product/
+└── (auth)/           <- Minimal auth layout (no nav/footer)
+    ├── layout.tsx
+    └── auth/
+        ├── login/
+        ├── signup/
+        └── forgot-password/
+```
 
-### Auth Redirects & Context
+#### Store Login Page - `/store/[slug]/auth/login`
 
-- [ ] Platform auth (`/login`, `/signup`) → `/dashboard`
-- [ ] Store auth (`/store/[slug]/login`) → back to store (or checkout if from cart)
-- [ ] Detect context: is user a customer of this store? an owner? both?
-- [ ] Session context helper functions
+- [x] Create `app/store/[slug]/auth/login/page.tsx`
+- [x] Store-branded login form component
+  - [x] Show store logo and name
+  - [x] Email/password login
+  - [x] OAuth buttons (Google, Facebook)
+  - [x] "Create account" link → store signup
+  - [x] "Forgot password" link → store password reset
+- [x] Handle `?redirect=` param (e.g., from checkout)
+- [x] After login → redirect to store (or checkout if redirected from there)
+
+#### Store Signup Page - `/store/[slug]/auth/signup`
+
+- [x] Create `app/store/[slug]/auth/signup/page.tsx`
+- [x] Store-branded signup form
+  - [x] Name, email, password fields
+  - [x] OAuth signup options
+  - [x] "Already have an account?" → store login
+- [x] After signup → redirect to store
+- Note: Marketing consent removed - `store_customers` created lazily on first order
+
+#### Store Password Reset - `/store/[slug]/auth/forgot-password`
+
+- [x] Create `app/store/[slug]/auth/forgot-password/page.tsx`
+- [x] Store-branded password reset form
+- [x] Shares same Better Auth reset flow, just different UI
+
+#### Store Auth Layout
+
+- [x] Create `app/store/[slug]/(auth)/layout.tsx` (route group for minimal layout)
+  - [x] Minimal centered auth card layout (no nav/footer)
+  - [x] Store validation and redirect if already logged in
+  - [ ] Store theme colors applied (future enhancement)
+
+### Development Auth Configuration
+
+- [x] Email verification disabled in development (`requireEmailVerification: process.env.NODE_ENV === "production"`)
+- [x] Verification emails logged to console in dev mode
+- [x] Auto sign-in after registration in development
+
+### Phase 3.5.2: OAuth Callback Handling
+
+Better Auth OAuth uses `callbackURL` parameter for redirects after provider auth.
+
+- [x] OAuth buttons pass callbackURL for store-specific redirects
+- [ ] Advanced: Encode return context in OAuth state parameter (optional enhancement)
+- [x] Handle edge cases:
+  - [x] User clicks OAuth on store → redirects to store (via callbackURL)
+  - [x] User clicks OAuth on main site → redirects to dashboard
+  - [x] Default behavior works via callbackURL param
+
+### Phase 3.5.3: Auth Context Helpers
+
+Server-side utilities for detecting user context.
+
+- [x] Create `lib/auth/context.ts`:
+  - [x] `getUserStoreContext(tenantId)` - Get user's relationship to a store
+  - [x] `canManageStore(tenantId)` - Check if user can manage store
+  - [x] `hasMinimumRole(tenantId, role)` - Check role hierarchy
+  - [x] `getUserDefaultAddress()` - Get default shipping address
+  - [x] `getUserAddresses()` - Get all saved addresses
+  - [x] `buildStoreAuthRedirect()` - Build redirect URLs
+  - [x] `parseRedirectParam()` - Safely parse redirect params
+
+### Phase 3.5.4: Store Header Auth State
+
+Update store header to show auth-aware UI.
+
+- [x] Update `components/store/store-header.tsx`:
+  - [x] Show "Login" / "Sign Up" buttons when logged out (store-specific links)
+  - [x] Show user avatar dropdown when logged in:
+    - [x] "My Account" → `/store/[slug]/account`
+    - [x] "My Orders" → `/store/[slug]/account/orders`
+    - [x] "Wishlist" → `/store/[slug]/account/wishlist`
+    - [x] "Logout"
+  - [x] Show "Owner Badge" if user owns this store (links to dashboard)
+  - [x] Show "Staff Badge" if user is staff (links to dashboard)
+
+### Phase 3.5.5: Customer Account Pages
+
+Account pages for customers viewing their data at a specific store.
+
+#### Account Dashboard - `/store/[slug]/account`
+
+- [x] Create `app/store/[slug]/account/page.tsx`
+- [x] Quick links: orders, addresses, wishlist, settings (with counts)
+- [x] Recent orders summary (last 3 orders)
+- [ ] Account completion prompt (add phone, etc.) - future enhancement
+
+#### Account Layout
+
+- [x] Create `app/store/[slug]/account/layout.tsx`
+- [x] Sidebar navigation (orders, addresses, wishlist, settings)
+- [x] Protected route (redirect to login if not authenticated)
+
+#### Order History - `/store/[slug]/account/orders`
+
+- [x] Create `app/store/[slug]/account/orders/page.tsx`
+- [x] List orders placed at THIS store (filtered by tenant)
+- [x] Order card: date, status, total, item count
+- [x] Pagination
+
+#### Order Detail - `/store/[slug]/account/orders/[orderId]`
+
+- [x] Create `app/store/[slug]/account/orders/[orderId]/page.tsx`
+- [x] Order summary (items, quantities, prices)
+- [x] Shipping address
+- [x] Order status with badge
+- [x] Tracking info (if shipped)
+- [x] "Need help?" link
+
+#### Saved Addresses - `/store/[slug]/account/addresses`
+
+- [x] Create `app/store/[slug]/account/addresses/page.tsx`
+- [x] List addresses from `user_addresses` (platform-wide)
+- [x] Add new address form (dialog-based)
+- [x] Edit/delete existing addresses
+- [x] Set default address
+- [x] Info note: "Addresses are saved to your account and work at any store"
+
+#### Wishlist - `/store/[slug]/account/wishlist`
+
+- [x] Create `app/store/[slug]/account/wishlist/page.tsx`
+- [x] List wishlisted products for THIS store (with images and prices)
+- [x] Remove from wishlist
+- [x] View product button (links to product page)
+- [ ] "Notify when back in stock" (future enhancement)
+
+#### Account Settings - `/store/[slug]/account/settings`
+
+- [x] Create `app/store/[slug]/account/settings/page.tsx`
+- [x] Update name
+- [x] Change password
+- [x] Delete account (with confirmation)
+- [ ] Update email (with verification) - future enhancement
+- [ ] Marketing preferences for THIS store - future enhancement
+
+### Phase 3.5.6: Cart & Auth Integration
+
+- [ ] Cart merge on login (guest cart → user cart)
+  - Already have `mergeGuestCartToCustomer` action
+  - Wire it up in login success flow
+- [ ] "Login to save your cart" prompt for guests with items
+- [ ] Cart persists across store visits (same user)
+
+### Phase 3.5.7: Platform Auth Updates
+
+Update main auth pages to redirect dashboard-bound users.
+
+- [ ] Update `/(auth)/login`:
+  - [ ] After login → `/dashboard` (or `?redirect=` param)
+  - [ ] Add "Shopping? Login at the store instead" hint
+- [ ] Update `/(auth)/signup`:
+  - [ ] After signup → `/dashboard/new` (create first store)
+  - [ ] Add "Want to shop? No account needed for checkout"
+
+### Phase 3.5.8: Store Customer Record Management
+
+Handle `store_customers` record lifecycle (lazy creation on first order).
+
+- [ ] Create `store_customers` record on:
+  - [ ] First order at store (automatic) - primary trigger
+  - [ ] Store owner/staff manually adds customer
+- [ ] Update order stats after order completion:
+  - [ ] Increment `total_orders`
+  - [ ] Add to `total_spent`
+  - [ ] Update `last_order_at`
+- [ ] Server action: `upsertStoreCustomer(tenantId, userId, data)`
+
+### Implementation Priority
+
+1. **High Priority (Auth Flow)**
+
+   - Store login/signup pages
+   - OAuth callback handling
+   - Auth context helpers
+   - Header auth state
+
+2. **Medium Priority (Account)**
+
+   - Account dashboard
+   - Order history
+   - Saved addresses
+
+3. **Lower Priority (Enhanced Features)**
+   - Wishlist page
+   - Account settings
+   - Store customer stats
+
+### Performance Notes
+
+- **No extra database calls** for basic auth - Better Auth handles it
+- **Lazy loading** of store_customers record - only created when needed
+- **Platform-wide addresses** means no duplication per store
+- **Single session** works everywhere - no multi-auth complexity
 
 ---
 

@@ -487,16 +487,21 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                 <Label
                   htmlFor="logo_only"
                   className={cn(
-                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors",
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
+                    !logo && "opacity-50 cursor-not-allowed",
+                    logo && "cursor-pointer",
                     formData.headerDisplay === "logo_only"
                       ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
+                      : logo
+                        ? "border-muted hover:border-muted-foreground/50"
+                        : "border-muted"
                   )}
                 >
                   <RadioGroupItem
                     value="logo_only"
                     id="logo_only"
                     className="sr-only"
+                    disabled={!logo}
                   />
                   <div className="h-8 flex items-center">
                     <div className="w-8 h-8 rounded bg-muted" />
@@ -509,16 +514,21 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                 <Label
                   htmlFor="logo_and_name"
                   className={cn(
-                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors",
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
+                    !logo && "opacity-50 cursor-not-allowed",
+                    logo && "cursor-pointer",
                     formData.headerDisplay === "logo_and_name"
                       ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
+                      : logo
+                        ? "border-muted hover:border-muted-foreground/50"
+                        : "border-muted"
                   )}
                 >
                   <RadioGroupItem
                     value="logo_and_name"
                     id="logo_and_name"
                     className="sr-only"
+                    disabled={!logo}
                   />
                   <div className="h-8 flex items-center gap-2">
                     <div className="w-6 h-6 rounded bg-muted" />
@@ -528,7 +538,9 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                 </Label>
               </RadioGroup>
               <FieldDescription className="mt-2">
-                How your store name and logo appear in the header
+                {logo
+                  ? "How your store name and logo appear in the header"
+                  : "Upload a logo to enable logo display options"}
               </FieldDescription>
             </Field>
           </div>

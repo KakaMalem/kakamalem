@@ -19,7 +19,6 @@ interface HealthStatus {
 }
 
 export async function GET(): Promise<NextResponse<HealthStatus>> {
-  const startTime = Date.now();
   const status: HealthStatus = {
     status: "healthy",
     timestamp: new Date().toISOString(),

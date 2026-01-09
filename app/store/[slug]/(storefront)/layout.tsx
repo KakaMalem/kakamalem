@@ -8,6 +8,7 @@ import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
 import { getOrCreateCart } from "@/lib/db/queries/carts";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
 import { getUser } from "@/lib/auth/server";
+import { getUserStoreContext } from "@/lib/auth/context";
 import { StoreHeaderWrapper } from "@/components/store/store-header-wrapper";
 import { StoreCategoriesBar } from "@/components/store/store-categories-bar";
 import { StoreFooter } from "@/components/store/store-footer";
@@ -108,6 +109,9 @@ export default async function StoreLayout({
     getCartSessionIdOrNull(),
   ]);
 
+  // Get user's relationship to this store (owner/staff/customer)
+  const userContext = user ? await getUserStoreContext(store.id) : null;
+
   // Get cart data from database (only if session exists, otherwise empty cart)
   const cart = sessionId
     ? await getOrCreateCart(store.id, sessionId, user?.id)
@@ -137,6 +141,16 @@ export default async function StoreLayout({
                   name: user.name,
                   email: user.email,
                   avatarUrl: user.image || undefined,
+                }
+              : null
+          }
+          userContext={
+            userContext
+              ? {
+                  isOwner: userContext.isOwner,
+                  isStaff: userContext.isStaff,
+                  isMember: userContext.isMember,
+                  role: userContext.role,
                 }
               : null
           }

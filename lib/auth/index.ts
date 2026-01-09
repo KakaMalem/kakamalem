@@ -12,7 +12,7 @@ import {
 // =============================================================================
 // BETTER AUTH CONFIGURATION
 // =============================================================================
-// Replaces Supabase Auth with self-hosted authentication
+// Self-hosted authentication
 // Universal identity system for all portals (seller, affiliate, delivery)
 // =============================================================================
 
@@ -46,8 +46,8 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     // Require email verification before allowing login
-    // Temporarily disabled to debug login redirect loop
-    requireEmailVerification: true,
+    // Disabled in development for easier testing
+    requireEmailVerification: process.env.NODE_ENV === "production",
     // Password requirements
     minPasswordLength: 8,
     // Password reset email
@@ -116,7 +116,8 @@ export const auth = betterAuth({
   // EMAIL CONFIGURATION
   // ==========================================================================
   emailVerification: {
-    sendOnSignUp: true,
+    // Only send verification emails in production
+    sendOnSignUp: process.env.NODE_ENV === "production",
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({
       user,
@@ -125,6 +126,11 @@ export const auth = betterAuth({
       user: { email: string; name: string | null };
       url: string;
     }) => {
+      // Skip sending in development
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[DEV] Verification email for ${user.email}: ${url}`);
+        return;
+      }
       await sendEmail({
         to: user.email,
         subject: "Verify your Kaka Malem account",

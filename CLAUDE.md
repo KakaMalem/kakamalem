@@ -83,6 +83,7 @@ cd /var/www/kakamalem
 ### Blue-Green Deployment
 
 The deployment uses blue-green strategy for zero downtime:
+
 - Two containers: `kakamalem-blue` (port 3000) and `kakamalem-green` (port 3001)
 - Nginx upstream switches between them during deployment
 - New container starts and passes health check before traffic switches
@@ -92,13 +93,13 @@ The deployment uses blue-green strategy for zero downtime:
 
 The production setup uses a hybrid approach for optimal performance:
 
-| Component | Where | Why |
-|-----------|-------|-----|
-| Next.js App | Docker | Portable, reproducible, easy rollback |
-| PostgreSQL 18 | Native | Performance, tuned configs in `database/` |
-| PgBouncer | Native | Minimal overhead, connection pooling |
-| Nginx | Native | SSL termination, static files faster |
-| File Storage | Bind mount | Docker accesses native filesystem |
+| Component     | Where      | Why                                       |
+| ------------- | ---------- | ----------------------------------------- |
+| Next.js App   | Docker     | Portable, reproducible, easy rollback     |
+| PostgreSQL 18 | Native     | Performance, tuned configs in `database/` |
+| PgBouncer     | Native     | Minimal overhead, connection pooling      |
+| Nginx         | Native     | SSL termination, static files faster      |
+| File Storage  | Bind mount | Docker accesses native filesystem         |
 
 ### Docker Deployment
 
@@ -153,6 +154,7 @@ scripts/
 ### Health Check Endpoint
 
 `GET /api/health` returns:
+
 ```json
 {
   "status": "healthy",

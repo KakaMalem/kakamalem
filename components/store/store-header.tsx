@@ -9,12 +9,17 @@ import {
   LogOut,
   LayoutDashboard,
   User,
+  Heart,
+  Package,
+  Crown,
+  Shield,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/ui/logo";
+import { Badge } from "@/components/ui/badge";
 import { CartBadge, useHydratedCartCount } from "@/components/store/cart-badge";
 import { cartActions } from "@/lib/stores/use-cart-store";
 import {
@@ -28,17 +33,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { signOut } from "@/lib/auth/actions";
 
 import type { Tenant } from "@/lib/db/schema";
+import type { StoreRole } from "@/lib/auth/context";
 
 interface StoreHeaderProps {
   store: Tenant;
   cartItemCount?: number;
   user?: { name?: string; email?: string; avatarUrl?: string } | null;
+  userContext?: {
+    isOwner: boolean;
+    isStaff: boolean;
+    isMember: boolean;
+    role: StoreRole;
+  } | null;
 }
 
 export function StoreHeader({
   store,
   cartItemCount = 0,
   user,
+  userContext,
 }: StoreHeaderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,12 +64,17 @@ export function StoreHeader({
   const storeUrl = `/store/${store.slug}`;
 
   // Determine what to show in the header based on headerDisplay setting
+  // Only show logo if the setting enables it AND a logo URL exists
+  const hasLogo = Boolean(store.logoUrl);
   const showLogo =
-    store.headerDisplay === "logo_only" ||
-    store.headerDisplay === "logo_and_name";
+    hasLogo &&
+    (store.headerDisplay === "logo_only" ||
+      store.headerDisplay === "logo_and_name");
+  // Show name if setting enables it, OR if logo_only is set but no logo exists (fallback)
   const showName =
     store.headerDisplay === "name_only" ||
-    store.headerDisplay === "logo_and_name";
+    store.headerDisplay === "logo_and_name" ||
+    (store.headerDisplay === "logo_only" && !hasLogo);
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {
@@ -156,6 +174,20 @@ export function StoreHeader({
               <CartBadge initialCount={cartItemCount} />
             </Button>
 
+            {/* Owner/Staff Badge - Desktop */}
+            {userContext?.isOwner && (
+              <Badge variant="secondary" className="gap-1">
+                <Crown className="size-3" />
+                Owner
+              </Badge>
+            )}
+            {userContext?.isStaff && !userContext?.isOwner && (
+              <Badge variant="outline" className="gap-1">
+                <Shield className="size-3" />
+                {userContext.role === "admin" ? "Admin" : "Staff"}
+              </Badge>
+            )}
+
             {/* Auth - Desktop */}
             {user ? (
               <DropdownMenu>
@@ -187,12 +219,37 @@ export function StoreHeader({
                     </p>
                   </div>
                   <DropdownMenuSeparator />
+                  {/* Customer Account Links */}
                   <DropdownMenuItem asChild>
-                    <Link href="/dashboard">
-                      <LayoutDashboard className="mr-2 size-4" />
-                      Dashboard
+                    <Link href={`${storeUrl}/account`}>
+                      <User className="mr-2 size-4" />
+                      My Account
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={`${storeUrl}/account/orders`}>
+                      <Package className="mr-2 size-4" />
+                      My Orders
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={`${storeUrl}/account/wishlist`}>
+                      <Heart className="mr-2 size-4" />
+                      Wishlist
+                    </Link>
+                  </DropdownMenuItem>
+                  {/* Owner/Staff Dashboard Link */}
+                  {userContext?.isMember && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/${store.slug}`}>
+                          <LayoutDashboard className="mr-2 size-4" />
+                          Store Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={handleSignOut}
@@ -206,10 +263,10 @@ export function StoreHeader({
             ) : (
               <>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/login">Sign in</Link>
+                  <Link href={`${storeUrl}/auth/login`}>Sign in</Link>
                 </Button>
                 <Button size="sm" asChild>
-                  <Link href="/signup">Register</Link>
+                  <Link href={`${storeUrl}/auth/signup`}>Register</Link>
                 </Button>
               </>
             )}
@@ -288,20 +345,65 @@ export function StoreHeader({
                   {user ? (
                     <>
                       <div className="px-2 py-1.5">
-                        <p className="text-sm font-medium">
-                          {user.name || "User"}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">
+                            {user.name || "User"}
+                          </p>
+                          {userContext?.isOwner && (
+                            <Badge
+                              variant="secondary"
+                              className="h-5 gap-0.5 text-[10px] px-1.5"
+                            >
+                              <Crown className="size-2.5" />
+                              Owner
+                            </Badge>
+                          )}
+                          {userContext?.isStaff && !userContext?.isOwner && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 gap-0.5 text-[10px] px-1.5"
+                            >
+                              <Shield className="size-2.5" />
+                              {userContext.role === "admin" ? "Admin" : "Staff"}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {user.email}
                         </p>
                       </div>
                       <DropdownMenuSeparator />
+                      {/* Customer Account Links */}
                       <DropdownMenuItem asChild>
-                        <Link href="/dashboard">
-                          <LayoutDashboard className="mr-2 size-4" />
-                          Dashboard
+                        <Link href={`${storeUrl}/account`}>
+                          <User className="mr-2 size-4" />
+                          My Account
                         </Link>
                       </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`${storeUrl}/account/orders`}>
+                          <Package className="mr-2 size-4" />
+                          My Orders
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`${storeUrl}/account/wishlist`}>
+                          <Heart className="mr-2 size-4" />
+                          Wishlist
+                        </Link>
+                      </DropdownMenuItem>
+                      {/* Owner/Staff Dashboard Link */}
+                      {userContext?.isMember && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/${store.slug}`}>
+                              <LayoutDashboard className="mr-2 size-4" />
+                              Store Dashboard
+                            </Link>
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={handleSignOut}
@@ -319,10 +421,12 @@ export function StoreHeader({
                       </p>
                       <div className="flex flex-col gap-2">
                         <Button asChild className="w-full">
-                          <Link href="/login">Sign in</Link>
+                          <Link href={`${storeUrl}/auth/login`}>Sign in</Link>
                         </Button>
                         <Button variant="outline" asChild className="w-full">
-                          <Link href="/signup">Create account</Link>
+                          <Link href={`${storeUrl}/auth/signup`}>
+                            Create account
+                          </Link>
                         </Button>
                       </div>
                     </div>
