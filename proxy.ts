@@ -1,14 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
 // =============================================================================
 // PROXY (Next.js 16)
 // =============================================================================
 // Handles route protection and redirects
 // Replaces middleware.ts - runs on Node.js runtime
-// Better Auth handles session validation via API routes
+// Uses full session validation with database checks
 // =============================================================================
 
-export default function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // -------------------------------------------------------------------------
@@ -34,11 +36,12 @@ export default function proxy(request: NextRequest) {
   }
 
   // -------------------------------------------------------------------------
-  // SESSION CHECK
+  // SESSION CHECK (Full validation with database)
   // -------------------------------------------------------------------------
-  // Check for session cookie (Better Auth sets this)
-  const sessionCookie = request.cookies.get("kaka_malem.session_token");
-  const hasSession = !!sessionCookie?.value;
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  const hasSession = !!session;
 
   // -------------------------------------------------------------------------
   // PROTECTED ROUTES
