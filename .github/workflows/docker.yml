@@ -83,6 +83,7 @@ jobs:
             NEXT_PUBLIC_SITE_URL=https://kakamalem.com
             NEXT_PUBLIC_APP_DOMAIN=kakamalem.com
             NEXT_PUBLIC_UPLOADS_URL=/uploads
+            BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Output image info
         run: |

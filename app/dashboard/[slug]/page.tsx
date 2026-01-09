@@ -129,11 +129,11 @@ export default async function StoreDashboardPage({ params }: StorePageProps) {
             storeSlug={slug}
           />
 
-          {/* Commission Status (SaaS Layer) */}
+          {/* Billing Status (SaaS Layer) */}
           <div className="rounded-lg border bg-linear-to-br from-primary/5 to-primary/10 p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
               <CreditCard className="size-4" />
-              Commission Status
+              Billing Status
             </div>
             <div className="mt-2">
               <p className="text-2xl font-bold">Free Tier</p>
