@@ -115,6 +115,7 @@ jobs:
             git reset --hard origin/main
 
             echo "🚀 Running zero-downtime deployment..."
+            chmod +x ./scripts/docker-deploy.sh
             ./scripts/docker-deploy.sh --build
 
             echo "✅ Deployment successful!"
