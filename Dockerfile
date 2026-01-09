@@ -33,20 +33,21 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build arguments for environment variables needed at build time
+# Build arguments for public environment variables (these are safe to expose)
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_APP_DOMAIN
 ARG NEXT_PUBLIC_UPLOADS_URL
-ARG BETTER_AUTH_SECRET
 
 # Set environment for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-ENV BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
 # Build the application
-RUN pnpm build
+# BETTER_AUTH_SECRET is passed via --mount=type=secret to avoid baking into image layers
+RUN --mount=type=secret,id=BETTER_AUTH_SECRET \
+    BETTER_AUTH_SECRET=$(cat /run/secrets/BETTER_AUTH_SECRET) \
+    pnpm build
 
 # -----------------------------------------------------------------------------
 # Stage 3: Runner (Production)

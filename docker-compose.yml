@@ -26,7 +26,8 @@ x-app-common: &app-common
       NEXT_PUBLIC_SITE_URL: https://kakamalem.com
       NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
       NEXT_PUBLIC_UPLOADS_URL: /uploads
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+    secrets:
+      - BETTER_AUTH_SECRET
   restart: unless-stopped
   network_mode: host
   env_file:
@@ -84,6 +85,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+# =============================================================================
+# Secrets (for build-time sensitive data)
+# =============================================================================
+secrets:
+  BETTER_AUTH_SECRET:
+    environment: BETTER_AUTH_SECRET
 
 # =============================================================================
 # Notes:
