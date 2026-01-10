@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { slugifyAscii } from "@/lib/utils/slug";
 
 // Slug validation pattern: lowercase letters, numbers, and hyphens only
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -188,13 +189,11 @@ export const seoSettingsSchema = z.object({
 
 export type SeoSettingsInput = z.infer<typeof seoSettingsSchema>;
 
-// Helper function to generate slug from name
+/**
+ * Generate ASCII-only slug from store name
+ * Store slugs must be ASCII for clean URLs (kakamalem.com/store/[slug])
+ * Returns empty string if name has no ASCII characters - user must provide custom slug
+ */
 export function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "") // Remove special characters
-    .replace(/\s+/g, "-") // Replace spaces with hyphens
-    .replace(/-+/g, "-") // Replace multiple hyphens with single
-    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+  return slugifyAscii(name);
 }

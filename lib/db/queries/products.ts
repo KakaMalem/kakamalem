@@ -108,7 +108,8 @@ export async function getProducts(
 
     orderBy = sort.direction === "asc" ? asc(column) : desc(column);
   } else {
-    orderBy = desc(products.createdAt);
+    // Default sort by displayOrder (for drag-and-drop reordering)
+    orderBy = asc(products.displayOrder);
   }
 
   // Get products with category and first image
@@ -124,6 +125,7 @@ export async function getProducts(
       trackInventory: products.trackInventory,
       allowBackorder: products.allowBackorder,
       lowStockThreshold: products.lowStockThreshold,
+      showStock: products.showStock,
       weight: products.weight,
       displayOrder: products.displayOrder,
       status: products.status,

@@ -14,6 +14,9 @@ import {
   Pencil,
   Copy,
   Check,
+  CheckSquare,
+  Square,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -53,6 +56,7 @@ import {
   getMediaLibrary,
   createMediaRecord,
 } from "@/lib/actions/media";
+import { MAX_FILES, formatFileSize } from "@/lib/config/file-validation";
 
 interface MediaLibraryProps {
   tenantId: string;
@@ -107,6 +111,78 @@ export function MediaLibrary({
   // Copied URL state
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+
+  // Toggle selection for a single item
+  const toggleSelection = (itemId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  // Select all items on current page
+  const selectAll = () => {
+    setSelectedIds(new Set(items.map((item) => item.id)));
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  };
+
+  // Toggle selection mode
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      clearSelection();
+    } else {
+      setSelectionMode(true);
+    }
+  };
+
+  // Bulk delete selected items
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const idsToDelete = Array.from(selectedIds);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of idsToDelete) {
+      const result = await deleteMedia(tenantId, id);
+      if (result.success) {
+        successCount++;
+        setItems((prev) => prev.filter((item) => item.id !== id));
+      } else {
+        failCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(
+        `${successCount} image${successCount > 1 ? "s" : ""} deleted`
+      );
+    }
+    if (failCount > 0) {
+      toast.error(
+        `${failCount} image${
+          failCount > 1 ? "s" : ""
+        } could not be deleted (may be in use)`
+      );
+    }
+
+    clearSelection();
+    startTransition(() => router.refresh());
+  };
+
   const loadMedia = async (pageNum: number, searchTerm: string) => {
     setIsLoading(true);
     try {
@@ -142,6 +218,8 @@ export function MediaLibrary({
           fileName: file.filename,
           fileSize: file.size,
           mimeType: file.mimeType,
+          width: file.width,
+          height: file.height,
         });
 
         if (result.success && result.data) {
@@ -156,6 +234,8 @@ export function MediaLibrary({
               altText: null,
               fileSize: file.size,
               mimeType: file.mimeType,
+              width: file.width ?? null,
+              height: file.height ?? null,
               createdAt: new Date().toISOString(),
             },
             ...prev,
@@ -228,26 +308,77 @@ export function MediaLibrary({
 
   return (
     <div className="space-y-6">
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          placeholder="Search images..."
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search and Selection Controls */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            placeholder="Search images..."
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button
+          variant={selectionMode ? "secondary" : "outline"}
+          size="sm"
+          onClick={toggleSelectionMode}
+          className="cursor-pointer"
+        >
+          {selectionMode ? (
+            <>
+              <X className="size-4 mr-1" />
+              Cancel
+            </>
+          ) : (
+            <>
+              <CheckSquare className="size-4 mr-1" />
+              Select
+            </>
+          )}
+        </Button>
       </div>
+
+      {/* Selection Actions Bar */}
+      {selectionMode && (
+        <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={selectAll}
+            className="cursor-pointer"
+          >
+            Select All
+          </Button>
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.size} selected
+              </span>
+              <div className="flex-1" />
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                className="cursor-pointer"
+              >
+                <Trash2 className="size-4 mr-1" />
+                Delete Selected
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Upload Zone */}
       <Dropzone
         tenantId={tenantId}
         folder="media"
         onUploadComplete={handleUploadComplete}
-        maxFiles={10}
+        maxFiles={MAX_FILES.mediaLibrary}
       />
 
-      {/* Media Grid */}
+      {/* Media List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-8 animate-spin text-muted-foreground" />
@@ -270,35 +401,72 @@ export function MediaLibrary({
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+            className="space-y-2"
           >
             <AnimatePresence>
-              {items.map((item) => (
-                <motion.div
-                  key={item.id}
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  layout
-                  className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
-                >
-                  <Image
-                    src={item.url}
-                    alt={item.altText || item.fileName || "Image"}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
-                  />
+              {items.map((item) => {
+                const isSelected = selectedIds.has(item.id);
+                return (
+                  <motion.div
+                    key={item.id}
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    layout
+                    className={`group flex items-center gap-3 p-2 rounded-lg border ${
+                      isSelected ? "bg-primary/10 border-primary" : "bg-muted"
+                    }`}
+                    onClick={
+                      selectionMode ? () => toggleSelection(item.id) : undefined
+                    }
+                    style={selectionMode ? { cursor: "pointer" } : undefined}
+                  >
+                    {/* Selection Checkbox - only visible in selection mode */}
+                    {selectionMode && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelection(item.id);
+                        }}
+                        className="shrink-0 cursor-pointer"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="size-5 text-primary" />
+                        ) : (
+                          <Square className="size-5 text-muted-foreground hover:text-foreground transition-colors" />
+                        )}
+                      </button>
+                    )}
 
-                  {/* Overlay with actions */}
-                  <div className="absolute inset-0 flex items-start justify-end bg-linear-to-b from-black/50 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="relative size-16 rounded overflow-hidden shrink-0 border">
+                      <Image
+                        src={item.url}
+                        alt={item.altText || item.fileName || "Image"}
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
+                        {item.fileName || "Untitled"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(item.fileSize || 0)}
+                        {item.width &&
+                          item.height &&
+                          ` • ${item.width}×${item.height}`}
+                        {item.altText && ` • ${item.altText}`}
+                      </p>
+                    </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
-                          variant="secondary"
+                          variant="ghost"
                           size="icon-sm"
-                          className="size-7"
+                          className="cursor-pointer"
                         >
                           <MoreVertical className="size-4" />
                         </Button>
@@ -325,16 +493,9 @@ export function MediaLibrary({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
-
-                  {/* File name tooltip */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
-                    <p className="truncate text-xs text-white">
-                      {item.fileName || "Untitled"}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </motion.div>
 

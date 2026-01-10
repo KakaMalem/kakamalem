@@ -45,7 +45,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
+import {
+  UnifiedMediaSelector,
+  type MediaSelection,
+} from "@/components/dashboard/media/unified-media-selector";
 
 import type { VariantOptionWithValues } from "@/lib/db/queries/variants";
 import type {
@@ -275,7 +278,6 @@ function VariantFormFields({
           open={mediaSelectorOpen}
           onOpenChange={setMediaSelectorOpen}
           multiple
-          showReorderSection
           selectedIds={formData.images.map((img) => img.mediaId)}
           onSelect={(selectedMedia) => {
             // Replace all images with the new selection

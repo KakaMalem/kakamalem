@@ -71,6 +71,26 @@ export const MAX_SIZES = {
   default: 5 * 1024 * 1024, // 5MB fallback
 } as const;
 
+/** Max files per upload by context */
+export const MAX_FILES = {
+  mediaLibrary: 75, // Bulk uploads on media page
+  productImages: 10, // Product form image uploads
+  mediaSelector: 10, // Media selector in dialogs
+  default: 10,
+} as const;
+
+/** User-friendly error messages */
+export const UPLOAD_ERROR_MESSAGES = {
+  fileTooLarge: (limit: string) => `File is too large. Maximum size is ${limit}`,
+  tooManyFiles: (max: number) =>
+    `Too many files selected. Maximum ${max} files allowed at once`,
+  invalidType: "Invalid file type. Only images are allowed (JPG, PNG, WebP, GIF, AVIF)",
+  networkError:
+    "Connection failed. Please check your internet connection and try again",
+  serverError: "Upload failed due to a server error. Please try again",
+  unknownError: "Something went wrong. Please try again",
+} as const;
+
 export type FolderType = keyof typeof MAX_SIZES;
 
 // =============================================================================

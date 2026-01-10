@@ -72,13 +72,18 @@ export function SettingsNav() {
           key={item.href}
           href={item.href}
           className={cn(
-            "flex flex-col rounded-md px-3 py-2 text-sm transition-colors",
-            isActive(item.href)
-              ? "bg-muted font-medium"
-              : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+            "flex flex-col rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted/50",
+            isActive(item.href) && "bg-muted"
           )}
         >
-          <span>{item.title}</span>
+          <span
+            className={cn(
+              "font-medium",
+              !isActive(item.href) && "text-foreground/80"
+            )}
+          >
+            {item.title}
+          </span>
           <span className="text-xs text-muted-foreground font-normal">
             {item.description}
           </span>
@@ -123,7 +128,7 @@ export function SettingsNavTabs() {
             "shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
             isActive(item.href)
               ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+              : "border-transparent text-foreground/80 hover:text-foreground hover:border-muted-foreground/30"
           )}
         >
           {item.title}

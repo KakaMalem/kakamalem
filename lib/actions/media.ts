@@ -129,6 +129,8 @@ export async function createMediaRecord(
     fileSize: number;
     mimeType: string;
     altText?: string;
+    width?: number;
+    height?: number;
   }
 ): Promise<ActionResult<{ id: string; url: string; fileName: string }>> {
   try {
@@ -147,6 +149,8 @@ export async function createMediaRecord(
         fileSize: data.fileSize,
         mimeType: data.mimeType,
         altText: data.altText,
+        width: data.width,
+        height: data.height,
       })
       .returning({ id: media.id, url: media.url, fileName: media.fileName });
 

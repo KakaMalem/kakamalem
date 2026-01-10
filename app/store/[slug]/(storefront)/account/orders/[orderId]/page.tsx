@@ -166,12 +166,12 @@ export default async function OrderDetailPage({
         </CardContent>
       </Card>
 
-      {/* Shipping Information */}
+      {/* Delivery Location */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <MapPin className="size-5" />
-            Shipping Address
+            Delivery Location
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -179,17 +179,26 @@ export default async function OrderDetailPage({
             <p className="font-medium">
               {shippingAddress.firstName} {shippingAddress.lastName}
             </p>
-            <p className="text-muted-foreground">{shippingAddress.street1}</p>
-            {shippingAddress.street2 && (
-              <p className="text-muted-foreground">{shippingAddress.street2}</p>
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <MapPin className="size-3" />
+              <span>
+                {shippingAddress.latitude.toFixed(6)},{" "}
+                {shippingAddress.longitude.toFixed(6)}
+              </span>
+            </div>
+            <a
+              href={`https://www.google.com/maps?q=${shippingAddress.latitude},${shippingAddress.longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              View on Google Maps
+            </a>
+            {shippingAddress.notes && (
+              <p className="text-muted-foreground mt-2">
+                {shippingAddress.notes}
+              </p>
             )}
-            <p className="text-muted-foreground">
-              {shippingAddress.city}, {shippingAddress.state}{" "}
-              {shippingAddress.postalCode}
-            </p>
-            <p className="text-muted-foreground">
-              {shippingAddress.countryCode}
-            </p>
             {shippingAddress.phone && (
               <p className="text-muted-foreground mt-2">
                 Phone: {shippingAddress.phone}

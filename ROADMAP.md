@@ -504,12 +504,22 @@ Your current cart implementation is **already well-architected**. The Gemini sug
 
 ### Checkout
 
-- [ ] Customer info form
-- [ ] Shipping address
-- [ ] Shipping method selection (based on zone)
-- [ ] Order summary
-- [ ] Place order (create order, reduce stock)
-- [ ] Order confirmation page
+- [x] Customer info form (guest checkout support)
+- [x] Shipping address (select saved or enter new)
+- [x] Shipping method selection (zone-based matching)
+- [x] Order summary (sidebar with cart items and totals)
+- [x] Place order (atomic transaction, stock reduction, inventory movements)
+- [x] Order confirmation page (success page with order details)
+
+**Checkout Implementation Details:**
+
+- Single-page multi-step checkout (3 steps: Contact/Shipping, Delivery Method, Review)
+- Guest checkout support (no account required)
+- Zone-based shipping with priority matching (postal codes > cities > states > countries)
+- 5 rate types: flat, per_item, weight_based, weight_tiered, price_based
+- Atomic order creation with transaction rollback
+- Store customer record created on first order (lazy creation)
+- Zustand store for checkout state (sessionStorage persistence)
 
 ### Reviews
 

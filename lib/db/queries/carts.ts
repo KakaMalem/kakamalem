@@ -8,6 +8,13 @@ import { eq, and, isNull, sql } from "drizzle-orm";
 // TYPES
 // ============================================================================
 
+export type CartPriceTier = {
+  id: string;
+  minQuantity: number;
+  maxQuantity: number | null;
+  price: string;
+};
+
 export type CartItemWithProduct = {
   id: string;
   productId: string;
@@ -27,6 +34,7 @@ export type CartItemWithProduct = {
       url: string;
       altText: string | null;
     } | null;
+    priceTiers: CartPriceTier[];
   };
   variant: {
     id: string;
@@ -116,6 +124,9 @@ async function findCart(
                   orderBy: (pi, { asc }) => [asc(pi.position)],
                   limit: 1,
                 },
+                priceTiers: {
+                  orderBy: (pt, { asc }) => [asc(pt.minQuantity)],
+                },
               },
             },
             variant: true,
@@ -141,6 +152,9 @@ async function findCart(
                 with: { media: true },
                 orderBy: (pi, { asc }) => [asc(pi.position)],
                 limit: 1,
+              },
+              priceTiers: {
+                orderBy: (pt, { asc }) => [asc(pt.minQuantity)],
               },
             },
           },
@@ -185,6 +199,12 @@ function transformCartData(rawCart: {
           altText: string | null;
         };
       }>;
+      priceTiers: Array<{
+        id: string;
+        minQuantity: number;
+        maxQuantity: number | null;
+        price: string;
+      }>;
     };
     variant: {
       id: string;
@@ -225,6 +245,12 @@ function transformCartData(rawCart: {
                 altText: item.product.images[0].media.altText,
               }
             : null,
+          priceTiers: item.product.priceTiers.map((tier) => ({
+            id: tier.id,
+            minQuantity: tier.minQuantity,
+            maxQuantity: tier.maxQuantity,
+            price: tier.price,
+          })),
         },
         variant: item.variant
           ? {
@@ -254,6 +280,30 @@ export async function getCartItemCount(
 }
 
 /**
+ * Get applicable tier price for a given quantity
+ */
+function getApplicableTierPrice(
+  basePrice: number,
+  quantity: number,
+  priceTiers: CartPriceTier[]
+): number {
+  if (priceTiers.length === 0) return basePrice;
+
+  // Sort by minQuantity descending to find the highest applicable tier
+  const sortedTiers = [...priceTiers].sort((a, b) => b.minQuantity - a.minQuantity);
+
+  for (const tier of sortedTiers) {
+    if (quantity >= tier.minQuantity) {
+      if (tier.maxQuantity === null || quantity <= tier.maxQuantity) {
+        return parseFloat(tier.price);
+      }
+    }
+  }
+
+  return basePrice;
+}
+
+/**
  * Get cart summary (item count and subtotal)
  */
 export async function getCartSummary(
@@ -269,10 +319,16 @@ export async function getCartSummary(
 
   for (const item of cart.items) {
     itemCount += item.quantity;
-    const price = item.variant?.price
+    const basePrice = item.variant?.price
       ? parseFloat(item.variant.price)
       : parseFloat(item.product.price);
-    subtotal += price * item.quantity;
+    // Apply tier pricing if available
+    const effectivePrice = getApplicableTierPrice(
+      basePrice,
+      item.quantity,
+      item.product.priceTiers
+    );
+    subtotal += effectivePrice * item.quantity;
   }
 
   return { itemCount, subtotal };

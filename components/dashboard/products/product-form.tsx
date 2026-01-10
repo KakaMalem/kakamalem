@@ -3,22 +3,22 @@
 import {
   useState,
   useTransition,
-  useRef,
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
+import { Reorder, useDragControls } from "framer-motion";
 import {
   Upload,
   X,
-  GripVertical,
+  Trash2,
   Loader2,
   ImageIcon,
-  ChevronLeft,
-  ChevronRight,
+  GripVertical,
   Plus,
   Check,
 } from "lucide-react";
@@ -62,8 +62,23 @@ import {
   type ExistingOption,
 } from "@/components/dashboard/products/variant-options-builder";
 import { VariantMatrixTable } from "@/components/dashboard/products/variant-matrix-table";
+import {
+  PriceTiersEditor,
+  type PriceTierInput,
+} from "@/components/dashboard/products/price-tiers-editor";
+import {
+  GroupPricingEditor,
+  type GroupPriceInput,
+} from "@/components/dashboard/products/group-pricing-editor";
 
-import type { Category, Product, Media } from "@/lib/db/schema";
+import type {
+  Category,
+  Product,
+  Media,
+  PriceTier,
+  CustomerGroup,
+  CustomerGroupPrice,
+} from "@/lib/db/schema";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
 import type {
   InlineOption,
@@ -77,12 +92,20 @@ import {
   createProductVariantsInBulk,
   updateProductVariantsInBulk,
 } from "@/lib/actions/variants";
+import { savePriceTiers } from "@/lib/actions/price-tiers";
+import { saveGroupPrices } from "@/lib/actions/group-pricing";
 import { cn } from "@/lib/utils";
 import {
   generateVariantCombinations,
   generateSku,
   validateVariantCount,
 } from "@/lib/variants/cartesian";
+import {
+  MAX_FILES,
+  MAX_SIZES,
+  formatFileSize,
+  UPLOAD_ERROR_MESSAGES,
+} from "@/lib/config/file-validation";
 
 interface ProductFormProps {
   tenantId: string;
@@ -99,6 +122,12 @@ interface ProductFormProps {
   initialVariantOptions?: InlineOption[];
   /** Initial variants if editing a product with variants */
   initialVariants?: GeneratedVariant[];
+  /** Initial price tiers if editing a product */
+  initialPriceTiers?: PriceTier[];
+  /** Customer groups for group pricing */
+  customerGroups?: CustomerGroup[];
+  /** Initial group prices if editing a product */
+  initialGroupPrices?: CustomerGroupPrice[];
 }
 
 type FormErrors = Partial<Record<keyof ProductInput, string>>;
@@ -110,7 +139,81 @@ type ImageItem = {
   altText?: string | null;
   file?: File; // Only for staged uploads
   isStaged?: boolean; // True for new uploads not yet saved
+  fileSize?: number; // File size in bytes
+  fileName?: string; // File name
+  width?: number; // Image width in pixels
+  height?: number; // Image height in pixels
 };
+
+// Draggable image item component
+function DraggableImageItem({
+  image,
+  index,
+  onRemove,
+}: {
+  image: ImageItem;
+  index: number;
+  onRemove: (id: string) => void;
+}) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={image}
+      dragListener={false}
+      dragControls={dragControls}
+      className="group flex items-center gap-3 p-2 rounded-lg border bg-muted select-none"
+      style={{ position: "relative" }}
+      whileDrag={{ zIndex: 50 }}
+    >
+      {/* Drag Handle */}
+      <div
+        onPointerDown={(e) => dragControls.start(e)}
+        className="cursor-grab active:cursor-grabbing shrink-0 touch-none p-1 -m-1"
+      >
+        <GripVertical className="size-5 text-muted-foreground" />
+      </div>
+      <div className="relative size-16 rounded overflow-hidden shrink-0 border">
+        <Image
+          src={image.url}
+          alt={image.altText || image.fileName || `Product image ${index + 1}`}
+          fill
+          className="object-cover pointer-events-none"
+          unoptimized={image.isStaged}
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-medium truncate">
+            {image.fileName || `Image ${index + 1}`}
+          </p>
+          {index === 0 && (
+            <span className="inline-block rounded bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground shrink-0">
+              Main
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {image.fileSize ? formatFileSize(image.fileSize) : "Unknown size"}
+          {image.width && image.height
+            ? ` • ${image.width}×${image.height}`
+            : ""}
+        </p>
+      </div>
+      {/* Delete button */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => onRemove(image.id)}
+        title="Remove"
+        className="shrink-0 cursor-pointer"
+      >
+        <Trash2 className="size-4 text-muted-foreground group-hover:text-destructive" />
+      </Button>
+    </Reorder.Item>
+  );
+}
 
 export function ProductForm({
   tenantId,
@@ -121,6 +224,9 @@ export function ProductForm({
   existingVariantOptions = [],
   initialVariantOptions = [],
   initialVariants = [],
+  initialPriceTiers = [],
+  customerGroups = [],
+  initialGroupPrices = [],
 }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -131,21 +237,29 @@ export function ProductForm({
     message: string;
   } | null>(null);
 
-  // Image drag state (mouse)
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-  // Touch drag state
-  const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
-  const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
-  const touchStartX = useRef<number>(0);
-  const imageRefs = useRef<(HTMLDivElement | null)[]>([]);
-
   // Form state
   const [name, setName] = useState(product?.name || "");
   const [description, setDescription] = useState(product?.description || "");
   // Note: slug is now auto-generated on the backend, no need to manage it here
   const [price, setPrice] = useState(product?.price || "");
+  const [compareAtPrice, setCompareAtPrice] = useState(
+    (product as unknown as { compareAtPrice?: string })?.compareAtPrice || ""
+  );
+  const [costPrice, setCostPrice] = useState(
+    (product as unknown as { costPrice?: string })?.costPrice || ""
+  );
+  const [minOrderQuantity, setMinOrderQuantity] = useState(
+    String(
+      (product as unknown as { minOrderQuantity?: number })?.minOrderQuantity ??
+        ""
+    )
+  );
+  const [maxOrderQuantity, setMaxOrderQuantity] = useState(
+    String(
+      (product as unknown as { maxOrderQuantity?: number })?.maxOrderQuantity ??
+        ""
+    )
+  );
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set(product?.productCategories?.map((pc) => pc.categoryId) || [])
   );
@@ -179,6 +293,25 @@ export function ProductForm({
   const [showDisableVariantsDialog, setShowDisableVariantsDialog] =
     useState(false);
 
+  // Price tiers state
+  const [priceTiers, setPriceTiers] = useState<PriceTierInput[]>(
+    initialPriceTiers.map((tier) => ({
+      id: tier.id,
+      minQuantity: tier.minQuantity,
+      maxQuantity: tier.maxQuantity,
+      price: tier.price,
+    }))
+  );
+
+  // Group prices state
+  const [groupPrices, setGroupPrices] = useState<GroupPriceInput[]>(
+    initialGroupPrices.map((gp) => ({
+      customerGroupId: gp.customerGroupId,
+      price: gp.price,
+      compareAtPrice: gp.compareAtPrice,
+    }))
+  );
+
   // Category input state
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [categorySearchInput, setCategorySearchInput] = useState("");
@@ -191,6 +324,10 @@ export function ProductForm({
       url: img.media.url,
       altText: img.media.altText,
       isStaged: false,
+      fileSize: img.media.fileSize ?? undefined,
+      fileName: img.media.fileName ?? undefined,
+      width: img.media.width ?? undefined,
+      height: img.media.height ?? undefined,
     })) || []
   );
 
@@ -332,20 +469,57 @@ export function ProductForm({
     );
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Helper to get image dimensions
+  const getImageDimensions = (
+    file: File
+  ): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve) => {
+      const img = document.createElement("img");
+      img.onload = () => {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => {
+        resolve({ width: 0, height: 0 });
+        URL.revokeObjectURL(img.src);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newImages: ImageItem[] = [];
+    const fileArray = Array.from(files);
+    const maxSize = MAX_SIZES.products;
+    const maxFiles = MAX_FILES.productImages;
 
-    for (const file of Array.from(files)) {
-      // Validate file
+    // Check max files limit
+    if (fileArray.length > maxFiles) {
+      toast.error(UPLOAD_ERROR_MESSAGES.tooManyFiles(maxFiles));
+      e.target.value = "";
+      return;
+    }
+
+    const newImages: ImageItem[] = [];
+    let hasErrors = false;
+
+    for (const file of fileArray) {
+      // Validate file type
       if (!file.type.startsWith("image/")) {
-        toast.error(`${file.name} is not an image`);
+        toast.error(`${file.name}: ${UPLOAD_ERROR_MESSAGES.invalidType}`);
+        hasErrors = true;
         continue;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} is too large (max 5MB)`);
+      // Validate file size
+      if (file.size > maxSize) {
+        toast.error(
+          `${file.name}: ${UPLOAD_ERROR_MESSAGES.fileTooLarge(
+            formatFileSize(maxSize)
+          )}`
+        );
+        hasErrors = true;
         continue;
       }
 
@@ -355,11 +529,18 @@ export function ProductForm({
         .substring(2, 11)}`;
       const previewUrl = URL.createObjectURL(file);
 
+      // Get image dimensions
+      const dimensions = await getImageDimensions(file);
+
       newImages.push({
         id: tempId,
         url: previewUrl,
         file,
         isStaged: true,
+        fileSize: file.size,
+        fileName: file.name,
+        width: dimensions.width,
+        height: dimensions.height,
       });
     }
 
@@ -368,6 +549,8 @@ export function ProductForm({
       toast.success(
         `${newImages.length} image${newImages.length > 1 ? "s" : ""} added`
       );
+    } else if (hasErrors) {
+      // All files had errors, no success message needed
     }
 
     // Reset input
@@ -418,72 +601,6 @@ export function ProductForm({
         `${newImages.length} image${newImages.length !== 1 ? "s" : ""} added`
       );
     }
-  };
-
-  const moveImage = (fromIndex: number, toIndex: number) => {
-    if (toIndex < 0 || toIndex >= images.length) return;
-    const newImages = [...images];
-    const [removed] = newImages.splice(fromIndex, 1);
-    newImages.splice(toIndex, 0, removed);
-    setImages(newImages);
-  };
-
-  // Mouse drag handlers for images
-  const handleImageDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleImageDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
-
-  const handleImageDragEnd = () => {
-    if (draggedIndex !== null && dragOverIndex !== null) {
-      moveImage(draggedIndex, dragOverIndex);
-    }
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  // Touch drag handlers for images
-  const handleImageTouchStart = (e: React.TouchEvent, index: number) => {
-    const target = e.target as HTMLElement;
-    if (!target.closest("[data-image-drag-handle]")) return;
-
-    e.preventDefault();
-    setTouchDragIndex(index);
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleImageTouchMove = (e: React.TouchEvent) => {
-    if (touchDragIndex === null) return;
-
-    const touchX = e.touches[0].clientX;
-
-    // Find which image we're over
-    for (let i = 0; i < imageRefs.current.length; i++) {
-      const ref = imageRefs.current[i];
-      if (ref) {
-        const rect = ref.getBoundingClientRect();
-        if (touchX >= rect.left && touchX <= rect.right) {
-          if (i !== touchDragIndex) {
-            setTouchOverIndex(i);
-          }
-          break;
-        }
-      }
-    }
-  };
-
-  const handleImageTouchEnd = () => {
-    if (touchDragIndex !== null && touchOverIndex !== null) {
-      moveImage(touchDragIndex, touchOverIndex);
-    }
-    setTouchDragIndex(null);
-    setTouchOverIndex(null);
   };
 
   // Handle variant options change - regenerate variants
@@ -675,6 +792,10 @@ export function ProductForm({
       slug: "", // Auto-generated on the backend, empty string for validation
       description,
       price,
+      compareAtPrice,
+      costPrice,
+      minOrderQuantity,
+      maxOrderQuantity,
       // Only include existing (valid UUID) category IDs for initial validation
       // New categories will be created first, then their real IDs will be added
       categoryIds: existingCategoryIds,
@@ -888,6 +1009,74 @@ export function ProductForm({
           }
         }
 
+        // Save price tiers if any exist
+        if (productId && priceTiers.length > 0) {
+          setUploadProgress({
+            stage: "saving",
+            message: "Saving price tiers...",
+          });
+
+          const priceTiersResult = await savePriceTiers(
+            productId,
+            tenantId,
+            priceTiers
+          );
+
+          if (!priceTiersResult.success) {
+            toast.error(
+              priceTiersResult.error?.message || "Failed to save price tiers"
+            );
+            toast.warning(
+              "Product saved, but price tiers may not have been created"
+            );
+          }
+        } else if (productId && priceTiers.length === 0 && product) {
+          // If editing and all tiers were removed, clear them
+          const priceTiersResult = await savePriceTiers(
+            productId,
+            tenantId,
+            []
+          );
+
+          if (!priceTiersResult.success) {
+            toast.warning("Failed to clear price tiers");
+          }
+        }
+
+        // Save group prices if any exist
+        if (productId && groupPrices.length > 0) {
+          setUploadProgress({
+            stage: "saving",
+            message: "Saving group prices...",
+          });
+
+          const groupPricesResult = await saveGroupPrices(
+            productId,
+            tenantId,
+            groupPrices
+          );
+
+          if (!groupPricesResult.success) {
+            toast.error(
+              groupPricesResult.error?.message || "Failed to save group prices"
+            );
+            toast.warning(
+              "Product saved, but group prices may not have been created"
+            );
+          }
+        } else if (productId && groupPrices.length === 0 && product) {
+          // If editing and all group prices were removed, clear them
+          const groupPricesResult = await saveGroupPrices(
+            productId,
+            tenantId,
+            []
+          );
+
+          if (!groupPricesResult.success) {
+            toast.warning("Failed to clear group prices");
+          }
+        }
+
         // Clean up object URLs for staged images on success
         images.forEach((img) => {
           if (img.isStaged && img.url.startsWith("blob:")) {
@@ -985,96 +1174,23 @@ export function ProductForm({
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Image Grid */}
+                {/* Image List */}
                 {images.length > 0 && (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                    {images.map((image, index) => {
-                      const isDragging =
-                        draggedIndex === index || touchDragIndex === index;
-                      const isDragOver =
-                        dragOverIndex === index || touchOverIndex === index;
-
-                      return (
-                        <div
-                          key={image.id}
-                          ref={(el) => {
-                            imageRefs.current[index] = el;
-                          }}
-                          draggable
-                          onDragStart={() => handleImageDragStart(index)}
-                          onDragOver={(e) => handleImageDragOver(e, index)}
-                          onDragEnd={handleImageDragEnd}
-                          onTouchStart={(e) => handleImageTouchStart(e, index)}
-                          onTouchMove={handleImageTouchMove}
-                          onTouchEnd={handleImageTouchEnd}
-                          className={`group relative aspect-square overflow-hidden rounded-lg border bg-muted transition-all ${
-                            isDragging ? "opacity-50 scale-95" : ""
-                          } ${
-                            isDragOver
-                              ? "ring-2 ring-primary ring-offset-2"
-                              : ""
-                          }`}
-                        >
-                          <Image
-                            src={image.url}
-                            alt={image.altText || `Product image ${index + 1}`}
-                            fill
-                            className="object-cover pointer-events-none"
-                            unoptimized={image.isStaged} // Skip optimization for blob URLs
-                          />
-                          {index === 0 && (
-                            <span className="absolute left-2 top-2 rounded bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                              Main
-                            </span>
-                          )}
-                          {/* Drag handle overlay */}
-                          <div
-                            data-image-drag-handle
-                            className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-                          >
-                            <div className="flex flex-col items-center gap-1">
-                              <GripVertical className="size-5 text-white cursor-grab active:cursor-grabbing" />
-                              <span className="text-xs text-white/80">
-                                Drag to reorder
-                              </span>
-                            </div>
-                          </div>
-                          {/* Action buttons */}
-                          <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              onClick={() => moveImage(index, index - 1)}
-                              disabled={index === 0}
-                              title="Move left"
-                            >
-                              <ChevronLeft className="size-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon-sm"
-                              onClick={() => moveImage(index, index + 1)}
-                              disabled={index === images.length - 1}
-                              title="Move right"
-                            >
-                              <ChevronRight className="size-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="icon-sm"
-                              onClick={() => removeImage(image.id)}
-                              title="Remove"
-                            >
-                              <X className="size-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <Reorder.Group
+                    axis="y"
+                    values={images}
+                    onReorder={setImages}
+                    className="space-y-2"
+                  >
+                    {images.map((image, index) => (
+                      <DraggableImageItem
+                        key={image.id}
+                        image={image}
+                        index={index}
+                        onRemove={removeImage}
+                      />
+                    ))}
+                  </Reorder.Group>
                 )}
 
                 {/* Image Actions */}
@@ -1204,6 +1320,117 @@ export function ProductForm({
                   <p className="text-sm text-destructive">{errors.price}</p>
                 )}
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="compareAtPrice">
+                  Compare-at Price ({currency})
+                </Label>
+                <Input
+                  id="compareAtPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={compareAtPrice}
+                  onChange={(e) => setCompareAtPrice(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0.00"
+                  aria-invalid={!!errors.compareAtPrice}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Original price shown with strikethrough
+                </p>
+                {errors.compareAtPrice && (
+                  <p className="text-sm text-destructive">
+                    {errors.compareAtPrice}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="costPrice">Cost Price ({currency})</Label>
+                <Input
+                  id="costPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0.00"
+                  aria-invalid={!!errors.costPrice}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Your cost for profit tracking (not shown to customers)
+                </p>
+                {errors.costPrice && (
+                  <p className="text-sm text-destructive">{errors.costPrice}</p>
+                )}
+              </div>
+
+              {/* Profit Margin Display */}
+              {price &&
+                costPrice &&
+                parseFloat(price) > 0 &&
+                parseFloat(costPrice) > 0 && (
+                  <div className="rounded-md bg-muted/50 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Profit Margin
+                      </span>
+                      <span className="font-medium">
+                        {Math.round(
+                          ((parseFloat(price) - parseFloat(costPrice)) /
+                            parseFloat(price)) *
+                            100
+                        )}
+                        %
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span className="text-muted-foreground">
+                        Profit per Unit
+                      </span>
+                      <span className="font-medium">
+                        {currency}{" "}
+                        {(parseFloat(price) - parseFloat(costPrice)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="minOrderQuantity">Min Qty</Label>
+                  <Input
+                    id="minOrderQuantity"
+                    type="number"
+                    min="1"
+                    value={minOrderQuantity}
+                    onChange={(e) => setMinOrderQuantity(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxOrderQuantity">Max Qty</Label>
+                  <Input
+                    id="maxOrderQuantity"
+                    type="number"
+                    min="1"
+                    value={maxOrderQuantity}
+                    onChange={(e) => setMaxOrderQuantity(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="No limit"
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Order quantity limits per customer
+              </p>
+
+              <Separator />
 
               <div className="space-y-2">
                 <Label htmlFor="categories">Categories</Label>
@@ -1356,6 +1583,25 @@ export function ProductForm({
               </div>
             </CardContent>
           </Card>
+
+          {/* Bulk Pricing (Price Tiers) */}
+          <PriceTiersEditor
+            tiers={priceTiers}
+            onChange={setPriceTiers}
+            basePrice={price}
+            currency={currency}
+            disabled={isPending}
+          />
+
+          {/* Group Pricing */}
+          <GroupPricingEditor
+            customerGroups={customerGroups}
+            prices={groupPrices}
+            onChange={setGroupPrices}
+            basePrice={price}
+            currency={currency}
+            disabled={isPending}
+          />
 
           {/* Inventory */}
           <Card>
@@ -1610,7 +1856,6 @@ export function ProductForm({
         onOpenChange={setMediaSelectorOpen}
         onSelect={(media) => handleMediaSelect(media as MediaSelection[])}
         multiple
-        showReorderSection
         selectedIds={images.filter((img) => !img.isStaged).map((img) => img.id)}
         title="Select Product Images"
       />

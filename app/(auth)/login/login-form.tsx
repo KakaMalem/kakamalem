@@ -6,6 +6,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
@@ -126,10 +127,9 @@ export function LoginForm() {
 
           <Field>
             <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               autoComplete="current-password"
               disabled={isPending}
               placeholder="••••••••"

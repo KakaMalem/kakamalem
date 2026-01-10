@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-// Slug validation pattern: lowercase letters, numbers, and hyphens only
+import { slugify } from "@/lib/utils/slug";
 
 // Product validation schema
 export const productSchema = z.object({
@@ -23,6 +22,38 @@ export const productSchema = z.object({
       (val) => !isNaN(parseFloat(val)) && parseFloat(val) >= 0,
       "Price must be a valid positive number"
     ),
+  compareAtPrice: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+      "Compare-at price must be a valid positive number"
+    )
+    .optional()
+    .or(z.literal("")),
+  costPrice: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+      "Cost price must be a valid positive number"
+    )
+    .optional()
+    .or(z.literal("")),
+  minOrderQuantity: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseInt(val)) && parseInt(val) >= 1),
+      "Minimum order quantity must be at least 1"
+    )
+    .optional()
+    .or(z.literal("")),
+  maxOrderQuantity: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseInt(val)) && parseInt(val) >= 1),
+      "Maximum order quantity must be at least 1"
+    )
+    .optional()
+    .or(z.literal("")),
 
   // Categories (for backward compatibility, keep categoryId but also add categoryIds)
   categoryId: z.string().uuid().optional().or(z.literal("")),
@@ -101,15 +132,9 @@ export const productSchema = z.object({
 
 export type ProductInput = z.infer<typeof productSchema>;
 
-// Helper function to generate slug from name
+// Helper function to generate slug from name (supports Unicode)
 export function generateProductSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "") // Remove special characters
-    .replace(/\s+/g, "-") // Replace spaces with hyphens
-    .replace(/-+/g, "-") // Replace multiple hyphens with single
-    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+  return slugify(name);
 }
 
 // Bulk action schemas

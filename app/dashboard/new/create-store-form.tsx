@@ -46,6 +46,11 @@ import {
 } from "@/lib/actions/stores";
 import { ZodError } from "zod";
 import { toast } from "sonner";
+import {
+  MAX_SIZES,
+  formatFileSize,
+  UPLOAD_ERROR_MESSAGES,
+} from "@/lib/config/file-validation";
 
 // Logo state type - staged file for preview
 type LogoState = {
@@ -153,12 +158,13 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+      toast.error(UPLOAD_ERROR_MESSAGES.invalidType);
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Logo must be less than 2MB");
+    const maxSize = MAX_SIZES.logos;
+    if (file.size > maxSize) {
+      toast.error(UPLOAD_ERROR_MESSAGES.fileTooLarge(formatFileSize(maxSize)));
       return;
     }
 
@@ -177,6 +183,13 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
       URL.revokeObjectURL(logo.url);
     }
     setLogo(null);
+    // Reset to name_only if a logo-dependent option was selected
+    if (
+      formData.headerDisplay === "logo_only" ||
+      formData.headerDisplay === "logo_and_name"
+    ) {
+      setFormData((prev) => ({ ...prev, headerDisplay: "name_only" }));
+    }
   };
 
   const validateStep = (step: number): boolean => {
@@ -252,7 +265,16 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
       const result = await createStoreWithLogo(formData, logo?.file || null);
 
       if (result.error) {
-        if (result.error.field) {
+        // Check for connection/network errors
+        const errorMessage = result.error.message.toLowerCase();
+        if (
+          errorMessage.includes("network") ||
+          errorMessage.includes("fetch") ||
+          errorMessage.includes("connection")
+        ) {
+          toast.error(UPLOAD_ERROR_MESSAGES.networkError);
+          setError(UPLOAD_ERROR_MESSAGES.networkError);
+        } else if (result.error.field) {
           setFieldErrors({ [result.error.field]: result.error.message });
         } else {
           setError(result.error.message);
@@ -325,6 +347,9 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                 id="name"
                 value={formData.name}
                 onChange={(e) => updateField("name", e.target.value)}
+                onInput={(e) =>
+                  updateField("name", (e.target as HTMLInputElement).value)
+                }
                 placeholder="My Awesome Store"
                 disabled={isPending}
                 aria-invalid={!!fieldErrors.name}
@@ -358,8 +383,17 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                 </FieldDescription>
               ) : slugAvailable === false ? (
                 <FieldError>This URL is already taken</FieldError>
-              ) : (
+              ) : formData.name && !formData.slug ? (
+                <FieldDescription className="text-amber-600">
+                  Please enter a custom URL (letters a-z, numbers, and hyphens
+                  only)
+                </FieldDescription>
+              ) : fieldErrors.slug ? (
                 <FieldError>{fieldErrors.slug}</FieldError>
+              ) : (
+                <FieldDescription>
+                  Only lowercase letters (a-z), numbers, and hyphens allowed
+                </FieldDescription>
               )}
             </Field>
 
@@ -488,13 +522,13 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                   htmlFor="logo_only"
                   className={cn(
                     "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
-                    !logo && "opacity-50 cursor-not-allowed",
+                    !logo && "cursor-not-allowed",
                     logo && "cursor-pointer",
                     formData.headerDisplay === "logo_only"
                       ? "border-primary bg-primary/5"
                       : logo
-                        ? "border-muted hover:border-muted-foreground/50"
-                        : "border-muted"
+                      ? "border-muted hover:border-muted-foreground/50"
+                      : "border-muted"
                   )}
                 >
                   <RadioGroupItem
@@ -504,9 +538,25 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                     disabled={!logo}
                   />
                   <div className="h-8 flex items-center">
-                    <div className="w-8 h-8 rounded bg-muted" />
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded bg-muted flex items-center justify-center",
+                        !logo && "opacity-50"
+                      )}
+                    >
+                      <span className="text-sm font-bold text-foreground">
+                        S
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "text-xs",
+                      !logo
+                        ? "text-muted-foreground/50"
+                        : "text-muted-foreground"
+                    )}
+                  >
                     Logo only
                   </span>
                 </Label>
@@ -515,13 +565,13 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                   htmlFor="logo_and_name"
                   className={cn(
                     "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
-                    !logo && "opacity-50 cursor-not-allowed",
+                    !logo && "cursor-not-allowed",
                     logo && "cursor-pointer",
                     formData.headerDisplay === "logo_and_name"
                       ? "border-primary bg-primary/5"
                       : logo
-                        ? "border-muted hover:border-muted-foreground/50"
-                        : "border-muted"
+                      ? "border-muted hover:border-muted-foreground/50"
+                      : "border-muted"
                   )}
                 >
                   <RadioGroupItem
@@ -531,10 +581,35 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                     disabled={!logo}
                   />
                   <div className="h-8 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded bg-muted" />
-                    <span className="font-semibold text-xs">Name</span>
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded bg-muted flex items-center justify-center",
+                        !logo && "opacity-50"
+                      )}
+                    >
+                      <span className="text-xs font-bold text-foreground">
+                        S
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        "font-semibold text-xs",
+                        !logo && "text-foreground/50"
+                      )}
+                    >
+                      Name
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">Both</span>
+                  <span
+                    className={cn(
+                      "text-xs",
+                      !logo
+                        ? "text-muted-foreground/50"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    Both
+                  </span>
                 </Label>
               </RadioGroup>
               <FieldDescription className="mt-2">

@@ -1,17 +1,11 @@
 "use client";
 
-import { useState, useTransition, useRef, useCallback } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  GripVertical,
-  Pencil,
-  Trash2,
-  FolderTree,
-  Package,
-  Loader2,
-} from "lucide-react";
+import { Reorder } from "framer-motion";
+import { Pencil, Trash2, FolderTree, Package, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -49,19 +43,11 @@ export function CategoriesList({
     useState<CategoryWithProductCount | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Drag state (mouse)
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-  // Touch drag state
-  const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
-  const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
-  const touchStartY = useRef<number>(0);
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  // Save reordered categories
-  const saveOrder = useCallback(
+  // Handle reorder from framer-motion
+  const handleReorder = useCallback(
     async (newCategories: CategoryWithProductCount[]) => {
+      setCategories(newCategories);
+
       const result = await reorderCategories(tenantId, {
         categoryIds: newCategories.map((c) => c.id),
       });
@@ -76,75 +62,6 @@ export function CategoriesList({
     },
     [tenantId, initialCategories, router]
   );
-
-  // Mouse drag handlers
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
-
-  const handleDragEnd = async () => {
-    if (draggedIndex !== null && dragOverIndex !== null) {
-      const newCategories = [...categories];
-      const [draggedItem] = newCategories.splice(draggedIndex, 1);
-      newCategories.splice(dragOverIndex, 0, draggedItem);
-      setCategories(newCategories);
-      await saveOrder(newCategories);
-    }
-
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  // Touch drag handlers
-  const handleTouchStart = (e: React.TouchEvent, index: number) => {
-    // Only start drag if touching the grip handle
-    const target = e.target as HTMLElement;
-    if (!target.closest("[data-drag-handle]")) return;
-
-    e.preventDefault();
-    setTouchDragIndex(index);
-    touchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchDragIndex === null) return;
-
-    const touchY = e.touches[0].clientY;
-
-    // Find which item we're over
-    for (let i = 0; i < itemRefs.current.length; i++) {
-      const ref = itemRefs.current[i];
-      if (ref) {
-        const rect = ref.getBoundingClientRect();
-        if (touchY >= rect.top && touchY <= rect.bottom) {
-          if (i !== touchDragIndex) {
-            setTouchOverIndex(i);
-          }
-          break;
-        }
-      }
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    if (touchDragIndex !== null && touchOverIndex !== null) {
-      const newCategories = [...categories];
-      const [draggedItem] = newCategories.splice(touchDragIndex, 1);
-      newCategories.splice(touchOverIndex, 0, draggedItem);
-      setCategories(newCategories);
-      await saveOrder(newCategories);
-    }
-
-    setTouchDragIndex(null);
-    setTouchOverIndex(null);
-  };
 
   const handleDelete = async () => {
     if (!categoryToDelete) return;
@@ -189,42 +106,22 @@ export function CategoriesList({
 
   return (
     <>
-      <div className="space-y-2">
-        {categories.map((category, index) => {
-          const isDragging = draggedIndex === index || touchDragIndex === index;
-          const isDragOver =
-            dragOverIndex === index || touchOverIndex === index;
-
-          return (
-            <Card
-              key={category.id}
-              ref={(el) => {
-                itemRefs.current[index] = el;
-              }}
-              draggable
-              onDragStart={() => handleDragStart(index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={handleDragEnd}
-              onTouchStart={(e) => handleTouchStart(e, index)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              className={`transition-all ${
-                isDragging ? "opacity-50 scale-[1.02] shadow-lg" : ""
-              } ${
-                isDragOver
-                  ? "border-primary ring-2 ring-primary ring-offset-2"
-                  : ""
-              }`}
-            >
+      <Reorder.Group
+        axis="y"
+        values={categories}
+        onReorder={handleReorder}
+        className="space-y-2"
+      >
+        {categories.map((category) => (
+          <Reorder.Item
+            key={category.id}
+            value={category}
+            className="cursor-grab active:cursor-grabbing select-none"
+            style={{ position: "relative" }}
+            whileDrag={{ zIndex: 50 }}
+          >
+            <Card>
               <CardContent className="flex items-center gap-4 p-4">
-                {/* Drag Handle */}
-                <div
-                  data-drag-handle
-                  className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
-                >
-                  <GripVertical className="size-5" />
-                </div>
-
                 {/* Category Image */}
                 <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
                   {category.imageUrl ? (
@@ -232,7 +129,7 @@ export function CategoriesList({
                       src={category.imageUrl}
                       alt={category.name}
                       fill
-                      className="object-cover"
+                      className="object-cover pointer-events-none"
                     />
                   ) : (
                     <div className="flex size-full items-center justify-center">
@@ -273,6 +170,7 @@ export function CategoriesList({
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    className="cursor-pointer"
                     onClick={() => {
                       setCategoryToDelete(category);
                       setDeleteDialogOpen(true);
@@ -285,9 +183,9 @@ export function CategoriesList({
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -16,6 +16,7 @@ interface Product {
   stock: number;
   hasVariants: boolean;
   trackInventory: boolean;
+  showStock: boolean;
   status: "draft" | "active" | "archived";
   image: { url: string; altText: string | null } | null;
   rating?: number;

@@ -3,38 +3,26 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import {
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldDescription,
+} from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  LocationPicker,
+  type LocationData,
+} from "@/components/ui/location-picker";
 import {
   createAddressAction,
   updateAddressAction,
-  addressSchema,
-  type AddressInput,
 } from "@/lib/actions/addresses";
+import { addressSchema, type AddressInput } from "@/lib/validations/addresses";
 import type { UserAddress } from "@/lib/db/queries/addresses";
 import { toast } from "sonner";
-
-// Common countries - Afghanistan first as primary market
-const COUNTRIES = [
-  { code: "AF", name: "Afghanistan" },
-  { code: "PK", name: "Pakistan" },
-  { code: "IR", name: "Iran" },
-  { code: "AE", name: "United Arab Emirates" },
-  { code: "US", name: "United States" },
-  { code: "GB", name: "United Kingdom" },
-  { code: "DE", name: "Germany" },
-  { code: "CA", name: "Canada" },
-  { code: "TR", name: "Turkey" },
-  { code: "IN", name: "India" },
-];
 
 interface AddressFormProps {
   address?: UserAddress;
@@ -59,16 +47,21 @@ export function AddressForm({
     firstName: address?.firstName || "",
     lastName: address?.lastName || "",
     phone: address?.phone || "",
-    street1: address?.street1 || "",
-    street2: address?.street2 || "",
-    city: address?.city || "",
-    state: address?.state || "",
-    postalCode: address?.postalCode || "",
-    countryCode: address?.countryCode || "AF",
+    latitude: address?.latitude ? parseFloat(address.latitude) : 0,
+    longitude: address?.longitude ? parseFloat(address.longitude) : 0,
+    accuracy: address?.accuracy ? parseFloat(address.accuracy) : undefined,
+    source: (address?.source as "gps" | "manual") || undefined,
+    notes: address?.notes || "",
     isDefault: address?.isDefault || false,
   });
 
-  const handleChange = (field: keyof AddressInput, value: string | boolean) => {
+  // Track if location has been set
+  const hasLocation = formData.latitude !== 0 || formData.longitude !== 0;
+
+  const handleChange = (
+    field: keyof AddressInput,
+    value: string | boolean | number
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear field error on change
     if (fieldErrors[field]) {
@@ -76,10 +69,35 @@ export function AddressForm({
     }
   };
 
+  const handleLocationChange = (location: LocationData) => {
+    setFormData((prev) => ({
+      ...prev,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy: location.accuracy,
+      source: location.source,
+    }));
+    // Clear location errors
+    if (fieldErrors.latitude || fieldErrors.longitude) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        latitude: undefined,
+        longitude: undefined,
+      }));
+    }
+  };
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFieldErrors({});
     setIsPending(true);
+
+    // Check if location is set
+    if (!hasLocation) {
+      setFieldErrors({ latitude: "Please select a location on the map" });
+      setIsPending(false);
+      return;
+    }
 
     // Client-side validation
     const validation = addressSchema.safeParse(formData);
@@ -154,9 +172,9 @@ export function AddressForm({
         </Field>
       </div>
 
-      {/* Phone */}
+      {/* Phone (Required) */}
       <Field>
-        <FieldLabel htmlFor="phone">Phone (optional)</FieldLabel>
+        <FieldLabel htmlFor="phone">Phone</FieldLabel>
         <Input
           id="phone"
           type="tel"
@@ -164,96 +182,45 @@ export function AddressForm({
           value={formData.phone}
           onChange={(e) => handleChange("phone", e.target.value)}
           disabled={isPending}
+          aria-invalid={!!fieldErrors.phone}
         />
+        <FieldDescription>Required for delivery coordination</FieldDescription>
         <FieldError>{fieldErrors.phone}</FieldError>
       </Field>
 
-      {/* Street Address */}
+      {/* Location Picker */}
       <Field>
-        <FieldLabel htmlFor="street1">Street address</FieldLabel>
-        <Input
-          id="street1"
-          value={formData.street1}
-          onChange={(e) => handleChange("street1", e.target.value)}
-          disabled={isPending}
-          aria-invalid={!!fieldErrors.street1}
-        />
-        <FieldError>{fieldErrors.street1}</FieldError>
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor="street2">
-          Apartment, suite, etc. (optional)
-        </FieldLabel>
-        <Input
-          id="street2"
-          value={formData.street2}
-          onChange={(e) => handleChange("street2", e.target.value)}
+        <FieldLabel>Delivery Location</FieldLabel>
+        <FieldDescription>
+          Click on the map or use &quot;Use my current location&quot; to set
+          your delivery location
+        </FieldDescription>
+        <LocationPicker
+          value={
+            hasLocation
+              ? { latitude: formData.latitude, longitude: formData.longitude }
+              : null
+          }
+          onChange={handleLocationChange}
+          error={fieldErrors.latitude}
           disabled={isPending}
         />
-        <FieldError>{fieldErrors.street2}</FieldError>
       </Field>
 
-      {/* City & State Row */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor="city">City</FieldLabel>
-          <Input
-            id="city"
-            value={formData.city}
-            onChange={(e) => handleChange("city", e.target.value)}
-            disabled={isPending}
-            aria-invalid={!!fieldErrors.city}
-          />
-          <FieldError>{fieldErrors.city}</FieldError>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="state">State / Province</FieldLabel>
-          <Input
-            id="state"
-            value={formData.state}
-            onChange={(e) => handleChange("state", e.target.value)}
-            disabled={isPending}
-            aria-invalid={!!fieldErrors.state}
-          />
-          <FieldError>{fieldErrors.state}</FieldError>
-        </Field>
-      </div>
-
-      {/* Postal & Country Row */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor="postalCode">Postal code</FieldLabel>
-          <Input
-            id="postalCode"
-            value={formData.postalCode}
-            onChange={(e) => handleChange("postalCode", e.target.value)}
-            disabled={isPending}
-            aria-invalid={!!fieldErrors.postalCode}
-          />
-          <FieldError>{fieldErrors.postalCode}</FieldError>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="countryCode">Country</FieldLabel>
-          <Select
-            value={formData.countryCode}
-            onValueChange={(value) => handleChange("countryCode", value)}
-            disabled={isPending}
-          >
-            <SelectTrigger id="countryCode">
-              <SelectValue placeholder="Select country" />
-            </SelectTrigger>
-            <SelectContent>
-              {COUNTRIES.map((country) => (
-                <SelectItem key={country.code} value={country.code}>
-                  {country.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldError>{fieldErrors.countryCode}</FieldError>
-        </Field>
-      </div>
+      {/* Notes (optional) */}
+      <Field>
+        <FieldLabel htmlFor="notes">Delivery notes (optional)</FieldLabel>
+        <Textarea
+          id="notes"
+          placeholder="Landmarks, directions, building details... e.g., Blue gate, 3rd floor, near Kabul Bank"
+          value={formData.notes}
+          onChange={(e) => handleChange("notes", e.target.value)}
+          disabled={isPending}
+          rows={3}
+          maxLength={500}
+        />
+        <FieldError>{fieldErrors.notes}</FieldError>
+      </Field>
 
       {/* Set as default */}
       <div className="flex items-center space-x-2 pt-2">

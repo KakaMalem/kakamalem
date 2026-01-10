@@ -3,18 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { motion, AnimatePresence, Reorder } from "framer-motion";
-import {
-  Search,
-  Check,
-  Loader2,
-  ImageIcon,
-  X,
-  Grid3x3,
-  List,
-  SortAsc,
-  GripVertical,
-} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Check, Loader2, ImageIcon, SortAsc, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +23,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Dropzone, type UploadedFile } from "@/components/ui/dropzone";
 
@@ -42,7 +31,11 @@ import {
   getMediaLibrary,
   createMediaRecord,
 } from "@/lib/actions/media";
-import { formatFileSize } from "@/lib/config/file-validation";
+import {
+  formatFileSize,
+  MAX_FILES,
+  UPLOAD_ERROR_MESSAGES,
+} from "@/lib/config/file-validation";
 
 // =============================================================================
 // TYPES
@@ -61,10 +54,6 @@ interface UnifiedMediaSelectorBaseProps {
   title?: string;
   /** Maximum number of images that can be selected (only applies to multi-select) */
   maxSelection?: number;
-  /** Show the reorderable selected images section at bottom */
-  showReorderSection?: boolean;
-  /** Show view toggle (grid/list) */
-  showViewToggle?: boolean;
   className?: string;
 }
 
@@ -84,25 +73,11 @@ interface MultiSelectProps extends UnifiedMediaSelectorBaseProps {
 
 export type UnifiedMediaSelectorProps = SingleSelectProps | MultiSelectProps;
 
-type ViewMode = "grid" | "list";
 type SortMode = "newest" | "oldest" | "name" | "size";
 
 // =============================================================================
 // ANIMATION VARIANTS
 // =============================================================================
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.03 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: { opacity: 1, scale: 1 },
-};
 
 const checkVariants = {
   hidden: { scale: 0, opacity: 0 },
@@ -124,8 +99,6 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
     onOpenChange,
     title = "Select Image",
     maxSelection,
-    showReorderSection = true,
-    showViewToggle = true,
     className,
   } = props;
 
@@ -144,7 +117,6 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
   const [hasMore, setHasMore] = useState(false);
   const [selectedMediaIds, setSelectedMediaIds] =
     useState<string[]>(initialSelectedIds);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortMode, setSortMode] = useState<SortMode>("newest");
 
   // Load media from server
@@ -180,7 +152,7 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
         }
         setHasMore(result.pagination.hasNextPage);
       } catch {
-        toast.error("Failed to load media");
+        toast.error(UPLOAD_ERROR_MESSAGES.networkError);
       } finally {
         setIsLoading(false);
       }
@@ -221,6 +193,8 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
           fileName: file.filename,
           fileSize: file.size,
           mimeType: file.mimeType,
+          width: file.width,
+          height: file.height,
         });
         if (result.success && result.data) {
           newItems.push({
@@ -232,6 +206,8 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
             altText: null,
             fileSize: file.size,
             mimeType: file.mimeType,
+            width: file.width ?? null,
+            height: file.height ?? null,
             createdAt: new Date().toISOString(),
           });
         }
@@ -306,48 +282,13 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
     }
   };
 
-  const handleReorder = (newOrder: string[]) => {
-    setSelectedMediaIds(newOrder);
-  };
-
-  const removeFromSelection = (id: string) => {
-    setSelectedMediaIds((prev) => prev.filter((i) => i !== id));
-  };
-
-  const showSelectedSection =
-    multiple && showReorderSection && selectedMediaIds.length > 0;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn("max-w-4xl max-h-[90vh] flex flex-col gap-4", className)}
       >
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>{title}</DialogTitle>
-            {showViewToggle && (
-              <div className="flex items-center gap-1 rounded-md border p-1">
-                <Button
-                  type="button"
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => setViewMode("grid")}
-                >
-                  <Grid3x3 className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => setViewMode("list")}
-                >
-                  <List className="size-4" />
-                </Button>
-              </div>
-            )}
-          </div>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
         {/* Toolbar */}
@@ -418,7 +359,7 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
           tenantId={tenantId}
           folder="media"
           onUploadComplete={handleUploadComplete}
-          maxFiles={multiple ? 10 : 1}
+          maxFiles={multiple ? MAX_FILES.mediaSelector : 1}
           compact={mediaItems.length > 0}
         />
 
@@ -442,86 +383,17 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
             </div>
           ) : (
             <>
-              {viewMode === "grid" ? (
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2"
-                >
+              <div className="space-y-2">
+                <AnimatePresence mode="popLayout">
                   {mediaItems.map((item) => {
                     const isSelected = selectedMediaIds.includes(item.id);
-                    const selectionIndex = selectedMediaIds.indexOf(item.id);
                     return (
                       <motion.button
                         key={item.id}
-                        variants={itemVariants}
-                        type="button"
-                        onClick={() => handleToggleSelection(item.id)}
-                        className={cn(
-                          "relative aspect-square rounded-lg overflow-hidden border-2 transition-all",
-                          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 group",
-                          isSelected
-                            ? "border-primary ring-2 ring-primary ring-offset-2"
-                            : "border-transparent hover:border-muted-foreground/30"
-                        )}
-                      >
-                        <Image
-                          src={item.url}
-                          alt={item.altText || item.fileName || "Image"}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 16vw"
-                        />
-                        <AnimatePresence>
-                          {isSelected && (
-                            <motion.div
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              className="absolute inset-0 bg-primary/20 flex items-center justify-center"
-                            >
-                              <motion.div
-                                variants={checkVariants}
-                                initial="hidden"
-                                animate="visible"
-                                exit="hidden"
-                                className="bg-primary rounded-full p-1.5"
-                              >
-                                {multiple && selectionIndex >= 0 ? (
-                                  <span className="size-5 flex items-center justify-center text-xs font-bold text-primary-foreground">
-                                    {selectionIndex + 1}
-                                  </span>
-                                ) : (
-                                  <Check className="size-5 text-primary-foreground" />
-                                )}
-                              </motion.div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                        <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <p className="text-xs text-white truncate">
-                            {item.fileName}
-                          </p>
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </motion.div>
-              ) : (
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="space-y-2"
-                >
-                  {mediaItems.map((item) => {
-                    const isSelected = selectedMediaIds.includes(item.id);
-                    const selectionIndex = selectedMediaIds.indexOf(item.id);
-                    return (
-                      <motion.button
-                        key={item.id}
-                        variants={itemVariants}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        layout
                         type="button"
                         onClick={() => handleToggleSelection(item.id)}
                         className={cn(
@@ -543,7 +415,11 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                             {item.fileName}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {formatFileSize(item.fileSize || 0)} •{" "}
+                            {formatFileSize(item.fileSize || 0)}
+                            {item.width &&
+                              item.height &&
+                              ` • ${item.width}×${item.height}`}
+                            {" • "}
                             {new Date(item.createdAt).toLocaleDateString()}
                           </p>
                         </div>
@@ -556,21 +432,15 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                               exit="hidden"
                               className="bg-primary rounded-full p-1 shrink-0"
                             >
-                              {multiple && selectionIndex >= 0 ? (
-                                <span className="size-5 flex items-center justify-center text-xs font-bold text-primary-foreground">
-                                  {selectionIndex + 1}
-                                </span>
-                              ) : (
-                                <Check className="size-5 text-primary-foreground" />
-                              )}
+                              <Check className="size-5 text-primary-foreground" />
                             </motion.div>
                           )}
                         </AnimatePresence>
                       </motion.button>
                     );
                   })}
-                </motion.div>
-              )}
+                </AnimatePresence>
+              </div>
 
               {hasMore && (
                 <div className="flex justify-center mt-6 pb-4">
@@ -594,89 +464,6 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
             </>
           )}
         </div>
-
-        {/* Selected Images Section */}
-        <AnimatePresence>
-          {showSelectedSection && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="shrink-0 border-t pt-4"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Selected ({selectedMediaIds.length})
-                  {selectedMediaIds.length > 0 &&
-                    " • Drag to reorder • First image is main"}
-                </p>
-              </div>
-
-              <ScrollArea className="w-full">
-                <Reorder.Group
-                  axis="x"
-                  values={selectedMediaIds}
-                  onReorder={handleReorder}
-                  className="flex gap-2 pb-2"
-                >
-                  {selectedMediaIds.map((id, index) => {
-                    const item = mediaItems.find((m) => m.id === id);
-                    if (!item) return null;
-
-                    return (
-                      <Reorder.Item
-                        key={id}
-                        value={id}
-                        className={cn(
-                          "relative shrink-0 size-20 rounded-lg overflow-hidden border-2 bg-muted cursor-grab active:cursor-grabbing group",
-                          index === 0 && "ring-2 ring-primary"
-                        )}
-                      >
-                        <Image
-                          src={item.url}
-                          alt={item.altText || item.fileName || "Image"}
-                          fill
-                          className="object-cover pointer-events-none"
-                          sizes="80px"
-                        />
-
-                        {/* Main badge */}
-                        {index === 0 && (
-                          <span className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
-                            Main
-                          </span>
-                        )}
-
-                        {/* Position indicator */}
-                        <span className="absolute right-1 top-1 rounded-full bg-black/60 size-5 flex items-center justify-center text-[10px] font-medium text-white">
-                          {index + 1}
-                        </span>
-
-                        {/* Overlay with actions */}
-                        <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <GripVertical className="size-4 text-white" />
-                        </div>
-
-                        {/* Remove button */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeFromSelection(id);
-                          }}
-                          className="absolute -top-1 -right-1 rounded-full bg-destructive p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/80"
-                        >
-                          <X className="size-3 text-white" />
-                        </button>
-                      </Reorder.Item>
-                    );
-                  })}
-                </Reorder.Group>
-                <ScrollBar orientation="horizontal" />
-              </ScrollArea>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Footer */}
         <DialogFooter className="shrink-0 gap-2 sm:gap-2">

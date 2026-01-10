@@ -2,7 +2,13 @@
 
 import { useState, useRef, useCallback, useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Loader2, CheckCircle2, XCircle, FileImage } from "lucide-react";
+import {
+  Upload,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  FileImage,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -11,6 +17,7 @@ import {
   formatFileSize,
   getAcceptString,
   getMaxSize,
+  UPLOAD_ERROR_MESSAGES,
 } from "@/lib/config/file-validation";
 
 // =============================================================================
@@ -87,7 +94,9 @@ export function Dropzone({
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploads, setUploads] = useState<UploadState[]>([]);
 
-  const isUploading = uploads.some((u) => u.status === "uploading" || u.status === "pending");
+  const isUploading = uploads.some(
+    (u) => u.status === "uploading" || u.status === "pending"
+  );
   const effectiveMaxSize = maxSize ?? getMaxSize(folder);
   const effectiveAccept = accept ?? getAcceptString(true);
 
@@ -95,7 +104,8 @@ export function Dropzone({
   const updateUploads = useCallback(
     (newUploads: UploadState[] | ((prev: UploadState[]) => UploadState[])) => {
       setUploads((prev) => {
-        const updated = typeof newUploads === "function" ? newUploads(prev) : newUploads;
+        const updated =
+          typeof newUploads === "function" ? newUploads(prev) : newUploads;
         onUploadProgress?.(updated);
         return updated;
       });
@@ -121,7 +131,9 @@ export function Dropzone({
             const progress = Math.round((e.loaded / e.total) * 100);
             updateUploads((prev) =>
               prev.map((u) =>
-                u.id === uploadState.id ? { ...u, progress, status: "uploading" as const } : u
+                u.id === uploadState.id
+                  ? { ...u, progress, status: "uploading" as const }
+                  : u
               )
             );
           }
@@ -139,37 +151,83 @@ export function Dropzone({
                 updateUploads((prev) =>
                   prev.map((u) =>
                     u.id === uploadState.id
-                      ? { ...u, progress: 100, status: "complete" as const, result: response.file }
+                      ? {
+                          ...u,
+                          progress: 100,
+                          status: "complete" as const,
+                          result: response.file,
+                        }
                       : u
                   )
                 );
                 resolve(response.file);
               } else {
-                const error = response.error || "Upload failed";
+                // Parse specific error from server response
+                let error: string = UPLOAD_ERROR_MESSAGES.unknownError;
+                if (response.error) {
+                  if (
+                    response.error.toLowerCase().includes("too large") ||
+                    response.error.toLowerCase().includes("size")
+                  ) {
+                    error = UPLOAD_ERROR_MESSAGES.fileTooLarge(
+                      formatFileSize(effectiveMaxSize)
+                    );
+                  } else if (
+                    response.error.toLowerCase().includes("type") ||
+                    response.error.toLowerCase().includes("format")
+                  ) {
+                    error = UPLOAD_ERROR_MESSAGES.invalidType;
+                  } else {
+                    error = response.error;
+                  }
+                }
                 updateUploads((prev) =>
                   prev.map((u) =>
-                    u.id === uploadState.id ? { ...u, status: "error" as const, error } : u
+                    u.id === uploadState.id
+                      ? { ...u, status: "error" as const, error }
+                      : u
                   )
                 );
+                toast.error(error);
                 resolve(null);
               }
             } catch {
               updateUploads((prev) =>
                 prev.map((u) =>
                   u.id === uploadState.id
-                    ? { ...u, status: "error" as const, error: "Invalid response" }
+                    ? {
+                        ...u,
+                        status: "error" as const,
+                        error: UPLOAD_ERROR_MESSAGES.serverError,
+                      }
                     : u
                 )
               );
+              toast.error(UPLOAD_ERROR_MESSAGES.serverError);
               resolve(null);
             }
           } else {
-            const error = `Upload failed (${xhr.status})`;
+            // HTTP error status codes
+            let error: string = UPLOAD_ERROR_MESSAGES.serverError;
+            if (xhr.status === 413) {
+              error = UPLOAD_ERROR_MESSAGES.fileTooLarge(
+                formatFileSize(effectiveMaxSize)
+              );
+            } else if (xhr.status === 415) {
+              error = UPLOAD_ERROR_MESSAGES.invalidType;
+            } else if (xhr.status >= 500) {
+              error = UPLOAD_ERROR_MESSAGES.serverError;
+            } else if (xhr.status === 0) {
+              error = UPLOAD_ERROR_MESSAGES.networkError;
+            }
             updateUploads((prev) =>
               prev.map((u) =>
-                u.id === uploadState.id ? { ...u, status: "error" as const, error } : u
+                u.id === uploadState.id
+                  ? { ...u, status: "error" as const, error }
+                  : u
               )
             );
+            toast.error(error);
             resolve(null);
           }
         });
@@ -178,24 +236,60 @@ export function Dropzone({
           updateUploads((prev) =>
             prev.map((u) =>
               u.id === uploadState.id
-                ? { ...u, status: "error" as const, error: "Network error" }
+                ? {
+                    ...u,
+                    status: "error" as const,
+                    error: UPLOAD_ERROR_MESSAGES.networkError,
+                  }
                 : u
             )
           );
+          toast.error(UPLOAD_ERROR_MESSAGES.networkError);
           resolve(null);
         });
 
+        xhr.addEventListener("timeout", () => {
+          updateUploads((prev) =>
+            prev.map((u) =>
+              u.id === uploadState.id
+                ? {
+                    ...u,
+                    status: "error" as const,
+                    error: "Upload timed out. Please try again",
+                  }
+                : u
+            )
+          );
+          toast.error("Upload timed out. Please try again");
+          resolve(null);
+        });
+
+        xhr.timeout = 120000; // 2 minute timeout per file
         xhr.open("POST", "/api/upload");
         xhr.send(formData);
       });
     },
-    [tenantId, folder, convertToWebp, generateThumbnails, updateUploads]
+    [
+      tenantId,
+      folder,
+      convertToWebp,
+      generateThumbnails,
+      updateUploads,
+      effectiveMaxSize,
+    ]
   );
 
   // Process files for upload
   const processFiles = useCallback(
     async (fileList: FileList | File[]) => {
       const files = Array.from(fileList);
+
+      // Check max files limit first with clear error message
+      if (files.length > maxFiles) {
+        toast.error(UPLOAD_ERROR_MESSAGES.tooManyFiles(maxFiles));
+        onUploadError?.(UPLOAD_ERROR_MESSAGES.tooManyFiles(maxFiles));
+        return;
+      }
 
       // Validate files
       const { valid, invalid } = validateFiles(files, {
@@ -205,9 +299,28 @@ export function Dropzone({
         maxFiles,
       });
 
-      // Show errors for invalid files
+      // Show errors for invalid files with better messages
       for (const { file, error } of invalid) {
-        toast.error(`${file.name}: ${error}`);
+        let userFriendlyError = error;
+        if (
+          error.toLowerCase().includes("less than") ||
+          error.toLowerCase().includes("size")
+        ) {
+          userFriendlyError = UPLOAD_ERROR_MESSAGES.fileTooLarge(
+            formatFileSize(effectiveMaxSize)
+          );
+        } else if (
+          error.toLowerCase().includes("type") ||
+          error.toLowerCase().includes("extension")
+        ) {
+          userFriendlyError = UPLOAD_ERROR_MESSAGES.invalidType;
+        } else if (
+          error.toLowerCase().includes("maximum") &&
+          error.toLowerCase().includes("files")
+        ) {
+          userFriendlyError = UPLOAD_ERROR_MESSAGES.tooManyFiles(maxFiles);
+        }
+        toast.error(`${file.name}: ${userFriendlyError}`);
       }
 
       if (valid.length === 0) {
@@ -232,14 +345,18 @@ export function Dropzone({
       for (let i = 0; i < newUploads.length; i += concurrency) {
         const batch = newUploads.slice(i, i + concurrency);
         const batchResults = await Promise.all(batch.map(uploadFile));
-        results.push(...batchResults.filter((r): r is UploadedFile => r !== null));
+        results.push(
+          ...batchResults.filter((r): r is UploadedFile => r !== null)
+        );
       }
 
       // Notify parent of completed uploads
       if (results.length > 0) {
         onUploadComplete?.(results);
         toast.success(
-          results.length === 1 ? "Image uploaded" : `${results.length} images uploaded`
+          results.length === 1
+            ? "Image uploaded"
+            : `${results.length} images uploaded`
         );
       }
 
@@ -248,7 +365,15 @@ export function Dropzone({
         updateUploads((prev) => prev.filter((u) => u.status !== "complete"));
       }, 2000);
     },
-    [folder, effectiveMaxSize, maxFiles, uploadFile, onUploadComplete, onUploadError, updateUploads]
+    [
+      folder,
+      effectiveMaxSize,
+      maxFiles,
+      uploadFile,
+      onUploadComplete,
+      onUploadError,
+      updateUploads,
+    ]
   );
 
   // Drag handlers
@@ -378,8 +503,12 @@ export function Dropzone({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         animate={{
-          borderColor: isDragOver ? "hsl(var(--primary))" : "hsl(var(--border))",
-          backgroundColor: isDragOver ? "hsl(var(--primary) / 0.05)" : "transparent",
+          borderColor: isDragOver
+            ? "hsl(var(--primary))"
+            : "hsl(var(--border))",
+          backgroundColor: isDragOver
+            ? "hsl(var(--primary) / 0.05)"
+            : "transparent",
         }}
         className={cn(
           "flex flex-col items-center justify-center gap-3 p-6",
@@ -435,8 +564,10 @@ export function Dropzone({
                 exit={{ opacity: 0, x: 20 }}
                 className={cn(
                   "flex items-center gap-3 p-2 rounded-lg border bg-background",
-                  upload.status === "error" && "border-destructive/50 bg-destructive/5",
-                  upload.status === "complete" && "border-green-500/50 bg-green-50"
+                  upload.status === "error" &&
+                    "border-destructive/50 bg-destructive/5",
+                  upload.status === "complete" &&
+                    "border-green-500/50 bg-green-50"
                 )}
               >
                 <div className="shrink-0">
@@ -455,7 +586,9 @@ export function Dropzone({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{upload.file.name}</p>
+                  <p className="text-sm font-medium truncate">
+                    {upload.file.name}
+                  </p>
                   {upload.status === "uploading" && (
                     <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                       <motion.div
@@ -467,7 +600,9 @@ export function Dropzone({
                     </div>
                   )}
                   {upload.status === "error" && upload.error && (
-                    <p className="text-xs text-destructive truncate">{upload.error}</p>
+                    <p className="text-xs text-destructive truncate">
+                      {upload.error}
+                    </p>
                   )}
                 </div>
 

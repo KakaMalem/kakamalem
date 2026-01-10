@@ -4,10 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, Plus, Heart, Star } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { formatPrice } from "@/lib/utils";
+import { getDisplayPrices } from "@/lib/utils/pricing-display";
 
 interface ProductCardProps {
   product: {
@@ -19,6 +19,7 @@ interface ProductCardProps {
     stock: number;
     hasVariants: boolean;
     trackInventory: boolean;
+    showStock: boolean;
     status: "draft" | "active" | "archived";
     image: { url: string; altText: string | null } | null;
     rating?: number;
@@ -47,14 +48,10 @@ export function ProductCard({
   const isOutOfStock = product.trackInventory && product.stock <= 0;
   const isLowStock =
     product.trackInventory && product.stock > 0 && product.stock <= 5;
-  const price = parseFloat(product.price);
-  const compareAtPrice = product.compareAtPrice
-    ? parseFloat(product.compareAtPrice)
-    : null;
-  const discount =
-    compareAtPrice && compareAtPrice > price
-      ? Math.round(((compareAtPrice - price) / compareAtPrice) * 100)
-      : 0;
+
+  // Use centralized pricing utility
+  const { price, compareAtPrice, discountPercent, hasDiscount } =
+    getDisplayPrices(product.price, product.compareAtPrice ?? null);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -112,7 +109,7 @@ export function ProductCard({
                 NEW
               </Badge>
             )}
-            {isLowStock && !isOutOfStock && (
+            {product.showStock && isLowStock && !isOutOfStock && (
               <Badge className="bg-amber-500 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
                 Low Stock
               </Badge>
@@ -125,9 +122,9 @@ export function ProductCard({
           </div>
 
           {/* Discount Badge - Top Right */}
-          {discount > 0 && (
+          {hasDiscount && discountPercent && (
             <Badge className="absolute right-1.5 top-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-              -{discount}%
+              -{discountPercent}%
             </Badge>
           )}
 
@@ -163,7 +160,7 @@ export function ProductCard({
           <span className="text-base font-bold text-foreground">
             {formatPrice(price, currency)}
           </span>
-          {compareAtPrice && compareAtPrice > price && (
+          {hasDiscount && compareAtPrice && (
             <span className="text-xs text-muted-foreground line-through">
               {formatPrice(compareAtPrice, currency)}
             </span>
@@ -191,14 +188,17 @@ export function ProductCard({
           </div>
         )}
 
-        {/* Stock Indicator (compact) */}
-        {!isOutOfStock && product.trackInventory && product.stock <= 10 && (
-          <div className="flex items-center mt-1.5">
-            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-              Only {product.stock} left
-            </span>
-          </div>
-        )}
+        {/* Stock Indicator (compact) - only show if showStock is enabled */}
+        {product.showStock &&
+          !isOutOfStock &&
+          product.trackInventory &&
+          product.stock <= 10 && (
+            <div className="flex items-center mt-1.5">
+              <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                Only {product.stock} left
+              </span>
+            </div>
+          )}
 
         {/* Spacer to push button to bottom */}
         <div className="flex-1 min-h-1" />

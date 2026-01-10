@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProductBySlugWithDetails } from "@/lib/db/queries/products";
 import { getProductReviewStats } from "@/lib/db/queries/reviews";
+import { getProductPriceTiers } from "@/lib/db/queries/pricing";
 import { ProductPageContent } from "@/components/store/product-page-content";
 import { ProductReviews } from "@/components/store/product-reviews";
 
@@ -15,10 +16,16 @@ export async function generateMetadata({
   params,
 }: ProductPageProps): Promise<Metadata> {
   const { slug, productSlug } = await params;
+  // Decode URL-encoded slugs (handles Persian/Unicode characters)
+  const decodedProductSlug = decodeURIComponent(productSlug);
+
   const store = await getTenantBySlug(slug);
   if (!store) return { title: "Product Not Found" };
 
-  const product = await getProductBySlugWithDetails(store.id, productSlug);
+  const product = await getProductBySlugWithDetails(
+    store.id,
+    decodedProductSlug
+  );
   if (!product) return { title: "Product Not Found" };
 
   const primaryImage = product.images?.[0]?.media?.url;
@@ -37,17 +44,25 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug, productSlug } = await params;
+  // Decode URL-encoded slugs (handles Persian/Unicode characters)
+  const decodedProductSlug = decodeURIComponent(productSlug);
 
   const store = await getTenantBySlug(slug);
   if (!store) return null;
 
-  const product = await getProductBySlugWithDetails(store.id, productSlug);
+  const product = await getProductBySlugWithDetails(
+    store.id,
+    decodedProductSlug
+  );
   if (!product || product.status !== "active") {
     notFound();
   }
 
-  // Fetch review statistics
-  const reviewStats = await getProductReviewStats(store.id, product.id);
+  // Fetch review statistics and price tiers in parallel
+  const [reviewStats, priceTiers] = await Promise.all([
+    getProductReviewStats(store.id, product.id),
+    getProductPriceTiers(product.id),
+  ]);
 
   // Build breadcrumbs
   const breadcrumbs = [
@@ -75,6 +90,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             currency={store.currency}
             breadcrumbs={breadcrumbs}
             reviewStats={reviewStats}
+            priceTiers={priceTiers}
           />
         </div>
 

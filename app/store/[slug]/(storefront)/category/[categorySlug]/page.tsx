@@ -17,10 +17,16 @@ export async function generateMetadata({
   params,
 }: CategoryPageProps): Promise<Metadata> {
   const { slug, categorySlug } = await params;
+  // Decode URL-encoded slugs (handles Persian/Unicode characters)
+  const decodedCategorySlug = decodeURIComponent(categorySlug);
+
   const store = await getTenantBySlug(slug);
   if (!store) return { title: "Category Not Found" };
 
-  const category = await getCategoryBySlugWithImage(store.id, categorySlug);
+  const category = await getCategoryBySlugWithImage(
+    store.id,
+    decodedCategorySlug
+  );
   if (!category) return { title: "Category Not Found" };
 
   return {
@@ -37,11 +43,16 @@ export default async function CategoryPage({
 }: CategoryPageProps) {
   const { slug, categorySlug } = await params;
   const { page, sort } = await searchParams;
+  // Decode URL-encoded slugs (handles Persian/Unicode characters)
+  const decodedCategorySlug = decodeURIComponent(categorySlug);
 
   const store = await getTenantBySlug(slug);
   if (!store) return null;
 
-  const category = await getCategoryBySlugWithImage(store.id, categorySlug);
+  const category = await getCategoryBySlugWithImage(
+    store.id,
+    decodedCategorySlug
+  );
   if (!category) {
     notFound();
   }

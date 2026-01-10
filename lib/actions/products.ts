@@ -55,6 +55,10 @@ export async function createProduct(
         slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
+        compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
+        costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+        minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
+        maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
         categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
         trackInventory: data.trackInventory,
         stock: parseInt(data.stock || "0"),
@@ -159,7 +163,7 @@ async function uploadFileToStorage(
       return null;
     }
 
-    // Save to media table
+    // Save to media table (including width/height from image processing)
     const [newMedia] = await db
       .insert(media)
       .values({
@@ -169,6 +173,8 @@ async function uploadFileToStorage(
         fileName: uploadResult.originalName,
         fileSize: uploadResult.size,
         mimeType: uploadResult.mimeType,
+        width: uploadResult.width,
+        height: uploadResult.height,
       })
       .returning({ id: media.id, url: media.url });
 
@@ -266,6 +272,10 @@ export async function createProductWithImages(
           slug: uniqueSlug,
           description: data.description || null,
           price: data.price,
+          compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
+          costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+          minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
+          maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
           categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
           trackInventory: data.trackInventory,
           stock: parseInt(data.stock || "0"),
@@ -444,6 +454,10 @@ export async function updateProductWithImages(
           slug: uniqueSlug,
           description: data.description || null,
           price: data.price,
+          compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
+          costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+          minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
+          maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
           categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
           trackInventory: data.trackInventory,
           stock: parseInt(data.stock || "0"),
@@ -585,6 +599,10 @@ export async function updateProduct(
         slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
+        compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
+        costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+        minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
+        maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
         categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
         trackInventory: data.trackInventory,
         stock: parseInt(data.stock || "0"),

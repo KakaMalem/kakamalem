@@ -18,6 +18,13 @@ import { revalidatePath } from "next/cache";
 // TYPES (defined here to avoid server/client bundling issues)
 // ============================================================================
 
+export type CartPriceTier = {
+  id: string;
+  minQuantity: number;
+  maxQuantity: number | null;
+  price: string;
+};
+
 export type CartItemProduct = {
   id: string;
   name: string;
@@ -32,6 +39,7 @@ export type CartItemProduct = {
     url: string;
     altText: string | null;
   } | null;
+  priceTiers: CartPriceTier[];
 };
 
 export type CartItemVariant = {

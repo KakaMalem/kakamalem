@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   Layers,
   Warehouse,
+  Tag,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -94,6 +96,7 @@ const navAreas: NavArea[] = [
     items: [
       { title: "Orders", href: "/dashboard/orders", icon: ShoppingCart },
       { title: "Shipping", href: "/dashboard/shipping", icon: Truck },
+      { title: "Sales & Promotions", href: "/dashboard/sales", icon: Tag },
     ],
   },
   {
@@ -107,6 +110,11 @@ const navAreas: NavArea[] = [
     groupId: "settings",
     items: [
       { title: "Store Settings", href: "/dashboard/settings", icon: Store },
+      {
+        title: "Customer Groups",
+        href: "/dashboard/customers/groups",
+        icon: Users,
+      },
       { title: "Account", href: "/dashboard/account", icon: Settings },
     ],
   },

@@ -223,63 +223,63 @@ export function VariantOptionsBuilder({
     const value = activeValueInputs[optionKey] || "";
 
     if (e.key === "Enter") {
-      e.preventDefault(); // Prevent form submission
-      e.stopPropagation(); // Prevent event bubbling
+      // Always prevent default Enter behavior to avoid mobile keyboard moving to next field
+      e.preventDefault();
+      e.stopPropagation();
+
+      // If there's text in the input, add the value and stay on the same input
       if (value.trim()) {
         addValue(optionIndex, value);
         setActiveValueInputs((prev) => ({ ...prev, [optionKey]: "" }));
-        // Keep focus on the SAME input after adding value (don't move to next field)
-        requestAnimationFrame(() => {
-          const input = valueInputRefs.current[optionKey];
-          if (input) {
-            input.focus();
-            // Prevent any default behavior that might move focus
-            input.blur();
-            input.focus();
-          }
-        });
+        // Refocus the input after a short delay to stay on the same field
+        setTimeout(() => {
+          valueInputRefs.current[optionKey]?.focus();
+        }, 0);
       }
-      return false; // Extra prevention of default behavior
-    } else if (e.key === "Backspace" && !value) {
+      return;
+    }
+
+    if (e.key === "Backspace" && !value) {
       // Remove last value if input is empty
       const option = options[optionIndex];
       if (option.values.length > 0) {
         removeValue(optionIndex, option.values.length - 1);
       }
-    } else if (e.key === ",") {
+      return;
+    }
+
+    if (e.key === ",") {
       // Add value on comma
       if (value.trim()) {
         e.preventDefault();
         e.stopPropagation();
         addValue(optionIndex, value);
         setActiveValueInputs((prev) => ({ ...prev, [optionKey]: "" }));
-        // Keep focus on the SAME input after adding value
-        requestAnimationFrame(() => {
-          const input = valueInputRefs.current[optionKey];
-          if (input) {
-            input.focus();
-            input.blur();
-            input.focus();
-          }
-        });
-        return false;
+        // Refocus the input after a short delay to stay on the same field
+        setTimeout(() => {
+          valueInputRefs.current[optionKey]?.focus();
+        }, 0);
       }
-    } else if (e.key === "Tab" && value.trim()) {
+      return;
+    }
+
+    if (e.key === "Tab" && value.trim()) {
       // Add value on tab if there's content
       e.preventDefault();
       e.stopPropagation();
       addValue(optionIndex, value);
       setActiveValueInputs((prev) => ({ ...prev, [optionKey]: "" }));
-      // Keep focus on the SAME input after adding value (don't tab to next field)
-      requestAnimationFrame(() => {
-        const input = valueInputRefs.current[optionKey];
-        if (input) {
-          input.focus();
-          input.blur();
-          input.focus();
-        }
-      });
-      return false;
+      // Refocus the input after a short delay to stay on the same field
+      setTimeout(() => {
+        valueInputRefs.current[optionKey]?.focus();
+      }, 0);
+      return;
+    }
+
+    if (e.key === "Escape") {
+      // Clear input and blur on Escape
+      setActiveValueInputs((prev) => ({ ...prev, [optionKey]: "" }));
+      valueInputRefs.current[optionKey]?.blur();
     }
   };
 
@@ -540,7 +540,10 @@ export function VariantOptionsBuilder({
                             ref={(el) => {
                               valueInputRefs.current[optionKey] = el;
                             }}
-                            type="text"
+                            type="search"
+                            inputMode="search"
+                            enterKeyHint="done"
+                            autoComplete="off"
                             value={activeValueInputs[optionKey] || ""}
                             onChange={(e) =>
                               setActiveValueInputs((prev) => ({
@@ -568,7 +571,7 @@ export function VariantOptionsBuilder({
                                 : "Add more..."
                             }
                             disabled={disabled}
-                            className="flex-1 min-w-20 max-w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                            className="flex-1 min-w-20 max-w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                           />
                         </div>
                         <p className="text-xs text-muted-foreground">

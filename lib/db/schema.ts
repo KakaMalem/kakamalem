@@ -20,17 +20,24 @@ import { relations, sql } from "drizzle-orm";
 // SHARED TYPES
 // ============================================================================
 
-// Address structure for orders and shipments - enables zone matching
+// Address structure for orders and shipments - GPS-based, works globally
 export type Address = {
   firstName: string;
   lastName: string;
-  phone?: string;
-  street1: string;
-  street2?: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  countryCode: string; // ISO 2-letter code (e.g., "AF", "US")
+  phone: string; // REQUIRED - critical for delivery coordination
+  // GPS location (mandatory)
+  latitude: number;
+  longitude: number;
+  // Geospatial indexing (computed on save)
+  h3Index?: string; // H3 cell ID at resolution 9 (~175m hexagon) for zone matching
+  plusCode?: string; // Google Plus Code for human-readable location (e.g., "8J7XMJRV+97")
+  // Reverse geocoded city name (from Nominatim/OpenStreetMap)
+  city?: string; // e.g., "Kabul", "Dubai", "London"
+  // Location quality metadata
+  accuracy?: number; // GPS accuracy in meters when captured
+  source?: "gps" | "manual"; // How the location was set
+  // Optional notes for delivery (landmarks, directions, building details)
+  notes?: string;
 };
 
 // Social links structure for storefronts
@@ -155,6 +162,13 @@ export const billingStatusEnum = pgEnum("billing_status", [
   "grace_period", // Free tier exceeded, has 30 days to pay
   "suspended", // Didn't pay, store suspended
   "forgiven", // Debt forgiven (store deactivated, can reactivate by paying)
+]);
+
+// Customer Group Type Enum (for tiered pricing)
+export const customerGroupTypeEnum = pgEnum("customer_group_type", [
+  "retail", // Default customers (regular pricing)
+  "wholesale", // Bulk buyers (discounted pricing)
+  "vip", // VIP customers (special pricing)
 ]);
 
 // Commission Transaction Type
@@ -385,6 +399,7 @@ export const userProfiles = pgTable(
 // ============================================================================
 // Users can save addresses that work across ALL stores.
 // Example: "Home", "Office", "Parents' house" - usable at any checkout.
+// GPS-based system for Afghanistan where traditional addresses aren't reliable.
 export const userAddresses = pgTable(
   "user_addresses",
   {
@@ -396,16 +411,28 @@ export const userAddresses = pgTable(
     // Address label (e.g., "Home", "Office", "Mom's House")
     label: varchar("label", { length: 100 }),
 
-    // Full address details
+    // Contact details
     firstName: varchar("first_name", { length: 100 }).notNull(),
     lastName: varchar("last_name", { length: 100 }).notNull(),
-    phone: varchar("phone", { length: 50 }),
-    street1: varchar("street1", { length: 255 }).notNull(),
-    street2: varchar("street2", { length: 255 }),
-    city: varchar("city", { length: 100 }).notNull(),
-    state: varchar("state", { length: 100 }).notNull(),
-    postalCode: varchar("postal_code", { length: 20 }).notNull(),
-    countryCode: varchar("country_code", { length: 2 }).notNull(), // ISO 2-letter code
+    phone: varchar("phone", { length: 50 }).notNull(), // Required for delivery coordination
+
+    // GPS location (mandatory) - 10 decimal places for ~0.1mm precision
+    latitude: decimal("latitude", { precision: 12, scale: 9 }).notNull(),
+    longitude: decimal("longitude", { precision: 12, scale: 9 }).notNull(),
+
+    // Geospatial indexing (computed on save)
+    h3Index: varchar("h3_index", { length: 20 }), // H3 cell ID for zone matching
+    plusCode: varchar("plus_code", { length: 20 }), // Plus Code for human-readable location
+
+    // Reverse geocoded city name
+    city: varchar("city", { length: 100 }), // e.g., "Kabul", "Dubai", "London"
+
+    // Location quality metadata
+    accuracy: decimal("accuracy", { precision: 8, scale: 2 }), // GPS accuracy in meters
+    source: varchar("source", { length: 10 }), // 'gps' or 'manual'
+
+    // Optional notes for delivery (landmarks, directions, building details)
+    notes: text("notes"),
 
     // Default flag
     isDefault: boolean("is_default").default(false).notNull(),
@@ -702,6 +729,14 @@ export const products = pgTable(
 
     // Base price (for simple products, this is THE price; for variants, this is display "from" price)
     price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+    // Original price for strikethrough/sale display (e.g., "was $100, now $80")
+    compareAtPrice: decimal("compare_at_price", { precision: 12, scale: 2 }),
+    // Wholesale/cost price for profit margin calculations
+    costPrice: decimal("cost_price", { precision: 12, scale: 2 }),
+
+    // Order quantity limits
+    minOrderQuantity: integer("min_order_quantity").default(1).notNull(),
+    maxOrderQuantity: integer("max_order_quantity"), // null = unlimited
 
     // Stock for simple products (ignored when hasVariants=true)
     stock: integer("stock").default(0).notNull(),
@@ -763,6 +798,8 @@ export const media = pgTable(
     fileName: text("file_name"),
     fileSize: integer("file_size"), // in bytes
     mimeType: varchar("mime_type", { length: 100 }), // image/png, image/jpeg, etc.
+    width: integer("width"), // image width in pixels
+    height: integer("height"), // image height in pixels
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -887,6 +924,8 @@ export const productVariants = pgTable(
     sku: varchar("sku", { length: 100 }),
     displayName: varchar("display_name", { length: 255 }), // "Blue / XL"
     price: decimal("price", { precision: 12, scale: 2 }), // null = use product price
+    compareAtPrice: decimal("compare_at_price", { precision: 12, scale: 2 }), // Original price for sale display
+    costPrice: decimal("cost_price", { precision: 12, scale: 2 }), // Wholesale/cost for margins
     weight: decimal("weight", { precision: 10, scale: 3 }),
     length: decimal("length", { precision: 10, scale: 2 }),
     width: decimal("width", { precision: 10, scale: 2 }),
@@ -963,6 +1002,150 @@ export const productVariantOptions = pgTable(
   },
   (table) => [
     uniqueIndex("product_variant_options_variant_value_idx").on(table.variantId, table.optionValueId),
+  ]
+);
+
+// ============================================================================
+// PRICE TIERS (Quantity-based pricing)
+// ============================================================================
+// Volume discounts: different prices based on quantity purchased.
+// Example: 1-9 units = $10, 10-49 units = $8, 50+ units = $6
+export const priceTiers = pgTable(
+  "price_tiers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    minQuantity: integer("min_quantity").notNull(), // e.g., 10
+    maxQuantity: integer("max_quantity"), // e.g., 49 (null = unlimited, for "50+" tier)
+    price: decimal("price", { precision: 12, scale: 2 }).notNull(), // Fixed price at this tier
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("price_tiers_product_idx").on(table.productId),
+    uniqueIndex("price_tiers_product_min_qty_idx").on(table.productId, table.minQuantity),
+  ]
+);
+
+// ============================================================================
+// CUSTOMER GROUPS (Per-tenant customer segmentation)
+// ============================================================================
+// Stores can create customer groups for tiered pricing (retail, wholesale, VIP).
+export const customerGroups = pgTable(
+  "customer_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(), // e.g., "Wholesale", "VIP Customers"
+    type: customerGroupTypeEnum("type").default("retail").notNull(),
+    description: text("description"),
+    isDefault: boolean("is_default").default(false).notNull(), // One default per tenant
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("customer_groups_tenant_name_idx").on(table.tenantId, table.name),
+    index("customer_groups_tenant_idx").on(table.tenantId),
+  ]
+);
+
+// ============================================================================
+// CUSTOMER GROUP MEMBERS (Junction: users belong to groups per tenant)
+// ============================================================================
+// A user can be in different customer groups at different stores.
+export const customerGroupMembers = pgTable(
+  "customer_group_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    customerGroupId: uuid("customer_group_id")
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // One group per user per tenant
+    uniqueIndex("customer_group_members_tenant_user_idx").on(table.tenantId, table.userId),
+    index("customer_group_members_group_idx").on(table.customerGroupId),
+  ]
+);
+
+// ============================================================================
+// CUSTOMER GROUP PRICES (Product pricing per customer group)
+// ============================================================================
+// Different prices for different customer groups (e.g., wholesale pricing).
+export const customerGroupPrices = pgTable(
+  "customer_group_prices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    customerGroupId: uuid("customer_group_id")
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: "cascade" }),
+    price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+    compareAtPrice: decimal("compare_at_price", { precision: 12, scale: 2 }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("customer_group_prices_product_group_idx").on(table.productId, table.customerGroupId),
+    index("customer_group_prices_group_idx").on(table.customerGroupId),
+  ]
+);
+
+// ============================================================================
+// SCHEDULED SALES (Time-based promotional pricing)
+// ============================================================================
+// Schedule sale prices with start and end dates (e.g., Black Friday sale).
+export const scheduledSales = pgTable(
+  "scheduled_sales",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }), // e.g., "Black Friday Sale", "Eid Special"
+    salePrice: decimal("sale_price", { precision: 12, scale: 2 }).notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true, mode: "string" }).notNull(),
+    isActive: boolean("is_active").default(true).notNull(), // Can manually disable
+    priority: integer("priority").default(0).notNull(), // Higher = takes precedence
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("scheduled_sales_product_idx").on(table.productId),
+    index("scheduled_sales_active_dates_idx").on(table.isActive, table.startsAt, table.endsAt),
+    index("scheduled_sales_tenant_idx").on(table.tenantId),
   ]
 );
 
@@ -3275,6 +3458,12 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   productVariants: many(productVariants),
   productVariantOptions: many(productVariantOptions),
   productVariantImages: many(productVariantImages),
+  // Pricing
+  priceTiers: many(priceTiers),
+  customerGroups: many(customerGroups),
+  customerGroupMembers: many(customerGroupMembers),
+  customerGroupPrices: many(customerGroupPrices),
+  scheduledSales: many(scheduledSales),
   // Inventory
   inventoryLocations: many(inventoryLocations),
   inventoryLevels: many(inventoryLevels),
@@ -3409,6 +3598,10 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   wishlistItems: many(wishlistItems),
   commissionRules: many(commissionRules),
   affiliateLinks: many(affiliateLinks),
+  // Pricing
+  priceTiers: many(priceTiers),
+  customerGroupPrices: many(customerGroupPrices),
+  scheduledSales: many(scheduledSales),
   // Analytics
   productPerformance: many(analyticsProductPerformance),
   pageViews: many(analyticsPageViews),
@@ -3525,6 +3718,71 @@ export const productVariantOptionsRelations = relations(productVariantOptions, (
   optionValue: one(variantOptionValues, {
     fields: [productVariantOptions.optionValueId],
     references: [variantOptionValues.id],
+  }),
+}));
+
+// ============================================================================
+// PRICING RELATIONS
+// ============================================================================
+
+export const priceTiersRelations = relations(priceTiers, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [priceTiers.tenantId],
+    references: [tenants.id],
+  }),
+  product: one(products, {
+    fields: [priceTiers.productId],
+    references: [products.id],
+  }),
+}));
+
+export const customerGroupsRelations = relations(customerGroups, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [customerGroups.tenantId],
+    references: [tenants.id],
+  }),
+  members: many(customerGroupMembers),
+  prices: many(customerGroupPrices),
+}));
+
+export const customerGroupMembersRelations = relations(customerGroupMembers, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [customerGroupMembers.tenantId],
+    references: [tenants.id],
+  }),
+  user: one(user, {
+    fields: [customerGroupMembers.userId],
+    references: [user.id],
+  }),
+  customerGroup: one(customerGroups, {
+    fields: [customerGroupMembers.customerGroupId],
+    references: [customerGroups.id],
+  }),
+}));
+
+export const customerGroupPricesRelations = relations(customerGroupPrices, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [customerGroupPrices.tenantId],
+    references: [tenants.id],
+  }),
+  product: one(products, {
+    fields: [customerGroupPrices.productId],
+    references: [products.id],
+  }),
+  customerGroup: one(customerGroups, {
+    fields: [customerGroupPrices.customerGroupId],
+    references: [customerGroups.id],
+  }),
+}));
+
+export const scheduledSalesRelations = relations(scheduledSales, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [scheduledSales.tenantId],
+    references: [tenants.id],
+  }),
+  product: one(products, {
+    fields: [scheduledSales.productId],
+    references: [products.id],
   }),
 }));
 
@@ -4327,6 +4585,19 @@ export type NewProductVariantOption = typeof productVariantOptions.$inferInsert;
 export type ProductVariantImage = typeof productVariantImages.$inferSelect;
 export type NewProductVariantImage = typeof productVariantImages.$inferInsert;
 export type StockStatus = (typeof stockStatusEnum.enumValues)[number];
+
+// Pricing types
+export type PriceTier = typeof priceTiers.$inferSelect;
+export type NewPriceTier = typeof priceTiers.$inferInsert;
+export type CustomerGroup = typeof customerGroups.$inferSelect;
+export type NewCustomerGroup = typeof customerGroups.$inferInsert;
+export type CustomerGroupType = (typeof customerGroupTypeEnum.enumValues)[number];
+export type CustomerGroupMember = typeof customerGroupMembers.$inferSelect;
+export type NewCustomerGroupMember = typeof customerGroupMembers.$inferInsert;
+export type CustomerGroupPrice = typeof customerGroupPrices.$inferSelect;
+export type NewCustomerGroupPrice = typeof customerGroupPrices.$inferInsert;
+export type ScheduledSale = typeof scheduledSales.$inferSelect;
+export type NewScheduledSale = typeof scheduledSales.$inferInsert;
 
 // Inventory types
 export type InventoryMovement = typeof inventoryMovements.$inferSelect;

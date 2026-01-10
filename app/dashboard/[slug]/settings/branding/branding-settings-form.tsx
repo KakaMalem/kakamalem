@@ -20,6 +20,11 @@ import { cn } from "@/lib/utils";
 import { brandingSettingsSchema } from "@/lib/validations/stores";
 import { updateBrandingSettingsWithImages } from "@/lib/actions/stores";
 import { toast } from "sonner";
+import {
+  MAX_SIZES,
+  formatFileSize,
+  UPLOAD_ERROR_MESSAGES,
+} from "@/lib/config/file-validation";
 
 // Image state type - can be existing URL or staged file
 type ImageState = {
@@ -75,15 +80,13 @@ export function BrandingSettingsForm({
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+      toast.error(UPLOAD_ERROR_MESSAGES.invalidType);
       return;
     }
 
-    const maxSize = type === "logo" ? 2 * 1024 * 1024 : 512 * 1024; // 2MB for logo, 512KB for favicon
+    const maxSize = type === "logo" ? MAX_SIZES.logos : MAX_SIZES.favicons;
     if (file.size > maxSize) {
-      toast.error(
-        `Image must be less than ${type === "logo" ? "2MB" : "512KB"}`
-      );
+      toast.error(UPLOAD_ERROR_MESSAGES.fileTooLarge(formatFileSize(maxSize)));
       return;
     }
 
@@ -110,6 +113,14 @@ export function BrandingSettingsForm({
     }
     setter(null);
     setSuccess(false);
+
+    // Reset to name_only if removing logo and a logo-dependent option was selected
+    if (
+      type === "logo" &&
+      (headerDisplay === "logo_only" || headerDisplay === "logo_and_name")
+    ) {
+      setHeaderDisplay("name_only");
+    }
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -146,7 +157,17 @@ export function BrandingSettingsForm({
       );
 
       if (result.error) {
-        toast.error(result.error.message);
+        // Check for connection/network errors
+        const errorMessage = result.error.message.toLowerCase();
+        if (
+          errorMessage.includes("network") ||
+          errorMessage.includes("fetch") ||
+          errorMessage.includes("connection")
+        ) {
+          toast.error(UPLOAD_ERROR_MESSAGES.networkError);
+        } else {
+          toast.error(result.error.message);
+        }
         return;
       }
 
@@ -383,7 +404,7 @@ export function BrandingSettingsForm({
               htmlFor="hd_logo_only"
               className={cn(
                 "flex flex-col items-center gap-3 rounded-lg border-2 p-4 transition-colors",
-                !logo && "opacity-50 cursor-not-allowed",
+                !logo && "cursor-not-allowed",
                 logo && "cursor-pointer",
                 headerDisplay === "logo_only"
                   ? "border-primary bg-primary/5"
@@ -399,20 +420,30 @@ export function BrandingSettingsForm({
                 disabled={!logo}
               />
               <div className="h-10 flex items-center">
-                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                  <span className="text-lg font-bold text-muted-foreground">
-                    S
-                  </span>
+                <div
+                  className={cn(
+                    "w-10 h-10 rounded-lg bg-muted flex items-center justify-center",
+                    !logo && "opacity-50"
+                  )}
+                >
+                  <span className="text-lg font-bold text-foreground">S</span>
                 </div>
               </div>
-              <span className="text-sm text-muted-foreground">Logo only</span>
+              <span
+                className={cn(
+                  "text-sm",
+                  !logo ? "text-muted-foreground/50" : "text-muted-foreground"
+                )}
+              >
+                Logo only
+              </span>
             </Label>
 
             <Label
               htmlFor="hd_logo_and_name"
               className={cn(
                 "flex flex-col items-center gap-3 rounded-lg border-2 p-4 transition-colors",
-                !logo && "opacity-50 cursor-not-allowed",
+                !logo && "cursor-not-allowed",
                 logo && "cursor-pointer",
                 headerDisplay === "logo_and_name"
                   ? "border-primary bg-primary/5"
@@ -428,14 +459,31 @@ export function BrandingSettingsForm({
                 disabled={!logo}
               />
               <div className="h-10 flex items-center gap-2">
-                <div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
-                  <span className="text-sm font-bold text-muted-foreground">
-                    S
-                  </span>
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded bg-muted flex items-center justify-center",
+                    !logo && "opacity-50"
+                  )}
+                >
+                  <span className="text-sm font-bold text-foreground">S</span>
                 </div>
-                <span className="font-semibold text-sm">Store</span>
+                <span
+                  className={cn(
+                    "font-semibold text-sm",
+                    !logo && "text-foreground/50"
+                  )}
+                >
+                  Store
+                </span>
               </div>
-              <span className="text-sm text-muted-foreground">Logo + Name</span>
+              <span
+                className={cn(
+                  "text-sm",
+                  !logo ? "text-muted-foreground/50" : "text-muted-foreground"
+                )}
+              >
+                Logo + Name
+              </span>
             </Label>
           </RadioGroup>
         </CardContent>

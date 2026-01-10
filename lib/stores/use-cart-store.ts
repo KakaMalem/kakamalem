@@ -8,6 +8,13 @@ import { persist, createJSONStorage } from "zustand/middleware";
 // ============================================================================
 
 // Local type definitions to avoid issues with server action bundling
+export type CartPriceTier = {
+  id: string;
+  minQuantity: number;
+  maxQuantity: number | null;
+  price: string;
+};
+
 export type CartItemProduct = {
   id: string;
   name: string;
@@ -22,6 +29,7 @@ export type CartItemProduct = {
     url: string;
     altText: string | null;
   } | null;
+  priceTiers: CartPriceTier[];
 };
 
 export type CartItemVariant = {
@@ -86,14 +94,49 @@ function calculateItemCount(items: CartItem[]): number {
   return items.reduce((sum, item) => sum + item.quantity, 0);
 }
 
+/**
+ * Get the applicable tier price for a given quantity
+ */
+function getApplicableTierPrice(
+  basePrice: number,
+  quantity: number,
+  priceTiers: CartPriceTier[]
+): number {
+  if (!priceTiers || priceTiers.length === 0) return basePrice;
+
+  // Sort by minQuantity descending to find the highest applicable tier
+  const sortedTiers = [...priceTiers].sort((a, b) => b.minQuantity - a.minQuantity);
+
+  for (const tier of sortedTiers) {
+    if (quantity >= tier.minQuantity) {
+      if (tier.maxQuantity === null || quantity <= tier.maxQuantity) {
+        return parseFloat(tier.price);
+      }
+    }
+  }
+
+  return basePrice;
+}
+
 function calculateSubtotal(items: CartItem[]): number {
   return items.reduce((sum, item) => {
-    const price = item.variant?.price
+    const basePrice = item.variant?.price
       ? parseFloat(item.variant.price)
       : parseFloat(item.product.price);
-    return sum + price * item.quantity;
+    // Apply tier pricing if available
+    const effectivePrice = getApplicableTierPrice(
+      basePrice,
+      item.quantity,
+      item.product.priceTiers || []
+    );
+    return sum + effectivePrice * item.quantity;
   }, 0);
 }
+
+/**
+ * Export for use in components
+ */
+export { getApplicableTierPrice };
 
 // ============================================================================
 // STORE

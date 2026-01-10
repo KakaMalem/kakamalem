@@ -5,27 +5,29 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { userAddresses } from "@/lib/db/schema";
 import { getUser } from "@/lib/auth/server";
-import { z } from "zod";
+import { computeH3Index, computePlusCode, reverseGeocode } from "@/lib/geo";
+import { addressSchema, type AddressInput } from "@/lib/validations/addresses";
 
 // =============================================================================
-// ADDRESS VALIDATION SCHEMAS
+// CONSTANTS
 // =============================================================================
 
-export const addressSchema = z.object({
-  label: z.string().max(100).optional(),
-  firstName: z.string().min(1, "First name is required").max(100),
-  lastName: z.string().min(1, "Last name is required").max(100),
-  phone: z.string().max(50).optional(),
-  street1: z.string().min(1, "Street address is required").max(255),
-  street2: z.string().max(255).optional(),
-  city: z.string().min(1, "City is required").max(100),
-  state: z.string().min(1, "State/Province is required").max(100),
-  postalCode: z.string().min(1, "Postal code is required").max(20),
-  countryCode: z.string().length(2, "Country is required"),
-  isDefault: z.boolean().default(false),
-});
+// Max GPS accuracy to store (100km) - values higher are unrealistic and may cause DB overflow
+const MAX_ACCURACY_METERS = 100000;
 
-export type AddressInput = z.infer<typeof addressSchema>;
+/**
+ * Sanitize GPS accuracy value to prevent database overflow
+ * The accuracy column is DECIMAL(8,2) which maxes at 999999.99
+ * Unrealistic values (e.g., from VPN/emulated locations) are capped
+ */
+function sanitizeAccuracy(accuracy: number | undefined): string | null {
+  if (accuracy === undefined || accuracy === null) {
+    return null;
+  }
+  // Cap at maximum reasonable value
+  const capped = Math.min(accuracy, MAX_ACCURACY_METERS);
+  return capped.toString();
+}
 
 // =============================================================================
 // SERVER ACTIONS
@@ -73,6 +75,11 @@ export async function createAddressAction(input: AddressInput) {
     });
     const shouldBeDefault = data.isDefault || existingAddresses.length === 0;
 
+    // Compute geospatial indices and reverse geocode city
+    const h3Index = computeH3Index(data.latitude, data.longitude);
+    const plusCode = computePlusCode(data.latitude, data.longitude);
+    const city = await reverseGeocode(data.latitude, data.longitude);
+
     const [newAddress] = await db
       .insert(userAddresses)
       .values({
@@ -80,13 +87,15 @@ export async function createAddressAction(input: AddressInput) {
         label: data.label || null,
         firstName: data.firstName,
         lastName: data.lastName,
-        phone: data.phone || null,
-        street1: data.street1,
-        street2: data.street2 || null,
-        city: data.city,
-        state: data.state,
-        postalCode: data.postalCode,
-        countryCode: data.countryCode,
+        phone: data.phone,
+        latitude: data.latitude.toString(),
+        longitude: data.longitude.toString(),
+        h3Index,
+        plusCode,
+        city,
+        accuracy: sanitizeAccuracy(data.accuracy),
+        source: data.source || null,
+        notes: data.notes || null,
         isDefault: shouldBeDefault,
       })
       .returning();
@@ -149,19 +158,26 @@ export async function updateAddressAction(
         );
     }
 
+    // Compute geospatial indices and reverse geocode city
+    const h3Index = computeH3Index(data.latitude, data.longitude);
+    const plusCode = computePlusCode(data.latitude, data.longitude);
+    const city = await reverseGeocode(data.latitude, data.longitude);
+
     const [updatedAddress] = await db
       .update(userAddresses)
       .set({
         label: data.label || null,
         firstName: data.firstName,
         lastName: data.lastName,
-        phone: data.phone || null,
-        street1: data.street1,
-        street2: data.street2 || null,
-        city: data.city,
-        state: data.state,
-        postalCode: data.postalCode,
-        countryCode: data.countryCode,
+        phone: data.phone,
+        latitude: data.latitude.toString(),
+        longitude: data.longitude.toString(),
+        h3Index,
+        plusCode,
+        city,
+        accuracy: sanitizeAccuracy(data.accuracy),
+        source: data.source || null,
+        notes: data.notes || null,
         isDefault: data.isDefault,
         updatedAt: new Date().toISOString(),
       })

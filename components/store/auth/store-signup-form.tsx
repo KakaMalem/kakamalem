@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Field,
   FieldLabel,
@@ -204,10 +205,9 @@ export function StoreSignupForm({ store, redirectTo }: StoreSignupFormProps) {
 
           <Field>
             <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               autoComplete="new-password"
               disabled={isPending}
               placeholder="Create a password"
@@ -224,10 +224,9 @@ export function StoreSignupForm({ store, redirectTo }: StoreSignupFormProps) {
 
           <Field>
             <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
-            <Input
+            <PasswordInput
               id="confirmPassword"
               name="confirmPassword"
-              type="password"
               autoComplete="new-password"
               disabled={isPending}
               placeholder="Confirm your password"

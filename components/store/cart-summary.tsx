@@ -1,12 +1,18 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, ShieldCheck, Tag } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice } from "@/lib/utils";
-import { useCartSubtotal, useCartItemCount } from "@/lib/stores/use-cart-store";
+import {
+  useCartSubtotal,
+  useCartItemCount,
+  useCartItems,
+  getApplicableTierPrice,
+} from "@/lib/stores/use-cart-store";
 
 interface CartSummaryProps {
   storeSlug: string;
@@ -16,6 +22,23 @@ interface CartSummaryProps {
 export function CartSummary({ storeSlug, currency }: CartSummaryProps) {
   const subtotal = useCartSubtotal();
   const itemCount = useCartItemCount();
+  const items = useCartItems();
+
+  // Calculate total savings from tier pricing
+  const totalSavings = useMemo(() => {
+    return items.reduce((savings, item) => {
+      const basePrice = item.variant?.price
+        ? parseFloat(item.variant.price)
+        : parseFloat(item.product.price);
+      const effectivePrice = getApplicableTierPrice(
+        basePrice,
+        item.quantity,
+        item.product.priceTiers || []
+      );
+      const itemSavings = (basePrice - effectivePrice) * item.quantity;
+      return savings + itemSavings;
+    }, 0);
+  }, [items]);
 
   // Future: These could be calculated based on store settings
   const shipping = 0; // Free shipping or calculated at checkout
@@ -34,6 +57,16 @@ export function CartSummary({ storeSlug, currency }: CartSummaryProps) {
           </span>
           <span>{formatPrice(subtotal, currency)}</span>
         </div>
+
+        {totalSavings > 0 && (
+          <div className="flex items-center justify-between text-sm text-green-600">
+            <span className="flex items-center gap-1.5">
+              <Tag className="h-3.5 w-3.5" />
+              Bulk discounts
+            </span>
+            <span>-{formatPrice(totalSavings, currency)}</span>
+          </div>
+        )}
 
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Shipping</span>

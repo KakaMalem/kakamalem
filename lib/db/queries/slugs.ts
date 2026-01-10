@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { products, categories, tenants } from "@/lib/db/schema";
 import { eq, and, ne, sql } from "drizzle-orm";
-import { slugify } from "@/lib/utils/slug";
+import { slugify, slugifyAscii } from "@/lib/utils/slug";
 
 /**
  * Generate a unique product slug for a tenant
@@ -152,14 +152,17 @@ export async function generateUniqueCategorySlug(
 
 /**
  * Generate a unique store/tenant slug (global, not tenant-scoped)
+ * Uses ASCII-only slugs for clean store URLs
  */
 export async function generateUniqueStoreSlug(
   name: string,
   existingTenantId?: string
 ): Promise<string> {
-  const baseSlug = slugify(name);
+  // Store slugs must be ASCII-only for clean URLs
+  const baseSlug = slugifyAscii(name);
 
   if (!baseSlug) {
+    // If name has no ASCII characters, use a timestamp-based fallback
     return generateUniqueStoreSlug(`store-${Date.now()}`, existingTenantId);
   }
 

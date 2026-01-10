@@ -7,6 +7,11 @@ import {
   getTenantVariantOptions,
   getProductVariantOptionTypes,
 } from "@/lib/db/queries/variants";
+import {
+  getProductPriceTiers,
+  getTenantCustomerGroups,
+  getProductGroupPrices,
+} from "@/lib/db/queries/pricing";
 import { ProductForm } from "@/components/dashboard/products/product-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,13 +33,23 @@ export default async function EditProductPage({
     notFound();
   }
 
-  const [product, categories, tenantVariantOptions, productOptionTypes] =
-    await Promise.all([
-      getProductById(store.id, productId),
-      getTenantCategories(store.id),
-      getTenantVariantOptions(store.id),
-      getProductVariantOptionTypes(store.id, productId),
-    ]);
+  const [
+    product,
+    categories,
+    tenantVariantOptions,
+    productOptionTypes,
+    priceTiers,
+    customerGroups,
+    groupPrices,
+  ] = await Promise.all([
+    getProductById(store.id, productId),
+    getTenantCategories(store.id),
+    getTenantVariantOptions(store.id),
+    getProductVariantOptionTypes(store.id, productId),
+    getProductPriceTiers(productId),
+    getTenantCustomerGroups(store.id),
+    getProductGroupPrices(productId),
+  ]);
 
   if (!product) {
     notFound();
@@ -82,6 +97,9 @@ export default async function EditProductPage({
         existingVariantOptions={existingVariantOptions}
         initialVariantOptions={initialVariantOptions}
         initialVariants={initialVariants}
+        initialPriceTiers={priceTiers}
+        customerGroups={customerGroups}
+        initialGroupPrices={groupPrices}
       />
     </div>
   );

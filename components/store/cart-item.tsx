@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { Minus, Plus, Trash2, Loader2, AlertCircle, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice, cn } from "@/lib/utils";
 import { useDebouncedCartSync } from "@/lib/hooks/use-debounced-cart-sync";
+import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
 
 import type { CartItem as CartItemType } from "@/lib/stores/use-cart-store";
 
@@ -39,9 +40,24 @@ export function CartItem({
 
   const isSyncing = isItemSyncing(item.id);
 
-  const price = item.variant?.price
+  const basePrice = item.variant?.price
     ? parseFloat(item.variant.price)
     : parseFloat(item.product.price);
+
+  // Calculate tier pricing
+  const effectivePrice = useMemo(
+    () =>
+      getApplicableTierPrice(
+        basePrice,
+        item.quantity,
+        item.product.priceTiers || []
+      ),
+    [basePrice, item.quantity, item.product.priceTiers]
+  );
+
+  const hasTierDiscount = effectivePrice < basePrice;
+  const savingsPerUnit = hasTierDiscount ? basePrice - effectivePrice : 0;
+  const totalSavings = savingsPerUnit * item.quantity;
 
   const availableStock = item.variant ? item.variant.stock : item.product.stock;
   const trackInventory = item.product.trackInventory;
@@ -166,9 +182,29 @@ export function CartItem({
             >
               {productName}
             </Link>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatPrice(price, currency)} each
-            </p>
+            <div className="mt-1 flex items-center gap-2">
+              {hasTierDiscount ? (
+                <>
+                  <span className="text-sm font-medium text-green-600">
+                    {formatPrice(effectivePrice, currency)}
+                  </span>
+                  <span className="text-sm text-muted-foreground line-through">
+                    {formatPrice(basePrice, currency)}
+                  </span>
+                  <span className="text-xs text-green-600">each</span>
+                </>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  {formatPrice(basePrice, currency)} each
+                </span>
+              )}
+            </div>
+            {hasTierDiscount && (
+              <div className="mt-1 flex items-center gap-1 text-xs text-green-600">
+                <Tag className="h-3 w-3" />
+                <span>Bulk discount applied</span>
+              </div>
+            )}
           </div>
 
           {/* Remove Button */}
@@ -249,9 +285,16 @@ export function CartItem({
           </div>
 
           {/* Subtotal */}
-          <p className="font-semibold">
-            {formatPrice(price * item.quantity, currency)}
-          </p>
+          <div className="text-right">
+            <p className="font-semibold">
+              {formatPrice(effectivePrice * item.quantity, currency)}
+            </p>
+            {hasTierDiscount && totalSavings > 0 && (
+              <p className="text-xs text-green-600">
+                Save {formatPrice(totalSavings, currency)}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

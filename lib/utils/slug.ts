@@ -1,31 +1,66 @@
 /**
  * Slug generation utilities with auto-deduplication
  * Industry-standard slug generation following best practices
+ * Supports Unicode characters (Persian, Arabic, etc.)
  */
 
 /**
  * Convert a string to a URL-friendly slug
+ * - Normalizes Unicode (NFKC normalization for compatibility)
  * - Converts to lowercase
- * - Removes special characters
+ * - Preserves Unicode letters and numbers (Persian, Arabic, etc.)
  * - Replaces spaces and underscores with hyphens
+ * - Removes special characters (punctuation, symbols)
  * - Removes consecutive hyphens
  * - Trims hyphens from start/end
- * - Handles Unicode characters properly
  */
 export function slugify(text: string): string {
-  return text
-    .toString()
-    .toLowerCase()
-    .trim()
-    // Replace spaces and underscores with hyphens
-    .replace(/[\s_]+/g, "-")
-    // Remove all non-word chars except hyphens and numbers
-    .replace(/[^\w\-\u0600-\u06FF]+/g, "") // Include Arabic/Persian Unicode range
-    // Replace multiple hyphens with single hyphen
-    .replace(/\-\-+/g, "-")
-    // Remove hyphens from start and end
-    .replace(/^-+/, "")
-    .replace(/-+$/, "");
+  return (
+    text
+      .toString()
+      // Normalize Unicode characters (NFKC for compatibility)
+      .normalize("NFKC")
+      .toLowerCase()
+      .trim()
+      // Replace spaces and underscores with hyphens
+      .replace(/[\s_]+/g, "-")
+      // Keep only Unicode letters, numbers, and hyphens
+      // \p{L} matches any letter (including Persian, Arabic, etc.)
+      // \p{N} matches any number
+      .replace(/[^\p{L}\p{N}-]+/gu, "")
+      // Replace multiple hyphens with single hyphen
+      .replace(/-{2,}/g, "-")
+      // Remove hyphens from start and end
+      .replace(/^-+/, "")
+      .replace(/-+$/, "")
+  );
+}
+
+/**
+ * Convert a string to an ASCII-only slug (for store URLs)
+ * - Strips all non-ASCII characters
+ * - Returns empty string if no ASCII characters remain
+ * Use this for store slugs where ASCII URLs are preferred
+ */
+export function slugifyAscii(text: string): string {
+  return (
+    text
+      .toString()
+      .normalize("NFKD")
+      // Remove diacritics (accents)
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      // Replace spaces and underscores with hyphens
+      .replace(/[\s_]+/g, "-")
+      // Keep only ASCII letters, numbers, and hyphens
+      .replace(/[^a-z0-9-]+/g, "")
+      // Replace multiple hyphens with single hyphen
+      .replace(/-{2,}/g, "-")
+      // Remove hyphens from start and end
+      .replace(/^-+/, "")
+      .replace(/-+$/, "")
+  );
 }
 
 /**
@@ -102,7 +137,7 @@ export function shouldUpdateSlug(
 }
 
 /**
- * Validate slug format
+ * Validate slug format (supports Unicode)
  * @param slug - The slug to validate
  * @returns Object with isValid and error message
  */
@@ -120,7 +155,54 @@ export function validateSlug(slug: string): { isValid: boolean; error?: string }
   if (slug !== slugified) {
     return {
       isValid: false,
-      error: "Slug can only contain lowercase letters, numbers, and hyphens",
+      error: "Slug can only contain letters, numbers, and hyphens",
+    };
+  }
+
+  // Check for reserved slugs
+  const reservedSlugs = [
+    "admin",
+    "api",
+    "auth",
+    "dashboard",
+    "store",
+    "new",
+    "edit",
+    "delete",
+    "settings",
+    "login",
+    "logout",
+    "signup",
+    "register",
+  ];
+
+  if (reservedSlugs.includes(slug)) {
+    return { isValid: false, error: "This slug is reserved and cannot be used" };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validate ASCII-only slug format (for store URLs)
+ * @param slug - The slug to validate
+ * @returns Object with isValid and error message
+ */
+export function validateAsciiSlug(slug: string): { isValid: boolean; error?: string } {
+  if (!slug || slug.length === 0) {
+    return { isValid: false, error: "Slug cannot be empty" };
+  }
+
+  if (slug.length > 63) {
+    return { isValid: false, error: "Slug cannot exceed 63 characters" };
+  }
+
+  // ASCII-only regex: lowercase letters, numbers, hyphens
+  const asciiSlugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  if (!asciiSlugRegex.test(slug)) {
+    return {
+      isValid: false,
+      error: "Slug can only contain lowercase letters (a-z), numbers, and hyphens",
     };
   }
 

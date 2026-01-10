@@ -7,6 +7,7 @@ import { ProductImageGallery } from "@/components/store/product-image-gallery";
 import { ProductInfo } from "@/components/store/product-info";
 
 import type { ProductWithDetails } from "@/lib/db/queries/products";
+import type { PriceTier } from "@/lib/db/schema";
 
 interface Breadcrumb {
   label: string;
@@ -26,6 +27,7 @@ interface ProductPageContentProps {
   currency: string;
   breadcrumbs: Breadcrumb[];
   reviewStats: ReviewStats;
+  priceTiers?: PriceTier[];
 }
 
 export function ProductPageContent({
@@ -35,6 +37,7 @@ export function ProductPageContent({
   currency,
   breadcrumbs,
   reviewStats,
+  priceTiers = [],
 }: ProductPageContentProps) {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
@@ -114,6 +117,7 @@ export function ProductPageContent({
           storeSlug={storeSlug}
           currency={currency}
           reviewStats={reviewStats}
+          priceTiers={priceTiers}
           onVariantChange={setSelectedVariantId}
         />
       </div>

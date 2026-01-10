@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useTransition, useRef, useCallback, useEffect } from "react";
+import { useState, useTransition, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { Reorder, useDragControls } from "framer-motion";
 import {
-  GripVertical,
   Pencil,
   Trash2,
   Package,
   Eye,
   PackagePlus,
   Check,
+  GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,6 +46,195 @@ interface ProductsListProps {
   selectionMode: boolean;
 }
 
+// Draggable product item component with drag handle
+function DraggableProductItem({
+  product,
+  storeSlug,
+  currency,
+  selectionMode,
+  isSelected,
+  onToggleSelection,
+  onDelete,
+  onAdjustStock,
+  getStockBadge,
+  isPending,
+}: {
+  product: ProductWithCategory;
+  storeSlug: string;
+  currency: string;
+  selectionMode: boolean;
+  isSelected: boolean;
+  onToggleSelection: () => void;
+  onDelete: () => void;
+  onAdjustStock: () => void;
+  getStockBadge: (product: ProductWithCategory) => React.ReactNode;
+  isPending: boolean;
+}) {
+  const dragControls = useDragControls();
+
+  const formatPrice = (price: string) => {
+    return `${parseFloat(price).toLocaleString()} ${currency}`;
+  };
+
+  return (
+    <Reorder.Item
+      value={product}
+      dragListener={false}
+      dragControls={dragControls}
+      className="select-none"
+      style={{ position: "relative" }}
+      whileDrag={{ zIndex: 50 }}
+    >
+      <Card>
+        <CardContent className="flex items-center gap-4 p-4">
+          {/* Drag Handle or Select Checkbox - toggle based on selection mode */}
+          {selectionMode ? (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={isSelected}
+              data-checked={isSelected}
+              onClick={onToggleSelection}
+              className="group relative flex shrink-0 items-center justify-center outline-none cursor-pointer"
+            >
+              {/* Outer ring */}
+              <div
+                className={cn(
+                  "pointer-events-none absolute inset-0 flex items-center justify-center rounded-full border bg-background transition-all duration-150",
+                  isSelected
+                    ? "border-foreground"
+                    : "border-muted-foreground/40 group-hover:border-muted-foreground/60"
+                )}
+              >
+                {/* Checkmark container */}
+                <div
+                  className={cn(
+                    "rounded-full bg-foreground p-0.5 transition-all duration-100",
+                    isSelected ? "scale-100 opacity-100" : "scale-90 opacity-0"
+                  )}
+                >
+                  <Check className="size-3 text-background" strokeWidth={3} />
+                </div>
+              </div>
+              {/* Placeholder for consistent sizing */}
+              <div className="size-5" />
+            </button>
+          ) : (
+            <div
+              onPointerDown={(e) => dragControls.start(e)}
+              className="cursor-grab active:cursor-grabbing shrink-0 touch-none p-1 -m-1"
+            >
+              <GripVertical className="size-5 text-muted-foreground" />
+            </div>
+          )}
+
+          {/* Product Image */}
+          <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
+            {product.image?.url ? (
+              <Image
+                src={product.image.url}
+                alt={product.image.altText || product.name}
+                fill
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex size-full items-center justify-center">
+                <Package className="size-6 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+
+          {/* Product Info */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/dashboard/${storeSlug}/products/${product.id}`}
+                className="truncate font-medium hover:underline"
+              >
+                {product.name}
+              </Link>
+              {/* Mobile stock badge */}
+              <div className="sm:hidden">{getStockBadge(product)}</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              <span>{formatPrice(product.price)}</span>
+              {product.trackInventory && (
+                <span className="sm:hidden">• {product.stock} in stock</span>
+              )}
+              {product.categories && product.categories.length > 0 && (
+                <>
+                  <span className="hidden sm:inline">•</span>
+                  <div className="hidden flex-wrap gap-1 sm:flex">
+                    {product.categories.map((cat) => (
+                      <Badge
+                        key={cat.id}
+                        variant="secondary"
+                        className="text-xs"
+                      >
+                        {cat.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Status Badges */}
+          <div className="hidden shrink-0 items-center gap-2 sm:flex">
+            {getStockBadge(product)}
+            {product.trackInventory && (
+              <span className="text-xs text-muted-foreground">
+                {product.stock} in stock
+              </span>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex shrink-0 gap-1">
+            {product.trackInventory && !product.hasVariants && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onAdjustStock}
+                title="Adjust Stock"
+              >
+                <PackagePlus className="size-4" />
+                <span className="sr-only">Adjust Stock</span>
+              </Button>
+            )}
+            <Button variant="ghost" size="icon-sm" asChild>
+              <Link
+                href={`/store/${storeSlug}/product/${product.slug}`}
+                target="_blank"
+              >
+                <Eye className="size-4" />
+                <span className="sr-only">View in Store</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon-sm" asChild>
+              <Link href={`/dashboard/${storeSlug}/products/${product.id}`}>
+                <Pencil className="size-4" />
+                <span className="sr-only">Edit</span>
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="cursor-pointer"
+              onClick={onDelete}
+              disabled={isPending}
+            >
+              <Trash2 className="size-4 text-destructive" />
+              <span className="sr-only">Delete</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </Reorder.Item>
+  );
+}
+
 export function ProductsList({
   tenantId,
   storeSlug,
@@ -66,24 +256,16 @@ export function ProductsList({
   const [productToAdjust, setProductToAdjust] =
     useState<ProductWithCategory | null>(null);
 
-  // Drag state (mouse)
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-  // Touch drag state
-  const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
-  const [touchOverIndex, setTouchOverIndex] = useState<number | null>(null);
-  const touchStartY = useRef<number>(0);
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-
   // Sync products when initialProducts change
   useEffect(() => {
     setProducts(initialProducts);
   }, [initialProducts]);
 
-  // Save reordered products
-  const saveOrder = useCallback(
+  // Handle reorder from framer-motion
+  const handleReorder = useCallback(
     async (newProducts: ProductWithCategory[]) => {
+      setProducts(newProducts);
+
       const result = await reorderProducts(tenantId, {
         productIds: newProducts.map((p) => p.id),
       });
@@ -98,75 +280,6 @@ export function ProductsList({
     },
     [tenantId, initialProducts, router]
   );
-
-  // Mouse drag handlers
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
-
-  const handleDragEnd = async () => {
-    if (draggedIndex !== null && dragOverIndex !== null) {
-      const newProducts = [...products];
-      const [draggedItem] = newProducts.splice(draggedIndex, 1);
-      newProducts.splice(dragOverIndex, 0, draggedItem);
-      setProducts(newProducts);
-      await saveOrder(newProducts);
-    }
-
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  // Touch drag handlers
-  const handleTouchStart = (e: React.TouchEvent, index: number) => {
-    // Only start drag if touching the grip handle
-    const target = e.target as HTMLElement;
-    if (!target.closest("[data-drag-handle]")) return;
-
-    e.preventDefault();
-    setTouchDragIndex(index);
-    touchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchDragIndex === null) return;
-
-    const touchY = e.touches[0].clientY;
-
-    // Find which item we're over
-    for (let i = 0; i < itemRefs.current.length; i++) {
-      const ref = itemRefs.current[i];
-      if (ref) {
-        const rect = ref.getBoundingClientRect();
-        if (touchY >= rect.top && touchY <= rect.bottom) {
-          if (i !== touchDragIndex) {
-            setTouchOverIndex(i);
-          }
-          break;
-        }
-      }
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    if (touchDragIndex !== null && touchOverIndex !== null) {
-      const newProducts = [...products];
-      const [draggedItem] = newProducts.splice(touchDragIndex, 1);
-      newProducts.splice(touchOverIndex, 0, draggedItem);
-      setProducts(newProducts);
-      await saveOrder(newProducts);
-    }
-
-    setTouchDragIndex(null);
-    setTouchOverIndex(null);
-  };
 
   const handleDelete = async () => {
     if (!productToDelete) return;
@@ -194,10 +307,6 @@ export function ProductsList({
       next.add(productId);
     }
     onSelectionChange(next);
-  };
-
-  const formatPrice = (price: string) => {
-    return `${parseFloat(price).toLocaleString()} ${currency}`;
   };
 
   const getStockBadge = (product: ProductWithCategory) => {
@@ -256,229 +365,34 @@ export function ProductsList({
 
   return (
     <>
-      <div className="space-y-2">
-        {products.map((product, index) => {
-          const isDragging = draggedIndex === index || touchDragIndex === index;
-          const isDragOver =
-            dragOverIndex === index || touchOverIndex === index;
-
-          return (
-            <Card
-              key={product.id}
-              ref={(el) => {
-                itemRefs.current[index] = el;
-              }}
-              draggable
-              onDragStart={() => handleDragStart(index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={handleDragEnd}
-              onTouchStart={(e) => handleTouchStart(e, index)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              className={cn(
-                "transition-all",
-                isDragging && "opacity-50 scale-[1.02] shadow-lg",
-                isDragOver && "border-primary ring-2 ring-primary ring-offset-2"
-              )}
-            >
-              <CardContent className="flex items-center gap-4 p-4">
-                {/* Desktop: Always show select button */}
-                <button
-                  type="button"
-                  role="checkbox"
-                  aria-checked={selectedIds.has(product.id)}
-                  data-checked={selectedIds.has(product.id)}
-                  onClick={() => toggleSelection(product.id)}
-                  className="group relative hidden shrink-0 items-center justify-center outline-none sm:flex"
-                >
-                  {/* Outer ring - always visible on desktop */}
-                  <div
-                    className={cn(
-                      "pointer-events-none absolute inset-0 flex items-center justify-center rounded-full border bg-background transition-all duration-150",
-                      selectedIds.has(product.id)
-                        ? "border-foreground"
-                        : "border-muted-foreground/40 group-hover:border-muted-foreground/60"
-                    )}
-                  >
-                    {/* Checkmark container */}
-                    <div
-                      className={cn(
-                        "rounded-full bg-foreground p-0.5 transition-all duration-100",
-                        selectedIds.has(product.id)
-                          ? "scale-100 opacity-100"
-                          : "scale-90 opacity-0"
-                      )}
-                    >
-                      <Check
-                        className="size-3 text-background"
-                        strokeWidth={3}
-                      />
-                    </div>
-                  </div>
-                  {/* Placeholder for consistent sizing */}
-                  <div className="size-5" />
-                </button>
-
-                {/* Mobile: Drag Handle or Select Button based on selection mode */}
-                {selectionMode ? (
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={selectedIds.has(product.id)}
-                    data-checked={selectedIds.has(product.id)}
-                    onClick={() => toggleSelection(product.id)}
-                    className="group relative flex shrink-0 items-center justify-center outline-none sm:hidden"
-                  >
-                    {/* Ring always visible on mobile */}
-                    <div
-                      className={cn(
-                        "pointer-events-none absolute inset-0 flex items-center justify-center rounded-full border border-muted-foreground/30 ring ring-black/5 transition-all duration-150",
-                        selectedIds.has(product.id) &&
-                          "border-muted-foreground/50"
-                      )}
-                    >
-                      {/* Checkmark container */}
-                      <div
-                        className={cn(
-                          "rounded-full bg-foreground p-0.5 transition-all duration-100",
-                          selectedIds.has(product.id)
-                            ? "scale-100 opacity-100"
-                            : "scale-90 opacity-0"
-                        )}
-                      >
-                        <Check
-                          className="size-3 text-background"
-                          strokeWidth={3}
-                        />
-                      </div>
-                    </div>
-                    {/* Placeholder for consistent sizing */}
-                    <div className="size-5" />
-                  </button>
-                ) : (
-                  <div
-                    data-drag-handle
-                    className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing sm:hidden"
-                  >
-                    <GripVertical className="size-5" />
-                  </div>
-                )}
-
-                {/* Product Image */}
-                <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
-                  {product.image?.url ? (
-                    <Image
-                      src={product.image.url}
-                      alt={product.image.altText || product.name}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center">
-                      <Package className="size-6 text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Product Info */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/dashboard/${storeSlug}/products/${product.id}`}
-                      className="truncate font-medium hover:underline"
-                    >
-                      {product.name}
-                    </Link>
-                    {/* Mobile stock badge */}
-                    <div className="sm:hidden">{getStockBadge(product)}</div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                    <span>{formatPrice(product.price)}</span>
-                    {product.trackInventory && (
-                      <span className="sm:hidden">
-                        • {product.stock} in stock
-                      </span>
-                    )}
-                    {product.categories && product.categories.length > 0 && (
-                      <>
-                        <span className="hidden sm:inline">•</span>
-                        <div className="hidden flex-wrap gap-1 sm:flex">
-                          {product.categories.map((cat) => (
-                            <Badge
-                              key={cat.id}
-                              variant="secondary"
-                              className="text-xs"
-                            >
-                              {cat.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Status Badges */}
-                <div className="hidden shrink-0 items-center gap-2 sm:flex">
-                  {getStockBadge(product)}
-                  {product.trackInventory && (
-                    <span className="text-xs text-muted-foreground">
-                      {product.stock} in stock
-                    </span>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex shrink-0 gap-1">
-                  {product.trackInventory && !product.hasVariants && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => {
-                        setProductToAdjust(product);
-                        setAdjustDialogOpen(true);
-                      }}
-                      title="Adjust Stock"
-                    >
-                      <PackagePlus className="size-4" />
-                      <span className="sr-only">Adjust Stock</span>
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="icon-sm" asChild>
-                    <Link
-                      href={`/store/${storeSlug}/product/${product.slug}`}
-                      target="_blank"
-                    >
-                      <Eye className="size-4" />
-                      <span className="sr-only">View in Store</span>
-                    </Link>
-                  </Button>
-                  <Button variant="ghost" size="icon-sm" asChild>
-                    <Link
-                      href={`/dashboard/${storeSlug}/products/${product.id}`}
-                    >
-                      <Pencil className="size-4" />
-                      <span className="sr-only">Edit</span>
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => {
-                      setProductToDelete(product);
-                      setDeleteDialogOpen(true);
-                    }}
-                    disabled={isPending}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                    <span className="sr-only">Delete</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <Reorder.Group
+        axis="y"
+        values={products}
+        onReorder={handleReorder}
+        className="space-y-2"
+      >
+        {products.map((product) => (
+          <DraggableProductItem
+            key={product.id}
+            product={product}
+            storeSlug={storeSlug}
+            currency={currency}
+            selectionMode={selectionMode}
+            isSelected={selectedIds.has(product.id)}
+            onToggleSelection={() => toggleSelection(product.id)}
+            onDelete={() => {
+              setProductToDelete(product);
+              setDeleteDialogOpen(true);
+            }}
+            onAdjustStock={() => {
+              setProductToAdjust(product);
+              setAdjustDialogOpen(true);
+            }}
+            getStockBadge={getStockBadge}
+            isPending={isPending}
+          />
+        ))}
+      </Reorder.Group>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

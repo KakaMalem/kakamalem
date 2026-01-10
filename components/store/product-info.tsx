@@ -1,17 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ShoppingCart, Heart, Loader2, Star } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import {
+  ShoppingCart,
+  Heart,
+  Loader2,
+  Star,
+  Tag,
+  Minus,
+  Plus,
+  Check,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { VariantSelector } from "@/components/store/variant-selector";
-import { formatPrice } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
+import { getDisplayPrices } from "@/lib/utils/pricing-display";
 import { addToCartAction } from "@/lib/cart/actions";
 import { useCartStore } from "@/lib/stores/use-cart-store";
 
 import type { ProductWithDetails } from "@/lib/db/queries/products";
+import type { PriceTier } from "@/lib/db/schema";
 
 interface ReviewStats {
   averageRating: number | null;
@@ -19,11 +32,16 @@ interface ReviewStats {
 }
 
 interface ProductInfoProps {
-  product: ProductWithDetails;
+  product: ProductWithDetails & {
+    compareAtPrice?: string | null;
+    minOrderQuantity?: number | null;
+    maxOrderQuantity?: number | null;
+  };
   tenantId: string;
   storeSlug: string;
   currency: string;
   reviewStats: ReviewStats;
+  priceTiers?: PriceTier[];
   onVariantChange?: (variantId: string | null) => void;
 }
 
@@ -33,31 +51,47 @@ export function ProductInfo({
   storeSlug,
   currency,
   reviewStats,
+  priceTiers = [],
   onVariantChange,
 }: ProductInfoProps) {
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
   const [selectedOptions, setSelectedOptions] = useState<
     Record<string, string>
   >(() => {
-    // Initialize with first variant's options
-    if (
-      product.hasVariants &&
-      product.variants?.length &&
-      product.variants[0].options
-    ) {
-      const initialOptions: Record<string, string> = {};
-      for (const opt of product.variants[0].options) {
-        if (opt.optionValue?.option?.name && opt.optionValue?.value) {
-          initialOptions[opt.optionValue.option.name] = opt.optionValue.value;
+    // Initialize with first available variant's options
+    if (product.hasVariants && product.variants?.length) {
+      // Find first available variant (active and in stock)
+      const firstAvailableVariant = product.variants.find((variant) => {
+        if (!variant.isActive) return false;
+        // Available if: not tracking inventory, allows backorder, or has stock
+        return (
+          !product.trackInventory || product.allowBackorder || variant.stock > 0
+        );
+      });
+
+      // Fall back to first variant if none are available
+      const variantToUse = firstAvailableVariant || product.variants[0];
+
+      if (variantToUse?.options) {
+        const initialOptions: Record<string, string> = {};
+        for (const opt of variantToUse.options) {
+          if (opt.optionValue?.option?.name && opt.optionValue?.value) {
+            initialOptions[opt.optionValue.option.name] = opt.optionValue.value;
+          }
         }
+        return initialOptions;
       }
-      return initialOptions;
     }
     return {};
   });
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [quantity, setQuantity] = useState(product.minOrderQuantity ?? 1);
   const setCart = useCartStore((state) => state.setCart);
   const setCartOpen = useCartStore((state) => state.setIsOpen);
+
+  // Order quantity limits
+  const minQty = product.minOrderQuantity ?? 1;
+  const maxQty = product.maxOrderQuantity ?? 999;
 
   // Find the variant that matches ALL selected options
   const selectedVariant =
@@ -86,10 +120,23 @@ export function ProductInfo({
   }, [selectedVariantId, onVariantChange]);
 
   // Determine price and stock based on whether product has variants
-  const displayPrice =
+  const basePrice =
     product.hasVariants && selectedVariant?.price
-      ? parseFloat(selectedVariant.price)
-      : parseFloat(product.price);
+      ? selectedVariant.price
+      : product.price;
+
+  const baseCompareAtPrice =
+    product.hasVariants && selectedVariant?.compareAtPrice
+      ? selectedVariant.compareAtPrice
+      : (product as ProductWithDetails & { compareAtPrice?: string | null })
+          .compareAtPrice;
+
+  // Get display prices with discount calculation
+  const {
+    price: displayPrice,
+    discountPercent,
+    hasDiscount,
+  } = getDisplayPrices(basePrice, baseCompareAtPrice ?? null);
 
   const currentStock =
     product.hasVariants && selectedVariant
@@ -99,11 +146,70 @@ export function ProductInfo({
   const isOutOfStock =
     product.trackInventory && currentStock <= 0 && !product.allowBackorder;
 
+  // Sort price tiers by minQuantity
+  const sortedTiers = useMemo(
+    () => [...priceTiers].sort((a, b) => a.minQuantity - b.minQuantity),
+    [priceTiers]
+  );
+
+  // Find the applicable tier for current quantity
+  const applicableTier = useMemo(() => {
+    if (sortedTiers.length === 0) return null;
+    // Find the highest tier that the quantity qualifies for
+    for (let i = sortedTiers.length - 1; i >= 0; i--) {
+      const tier = sortedTiers[i];
+      if (quantity >= tier.minQuantity) {
+        if (tier.maxQuantity === null || quantity <= tier.maxQuantity) {
+          return tier;
+        }
+      }
+    }
+    return null;
+  }, [sortedTiers, quantity]);
+
+  // Calculate the effective price (tier price if applicable, otherwise base price)
+  const effectivePrice = applicableTier
+    ? parseFloat(applicableTier.price)
+    : displayPrice;
+
+  // Calculate total price
+  const totalPrice = effectivePrice * quantity;
+
+  // Calculate savings compared to base price
+  const savingsPerUnit = applicableTier ? displayPrice - effectivePrice : 0;
+  const totalSavings = savingsPerUnit * quantity;
+
   // Group variants by option type for variant selector
   const variantOptions =
     product.hasVariants && product.variants
       ? groupVariantsByOption(product.variants)
       : null;
+
+  // Quantity controls
+  const incrementQuantity = () => {
+    const newQty = Math.min(quantity + 1, maxQty, currentStock || maxQty);
+    setQuantity(newQty);
+  };
+
+  const decrementQuantity = () => {
+    const newQty = Math.max(quantity - 1, minQty);
+    setQuantity(newQty);
+  };
+
+  const handleQuantityChange = (value: string) => {
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed)) return;
+    const clamped = Math.max(
+      minQty,
+      Math.min(parsed, maxQty, currentStock || maxQty)
+    );
+    setQuantity(clamped);
+  };
+
+  // Check if can add more (considering stock)
+  const canIncrement =
+    quantity < maxQty && (!product.trackInventory || quantity < currentStock);
+  const canDecrement = quantity > minQty;
 
   const handleAddToCart = async () => {
     setIsAddingToCart(true);
@@ -112,13 +218,13 @@ export function ProductInfo({
       tenantId,
       storeSlug,
       product.id,
-      1,
+      quantity,
       selectedVariantId
     );
 
     if (result.success) {
       setCart(result.cart, storeSlug);
-      toast.success("Added to cart");
+      toast.success(`${quantity} item${quantity > 1 ? "s" : ""} added to cart`);
       // Open the cart drawer to show the added item
       setCartOpen(true);
     } else {
@@ -149,15 +255,123 @@ export function ProductInfo({
         </div>
       )}
 
-      {/* Price */}
-      <div className="flex items-center gap-3">
-        <h4 className="text-3xl font-bold">
-          {formatPrice(displayPrice, currency)}
-        </h4>
-        {product.hasVariants && !selectedVariant && (
-          <span className="text-sm font-medium text-muted-foreground">
-            Starting price
-          </span>
+      {/* Price Section */}
+      <div className="space-y-4">
+        {/* Current Price */}
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <h4 className="text-3xl font-bold text-primary">
+            {formatPrice(effectivePrice, currency)}
+          </h4>
+          {(hasDiscount || applicableTier) && (
+            <span className="text-xl text-muted-foreground line-through">
+              {formatPrice(displayPrice, currency)}
+            </span>
+          )}
+          {hasDiscount && discountPercent && !applicableTier && (
+            <Badge variant="destructive" className="text-sm font-semibold">
+              -{discountPercent}% OFF
+            </Badge>
+          )}
+          {applicableTier && (
+            <Badge className="bg-green-600 text-sm font-semibold">
+              Bulk Discount Applied
+            </Badge>
+          )}
+          {product.hasVariants && !selectedVariant && !hasDiscount && (
+            <span className="text-sm font-medium text-muted-foreground">
+              Starting price
+            </span>
+          )}
+        </div>
+
+        {/* Total and Savings */}
+        {quantity > 1 && (
+          <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                {quantity} items × {formatPrice(effectivePrice, currency)}
+              </span>
+              <span className="text-lg font-bold">
+                {formatPrice(totalPrice, currency)}
+              </span>
+            </div>
+            {totalSavings > 0 && (
+              <div className="flex items-center justify-between mt-1 text-green-600">
+                <span className="text-sm">You save</span>
+                <span className="text-sm font-semibold">
+                  {formatPrice(totalSavings, currency)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Price Tiers (Quantity Discounts) */}
+        {sortedTiers.length > 0 && (
+          <div className="p-4 bg-muted/50 rounded-lg border">
+            <div className="flex items-center gap-2 mb-3">
+              <Tag className="size-4 text-primary" />
+              <span className="font-semibold">Bulk Pricing - Save More!</span>
+            </div>
+            <div className="space-y-2">
+              {sortedTiers.map((tier) => {
+                const tierPrice = parseFloat(tier.price);
+                const savings = Math.round(
+                  ((displayPrice - tierPrice) / displayPrice) * 100
+                );
+                const isActive = applicableTier?.id === tier.id;
+
+                return (
+                  <div
+                    key={tier.id}
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded-md transition-colors",
+                      isActive
+                        ? "bg-primary/10 border border-primary/30"
+                        : "hover:bg-muted"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isActive && (
+                        <Check className="size-4 text-primary shrink-0" />
+                      )}
+                      <span
+                        className={cn(
+                          "text-sm",
+                          isActive ? "font-medium" : "text-muted-foreground"
+                        )}
+                      >
+                        {tier.maxQuantity === null
+                          ? `${tier.minQuantity}+ units`
+                          : `${tier.minQuantity}-${tier.maxQuantity} units`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "font-medium",
+                          isActive && "text-primary"
+                        )}
+                      >
+                        {formatPrice(tierPrice, currency)}
+                      </span>
+                      {savings > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-xs",
+                            isActive && "bg-green-100 text-green-700"
+                          )}
+                        >
+                          -{savings}%
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
@@ -223,30 +437,93 @@ export function ProductInfo({
         </>
       )}
 
+      {/* Quantity Selector */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="font-medium">Quantity</span>
+          {product.showStock &&
+            product.trackInventory &&
+            currentStock > 0 &&
+            currentStock <= 10 && (
+              <span className="text-sm text-amber-600">
+                Only {currentStock} left in stock
+              </span>
+            )}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center border rounded-lg">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-r-none"
+              onClick={decrementQuantity}
+              disabled={!canDecrement || isAddingToCart}
+            >
+              <Minus className="size-4" />
+            </Button>
+            <Input
+              type="number"
+              min={minQty}
+              max={Math.min(
+                maxQty,
+                product.trackInventory ? currentStock : maxQty
+              )}
+              value={quantity}
+              onChange={(e) => handleQuantityChange(e.target.value)}
+              className="h-10 w-16 text-center border-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              disabled={isAddingToCart}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-l-none"
+              onClick={incrementQuantity}
+              disabled={!canIncrement || isAddingToCart}
+            >
+              <Plus className="size-4" />
+            </Button>
+          </div>
+          {minQty > 1 && (
+            <span className="text-sm text-muted-foreground">
+              Min. order: {minQty}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Action Buttons */}
-      <div className="flex gap-6">
+      <div className="flex gap-4">
         <Button
-          className="grow gap-2"
+          className="grow gap-2 h-12 text-base"
+          size="lg"
           disabled={isOutOfStock || isAddingToCart}
           onClick={handleAddToCart}
         >
           {isAddingToCart ? (
             <>
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-5 animate-spin" />
               Adding...
             </>
           ) : (
             <>
-              <ShoppingCart className="size-4" />
+              <ShoppingCart className="size-5" />
               Add to Cart
             </>
           )}
         </Button>
-        <Button variant="secondary" className="grow gap-2">
-          <Heart className="size-4" />
-          Wish List
+        <Button variant="outline" size="lg" className="h-12 px-4">
+          <Heart className="size-5" />
         </Button>
       </div>
+
+      {/* Stock Status */}
+      {isOutOfStock && (
+        <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-center font-medium">
+          Out of Stock
+        </div>
+      )}
     </div>
   );
 }

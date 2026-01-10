@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { slugify } from "@/lib/utils/slug";
 
 // Category validation schema
 export const categorySchema = z.object({
@@ -21,15 +22,9 @@ export const categorySchema = z.object({
 
 export type CategoryInput = z.infer<typeof categorySchema>;
 
-// Helper function to generate slug from name
+// Helper function to generate slug from name (supports Unicode)
 export function generateCategorySlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "") // Remove special characters
-    .replace(/\s+/g, "-") // Replace spaces with hyphens
-    .replace(/-+/g, "-") // Replace multiple hyphens with single
-    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+  return slugify(name);
 }
 
 // Reorder schema for drag-and-drop
