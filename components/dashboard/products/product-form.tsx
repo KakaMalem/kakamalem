@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Popover,
   PopoverAnchor,
@@ -1315,12 +1316,10 @@ export function ProductForm({
                             {upload.file.name}
                           </p>
                           {upload.status === "uploading" && (
-                            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                              <div
-                                className="h-full bg-primary transition-all duration-200"
-                                style={{ width: `${upload.progress}%` }}
-                              />
-                            </div>
+                            <Progress
+                              value={upload.progress}
+                              className="mt-1 h-1.5"
+                            />
                           )}
                           {upload.status === "error" && upload.error && (
                             <p className="text-xs text-destructive truncate">

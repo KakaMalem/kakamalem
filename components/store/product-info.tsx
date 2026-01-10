@@ -21,6 +21,7 @@ import { VariantSelector } from "@/components/store/variant-selector";
 import { cn, formatPrice } from "@/lib/utils";
 import { getDisplayPrices } from "@/lib/utils/pricing-display";
 import { addToCartAction } from "@/lib/cart/actions";
+import { toggleWishlistAction } from "@/lib/actions/wishlists";
 import { useCartStore } from "@/lib/stores/use-cart-store";
 
 import type { ProductWithDetails } from "@/lib/db/queries/products";
@@ -43,6 +44,7 @@ interface ProductInfoProps {
   reviewStats: ReviewStats;
   priceTiers?: PriceTier[];
   onVariantChange?: (variantId: string | null) => void;
+  initialIsInWishlist?: boolean;
 }
 
 export function ProductInfo({
@@ -53,6 +55,7 @@ export function ProductInfo({
   reviewStats,
   priceTiers = [],
   onVariantChange,
+  initialIsInWishlist = false,
 }: ProductInfoProps) {
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
   const [selectedOptions, setSelectedOptions] = useState<
@@ -85,6 +88,8 @@ export function ProductInfo({
     return {};
   });
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isInWishlist, setIsInWishlist] = useState(initialIsInWishlist);
+  const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
   const [quantity, setQuantity] = useState(product.minOrderQuantity ?? 1);
   const setCart = useCartStore((state) => state.setCart);
   const setCartOpen = useCartStore((state) => state.setIsOpen);
@@ -232,6 +237,29 @@ export function ProductInfo({
     }
 
     setIsAddingToCart(false);
+  };
+
+  const handleToggleWishlist = async () => {
+    setIsTogglingWishlist(true);
+
+    const result = await toggleWishlistAction(
+      tenantId,
+      product.id,
+      selectedVariantId ?? undefined
+    );
+
+    if (result.error) {
+      toast.error(result.error.message);
+    } else if (result.data) {
+      setIsInWishlist(result.data.action === "added");
+      toast.success(
+        result.data.action === "added"
+          ? "Added to wishlist"
+          : "Removed from wishlist"
+      );
+    }
+
+    setIsTogglingWishlist(false);
   };
 
   return (
@@ -513,8 +541,23 @@ export function ProductInfo({
             </>
           )}
         </Button>
-        <Button variant="outline" size="lg" className="h-12 px-4">
-          <Heart className="size-5" />
+        <Button
+          variant="outline"
+          size="lg"
+          className="h-12 px-4"
+          onClick={handleToggleWishlist}
+          disabled={isTogglingWishlist}
+        >
+          {isTogglingWishlist ? (
+            <Loader2 className="size-5 animate-spin" />
+          ) : (
+            <Heart
+              className={cn(
+                "size-5",
+                isInWishlist && "fill-red-500 stroke-red-500"
+              )}
+            />
+          )}
         </Button>
       </div>
 

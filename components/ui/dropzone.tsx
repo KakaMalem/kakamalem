@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 import {
   validateFiles,
   formatFileSize,
@@ -584,14 +585,7 @@ export function Dropzone({
                     {upload.file.name}
                   </p>
                   {upload.status === "uploading" && (
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                      <motion.div
-                        className="h-full bg-primary"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${upload.progress}%` }}
-                        transition={{ duration: 0.2 }}
-                      />
-                    </div>
+                    <Progress value={upload.progress} className="mt-1 h-1.5" />
                   )}
                   {upload.status === "error" && upload.error && (
                     <p className="text-xs text-destructive truncate">

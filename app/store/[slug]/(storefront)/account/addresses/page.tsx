@@ -18,13 +18,22 @@ export default async function AddressesPage() {
 
   return (
     <div className="space-y-4">
+      {/* Info Alert */}
+      <Alert>
+        <Info className="size-4" />
+        <AlertDescription>
+          Your addresses are saved to your account and can be used at any store
+          on Kaka Malem. Changes here will apply everywhere.
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2">
             <MapPin className="size-5" />
             Saved Addresses
           </CardTitle>
-          <AddAddressButton />
+          <AddAddressButton userName={user.name} />
         </CardHeader>
         <CardContent>
           {addresses.length === 0 ? (
@@ -36,27 +45,26 @@ export default async function AddressesPage() {
                 store on Kaka Malem.
               </p>
               <div className="mt-4">
-                <AddAddressButton variant="default" showIcon />
+                <AddAddressButton
+                  variant="default"
+                  showIcon
+                  userName={user.name}
+                />
               </div>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {addresses.map((address) => (
-                <AddressCard key={address.id} address={address} />
+                <AddressCard
+                  key={address.id}
+                  address={address}
+                  userName={user.name}
+                />
               ))}
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Info Alert */}
-      <Alert>
-        <Info className="size-4" />
-        <AlertDescription>
-          Your addresses are saved to your account and can be used at any store
-          on Kaka Malem. Changes here will apply everywhere.
-        </AlertDescription>
-      </Alert>
     </div>
   );
 }

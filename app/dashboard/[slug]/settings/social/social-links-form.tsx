@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Card,
   CardContent,
@@ -175,18 +176,15 @@ export function SocialLinksForm({
 
           <Field>
             <FieldLabel htmlFor="whatsapp">WhatsApp</FieldLabel>
-            <Input
-              id="whatsapp"
-              type="tel"
+            <PhoneInput
               value={formData.whatsapp}
-              onChange={(e) => updateField("whatsapp", e.target.value)}
-              placeholder="+93700000000"
+              onChange={(value) => updateField("whatsapp", value || "")}
+              defaultCountry="AF"
               disabled={isPending}
               aria-invalid={!!fieldErrors.whatsapp}
             />
             <FieldDescription>
-              Enter your WhatsApp number with country code (e.g., +93 for
-              Afghanistan)
+              Enter your WhatsApp number with country code
             </FieldDescription>
             <FieldError>{fieldErrors.whatsapp}</FieldError>
           </Field>

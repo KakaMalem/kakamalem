@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -14,11 +14,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle, Check, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { brandingSettingsSchema } from "@/lib/validations/stores";
-import { updateBrandingSettingsWithImages } from "@/lib/actions/stores";
+import { updateBrandingSettings } from "@/lib/actions/stores";
 import { toast } from "sonner";
 import {
   MAX_SIZES,
@@ -31,6 +32,12 @@ type ImageState = {
   url: string;
   file?: File;
   isStaged?: boolean;
+};
+
+// Upload progress state
+type UploadProgress = {
+  isUploading: boolean;
+  progress: number;
 };
 
 interface BrandingSettingsFormProps {
@@ -62,6 +69,102 @@ export function BrandingSettingsForm({
     initialData.faviconUrl
       ? { url: initialData.faviconUrl, isStaged: false }
       : null
+  );
+
+  // Upload progress state
+  const [logoUploadProgress, setLogoUploadProgress] = useState<UploadProgress>({
+    isUploading: false,
+    progress: 0,
+  });
+  const [faviconUploadProgress, setFaviconUploadProgress] =
+    useState<UploadProgress>({
+      isUploading: false,
+      progress: 0,
+    });
+
+  // Helper to upload a file with progress tracking
+  const uploadFileWithProgress = useCallback(
+    (
+      file: File,
+      folder: string,
+      onProgress: (progress: number) => void
+    ): Promise<string | null> => {
+      return new Promise((resolve) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("tenantId", storeId);
+        formData.append("folder", folder);
+
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) {
+            // Cap at 95% to leave room for server processing
+            const progress = Math.min(
+              95,
+              Math.round((e.loaded / e.total) * 95)
+            );
+            onProgress(progress);
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          // Server responded - set to 100%
+          onProgress(100);
+
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText) as {
+                success: boolean;
+                file?: { url: string };
+                error?: string;
+              };
+              if (response.success && response.file?.url) {
+                resolve(response.file.url);
+              } else {
+                toast.error(
+                  response.error || UPLOAD_ERROR_MESSAGES.unknownError
+                );
+                resolve(null);
+              }
+            } catch {
+              toast.error(UPLOAD_ERROR_MESSAGES.serverError);
+              resolve(null);
+            }
+          } else {
+            if (xhr.status === 413) {
+              toast.error(
+                UPLOAD_ERROR_MESSAGES.fileTooLarge(
+                  formatFileSize(MAX_SIZES.logos)
+                )
+              );
+            } else if (xhr.status === 401) {
+              toast.error("You must be logged in to upload files");
+            } else if (xhr.status === 403) {
+              toast.error("You don't have permission to upload to this store");
+            } else {
+              toast.error(UPLOAD_ERROR_MESSAGES.serverError);
+            }
+            resolve(null);
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          toast.error(UPLOAD_ERROR_MESSAGES.networkError);
+          resolve(null);
+        });
+
+        xhr.addEventListener("timeout", () => {
+          toast.error("Upload timed out. Please try again.");
+          resolve(null);
+        });
+
+        xhr.timeout = 120000;
+        xhr.open("POST", "/api/upload");
+        xhr.send(formData);
+      });
+    },
+    [storeId]
   );
 
   // Cleanup object URLs on unmount
@@ -126,65 +229,118 @@ export function BrandingSettingsForm({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    startTransition(async () => {
-      setError(null);
-      setSuccess(false);
+    setError(null);
+    setSuccess(false);
 
-      const formData = {
-        logoUrl: logo && !logo.isStaged ? logo.url : "",
-        faviconUrl: favicon && !favicon.isStaged ? favicon.url : "",
-        headerDisplay,
-      };
-
-      // Client-side validation
-      const validation = brandingSettingsSchema.safeParse(formData);
-      if (!validation.success) {
-        const firstError = validation.error.issues[0]?.message;
-        toast.error(firstError || "Please check the form for errors");
-        return;
-      }
-
-      // Get staged files
+    try {
+      // Get staged files that need uploading
       const logoFile = logo?.isStaged && logo.file ? logo.file : null;
       const faviconFile =
         favicon?.isStaged && favicon.file ? favicon.file : null;
 
-      const result = await updateBrandingSettingsWithImages(
-        storeId,
-        formData,
-        logoFile,
-        faviconFile
-      );
+      let uploadedLogoUrl = logo && !logo.isStaged ? logo.url : "";
+      let uploadedFaviconUrl = favicon && !favicon.isStaged ? favicon.url : "";
 
-      if (result.error) {
-        // Check for connection/network errors
-        const errorMessage = result.error.message.toLowerCase();
-        if (
-          errorMessage.includes("network") ||
-          errorMessage.includes("fetch") ||
-          errorMessage.includes("connection")
-        ) {
-          toast.error(UPLOAD_ERROR_MESSAGES.networkError);
-        } else {
-          toast.error(result.error.message);
+      // Upload logo with progress if needed
+      if (logoFile) {
+        setLogoUploadProgress({ isUploading: true, progress: 0 });
+        const url = await uploadFileWithProgress(
+          logoFile,
+          "logos",
+          (progress) => {
+            setLogoUploadProgress({ isUploading: true, progress });
+          }
+        );
+        setLogoUploadProgress({ isUploading: false, progress: 0 });
+
+        if (!url) {
+          return; // Error already shown by uploadFileWithProgress
         }
-        return;
-      }
+        uploadedLogoUrl = url;
 
-      // Update local state with new URLs if images were uploaded
-      if (result.logoUrl) {
+        // Update logo state with new URL
         if (logo?.isStaged && logo.url) URL.revokeObjectURL(logo.url);
-        setLogo({ url: result.logoUrl, isStaged: false });
-      }
-      if (result.faviconUrl) {
-        if (favicon?.isStaged && favicon.url) URL.revokeObjectURL(favicon.url);
-        setFavicon({ url: result.faviconUrl, isStaged: false });
+        setLogo({ url: uploadedLogoUrl, isStaged: false });
       }
 
-      setSuccess(true);
-      toast.success("Branding settings saved!");
-    });
+      // Upload favicon with progress if needed
+      if (faviconFile) {
+        setFaviconUploadProgress({ isUploading: true, progress: 0 });
+        const url = await uploadFileWithProgress(
+          faviconFile,
+          "logos",
+          (progress) => {
+            setFaviconUploadProgress({ isUploading: true, progress });
+          }
+        );
+        setFaviconUploadProgress({ isUploading: false, progress: 0 });
+
+        if (!url) {
+          return; // Error already shown by uploadFileWithProgress
+        }
+        uploadedFaviconUrl = url;
+
+        // Update favicon state with new URL
+        if (favicon?.isStaged && favicon.url) URL.revokeObjectURL(favicon.url);
+        setFavicon({ url: uploadedFaviconUrl, isStaged: false });
+      }
+
+      // Now save the settings with URLs
+      startTransition(async () => {
+        try {
+          const formDataToSave = {
+            logoUrl: uploadedLogoUrl,
+            faviconUrl: uploadedFaviconUrl,
+            headerDisplay,
+          };
+
+          // Client-side validation
+          const validation = brandingSettingsSchema.safeParse(formDataToSave);
+          if (!validation.success) {
+            const firstError = validation.error.issues[0]?.message;
+            toast.error(firstError || "Please check the form for errors");
+            return;
+          }
+
+          // Create FormData for server action
+          const submitData = new FormData();
+          submitData.append("logoUrl", uploadedLogoUrl);
+          submitData.append("faviconUrl", uploadedFaviconUrl);
+          submitData.append("headerDisplay", headerDisplay);
+
+          const result = await updateBrandingSettings(storeId, submitData);
+
+          if (result.error) {
+            // Check for connection/network errors
+            const errorMessage = result.error.message.toLowerCase();
+            if (
+              errorMessage.includes("network") ||
+              errorMessage.includes("fetch") ||
+              errorMessage.includes("connection")
+            ) {
+              toast.error(UPLOAD_ERROR_MESSAGES.networkError);
+            } else {
+              toast.error(result.error.message);
+            }
+            return;
+          }
+
+          setSuccess(true);
+          toast.success("Branding settings saved!");
+        } catch {
+          toast.error("Failed to save settings. Please try again.");
+        }
+      });
+    } catch {
+      setLogoUploadProgress({ isUploading: false, progress: 0 });
+      setFaviconUploadProgress({ isUploading: false, progress: 0 });
+      toast.error("Something went wrong. Please try again.");
+    }
   }
+
+  // Check if any upload is in progress
+  const isUploading =
+    logoUploadProgress.isUploading || faviconUploadProgress.isUploading;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -230,7 +386,7 @@ export function BrandingSettingsForm({
                 type="button"
                 onClick={() => removeImage("logo")}
                 className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
-                disabled={isPending}
+                disabled={isPending || isUploading}
               >
                 <X className="size-4" />
               </button>
@@ -242,7 +398,7 @@ export function BrandingSettingsForm({
                 accept="image/*"
                 onChange={(e) => handleImageUpload("logo", e)}
                 className="sr-only"
-                disabled={isPending}
+                disabled={isPending || isUploading}
               />
               <div className="text-center">
                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
@@ -255,7 +411,18 @@ export function BrandingSettingsForm({
               </div>
             </label>
           )}
-          {logo && (
+          {logoUploadProgress.isUploading && (
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Uploading logo...</span>
+                <span className="text-muted-foreground">
+                  {logoUploadProgress.progress}%
+                </span>
+              </div>
+              <Progress value={logoUploadProgress.progress} className="h-2" />
+            </div>
+          )}
+          {logo && !logoUploadProgress.isUploading && (
             <div className="flex justify-center mt-3">
               <label>
                 <input
@@ -263,14 +430,14 @@ export function BrandingSettingsForm({
                   accept="image/*"
                   onChange={(e) => handleImageUpload("logo", e)}
                   className="sr-only"
-                  disabled={isPending}
+                  disabled={isPending || isUploading}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   asChild
-                  disabled={isPending}
+                  disabled={isPending || isUploading}
                 >
                   <span className="cursor-pointer">
                     <Upload className="mr-2 size-4" />
@@ -309,7 +476,7 @@ export function BrandingSettingsForm({
                 type="button"
                 onClick={() => removeImage("favicon")}
                 className="absolute -top-2 -right-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
-                disabled={isPending}
+                disabled={isPending || isUploading}
               >
                 <X className="size-3" />
               </button>
@@ -321,7 +488,7 @@ export function BrandingSettingsForm({
                 accept="image/*"
                 onChange={(e) => handleImageUpload("favicon", e)}
                 className="sr-only"
-                disabled={isPending}
+                disabled={isPending || isUploading}
               />
               <div className="text-center">
                 <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
@@ -331,7 +498,23 @@ export function BrandingSettingsForm({
               </div>
             </label>
           )}
-          {favicon && (
+          {faviconUploadProgress.isUploading && (
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Uploading favicon...
+                </span>
+                <span className="text-muted-foreground">
+                  {faviconUploadProgress.progress}%
+                </span>
+              </div>
+              <Progress
+                value={faviconUploadProgress.progress}
+                className="h-2"
+              />
+            </div>
+          )}
+          {favicon && !faviconUploadProgress.isUploading && (
             <div className="flex justify-center mt-3">
               <label>
                 <input
@@ -339,14 +522,14 @@ export function BrandingSettingsForm({
                   accept="image/*"
                   onChange={(e) => handleImageUpload("favicon", e)}
                   className="sr-only"
-                  disabled={isPending}
+                  disabled={isPending || isUploading}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   asChild
-                  disabled={isPending}
+                  disabled={isPending || isUploading}
                 >
                   <span className="cursor-pointer">
                     <Upload className="mr-2 size-4" />
@@ -488,9 +671,13 @@ export function BrandingSettingsForm({
           </RadioGroup>
         </CardContent>
         <CardFooter className="border-t pt-6">
-          <Button type="submit" disabled={isPending}>
-            {isPending && <Spinner className="mr-2" />}
-            {isPending ? "Saving..." : "Save changes"}
+          <Button type="submit" disabled={isPending || isUploading}>
+            {(isPending || isUploading) && <Spinner className="mr-2" />}
+            {isUploading
+              ? "Uploading..."
+              : isPending
+                ? "Saving..."
+                : "Save changes"}
           </Button>
         </CardFooter>
       </Card>

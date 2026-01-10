@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
@@ -26,16 +27,21 @@ import { toast } from "sonner";
 
 interface AddressFormProps {
   address?: UserAddress;
+  /** When provided, name fields are hidden and name is taken from auth */
+  userName?: string | null;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
 export function AddressForm({
   address,
+  userName,
   onSuccess,
   onCancel,
 }: AddressFormProps) {
   const isEditing = !!address;
+  // Hide name fields when user is authenticated (name taken from auth)
+  const useAuthName = !!userName;
 
   const [isPending, setIsPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<
@@ -43,9 +49,9 @@ export function AddressForm({
   >({});
 
   const [formData, setFormData] = useState<AddressInput>({
-    label: address?.label || "",
-    firstName: address?.firstName || "",
-    lastName: address?.lastName || "",
+    // When using auth name, don't pre-fill (server will use auth name)
+    firstName: useAuthName ? "" : address?.firstName || "",
+    lastName: useAuthName ? "" : address?.lastName || "",
     phone: address?.phone || "",
     latitude: address?.latitude ? parseFloat(address.latitude) : 0,
     longitude: address?.longitude ? parseFloat(address.longitude) : 0,
@@ -133,56 +139,44 @@ export function AddressForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Label (optional) */}
-      <Field>
-        <FieldLabel htmlFor="label">Label (optional)</FieldLabel>
-        <Input
-          id="label"
-          placeholder="e.g., Home, Office"
-          value={formData.label}
-          onChange={(e) => handleChange("label", e.target.value)}
-          disabled={isPending}
-        />
-        <FieldError>{fieldErrors.label}</FieldError>
-      </Field>
-
-      {/* Name Row */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor="firstName">First name</FieldLabel>
-          <Input
-            id="firstName"
-            value={formData.firstName}
-            onChange={(e) => handleChange("firstName", e.target.value)}
-            disabled={isPending}
-            aria-invalid={!!fieldErrors.firstName}
-          />
-          <FieldError>{fieldErrors.firstName}</FieldError>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="lastName">Last name</FieldLabel>
-          <Input
-            id="lastName"
-            value={formData.lastName}
-            onChange={(e) => handleChange("lastName", e.target.value)}
-            disabled={isPending}
-            aria-invalid={!!fieldErrors.lastName}
-          />
-          <FieldError>{fieldErrors.lastName}</FieldError>
-        </Field>
-      </div>
+      {/* Name Row - hidden when using auth name */}
+      {!useAuthName && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="firstName">First name</FieldLabel>
+            <Input
+              id="firstName"
+              value={formData.firstName}
+              onChange={(e) => handleChange("firstName", e.target.value)}
+              disabled={isPending}
+              aria-invalid={!!fieldErrors.firstName}
+            />
+            <FieldError>{fieldErrors.firstName}</FieldError>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="lastName">Last name</FieldLabel>
+            <Input
+              id="lastName"
+              value={formData.lastName}
+              onChange={(e) => handleChange("lastName", e.target.value)}
+              disabled={isPending}
+              aria-invalid={!!fieldErrors.lastName}
+            />
+            <FieldError>{fieldErrors.lastName}</FieldError>
+          </Field>
+        </div>
+      )}
 
       {/* Phone (Required) */}
       <Field>
         <FieldLabel htmlFor="phone">Phone</FieldLabel>
-        <Input
+        <PhoneInput
           id="phone"
-          type="tel"
-          placeholder="+93 700 000 000"
+          placeholder="700 000 000"
           value={formData.phone}
-          onChange={(e) => handleChange("phone", e.target.value)}
+          onChange={(value) => handleChange("phone", value || "")}
           disabled={isPending}
-          aria-invalid={!!fieldErrors.phone}
+          defaultCountry="AF"
         />
         <FieldDescription>Required for delivery coordination</FieldDescription>
         <FieldError>{fieldErrors.phone}</FieldError>

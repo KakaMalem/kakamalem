@@ -1,15 +1,27 @@
+import { isValidPhoneNumber } from "libphonenumber-js";
 import { z } from "zod";
 import { slugifyAscii } from "@/lib/utils/slug";
 
 // Slug validation pattern: lowercase letters, numbers, and hyphens only
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-// Phone validation: allows international formats
-// Examples: +93 700 123456, 0700123456, +1-555-123-4567
-const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
-
 // URL validation regex
 const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+
+// Image URL regex - allows both full URLs and relative paths (like /uploads/...)
+const imageUrlRegex =
+  /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$|^\/[/\w .-]+$/i;
+
+/**
+ * Optional phone schema - validates if provided, allows empty string
+ */
+const optionalPhoneSchema = z
+  .string()
+  .refine((value) => !value || isValidPhoneNumber(value), {
+    message: "Please enter a valid phone number",
+  })
+  .optional()
+  .or(z.literal(""));
 
 // Email validation regex
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -61,16 +73,7 @@ export const createStoreSchema = z.object({
     .regex(emailRegex, "Please enter a valid email address")
     .optional()
     .or(z.literal("")),
-  contactPhone: z
-    .string()
-    .regex(
-      phoneRegex,
-      "Please enter a valid phone number (e.g., +93 700 123456)"
-    )
-    .min(7, "Phone number must be at least 7 digits")
-    .max(20, "Phone number must be less than 20 characters")
-    .optional()
-    .or(z.literal("")),
+  contactPhone: optionalPhoneSchema,
   currency: z.enum(currencyOptions).default("AFN"),
 });
 
@@ -98,16 +101,7 @@ export const generalSettingsSchema = z.object({
     .regex(emailRegex, "Please enter a valid email address")
     .optional()
     .or(z.literal("")),
-  contactPhone: z
-    .string()
-    .regex(
-      phoneRegex,
-      "Please enter a valid phone number (e.g., +93 700 123456)"
-    )
-    .min(7, "Phone number must be at least 7 digits")
-    .max(20, "Phone number must be less than 20 characters")
-    .optional()
-    .or(z.literal("")),
+  contactPhone: optionalPhoneSchema,
   currency: z.enum(currencyOptions).default("AFN"),
 });
 
@@ -117,12 +111,12 @@ export type GeneralSettingsInput = z.infer<typeof generalSettingsSchema>;
 export const brandingSettingsSchema = z.object({
   logoUrl: z
     .string()
-    .regex(urlRegex, "Please enter a valid URL")
+    .regex(imageUrlRegex, "Please enter a valid URL")
     .optional()
     .or(z.literal("")),
   faviconUrl: z
     .string()
-    .regex(urlRegex, "Please enter a valid URL")
+    .regex(imageUrlRegex, "Please enter a valid URL")
     .optional()
     .or(z.literal("")),
   headerDisplay: z.enum(headerDisplayOptions).default("logo_and_name"),
@@ -147,16 +141,7 @@ export const socialLinksSchema = z.object({
     .regex(urlRegex, "Please enter a valid Twitter/X URL")
     .optional()
     .or(z.literal("")),
-  whatsapp: z
-    .string()
-    .regex(
-      phoneRegex,
-      "Please enter a valid WhatsApp number (e.g., +93 700 123456)"
-    )
-    .min(7, "WhatsApp number must be at least 7 digits")
-    .max(20, "WhatsApp number must be less than 20 characters")
-    .optional()
-    .or(z.literal("")),
+  whatsapp: optionalPhoneSchema,
   telegram: z
     .string()
     .regex(urlRegex, "Please enter a valid Telegram URL")

@@ -42,6 +42,7 @@ ARG NEXT_PUBLIC_UPLOADS_URL
 # Set environment for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV DOCKER_BUILD=true
 
 # Build the application
 # BETTER_AUTH_SECRET is passed via --mount=type=secret to avoid baking into image layers

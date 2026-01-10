@@ -34,7 +34,7 @@ export function ProductsFilters({
 
     // Preserve limit if set (don't include default value)
     const currentLimit = searchParams.get("limit");
-    if (currentLimit && currentLimit !== "10") {
+    if (currentLimit && currentLimit !== "25") {
       params.set("limit", currentLimit);
     }
 

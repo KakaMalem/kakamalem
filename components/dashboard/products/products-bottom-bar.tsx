@@ -31,7 +31,7 @@ interface ProductsBottomBarProps {
   isArchiveView: boolean;
 }
 
-const LIMIT_OPTIONS = [10, 25, 50, 100, 500] as const;
+const LIMIT_OPTIONS = [25, 50, 100, 500] as const;
 
 export function ProductsBottomBar({
   storeSlug,
@@ -53,7 +53,7 @@ export function ProductsBottomBar({
     const params = new URLSearchParams();
     params.set("page", (updates.page ?? pagination.page).toString());
     const limit = updates.limit ?? currentLimit;
-    if (limit !== 10) params.set("limit", limit.toString());
+    if (limit !== 25) params.set("limit", limit.toString());
     if (searchParams.search) params.set("search", searchParams.search);
     if (searchParams.status) params.set("status", searchParams.status);
     if (searchParams.sort) params.set("sort", searchParams.sort);

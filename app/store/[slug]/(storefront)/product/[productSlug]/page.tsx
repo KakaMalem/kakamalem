@@ -5,6 +5,8 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProductBySlugWithDetails } from "@/lib/db/queries/products";
 import { getProductReviewStats } from "@/lib/db/queries/reviews";
 import { getProductPriceTiers } from "@/lib/db/queries/pricing";
+import { isProductInWishlist } from "@/lib/db/queries/wishlists";
+import { getUser } from "@/lib/auth/server";
 import { ProductPageContent } from "@/components/store/product-page-content";
 import { ProductReviews } from "@/components/store/product-reviews";
 
@@ -58,10 +60,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  // Fetch review statistics and price tiers in parallel
-  const [reviewStats, priceTiers] = await Promise.all([
+  // Fetch review statistics, price tiers, and wishlist status in parallel
+  const user = await getUser();
+  const [reviewStats, priceTiers, isInWishlist] = await Promise.all([
     getProductReviewStats(store.id, product.id),
     getProductPriceTiers(product.id),
+    user ? isProductInWishlist(store.id, user.id, product.id) : false,
   ]);
 
   // Build breadcrumbs
@@ -91,6 +95,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             breadcrumbs={breadcrumbs}
             reviewStats={reviewStats}
             priceTiers={priceTiers}
+            initialIsInWishlist={isInWishlist}
           />
         </div>
 

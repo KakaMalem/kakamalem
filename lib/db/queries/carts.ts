@@ -30,6 +30,7 @@ export type CartItemWithProduct = {
     allowBackorder: boolean;
     status: "draft" | "active" | "archived";
     hasVariants: boolean;
+    weight: string | null;
     image: {
       url: string;
       altText: string | null;
@@ -195,6 +196,7 @@ function transformCartData(rawCart: {
       allowBackorder: boolean;
       status: "draft" | "active" | "archived";
       hasVariants: boolean;
+      weight: string | null;
       images: Array<{
         media: {
           url: string;
@@ -241,6 +243,7 @@ function transformCartData(rawCart: {
           allowBackorder: item.product.allowBackorder,
           status: item.product.status,
           hasVariants: item.product.hasVariants,
+          weight: item.product.weight,
           image: item.product.images[0]?.media
             ? {
                 url: item.product.images[0].media.url,

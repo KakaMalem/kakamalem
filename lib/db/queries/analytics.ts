@@ -3,10 +3,65 @@ import {
   analyticsDailySnapshots,
   analyticsProductPerformance,
   orders,
+  orderItems,
   products,
   reviews,
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc, sql, count, sum, isNull } from "drizzle-orm";
+
+// ============================================================================
+// Analytics Page Types
+// ============================================================================
+
+export type TimeRange =
+  | "today"
+  | "yesterday"
+  | "7d"
+  | "30d"
+  | "this_month"
+  | "last_month";
+
+export type DateRange = {
+  start: Date;
+  end: Date;
+};
+
+export type AnalyticsKPIs = {
+  totalRevenue: number;
+  revenueChange: number;
+  totalOrders: number;
+  ordersChange: number;
+  averageOrderValue: number;
+  aovChange: number;
+  totalCustomers: number;
+  newCustomers: number;
+  returningCustomers: number;
+  customersChange: number;
+};
+
+export type DailyAnalyticsPoint = {
+  date: string;
+  revenue: number;
+  orders: number;
+  averageOrderValue: number;
+  newCustomers: number;
+  returningCustomers: number;
+};
+
+export type AnalyticsTopProduct = {
+  id: string;
+  name: string;
+  quantitySold: number;
+  revenue: number;
+  ordersContaining: number;
+  percentOfTotal: number;
+};
+
+export type AnalyticsData = {
+  kpis: AnalyticsKPIs;
+  dailyData: DailyAnalyticsPoint[];
+  topProducts: AnalyticsTopProduct[];
+};
 
 // Types for dashboard data
 export type DashboardStats = {
@@ -389,5 +444,302 @@ export async function getActionableItems(tenantId: string) {
     ordersToShip,
     lowStock,
     pendingReviews,
+  };
+}
+
+// ============================================================================
+// Analytics Page Functions
+// ============================================================================
+
+/**
+ * Convert a time range to date boundaries for current and comparison periods
+ */
+export function getDateRangeFromTimeRange(range: TimeRange): {
+  current: DateRange;
+  previous: DateRange;
+} {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (range) {
+    case "today": {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const dayBefore = new Date(yesterday);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      return {
+        current: { start: today, end: now },
+        previous: { start: yesterday, end: today },
+      };
+    }
+    case "yesterday": {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const dayBefore = new Date(yesterday);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      return {
+        current: { start: yesterday, end: today },
+        previous: { start: dayBefore, end: yesterday },
+      };
+    }
+    case "7d": {
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const twoWeeksAgo = new Date(weekAgo);
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 7);
+      return {
+        current: { start: weekAgo, end: now },
+        previous: { start: twoWeeksAgo, end: weekAgo },
+      };
+    }
+    case "30d": {
+      const monthAgo = new Date(today);
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      const twoMonthsAgo = new Date(monthAgo);
+      twoMonthsAgo.setDate(twoMonthsAgo.getDate() - 30);
+      return {
+        current: { start: monthAgo, end: now },
+        previous: { start: twoMonthsAgo, end: monthAgo },
+      };
+    }
+    case "this_month": {
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastMonthStart = new Date(
+        today.getFullYear(),
+        today.getMonth() - 1,
+        1
+      );
+      return {
+        current: { start: monthStart, end: now },
+        previous: { start: lastMonthStart, end: monthStart },
+      };
+    }
+    case "last_month": {
+      const lastMonthStart = new Date(
+        today.getFullYear(),
+        today.getMonth() - 1,
+        1
+      );
+      const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const twoMonthsAgoStart = new Date(
+        today.getFullYear(),
+        today.getMonth() - 2,
+        1
+      );
+      return {
+        current: { start: lastMonthStart, end: thisMonthStart },
+        previous: { start: twoMonthsAgoStart, end: lastMonthStart },
+      };
+    }
+    default:
+      return getDateRangeFromTimeRange("7d");
+  }
+}
+
+/**
+ * Get the number of days in a time range
+ */
+function getDaysInRange(range: TimeRange): number {
+  switch (range) {
+    case "today":
+    case "yesterday":
+      return 1;
+    case "7d":
+      return 7;
+    case "30d":
+      return 30;
+    case "this_month": {
+      const now = new Date();
+      return now.getDate();
+    }
+    case "last_month": {
+      const now = new Date();
+      const lastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return lastMonth.getDate();
+    }
+    default:
+      return 7;
+  }
+}
+
+/**
+ * Calculate percentage change between two values
+ */
+function calculateChange(current: number, previous: number): number {
+  if (previous === 0) {
+    return current > 0 ? 100 : 0;
+  }
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+/**
+ * Get analytics data for a store for a given time range
+ * Returns KPIs, daily data for charts, and top products
+ */
+export async function getAnalyticsData(
+  tenantId: string,
+  timeRange: TimeRange = "7d"
+): Promise<AnalyticsData> {
+  const { current, previous } = getDateRangeFromTimeRange(timeRange);
+  const days = getDaysInRange(timeRange);
+
+  const currentStartStr = current.start.toISOString();
+  const currentEndStr = current.end.toISOString();
+  const previousStartStr = previous.start.toISOString();
+  const previousEndStr = previous.end.toISOString();
+
+  // Run all queries in parallel
+  const [currentPeriodStats, previousPeriodStats, dailyData, topProductsData] =
+    await Promise.all([
+      // Current period aggregate stats
+      db
+        .select({
+          totalRevenue: sum(orders.total),
+          totalOrders: count(),
+          // Count unique customers by extracting email from JSONB customerSnapshot
+          uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.tenantId, tenantId),
+            gte(orders.createdAt, currentStartStr),
+            lte(orders.createdAt, currentEndStr)
+          )
+        ),
+
+      // Previous period aggregate stats (for comparison)
+      db
+        .select({
+          totalRevenue: sum(orders.total),
+          totalOrders: count(),
+          uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.tenantId, tenantId),
+            gte(orders.createdAt, previousStartStr),
+            lte(orders.createdAt, previousEndStr)
+          )
+        ),
+
+      // Daily breakdown for charts
+      db
+        .select({
+          date: sql<string>`date(${orders.createdAt})`,
+          revenue: sum(orders.total),
+          orders: count(),
+          uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.tenantId, tenantId),
+            gte(orders.createdAt, currentStartStr),
+            lte(orders.createdAt, currentEndStr)
+          )
+        )
+        .groupBy(sql`date(${orders.createdAt})`)
+        .orderBy(sql`date(${orders.createdAt})`),
+
+      // Top products by quantity sold
+      db
+        .select({
+          id: products.id,
+          name: products.name,
+          quantitySold: sum(orderItems.quantity),
+          revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+          ordersContaining: sql<number>`count(distinct ${orders.id})`,
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .innerJoin(products, eq(orderItems.productId, products.id))
+        .where(
+          and(
+            eq(orders.tenantId, tenantId),
+            gte(orders.createdAt, currentStartStr),
+            lte(orders.createdAt, currentEndStr)
+          )
+        )
+        .groupBy(products.id, products.name)
+        .orderBy(desc(sum(orderItems.quantity)))
+        .limit(5),
+    ]);
+
+  // Process current period stats
+  const currentStats = currentPeriodStats[0];
+  const previousStats = previousPeriodStats[0];
+
+  const totalRevenue = parseFloat(currentStats?.totalRevenue || "0");
+  const totalOrders = currentStats?.totalOrders || 0;
+  const totalCustomers = currentStats?.uniqueCustomers || 0;
+  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  const prevRevenue = parseFloat(previousStats?.totalRevenue || "0");
+  const prevOrders = previousStats?.totalOrders || 0;
+  const prevCustomers = previousStats?.uniqueCustomers || 0;
+  const prevAov = prevOrders > 0 ? prevRevenue / prevOrders : 0;
+
+  // Calculate KPIs
+  const kpis: AnalyticsKPIs = {
+    totalRevenue,
+    revenueChange: calculateChange(totalRevenue, prevRevenue),
+    totalOrders,
+    ordersChange: calculateChange(totalOrders, prevOrders),
+    averageOrderValue: Math.round(averageOrderValue),
+    aovChange: calculateChange(averageOrderValue, prevAov),
+    totalCustomers,
+    newCustomers: totalCustomers, // Simplified: treating all as new for this period
+    returningCustomers: 0, // Would need historical customer data to calculate
+    customersChange: calculateChange(totalCustomers, prevCustomers),
+  };
+
+  // Fill in missing days with zeros
+  const dailyPoints: DailyAnalyticsPoint[] = [];
+  const dateMap = new Map(dailyData.map((d) => [d.date, d]));
+
+  for (let i = 0; i < days; i++) {
+    const date = new Date(current.start);
+    date.setDate(date.getDate() + i);
+    const dateStr = date.toISOString().split("T")[0];
+    const data = dateMap.get(dateStr);
+
+    const dayRevenue = parseFloat(data?.revenue || "0");
+    const dayOrders = data?.orders || 0;
+
+    dailyPoints.push({
+      date: dateStr,
+      revenue: dayRevenue,
+      orders: dayOrders,
+      averageOrderValue: dayOrders > 0 ? dayRevenue / dayOrders : 0,
+      newCustomers: data?.uniqueCustomers || 0,
+      returningCustomers: 0,
+    });
+  }
+
+  // Calculate top products with percentage
+  const totalProductRevenue = topProductsData.reduce(
+    (acc, p) => acc + parseFloat(String(p.revenue) || "0"),
+    0
+  );
+
+  const topProducts: AnalyticsTopProduct[] = topProductsData.map((p) => {
+    const revenue = parseFloat(String(p.revenue) || "0");
+    return {
+      id: p.id,
+      name: p.name,
+      quantitySold: Number(p.quantitySold) || 0,
+      revenue,
+      ordersContaining: p.ordersContaining || 0,
+      percentOfTotal:
+        totalProductRevenue > 0 ? (revenue / totalProductRevenue) * 100 : 0,
+    };
+  });
+
+  return {
+    kpis,
+    dailyData: dailyPoints,
+    topProducts,
   };
 }

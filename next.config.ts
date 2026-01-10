@@ -1,10 +1,11 @@
 import type { NextConfig } from "next";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const isDocker = process.env.DOCKER_BUILD === "true";
 
 const nextConfig: NextConfig = {
-  // Enable standalone output for Docker deployment (production only)
-  ...(isDevelopment ? {} : { output: "standalone" }),
+  // Enable standalone output for Docker deployment only
+  ...(isDocker ? { output: "standalone" } : {}),
 
   images: {
     remotePatterns: isDevelopment

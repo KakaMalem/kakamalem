@@ -1,3 +1,4 @@
+import { isValidPhoneNumber } from "libphonenumber-js";
 import { z } from "zod";
 
 // =============================================================================
@@ -14,23 +15,26 @@ export const guestCheckoutSchema = z.object({
   phone: z
     .string()
     .min(1, "Phone number is required")
-    .max(50)
-    .regex(/^[\d\s+\-()]+$/, "Invalid phone number format"),
+    .refine((value) => isValidPhoneNumber(value), {
+      message: "Please enter a valid phone number",
+    }),
 });
 
 export type GuestCheckoutInput = z.infer<typeof guestCheckoutSchema>;
 
 /**
  * Shipping address schema (GPS-based, matches Address type from schema.ts)
+ * Name fields are optional when user is logged in (taken from account)
  */
 export const shippingAddressSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(100),
-  lastName: z.string().min(1, "Last name is required").max(100),
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
   phone: z
     .string()
     .min(1, "Phone number is required")
-    .max(50)
-    .regex(/^[\d\s+\-()]+$/, "Invalid phone number format"),
+    .refine((value) => isValidPhoneNumber(value), {
+      message: "Please enter a valid phone number",
+    }),
   // GPS location (mandatory)
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),

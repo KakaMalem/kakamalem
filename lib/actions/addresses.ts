@@ -54,6 +54,16 @@ export async function createAddressAction(input: AddressInput) {
 
   const data = validation.data;
 
+  // Use auth user name if firstName/lastName not provided
+  let firstName = data.firstName || "";
+  let lastName = data.lastName || "";
+  if (!firstName && !lastName && user.name) {
+    // Split name into first and last (first word = first name, rest = last name)
+    const nameParts = user.name.trim().split(/\s+/);
+    firstName = nameParts[0] || "";
+    lastName = nameParts.slice(1).join(" ") || "";
+  }
+
   try {
     // If this is set as default, unset other defaults first
     if (data.isDefault) {
@@ -68,11 +78,12 @@ export async function createAddressAction(input: AddressInput) {
         );
     }
 
-    // Check if this is the first address - make it default automatically
+    // Count existing addresses to generate label and check for first address
     const existingAddresses = await db.query.userAddresses.findMany({
       where: eq(userAddresses.userId, user.id),
       columns: { id: true },
     });
+    const addressNumber = existingAddresses.length + 1;
     const shouldBeDefault = data.isDefault || existingAddresses.length === 0;
 
     // Compute geospatial indices and reverse geocode city
@@ -84,9 +95,9 @@ export async function createAddressAction(input: AddressInput) {
       .insert(userAddresses)
       .values({
         userId: user.id,
-        label: data.label || null,
-        firstName: data.firstName,
-        lastName: data.lastName,
+        label: String(addressNumber),
+        firstName,
+        lastName,
         phone: data.phone,
         latitude: data.latitude.toString(),
         longitude: data.longitude.toString(),
@@ -158,6 +169,15 @@ export async function updateAddressAction(
         );
     }
 
+    // Use auth user name if firstName/lastName not provided
+    let firstName = data.firstName || "";
+    let lastName = data.lastName || "";
+    if (!firstName && !lastName && user.name) {
+      const nameParts = user.name.trim().split(/\s+/);
+      firstName = nameParts[0] || "";
+      lastName = nameParts.slice(1).join(" ") || "";
+    }
+
     // Compute geospatial indices and reverse geocode city
     const h3Index = computeH3Index(data.latitude, data.longitude);
     const plusCode = computePlusCode(data.latitude, data.longitude);
@@ -166,9 +186,9 @@ export async function updateAddressAction(
     const [updatedAddress] = await db
       .update(userAddresses)
       .set({
-        label: data.label || null,
-        firstName: data.firstName,
-        lastName: data.lastName,
+        // Keep existing label (auto-generated number)
+        firstName,
+        lastName,
         phone: data.phone,
         latitude: data.latitude.toString(),
         longitude: data.longitude.toString(),

@@ -1,6 +1,15 @@
 "use client";
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
+
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 import {
   ChevronDown,
   ChevronRight,
@@ -527,11 +536,11 @@ function VariantRow({
   const isExcluded = variant.isExcluded;
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
   // Track mounted state to prevent hydration mismatch with Radix dropdown IDs
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    getClientSnapshot,
+    getServerSnapshot
+  );
 
   return (
     <>

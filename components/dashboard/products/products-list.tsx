@@ -86,7 +86,7 @@ function DraggableProductItem({
       whileDrag={{ zIndex: 50 }}
     >
       <Card>
-        <CardContent className="flex items-center gap-4 p-4">
+        <CardContent className="flex items-center gap-4 px-2 md:px-4">
           {/* Drag Handle or Select Checkbox - toggle based on selection mode */}
           {selectionMode ? (
             <button

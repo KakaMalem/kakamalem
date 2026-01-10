@@ -28,6 +28,7 @@ interface ProductPageContentProps {
   breadcrumbs: Breadcrumb[];
   reviewStats: ReviewStats;
   priceTiers?: PriceTier[];
+  initialIsInWishlist?: boolean;
 }
 
 export function ProductPageContent({
@@ -38,6 +39,7 @@ export function ProductPageContent({
   breadcrumbs,
   reviewStats,
   priceTiers = [],
+  initialIsInWishlist = false,
 }: ProductPageContentProps) {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
@@ -119,6 +121,7 @@ export function ProductPageContent({
           reviewStats={reviewStats}
           priceTiers={priceTiers}
           onVariantChange={setSelectedVariantId}
+          initialIsInWishlist={initialIsInWishlist}
         />
       </div>
     </>

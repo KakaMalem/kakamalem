@@ -5,6 +5,7 @@ import { ChevronRight, Plus, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Field,
@@ -211,8 +212,8 @@ export function StepContactShipping({
           hasErrors = true;
         } else {
           const address: Address = {
-            firstName: addressValidation.data.firstName,
-            lastName: addressValidation.data.lastName,
+            firstName: addressValidation.data.firstName || "",
+            lastName: addressValidation.data.lastName || "",
             phone: addressValidation.data.phone,
             latitude: addressValidation.data.latitude,
             longitude: addressValidation.data.longitude,
@@ -289,11 +290,10 @@ export function StepContactShipping({
 
             <Field>
               <FieldLabel>Phone</FieldLabel>
-              <Input
-                type="tel"
+              <PhoneInput
                 value={guestForm.phone}
-                onChange={(e) => handleGuestChange("phone", e.target.value)}
-                placeholder="+93 700 000 000"
+                onChange={(value) => handleGuestChange("phone", value || "")}
+                defaultCountry="AF"
                 aria-invalid={!!guestErrors.phone}
               />
               <FieldDescription>
@@ -432,38 +432,42 @@ export function StepContactShipping({
                 </Button>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel>First Name</FieldLabel>
-                  <Input
-                    value={addressForm.firstName}
-                    onChange={(e) =>
-                      handleAddressChange("firstName", e.target.value)
-                    }
-                    aria-invalid={!!addressErrors.firstName}
-                  />
-                  <FieldError>{addressErrors.firstName}</FieldError>
-                </Field>
-                <Field>
-                  <FieldLabel>Last Name</FieldLabel>
-                  <Input
-                    value={addressForm.lastName}
-                    onChange={(e) =>
-                      handleAddressChange("lastName", e.target.value)
-                    }
-                    aria-invalid={!!addressErrors.lastName}
-                  />
-                  <FieldError>{addressErrors.lastName}</FieldError>
-                </Field>
-              </div>
+              {/* Name fields only for guests - logged-in users use their account name */}
+              {!user && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>First Name</FieldLabel>
+                    <Input
+                      value={addressForm.firstName}
+                      onChange={(e) =>
+                        handleAddressChange("firstName", e.target.value)
+                      }
+                      aria-invalid={!!addressErrors.firstName}
+                    />
+                    <FieldError>{addressErrors.firstName}</FieldError>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Last Name</FieldLabel>
+                    <Input
+                      value={addressForm.lastName}
+                      onChange={(e) =>
+                        handleAddressChange("lastName", e.target.value)
+                      }
+                      aria-invalid={!!addressErrors.lastName}
+                    />
+                    <FieldError>{addressErrors.lastName}</FieldError>
+                  </Field>
+                </div>
+              )}
 
               <Field>
                 <FieldLabel>Phone</FieldLabel>
-                <Input
-                  type="tel"
+                <PhoneInput
                   value={addressForm.phone}
-                  onChange={(e) => handleAddressChange("phone", e.target.value)}
-                  placeholder="+93 700 000 000"
+                  onChange={(value) =>
+                    handleAddressChange("phone", value || "")
+                  }
+                  defaultCountry="AF"
                   aria-invalid={!!addressErrors.phone}
                 />
                 <FieldDescription>

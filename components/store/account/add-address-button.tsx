@@ -15,11 +15,14 @@ import { AddressForm } from "./address-form";
 interface AddAddressButtonProps {
   variant?: "default" | "outline" | "secondary" | "ghost";
   showIcon?: boolean;
+  /** Pass user name to auto-fill from auth instead of showing name fields */
+  userName?: string | null;
 }
 
 export function AddAddressButton({
   variant = "outline",
   showIcon = false,
+  userName,
 }: AddAddressButtonProps) {
   const [open, setOpen] = useState(false);
 
@@ -36,6 +39,7 @@ export function AddAddressButton({
           <DialogTitle>Add New Address</DialogTitle>
         </DialogHeader>
         <AddressForm
+          userName={userName}
           onSuccess={() => setOpen(false)}
           onCancel={() => setOpen(false)}
         />

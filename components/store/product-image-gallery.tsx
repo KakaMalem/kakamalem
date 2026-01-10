@@ -200,7 +200,7 @@ export function ProductImageGallery({
 
       {/* Thumbnail Grid */}
       {images.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="grid grid-cols-6 gap-2">
           {images.map((image, index) => (
             <motion.button
               key={image.id}
@@ -209,23 +209,19 @@ export function ProductImageGallery({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={cn(
-                "relative shrink-0 aspect-square rounded-md transition-all duration-200",
+                "relative size-14 rounded-md transition-all duration-200",
                 "border-2 overflow-hidden bg-white",
                 index === currentIndex
                   ? "border-primary ring-2 ring-primary/20"
                   : "border-border/40 hover:border-border"
               )}
-              style={{
-                width: `calc(${100 / Math.min(images.length, 5)}% - ${((Math.min(images.length, 5) - 1) * 8) / Math.min(images.length, 5)}px)`,
-                minWidth: 60,
-              }}
             >
               <div className="absolute inset-0 flex items-center justify-center">
                 <Image
                   src={image.url}
                   alt={`${productName} thumbnail ${index + 1}`}
-                  width={200}
-                  height={200}
+                  width={56}
+                  height={56}
                   className="max-h-full max-w-full object-contain"
                   draggable={false}
                 />

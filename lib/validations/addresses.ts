@@ -1,3 +1,4 @@
+import { isValidPhoneNumber } from "libphonenumber-js";
 import { z } from "zod";
 
 // =============================================================================
@@ -9,14 +10,15 @@ import { z } from "zod";
  * Used by both client-side forms and server actions
  */
 export const addressSchema = z.object({
-  label: z.string().max(100).optional(),
-  firstName: z.string().min(1, "First name is required").max(100),
-  lastName: z.string().min(1, "Last name is required").max(100),
+  // Name fields are optional when authenticated (filled from user profile)
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
   phone: z
     .string()
     .min(1, "Phone number is required")
-    .max(50)
-    .regex(/^[\d\s+\-()]+$/, "Invalid phone number format"),
+    .refine((value) => isValidPhoneNumber(value), {
+      message: "Please enter a valid phone number",
+    }),
   // GPS location (mandatory)
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),

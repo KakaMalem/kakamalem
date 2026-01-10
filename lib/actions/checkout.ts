@@ -11,6 +11,7 @@ import {
   inventoryMovements,
   storeCustomers,
   cartItems,
+  shippingMethods,
 } from "@/lib/db/schema";
 import type { Address, CustomerSnapshot } from "@/lib/db/schema";
 import { getUser } from "@/lib/auth/server";
@@ -21,8 +22,10 @@ import {
 import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import {
   getAvailableShippingMethods,
+  calculateShippingRate,
   type CartItemForShipping,
 } from "@/lib/db/queries/shipping";
+import { db } from "@/lib/db";
 import {
   checkoutSubmitSchema,
   type CheckoutSubmitInput,
@@ -333,10 +336,103 @@ export async function createOrderAction(
           phone: undefined,
         };
 
-    // Get shipping method details to calculate shipping total
-    // For now, we trust the frontend-provided method ID and look up the rate
-    // TODO: Re-calculate shipping to prevent manipulation
-    const shippingTotal = 0; // Will be set from selected method
+    // Fill in shipping address name from user if not provided (logged-in users)
+    let firstName = input.shippingAddress.firstName || "";
+    let lastName = input.shippingAddress.lastName || "";
+    if (user?.name && !firstName && !lastName) {
+      const nameParts = user.name.trim().split(/\s+/);
+      firstName = nameParts[0] || "";
+      lastName = nameParts.slice(1).join(" ") || "";
+    }
+
+    const shippingAddress: Address = {
+      firstName,
+      lastName,
+      phone: input.shippingAddress.phone,
+      latitude: input.shippingAddress.latitude,
+      longitude: input.shippingAddress.longitude,
+      h3Index: input.shippingAddress.h3Index,
+      plusCode: input.shippingAddress.plusCode,
+      city: input.shippingAddress.city,
+      accuracy: input.shippingAddress.accuracy,
+      source: input.shippingAddress.source,
+      notes: input.shippingAddress.notes,
+    };
+
+    // Fill in billing address name from user if not provided
+    let billingAddress: Address | null = null;
+    if (input.billingAddress) {
+      let billingFirstName = input.billingAddress.firstName || "";
+      let billingLastName = input.billingAddress.lastName || "";
+      if (user?.name && !billingFirstName && !billingLastName) {
+        const nameParts = user.name.trim().split(/\s+/);
+        billingFirstName = nameParts[0] || "";
+        billingLastName = nameParts.slice(1).join(" ") || "";
+      }
+      billingAddress = {
+        firstName: billingFirstName,
+        lastName: billingLastName,
+        phone: input.billingAddress.phone,
+        latitude: input.billingAddress.latitude,
+        longitude: input.billingAddress.longitude,
+        h3Index: input.billingAddress.h3Index,
+        plusCode: input.billingAddress.plusCode,
+        city: input.billingAddress.city,
+        accuracy: input.billingAddress.accuracy,
+        source: input.billingAddress.source,
+        notes: input.billingAddress.notes,
+      };
+    }
+
+    // Get shipping method and calculate shipping cost server-side
+    // This prevents price manipulation from the frontend
+    let shippingTotal = 0;
+    const selectedMethod = await db.query.shippingMethods.findFirst({
+      where: and(
+        eq(shippingMethods.id, input.shippingMethodId),
+        eq(shippingMethods.tenantId, tenantId),
+        eq(shippingMethods.isActive, true)
+      ),
+    });
+
+    if (!selectedMethod) {
+      return {
+        success: false,
+        error: {
+          message: "Selected shipping method is not available",
+          code: "INVALID_SHIPPING_METHOD",
+        },
+      };
+    }
+
+    // Convert cart items for shipping calculation
+    const cartItemsForShipping: CartItemForShipping[] = cart.items.map(
+      (item) => ({
+        quantity: item.quantity,
+        product: {
+          weight: item.product.weight || null,
+        },
+      })
+    );
+
+    // Calculate shipping rate server-side
+    const calculatedRate = calculateShippingRate(
+      selectedMethod,
+      cartItemsForShipping,
+      subtotal
+    );
+
+    if (calculatedRate < 0) {
+      return {
+        success: false,
+        error: {
+          message: "This shipping method is not available for your order",
+          code: "SHIPPING_UNAVAILABLE",
+        },
+      };
+    }
+
+    shippingTotal = calculatedRate;
 
     try {
       const order = await withTransaction(async (tx) => {
@@ -366,8 +462,8 @@ export async function createOrderAction(
             userId: user?.id || null,
             storeCustomerId,
             customerSnapshot,
-            shippingAddress: input.shippingAddress,
-            billingAddress: input.billingAddress,
+            shippingAddress,
+            billingAddress,
             subtotal: subtotal.toFixed(2),
             shippingTotal: shippingTotal.toFixed(2),
             taxTotal: "0",

@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useShallow } from "zustand/react/shallow";
 import type { Address } from "@/lib/db/schema";
 
 // =============================================================================
@@ -262,12 +263,14 @@ export function useCheckoutStep() {
 }
 
 export function useCheckoutTotals() {
-  return useCheckoutStore((state) => ({
-    subtotal: state.subtotal,
-    shippingTotal: state.shippingTotal,
-    taxTotal: state.taxTotal,
-    total: state.total,
-  }));
+  return useCheckoutStore(
+    useShallow((state) => ({
+      subtotal: state.subtotal,
+      shippingTotal: state.shippingTotal,
+      taxTotal: state.taxTotal,
+      total: state.total,
+    }))
+  );
 }
 
 export function useShippingAddress() {

@@ -20,6 +20,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { formatPrice } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
+import { cartActions } from "@/lib/stores/use-cart-store";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import type { Cart } from "@/lib/db/queries/carts";
 import { toast } from "sonner";
@@ -113,7 +114,8 @@ export function StepReview({
         return;
       }
 
-      // Success! Reset checkout state and redirect to confirmation
+      // Success! Clear cart and checkout state, then redirect to confirmation
+      cartActions.clearCart();
       resetCheckout();
       toast.success("Order placed successfully!");
       router.push(

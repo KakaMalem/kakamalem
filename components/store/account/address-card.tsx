@@ -47,9 +47,11 @@ import { toast } from "sonner";
 
 interface AddressCardProps {
   address: UserAddress;
+  /** Pass user name to auto-fill from auth instead of showing name fields when editing */
+  userName?: string | null;
 }
 
-export function AddressCard({ address }: AddressCardProps) {
+export function AddressCard({ address, userName }: AddressCardProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -111,11 +113,11 @@ export function AddressCard({ address }: AddressCardProps) {
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              {/* Label and Default Badge */}
+              {/* Address number and Default Badge */}
               <div className="flex items-center gap-2 mb-2">
-                {address.label && (
-                  <span className="font-medium">{address.label}</span>
-                )}
+                <span className="font-medium">
+                  Address {address.label || ""}
+                </span>
                 {address.isDefault && (
                   <Badge variant="secondary" className="text-xs">
                     Default
@@ -223,6 +225,7 @@ export function AddressCard({ address }: AddressCardProps) {
           </DialogHeader>
           <AddressForm
             address={address}
+            userName={userName}
             onSuccess={() => setShowEditDialog(false)}
             onCancel={() => setShowEditDialog(false)}
           />

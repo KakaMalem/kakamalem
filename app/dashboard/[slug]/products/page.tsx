@@ -29,7 +29,7 @@ export default async function ProductsPage({
 
   // Parse search params
   const page = parseInt(search.page || "1");
-  const limit = Math.min(Math.max(parseInt(search.limit || "10"), 10), 500); // Clamp between 10 and 500
+  const limit = Math.min(Math.max(parseInt(search.limit || "25"), 25), 500); // Clamp between 25 and 500
   const showArchived = search.status === "archived";
   const filters = {
     search: search.search,

@@ -1,7 +1,13 @@
 import * as React from "react";
 import { CheckIcon, ChevronsUpDown } from "lucide-react";
+import {
+  isValidPhoneNumber,
+  parsePhoneNumber,
+  type CountryCode as Country,
+} from "libphonenumber-js";
 import * as RPNInput from "react-phone-number-input";
 import flags from "react-phone-number-input/flags";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -211,4 +217,68 @@ const FlagComponent = ({ country, countryName }: RPNInput.FlagProps) => {
   );
 };
 
-export { PhoneInput };
+// =============================================================================
+// ZOD PHONE VALIDATION SCHEMAS
+// =============================================================================
+
+/**
+ * Validates that a string is a valid international phone number (E.164 format)
+ * Uses libphonenumber-js under the hood via react-phone-number-input
+ */
+export const phoneSchema = z
+  .string()
+  .min(1, "Phone number is required")
+  .refine((value) => isValidPhoneNumber(value), {
+    message: "Please enter a valid phone number",
+  });
+
+/**
+ * Optional phone schema - allows empty string or valid phone
+ */
+export const phoneSchemaOptional = z
+  .string()
+  .refine((value) => !value || isValidPhoneNumber(value), {
+    message: "Please enter a valid phone number",
+  })
+  .optional();
+
+/**
+ * Phone schema with country validation
+ * Validates both the phone number format and optionally the country
+ */
+export function phoneSchemaForCountry(country: Country) {
+  return z
+    .string()
+    .min(1, "Phone number is required")
+    .refine(
+      (value) => {
+        if (!isValidPhoneNumber(value)) return false;
+        const parsed = parsePhoneNumber(value);
+        return parsed?.country === country;
+      },
+      {
+        message: `Please enter a valid ${country} phone number`,
+      }
+    );
+}
+
+/**
+ * Parse and extract phone number details
+ */
+export function getPhoneDetails(value: string) {
+  if (!value || !isValidPhoneNumber(value)) {
+    return null;
+  }
+  const parsed = parsePhoneNumber(value);
+  if (!parsed) return null;
+
+  return {
+    country: parsed.country,
+    countryCallingCode: parsed.countryCallingCode,
+    nationalNumber: parsed.nationalNumber,
+    number: parsed.number,
+    uri: parsed.getURI(),
+  };
+}
+
+export { PhoneInput, isValidPhoneNumber, type Country };

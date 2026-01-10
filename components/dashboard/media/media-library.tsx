@@ -476,6 +476,9 @@ export function MediaLibrary({
                     <motion.div
                       key={item.id}
                       variants={itemVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
                       className={`group relative rounded-lg border overflow-hidden ${
                         isSelected ? "ring-2 ring-primary" : ""
                       }`}
@@ -576,6 +579,9 @@ export function MediaLibrary({
                   <motion.div
                     key={item.id}
                     variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
                     className={`group flex items-center gap-3 p-2 rounded-lg border ${
                       isSelected ? "bg-primary/10 border-primary" : "bg-muted"
                     }`}
