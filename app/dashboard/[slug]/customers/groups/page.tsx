@@ -29,7 +29,7 @@ export default async function CustomerGroupsPage({
         </p>
       </div>
 
-      <CustomerGroupsClient tenantId={store.id} initialGroups={groups} />
+      <CustomerGroupsClient tenantId={store.id} groups={groups} />
     </div>
   );
 }

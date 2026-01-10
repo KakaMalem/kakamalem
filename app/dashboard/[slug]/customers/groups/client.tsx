@@ -11,15 +11,14 @@ import type { CustomerGroup } from "@/lib/db/schema";
 
 interface CustomerGroupsClientProps {
   tenantId: string;
-  initialGroups: CustomerGroup[];
+  groups: CustomerGroup[];
 }
 
 export function CustomerGroupsClient({
   tenantId,
-  initialGroups,
+  groups,
 }: CustomerGroupsClientProps) {
   const router = useRouter();
-  const [groups, setGroups] = useState(initialGroups);
   const [formOpen, setFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<CustomerGroup | null>(null);
 

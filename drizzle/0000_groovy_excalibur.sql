@@ -4,6 +4,7 @@ CREATE TYPE "public"."affiliate_status" AS ENUM('pending', 'approved', 'suspende
 CREATE TYPE "public"."analytics_event_type" AS ENUM('add_to_cart', 'remove_from_cart', 'update_cart_quantity', 'checkout_start', 'checkout_complete', 'order_cancelled', 'search', 'product_click', 'category_click', 'review_submitted');--> statement-breakpoint
 CREATE TYPE "public"."billing_status" AS ENUM('free_tier', 'active', 'grace_period', 'suspended', 'forgiven');--> statement-breakpoint
 CREATE TYPE "public"."commission_transaction_type" AS ENUM('order_commission', 'payment', 'adjustment', 'forgiveness');--> statement-breakpoint
+CREATE TYPE "public"."customer_group_type" AS ENUM('retail', 'wholesale', 'vip');--> statement-breakpoint
 CREATE TYPE "public"."delivery_assignment_status" AS ENUM('pending', 'accepted', 'picked_up', 'in_transit', 'delivered', 'failed', 'returned', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."delivery_payout_status" AS ENUM('pending', 'processing', 'completed', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."delivery_provider_status" AS ENUM('pending', 'approved', 'suspended', 'rejected', 'inactive');--> statement-breakpoint
@@ -446,6 +447,35 @@ CREATE TABLE "commission_transactions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "customer_group_members" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"user_id" text NOT NULL,
+	"customer_group_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "customer_group_prices" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"product_id" uuid NOT NULL,
+	"customer_group_id" uuid NOT NULL,
+	"price" numeric(12, 2) NOT NULL,
+	"compare_at_price" numeric(12, 2),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "customer_groups" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"type" "customer_group_type" DEFAULT 'retail' NOT NULL,
+	"description" text,
+	"is_default" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "delivery_assignments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -749,6 +779,8 @@ CREATE TABLE "media" (
 	"file_name" text,
 	"file_size" integer,
 	"mime_type" varchar(100),
+	"width" integer,
+	"height" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -785,6 +817,16 @@ CREATE TABLE "orders" (
 	"staff_notes" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "price_tiers" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"product_id" uuid NOT NULL,
+	"min_quantity" integer NOT NULL,
+	"max_quantity" integer,
+	"price" numeric(12, 2) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "product_categories" (
@@ -826,6 +868,8 @@ CREATE TABLE "product_variants" (
 	"sku" varchar(100),
 	"display_name" varchar(255),
 	"price" numeric(12, 2),
+	"compare_at_price" numeric(12, 2),
+	"cost_price" numeric(12, 2),
 	"weight" numeric(10, 3),
 	"length" numeric(10, 2),
 	"width" numeric(10, 2),
@@ -849,6 +893,10 @@ CREATE TABLE "products" (
 	"slug" varchar(255) NOT NULL,
 	"description" text,
 	"price" numeric(12, 2) NOT NULL,
+	"compare_at_price" numeric(12, 2),
+	"cost_price" numeric(12, 2),
+	"min_order_quantity" integer DEFAULT 1 NOT NULL,
+	"max_order_quantity" integer,
 	"stock" integer DEFAULT 0 NOT NULL,
 	"has_variants" boolean DEFAULT false NOT NULL,
 	"track_inventory" boolean DEFAULT true NOT NULL,
@@ -893,6 +941,19 @@ CREATE TABLE "reviews" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "reviews_rating_check" CHECK (rating >= 1 AND rating <= 5)
+);
+--> statement-breakpoint
+CREATE TABLE "scheduled_sales" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"product_id" uuid NOT NULL,
+	"name" varchar(255),
+	"sale_price" numeric(12, 2) NOT NULL,
+	"starts_at" timestamp with time zone NOT NULL,
+	"ends_at" timestamp with time zone NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"priority" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "seller_balances" (
@@ -1160,9 +1221,14 @@ CREATE TABLE "user_addresses" (
 	"label" varchar(100),
 	"first_name" varchar(100) NOT NULL,
 	"last_name" varchar(100) NOT NULL,
-	"phone" varchar(50),
+	"phone" varchar(50) NOT NULL,
 	"latitude" numeric(12, 9) NOT NULL,
 	"longitude" numeric(12, 9) NOT NULL,
+	"h3_index" varchar(20),
+	"plus_code" varchar(20),
+	"city" varchar(100),
+	"accuracy" numeric(8, 2),
+	"source" varchar(10),
 	"notes" text,
 	"is_default" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -1289,6 +1355,13 @@ ALTER TABLE "commission_rules" ADD CONSTRAINT "commission_rules_product_id_produ
 ALTER TABLE "commission_transactions" ADD CONSTRAINT "commission_transactions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commission_transactions" ADD CONSTRAINT "commission_transactions_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commission_transactions" ADD CONSTRAINT "commission_transactions_processed_by_user_id_fk" FOREIGN KEY ("processed_by") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "customer_group_members" ADD CONSTRAINT "customer_group_members_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "customer_group_members" ADD CONSTRAINT "customer_group_members_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "customer_group_members" ADD CONSTRAINT "customer_group_members_customer_group_id_customer_groups_id_fk" FOREIGN KEY ("customer_group_id") REFERENCES "public"."customer_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "customer_group_prices" ADD CONSTRAINT "customer_group_prices_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "customer_group_prices" ADD CONSTRAINT "customer_group_prices_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "customer_group_prices" ADD CONSTRAINT "customer_group_prices_customer_group_id_customer_groups_id_fk" FOREIGN KEY ("customer_group_id") REFERENCES "public"."customer_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "customer_groups" ADD CONSTRAINT "customer_groups_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "delivery_assignments" ADD CONSTRAINT "delivery_assignments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "delivery_assignments" ADD CONSTRAINT "delivery_assignments_shipment_id_shipments_id_fk" FOREIGN KEY ("shipment_id") REFERENCES "public"."shipments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "delivery_assignments" ADD CONSTRAINT "delivery_assignments_provider_id_delivery_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "public"."delivery_providers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1335,6 +1408,8 @@ ALTER TABLE "order_items" ADD CONSTRAINT "order_items_variant_id_product_variant
 ALTER TABLE "orders" ADD CONSTRAINT "orders_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "orders" ADD CONSTRAINT "orders_store_customer_id_store_customers_id_fk" FOREIGN KEY ("store_customer_id") REFERENCES "public"."store_customers"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "price_tiers" ADD CONSTRAINT "price_tiers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "price_tiers" ADD CONSTRAINT "price_tiers_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_categories" ADD CONSTRAINT "product_categories_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_categories" ADD CONSTRAINT "product_categories_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_images" ADD CONSTRAINT "product_images_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1358,6 +1433,8 @@ ALTER TABLE "reviews" ADD CONSTRAINT "reviews_product_id_products_id_fk" FOREIGN
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_variant_id_product_variants_id_fk" FOREIGN KEY ("variant_id") REFERENCES "public"."product_variants"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scheduled_sales" ADD CONSTRAINT "scheduled_sales_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scheduled_sales" ADD CONSTRAINT "scheduled_sales_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "seller_balances" ADD CONSTRAINT "seller_balances_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "seller_balances" ADD CONSTRAINT "seller_balances_current_tier_id_commission_tiers_id_fk" FOREIGN KEY ("current_tier_id") REFERENCES "public"."commission_tiers"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "seller_payout_items" ADD CONSTRAINT "seller_payout_items_payout_id_seller_payouts_id_fk" FOREIGN KEY ("payout_id") REFERENCES "public"."seller_payouts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1442,6 +1519,12 @@ CREATE INDEX "commission_rules_category_id_idx" ON "commission_rules" USING btre
 CREATE INDEX "commission_rules_product_id_idx" ON "commission_rules" USING btree ("product_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "commission_tiers_name_idx" ON "commission_tiers" USING btree ("name");--> statement-breakpoint
 CREATE INDEX "commission_transactions_tenant_id_idx" ON "commission_transactions" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "customer_group_members_tenant_user_idx" ON "customer_group_members" USING btree ("tenant_id","user_id");--> statement-breakpoint
+CREATE INDEX "customer_group_members_group_idx" ON "customer_group_members" USING btree ("customer_group_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "customer_group_prices_product_group_idx" ON "customer_group_prices" USING btree ("product_id","customer_group_id");--> statement-breakpoint
+CREATE INDEX "customer_group_prices_group_idx" ON "customer_group_prices" USING btree ("customer_group_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "customer_groups_tenant_name_idx" ON "customer_groups" USING btree ("tenant_id","name");--> statement-breakpoint
+CREATE INDEX "customer_groups_tenant_idx" ON "customer_groups" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "delivery_assignments_assignment_number_idx" ON "delivery_assignments" USING btree ("assignment_number");--> statement-breakpoint
 CREATE INDEX "delivery_assignments_shipment_id_idx" ON "delivery_assignments" USING btree ("shipment_id");--> statement-breakpoint
 CREATE INDEX "delivery_assignments_provider_id_idx" ON "delivery_assignments" USING btree ("provider_id");--> statement-breakpoint
@@ -1486,6 +1569,8 @@ CREATE INDEX "orders_tenant_created_idx" ON "orders" USING btree ("tenant_id","c
 CREATE INDEX "orders_tenant_status_idx" ON "orders" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "orders_user_id_idx" ON "orders" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "orders_store_customer_id_idx" ON "orders" USING btree ("store_customer_id");--> statement-breakpoint
+CREATE INDEX "price_tiers_product_idx" ON "price_tiers" USING btree ("product_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "price_tiers_product_min_qty_idx" ON "price_tiers" USING btree ("product_id","min_quantity");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_categories_product_category_idx" ON "product_categories" USING btree ("product_id","category_id");--> statement-breakpoint
 CREATE INDEX "product_categories_category_id_idx" ON "product_categories" USING btree ("category_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "product_images_product_media_idx" ON "product_images" USING btree ("product_id","media_id");--> statement-breakpoint
@@ -1501,6 +1586,9 @@ CREATE UNIQUE INDEX "review_media_tenant_review_media_idx" ON "review_media" USI
 CREATE UNIQUE INDEX "reviews_order_product_idx" ON "reviews" USING btree ("order_id","product_id");--> statement-breakpoint
 CREATE INDEX "reviews_product_id_idx" ON "reviews" USING btree ("product_id");--> statement-breakpoint
 CREATE INDEX "reviews_user_id_idx" ON "reviews" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "scheduled_sales_product_idx" ON "scheduled_sales" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "scheduled_sales_active_dates_idx" ON "scheduled_sales" USING btree ("is_active","starts_at","ends_at");--> statement-breakpoint
+CREATE INDEX "scheduled_sales_tenant_idx" ON "scheduled_sales" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "seller_balances_tenant_id_idx" ON "seller_balances" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "seller_payout_items_payout_transaction_idx" ON "seller_payout_items" USING btree ("payout_id","transaction_id");--> statement-breakpoint
 CREATE INDEX "seller_payout_items_payout_id_idx" ON "seller_payout_items" USING btree ("payout_id");--> statement-breakpoint
