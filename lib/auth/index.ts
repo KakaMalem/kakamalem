@@ -139,7 +139,6 @@ export const auth = betterAuth({
     },
   },
 
-
   // ==========================================================================
   // RATE LIMITING
   // ==========================================================================
@@ -156,7 +155,8 @@ export const auth = betterAuth({
   advanced: {
     // Use secure cookies only when serving over HTTPS
     // Check if APP_URL starts with https:// to determine if we need secure cookies
-    useSecureCookies: process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://") ?? false,
+    useSecureCookies:
+      process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://") ?? false,
     // Cookie prefix
     cookiePrefix: "kaka_malem",
     // Cross-site cookie settings

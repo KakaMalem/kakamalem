@@ -9,8 +9,7 @@ const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
 
 // URL validation regex
-const urlRegex =
-  /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
 
 // Email validation regex
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -64,7 +63,10 @@ export const createStoreSchema = z.object({
     .or(z.literal("")),
   contactPhone: z
     .string()
-    .regex(phoneRegex, "Please enter a valid phone number (e.g., +93 700 123456)")
+    .regex(
+      phoneRegex,
+      "Please enter a valid phone number (e.g., +93 700 123456)"
+    )
     .min(7, "Phone number must be at least 7 digits")
     .max(20, "Phone number must be less than 20 characters")
     .optional()
@@ -98,7 +100,10 @@ export const generalSettingsSchema = z.object({
     .or(z.literal("")),
   contactPhone: z
     .string()
-    .regex(phoneRegex, "Please enter a valid phone number (e.g., +93 700 123456)")
+    .regex(
+      phoneRegex,
+      "Please enter a valid phone number (e.g., +93 700 123456)"
+    )
     .min(7, "Phone number must be at least 7 digits")
     .max(20, "Phone number must be less than 20 characters")
     .optional()
@@ -144,7 +149,10 @@ export const socialLinksSchema = z.object({
     .or(z.literal("")),
   whatsapp: z
     .string()
-    .regex(phoneRegex, "Please enter a valid WhatsApp number (e.g., +93 700 123456)")
+    .regex(
+      phoneRegex,
+      "Please enter a valid WhatsApp number (e.g., +93 700 123456)"
+    )
     .min(7, "WhatsApp number must be at least 7 digits")
     .max(20, "WhatsApp number must be less than 20 characters")
     .optional()

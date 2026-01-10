@@ -16,7 +16,8 @@ export async function proxy(request: NextRequest) {
   // -------------------------------------------------------------------------
   // ROUTE PATTERNS
   // -------------------------------------------------------------------------
-  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/signup");
+  const isAuthRoute =
+    pathname.startsWith("/login") || pathname.startsWith("/signup");
   const isProtectedRoute = pathname.startsWith("/dashboard");
   const isApiRoute = pathname.startsWith("/api");
   const isPublicRoute =
@@ -58,7 +59,8 @@ export async function proxy(request: NextRequest) {
   // -------------------------------------------------------------------------
   // Redirect authenticated users away from auth pages
   if (isAuthRoute && hasSession) {
-    const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
+    const redirectTo =
+      request.nextUrl.searchParams.get("redirect") || "/dashboard";
     const url = request.nextUrl.clone();
     url.pathname = redirectTo;
     url.searchParams.delete("redirect");

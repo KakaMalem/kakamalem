@@ -75,7 +75,10 @@ export async function signUp(formData: FormData): Promise<AuthResult> {
 
     // Handle specific Better Auth errors
     if (error instanceof Error) {
-      if (error.message.includes("already exists") || error.message.includes("already registered")) {
+      if (
+        error.message.includes("already exists") ||
+        error.message.includes("already registered")
+      ) {
         return {
           error: { message: "An account with this email already exists" },
         };
@@ -136,12 +139,18 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
 
     // Handle specific Better Auth errors
     if (error instanceof Error) {
-      if (error.message.includes("Invalid") || error.message.includes("credentials")) {
+      if (
+        error.message.includes("Invalid") ||
+        error.message.includes("credentials")
+      ) {
         return {
           error: { message: "Invalid email or password" },
         };
       }
-      if (error.message.includes("verified") || error.message.includes("verification")) {
+      if (
+        error.message.includes("verified") ||
+        error.message.includes("verification")
+      ) {
         return {
           error: { message: "Please verify your email before signing in" },
         };
@@ -172,7 +181,7 @@ export async function signOut(): Promise<AuthResult> {
     console.error("Sign out error:", error);
     return {
       error: {
-        message: error instanceof Error ? error.message : "Failed to sign out"
+        message: error instanceof Error ? error.message : "Failed to sign out",
       },
     };
   }
@@ -217,7 +226,8 @@ export async function resetPassword(
     console.error("Password reset error:", error);
     return {
       error: {
-        message: error instanceof Error ? error.message : "Failed to reset password",
+        message:
+          error instanceof Error ? error.message : "Failed to reset password",
       },
     };
   }

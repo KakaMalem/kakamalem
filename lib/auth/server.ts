@@ -1,7 +1,13 @@
 import { headers } from "next/headers";
 import { auth } from "./index";
 import { db } from "@/lib/db";
-import { userProfiles, tenants, tenantMembers, affiliates, deliveryProviders } from "@/lib/db/schema";
+import {
+  userProfiles,
+  tenants,
+  tenantMembers,
+  affiliates,
+  deliveryProviders,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
@@ -191,11 +197,14 @@ export async function hasStoreAccess(
  * Create user profile after sign up
  * Call this in a webhook or after successful registration
  */
-export async function createUserProfile(userId: string, data?: {
-  phone?: string;
-  preferredCurrency?: string;
-  preferredLanguage?: string;
-}) {
+export async function createUserProfile(
+  userId: string,
+  data?: {
+    phone?: string;
+    preferredCurrency?: string;
+    preferredLanguage?: string;
+  }
+) {
   const existing = await db.query.userProfiles.findFirst({
     where: eq(userProfiles.userId, userId),
   });
@@ -204,13 +213,16 @@ export async function createUserProfile(userId: string, data?: {
     return existing;
   }
 
-  const [profile] = await db.insert(userProfiles).values({
-    userId,
-    phone: data?.phone,
-    preferredCurrency: data?.preferredCurrency ?? "AFN",
-    preferredLanguage: data?.preferredLanguage ?? "fa",
-    platformRole: "user",
-  }).returning();
+  const [profile] = await db
+    .insert(userProfiles)
+    .values({
+      userId,
+      phone: data?.phone,
+      preferredCurrency: data?.preferredCurrency ?? "AFN",
+      preferredLanguage: data?.preferredLanguage ?? "fa",
+      platformRole: "user",
+    })
+    .returning();
 
   return profile;
 }

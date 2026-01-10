@@ -215,7 +215,10 @@ export async function getProductVariantOptionTypes(
     string,
     {
       option: { id: string; name: string; displayOrder: number };
-      valuesMap: Map<string, { id: string; value: string; displayOrder: number }>;
+      valuesMap: Map<
+        string,
+        { id: string; value: string; displayOrder: number }
+      >;
     }
   >();
 

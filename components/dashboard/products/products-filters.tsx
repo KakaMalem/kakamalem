@@ -32,6 +32,12 @@ export function ProductsFilters({
     // Reset to page 1 when filters change
     params.set("page", "1");
 
+    // Preserve limit if set (don't include default value)
+    const currentLimit = searchParams.get("limit");
+    if (currentLimit && currentLimit !== "10") {
+      params.set("limit", currentLimit);
+    }
+
     Object.entries(updates).forEach(([key, value]) => {
       if (value) {
         params.set(key, value);

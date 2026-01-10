@@ -88,7 +88,11 @@ export const sql = client;
  * });
  */
 export async function withTransaction<T>(
-  fn: (tx: Parameters<typeof db.transaction>[0] extends (tx: infer U) => unknown ? U : never) => Promise<T>
+  fn: (
+    tx: Parameters<typeof db.transaction>[0] extends (tx: infer U) => unknown
+      ? U
+      : never
+  ) => Promise<T>
 ): Promise<T> {
   return db.transaction(fn);
 }

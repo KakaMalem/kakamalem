@@ -3,7 +3,11 @@
 // =============================================================================
 // Shared utilities for order status display - can be used in client components
 
-export type OrderStatusColor = "default" | "secondary" | "destructive" | "outline";
+export type OrderStatusColor =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline";
 
 export interface OrderStatusInfo {
   label: string;

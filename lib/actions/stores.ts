@@ -71,7 +71,9 @@ async function uploadBrandingImage(
 /**
  * Create a new store
  */
-export async function createStore(formData: FormData): Promise<StoreActionResult> {
+export async function createStore(
+  formData: FormData
+): Promise<StoreActionResult> {
   const user = await getUser();
 
   if (!user) {
@@ -83,7 +85,11 @@ export async function createStore(formData: FormData): Promise<StoreActionResult
     slug: formData.get("slug") as string,
     tagline: (formData.get("tagline") as string) || undefined,
     logoUrl: (formData.get("logoUrl") as string) || undefined,
-    headerDisplay: (formData.get("headerDisplay") as "logo_only" | "name_only" | "logo_and_name") || "name_only",
+    headerDisplay:
+      (formData.get("headerDisplay") as
+        | "logo_only"
+        | "name_only"
+        | "logo_and_name") || "name_only",
     contactEmail: (formData.get("contactEmail") as string) || undefined,
     contactPhone: (formData.get("contactPhone") as string) || undefined,
     currency: (formData.get("currency") as "AFN" | "USD") || "AFN",
@@ -130,13 +136,17 @@ export async function createStore(formData: FormData): Promise<StoreActionResult
     });
 
     if (!newStore) {
-      return { error: { message: "Failed to create store. Please try again." } };
+      return {
+        error: { message: "Failed to create store. Please try again." },
+      };
     }
 
     revalidatePath("/dashboard", "layout");
     return { success: true, storeId: newStore.id };
   } catch {
-    return { error: { message: "An unexpected error occurred. Please try again." } };
+    return {
+      error: { message: "An unexpected error occurred. Please try again." },
+    };
   }
 }
 
@@ -193,7 +203,9 @@ export async function createStoreWithLogo(
     });
 
     if (!newStore) {
-      return { error: { message: "Failed to create store. Please try again." } };
+      return {
+        error: { message: "Failed to create store. Please try again." },
+      };
     }
 
     // Upload logo if provided
@@ -207,9 +219,15 @@ export async function createStoreWithLogo(
     }
 
     revalidatePath("/dashboard", "layout");
-    return { success: true, storeId: newStore.id, logoUrl: logoUrl || undefined };
+    return {
+      success: true,
+      storeId: newStore.id,
+      logoUrl: logoUrl || undefined,
+    };
   } catch {
-    return { error: { message: "An unexpected error occurred. Please try again." } };
+    return {
+      error: { message: "An unexpected error occurred. Please try again." },
+    };
   }
 }
 
@@ -237,7 +255,9 @@ export async function updateGeneralSettings(
   // Verify ownership
   const store = await getTenantById(storeId);
   if (!store || store.ownerId !== user.id) {
-    return { error: { message: "You don't have permission to update this store" } };
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
   }
 
   const formValues = {
@@ -276,7 +296,9 @@ export async function updateGeneralSettings(
     revalidatePath("/dashboard/settings", "page");
     return { success: true };
   } catch {
-    return { error: { message: "Failed to update settings. Please try again." } };
+    return {
+      error: { message: "Failed to update settings. Please try again." },
+    };
   }
 }
 
@@ -295,13 +317,19 @@ export async function updateBrandingSettings(
 
   const store = await getTenantById(storeId);
   if (!store || store.ownerId !== user.id) {
-    return { error: { message: "You don't have permission to update this store" } };
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
   }
 
   const formValues = {
     logoUrl: (formData.get("logoUrl") as string) || "",
     faviconUrl: (formData.get("faviconUrl") as string) || "",
-    headerDisplay: (formData.get("headerDisplay") as "logo_only" | "name_only" | "logo_and_name") || "logo_and_name",
+    headerDisplay:
+      (formData.get("headerDisplay") as
+        | "logo_only"
+        | "name_only"
+        | "logo_and_name") || "logo_and_name",
   };
 
   try {
@@ -328,7 +356,9 @@ export async function updateBrandingSettings(
     revalidatePath("/dashboard/settings/branding", "page");
     return { success: true };
   } catch {
-    return { error: { message: "Failed to update branding. Please try again." } };
+    return {
+      error: { message: "Failed to update branding. Please try again." },
+    };
   }
 }
 
@@ -409,7 +439,11 @@ export async function updateBrandingSettingsWithImages(
     });
 
     revalidatePath("/dashboard/settings/branding", "page");
-    return { success: true, logoUrl: logoUrl || undefined, faviconUrl: faviconUrl || undefined };
+    return {
+      success: true,
+      logoUrl: logoUrl || undefined,
+      faviconUrl: faviconUrl || undefined,
+    };
   } catch {
     return {
       error: { message: "Failed to update branding. Please try again." },
@@ -432,7 +466,9 @@ export async function updateSocialLinks(
 
   const store = await getTenantById(storeId);
   if (!store || store.ownerId !== user.id) {
-    return { error: { message: "You don't have permission to update this store" } };
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
   }
 
   const formValues = {
@@ -476,7 +512,9 @@ export async function updateSocialLinks(
     revalidatePath("/dashboard/settings/social", "page");
     return { success: true };
   } catch {
-    return { error: { message: "Failed to update social links. Please try again." } };
+    return {
+      error: { message: "Failed to update social links. Please try again." },
+    };
   }
 }
 
@@ -495,7 +533,9 @@ export async function updateSeoSettings(
 
   const store = await getTenantById(storeId);
   if (!store || store.ownerId !== user.id) {
-    return { error: { message: "You don't have permission to update this store" } };
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
   }
 
   const formValues = {
@@ -530,7 +570,9 @@ export async function updateSeoSettings(
     revalidatePath("/dashboard/settings/seo", "page");
     return { success: true };
   } catch {
-    return { error: { message: "Failed to update SEO settings. Please try again." } };
+    return {
+      error: { message: "Failed to update SEO settings. Please try again." },
+    };
   }
 }
 

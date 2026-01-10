@@ -41,6 +41,7 @@ export type AllowedMime = (typeof ALLOWED_MIMES)[number];
 export const ALLOWED_IMAGE_EXTENSIONS = [
   ".jpg",
   ".jpeg",
+  ".jfif",
   ".png",
   ".webp",
   ".gif",
@@ -81,10 +82,12 @@ export const MAX_FILES = {
 
 /** User-friendly error messages */
 export const UPLOAD_ERROR_MESSAGES = {
-  fileTooLarge: (limit: string) => `File is too large. Maximum size is ${limit}`,
+  fileTooLarge: (limit: string) =>
+    `File is too large. Maximum size is ${limit}`,
   tooManyFiles: (max: number) =>
     `Too many files selected. Maximum ${max} files allowed at once`,
-  invalidType: "Invalid file type. Only images are allowed (JPG, PNG, WebP, GIF, AVIF)",
+  invalidType:
+    "Invalid file type. Only images are allowed (JPG, JFIF, PNG, WebP, GIF, AVIF)",
   networkError:
     "Connection failed. Please check your internet connection and try again",
   serverError: "Upload failed due to a server error. Please try again",
@@ -159,14 +162,23 @@ export function isAllowedMime(mime: string, imageOnly = false): boolean {
 /**
  * Check if file extension is allowed
  */
-export function isAllowedExtension(filename: string, imageOnly = false): boolean {
+export function isAllowedExtension(
+  filename: string,
+  imageOnly = false
+): boolean {
   const ext = filename.toLowerCase().slice(filename.lastIndexOf("."));
   if (imageOnly) {
-    return ALLOWED_IMAGE_EXTENSIONS.includes(ext as (typeof ALLOWED_IMAGE_EXTENSIONS)[number]);
+    return ALLOWED_IMAGE_EXTENSIONS.includes(
+      ext as (typeof ALLOWED_IMAGE_EXTENSIONS)[number]
+    );
   }
   return (
-    ALLOWED_IMAGE_EXTENSIONS.includes(ext as (typeof ALLOWED_IMAGE_EXTENSIONS)[number]) ||
-    ALLOWED_DOCUMENT_EXTENSIONS.includes(ext as (typeof ALLOWED_DOCUMENT_EXTENSIONS)[number])
+    ALLOWED_IMAGE_EXTENSIONS.includes(
+      ext as (typeof ALLOWED_IMAGE_EXTENSIONS)[number]
+    ) ||
+    ALLOWED_DOCUMENT_EXTENSIONS.includes(
+      ext as (typeof ALLOWED_DOCUMENT_EXTENSIONS)[number]
+    )
   );
 }
 

@@ -11,13 +11,7 @@ export const authClient = createAuthClient({
 });
 
 // Export auth methods for convenience
-export const {
-  signIn,
-  signUp,
-  signOut,
-  useSession,
-  getSession,
-} = authClient;
+export const { signIn, signUp, signOut, useSession, getSession } = authClient;
 
 // OAuth helper
 export const signInWithOAuth = signIn.social;

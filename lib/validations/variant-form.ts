@@ -201,7 +201,8 @@ export const productWithVariantsFormSchema = z
     weight: z
       .string()
       .refine(
-        (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+        (val) =>
+          val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
         "Weight must be a valid positive number"
       )
       .default(""),
@@ -227,7 +228,8 @@ export const productWithVariantsFormSchema = z
       return true;
     },
     {
-      message: "Products with variants must have at least one option with values",
+      message:
+        "Products with variants must have at least one option with values",
       path: ["options"],
     }
   )
@@ -264,7 +266,10 @@ export type ProductWithVariantsFormErrors = Partial<
   /** Errors for specific options by index */
   optionErrors?: Record<number, string>;
   /** Errors for specific variants by tempId */
-  variantErrors?: Record<string, Partial<Record<keyof GeneratedVariant, string>>>;
+  variantErrors?: Record<
+    string,
+    Partial<Record<keyof GeneratedVariant, string>>
+  >;
 };
 
 /**
@@ -395,7 +400,9 @@ export function transformDbVariantsToGeneratedVariants(
       valueId: opt.optionValue.id,
       value: opt.optionValue.value,
     })),
-    displayName: variant.displayName || variant.options.map((o) => o.optionValue.value).join(" / "),
+    displayName:
+      variant.displayName ||
+      variant.options.map((o) => o.optionValue.value).join(" / "),
     sku: variant.sku || "",
     price: variant.price || "",
     stock: String(variant.stock),

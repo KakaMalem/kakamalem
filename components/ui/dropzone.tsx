@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useId } from "react";
+import { useState, useRef, useCallback, useId, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -100,18 +100,10 @@ export function Dropzone({
   const effectiveMaxSize = maxSize ?? getMaxSize(folder);
   const effectiveAccept = accept ?? getAcceptString(true);
 
-  // Update uploads and notify parent
-  const updateUploads = useCallback(
-    (newUploads: UploadState[] | ((prev: UploadState[]) => UploadState[])) => {
-      setUploads((prev) => {
-        const updated =
-          typeof newUploads === "function" ? newUploads(prev) : newUploads;
-        onUploadProgress?.(updated);
-        return updated;
-      });
-    },
-    [onUploadProgress]
-  );
+  // Sync uploads state to parent via useEffect to avoid setState during render
+  useEffect(() => {
+    onUploadProgress?.(uploads);
+  }, [uploads, onUploadProgress]);
 
   // Upload a single file
   const uploadFile = useCallback(
@@ -129,7 +121,7 @@ export function Dropzone({
         xhr.upload.addEventListener("progress", (e) => {
           if (e.lengthComputable) {
             const progress = Math.round((e.loaded / e.total) * 100);
-            updateUploads((prev) =>
+            setUploads((prev) =>
               prev.map((u) =>
                 u.id === uploadState.id
                   ? { ...u, progress, status: "uploading" as const }
@@ -148,7 +140,7 @@ export function Dropzone({
                 error?: string;
               };
               if (response.success && response.file) {
-                updateUploads((prev) =>
+                setUploads((prev) =>
                   prev.map((u) =>
                     u.id === uploadState.id
                       ? {
@@ -181,7 +173,7 @@ export function Dropzone({
                     error = response.error;
                   }
                 }
-                updateUploads((prev) =>
+                setUploads((prev) =>
                   prev.map((u) =>
                     u.id === uploadState.id
                       ? { ...u, status: "error" as const, error }
@@ -192,7 +184,7 @@ export function Dropzone({
                 resolve(null);
               }
             } catch {
-              updateUploads((prev) =>
+              setUploads((prev) =>
                 prev.map((u) =>
                   u.id === uploadState.id
                     ? {
@@ -220,7 +212,7 @@ export function Dropzone({
             } else if (xhr.status === 0) {
               error = UPLOAD_ERROR_MESSAGES.networkError;
             }
-            updateUploads((prev) =>
+            setUploads((prev) =>
               prev.map((u) =>
                 u.id === uploadState.id
                   ? { ...u, status: "error" as const, error }
@@ -233,7 +225,7 @@ export function Dropzone({
         });
 
         xhr.addEventListener("error", () => {
-          updateUploads((prev) =>
+          setUploads((prev) =>
             prev.map((u) =>
               u.id === uploadState.id
                 ? {
@@ -249,7 +241,7 @@ export function Dropzone({
         });
 
         xhr.addEventListener("timeout", () => {
-          updateUploads((prev) =>
+          setUploads((prev) =>
             prev.map((u) =>
               u.id === uploadState.id
                 ? {
@@ -274,7 +266,7 @@ export function Dropzone({
       folder,
       convertToWebp,
       generateThumbnails,
-      updateUploads,
+      setUploads,
       effectiveMaxSize,
     ]
   );
@@ -336,7 +328,7 @@ export function Dropzone({
         status: "pending" as const,
       }));
 
-      updateUploads((prev) => [...prev, ...newUploads]);
+      setUploads((prev) => [...prev, ...newUploads]);
 
       // Upload files with concurrency limit (3 at a time)
       const results: UploadedFile[] = [];
@@ -362,7 +354,7 @@ export function Dropzone({
 
       // Clear completed uploads after a delay
       setTimeout(() => {
-        updateUploads((prev) => prev.filter((u) => u.status !== "complete"));
+        setUploads((prev) => prev.filter((u) => u.status !== "complete"));
       }, 2000);
     },
     [
@@ -372,7 +364,7 @@ export function Dropzone({
       uploadFile,
       onUploadComplete,
       onUploadError,
-      updateUploads,
+      setUploads,
     ]
   );
 
@@ -454,6 +446,7 @@ export function Dropzone({
           onChange={handleFileChange}
           disabled={disabled || isUploading}
           className="sr-only"
+          suppressHydrationWarning
         />
         <button
           type="button"
@@ -494,6 +487,7 @@ export function Dropzone({
         onChange={handleFileChange}
         disabled={disabled || isUploading}
         className="sr-only"
+        suppressHydrationWarning
       />
 
       <motion.div

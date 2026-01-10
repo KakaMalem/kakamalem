@@ -43,7 +43,9 @@ function getApplicableTierPrice(
 ): number {
   if (!priceTiers || priceTiers.length === 0) return basePrice;
 
-  const sortedTiers = [...priceTiers].sort((a, b) => b.minQuantity - a.minQuantity);
+  const sortedTiers = [...priceTiers].sort(
+    (a, b) => b.minQuantity - a.minQuantity
+  );
 
   for (const tier of sortedTiers) {
     if (quantity >= tier.minQuantity) {

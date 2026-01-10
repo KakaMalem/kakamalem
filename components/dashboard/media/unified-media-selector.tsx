@@ -4,7 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Check, Loader2, ImageIcon, SortAsc, X } from "lucide-react";
+import {
+  Search,
+  Check,
+  Loader2,
+  ImageIcon,
+  SortAsc,
+  X,
+  LayoutGrid,
+  LayoutList,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +54,10 @@ export type MediaSelection = {
   id: string;
   url: string;
   altText?: string | null;
+  fileSize?: number | null;
+  fileName?: string | null;
+  width?: number | null;
+  height?: number | null;
 };
 
 interface UnifiedMediaSelectorBaseProps {
@@ -79,6 +92,30 @@ type SortMode = "newest" | "oldest" | "name" | "size";
 // ANIMATION VARIANTS
 // =============================================================================
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.015,
+      delayChildren: 0.03,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 6 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: "spring" as const,
+      stiffness: 500,
+      damping: 30,
+    },
+  },
+};
+
 const checkVariants = {
   hidden: { scale: 0, opacity: 0 },
   visible: {
@@ -104,10 +141,10 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
 
   const multiple = props.multiple ?? false;
   const initialSelectedIds = multiple
-    ? props.selectedIds ?? []
+    ? (props.selectedIds ?? [])
     : props.selectedId
-    ? [props.selectedId]
-    : [];
+      ? [props.selectedId]
+      : [];
 
   // State
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -118,6 +155,25 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
   const [selectedMediaIds, setSelectedMediaIds] =
     useState<string[]>(initialSelectedIds);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
+
+  // View mode state (persisted in localStorage)
+  // Use null initially to indicate "not yet loaded from localStorage"
+  const [viewMode, setViewMode] = useState<"grid" | "list" | null>(null);
+
+  // Load view mode from localStorage after mount
+  useEffect(() => {
+    const savedMode = localStorage.getItem("media-selector-view-mode") as
+      | "grid"
+      | "list"
+      | null;
+    setViewMode(savedMode === "grid" ? "grid" : "list");
+  }, []);
+
+  const toggleViewMode = () => {
+    const newMode = viewMode === "grid" ? "list" : "grid";
+    setViewMode(newMode);
+    localStorage.setItem("media-selector-view-mode", newMode);
+  };
 
   // Load media from server
   const loadMedia = useCallback(
@@ -201,8 +257,9 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
             id: result.data.id,
             tenantId,
             uploadedById: "",
-            url: result.data.url,
-            fileName: result.data.fileName,
+            // Use file.url as fallback in case result.data.url is undefined
+            url: result.data.url || file.url,
+            fileName: result.data.fileName || file.filename,
             altText: null,
             fileSize: file.size,
             mimeType: file.mimeType,
@@ -241,7 +298,15 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
       const selectedMedia = selectedMediaIds
         .map((id) => mediaItems.find((m) => m.id === id))
         .filter((m): m is MediaItem => m !== undefined)
-        .map((m) => ({ id: m.id, url: m.url, altText: m.altText }));
+        .map((m) => ({
+          id: m.id,
+          url: m.url,
+          altText: m.altText,
+          fileSize: m.fileSize,
+          fileName: m.fileName,
+          width: m.width,
+          height: m.height,
+        }));
       (props.onSelect as (media: MediaSelection[]) => void)(selectedMedia);
     } else {
       if (selectedMediaIds.length === 0) {
@@ -253,6 +318,10 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
             id: media.id,
             url: media.url,
             altText: media.altText,
+            fileSize: media.fileSize,
+            fileName: media.fileName,
+            width: media.width,
+            height: media.height,
           });
         }
       }
@@ -302,6 +371,26 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
               className="pl-9"
             />
           </div>
+
+          {/* View Mode Toggle */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={toggleViewMode}
+            className="cursor-pointer shrink-0"
+            disabled={viewMode === null}
+            title={
+              viewMode === "grid"
+                ? "Switch to list view"
+                : "Switch to grid view"
+            }
+          >
+            {viewMode === "grid" ? (
+              <LayoutList className="size-4" />
+            ) : (
+              <LayoutGrid className="size-4" />
+            )}
+          </Button>
 
           {/* Sort Dropdown */}
           <DropdownMenu>
@@ -360,12 +449,11 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
           folder="media"
           onUploadComplete={handleUploadComplete}
           maxFiles={multiple ? MAX_FILES.mediaSelector : 1}
-          compact={mediaItems.length > 0}
         />
 
-        {/* Media Grid */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {isLoading && mediaItems.length === 0 ? (
+        {/* Media Grid/List */}
+        <div className="flex-1 overflow-y-auto min-h-0 -mx-1 px-1">
+          {(isLoading && mediaItems.length === 0) || viewMode === null ? (
             <div className="flex items-center justify-center h-full min-h-64">
               <Loader2 className="size-8 animate-spin text-muted-foreground" />
             </div>
@@ -383,17 +471,75 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
             </div>
           ) : (
             <>
-              <div className="space-y-2">
-                <AnimatePresence mode="popLayout">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={viewMode}
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                  className={
+                    viewMode === "grid"
+                      ? "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 p-0.5"
+                      : "space-y-2 p-0.5"
+                  }
+                >
                   {mediaItems.map((item) => {
                     const isSelected = selectedMediaIds.includes(item.id);
+
+                    // Grid view item
+                    if (viewMode === "grid") {
+                      return (
+                        <motion.button
+                          key={item.id}
+                          variants={itemVariants}
+                          initial="hidden"
+                          animate="visible"
+                          type="button"
+                          onClick={() => handleToggleSelection(item.id)}
+                          className={cn(
+                            "relative aspect-square rounded-lg border overflow-hidden transition-all hover:ring-2 hover:ring-primary/50",
+                            isSelected && "ring-2 ring-primary"
+                          )}
+                        >
+                          {item.url ? (
+                            <Image
+                              src={item.url}
+                              alt={item.altText || item.fileName || "Image"}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                              <ImageIcon className="size-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <AnimatePresence>
+                            {isSelected && (
+                              <motion.div
+                                variants={checkVariants}
+                                initial="hidden"
+                                animate="visible"
+                                exit="hidden"
+                                className="absolute top-1 right-1 bg-primary rounded-full p-0.5"
+                              >
+                                <Check className="size-4 text-primary-foreground" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.button>
+                      );
+                    }
+
+                    // List view item
                     return (
                       <motion.button
                         key={item.id}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        layout
+                        variants={itemVariants}
+                        initial="hidden"
+                        animate="visible"
                         type="button"
                         onClick={() => handleToggleSelection(item.id)}
                         className={cn(
@@ -402,13 +548,20 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                         )}
                       >
                         <div className="relative size-16 rounded overflow-hidden shrink-0 border">
-                          <Image
-                            src={item.url}
-                            alt={item.altText || item.fileName || "Image"}
-                            fill
-                            className="object-cover"
-                            sizes="64px"
-                          />
+                          {item.url ? (
+                            <Image
+                              src={item.url}
+                              alt={item.altText || item.fileName || "Image"}
+                              fill
+                              className="object-cover"
+                              sizes="64px"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                              <ImageIcon className="size-6 text-muted-foreground" />
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 text-left min-w-0">
                           <p className="font-medium truncate">
@@ -439,8 +592,8 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                       </motion.button>
                     );
                   })}
-                </AnimatePresence>
-              </div>
+                </motion.div>
+              </AnimatePresence>
 
               {hasMore && (
                 <div className="flex justify-center mt-6 pb-4">

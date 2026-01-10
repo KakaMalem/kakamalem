@@ -47,7 +47,10 @@ export async function getScheduledSalesAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to get scheduled sales",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get scheduled sales",
       },
     };
   }
@@ -70,7 +73,10 @@ export async function getProductScheduledSalesAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to get product sales",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get product sales",
       },
     };
   }
@@ -89,7 +95,10 @@ export async function createScheduledSaleAction(
     if (isNaN(salePrice) || salePrice < 0) {
       return {
         success: false,
-        error: { message: "Sale price must be a valid positive number", field: "salePrice" },
+        error: {
+          message: "Sale price must be a valid positive number",
+          field: "salePrice",
+        },
       };
     }
 
@@ -113,7 +122,10 @@ export async function createScheduledSaleAction(
     if (endsAt <= startsAt) {
       return {
         success: false,
-        error: { message: "End date must be after start date", field: "endsAt" },
+        error: {
+          message: "End date must be after start date",
+          field: "endsAt",
+        },
       };
     }
 
@@ -139,7 +151,10 @@ export async function createScheduledSaleAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to create scheduled sale",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to create scheduled sale",
       },
     };
   }
@@ -159,7 +174,10 @@ export async function updateScheduledSaleAction(
       if (isNaN(salePrice) || salePrice < 0) {
         return {
           success: false,
-          error: { message: "Sale price must be a valid positive number", field: "salePrice" },
+          error: {
+            message: "Sale price must be a valid positive number",
+            field: "salePrice",
+          },
         };
       }
     }
@@ -224,7 +242,10 @@ export async function updateScheduledSaleAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to update scheduled sale",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to update scheduled sale",
       },
     };
   }
@@ -249,7 +270,10 @@ export async function deleteScheduledSaleAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to delete scheduled sale",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to delete scheduled sale",
       },
     };
   }
@@ -283,7 +307,10 @@ export async function toggleScheduledSaleActiveAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to toggle scheduled sale",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to toggle scheduled sale",
       },
     };
   }

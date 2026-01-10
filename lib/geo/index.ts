@@ -22,7 +22,10 @@ export function computeH3Index(lat: number, lng: number): string {
 /**
  * Get center coordinates of an H3 cell
  */
-export function h3ToLatLng(h3Index: string): { latitude: number; longitude: number } {
+export function h3ToLatLng(h3Index: string): {
+  latitude: number;
+  longitude: number;
+} {
   const [lat, lng] = cellToLatLng(h3Index);
   return { latitude: lat, longitude: lng };
 }
@@ -32,7 +35,10 @@ export function h3ToLatLng(h3Index: string): { latitude: number; longitude: numb
  * @param h3Index - The center cell
  * @param ringSize - Number of rings (1 = immediate neighbors, 2 = neighbors of neighbors, etc.)
  */
-export function getNeighborCells(h3Index: string, ringSize: number = 1): string[] {
+export function getNeighborCells(
+  h3Index: string,
+  ringSize: number = 1
+): string[] {
   return gridDisk(h3Index, ringSize);
 }
 

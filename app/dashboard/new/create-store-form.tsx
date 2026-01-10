@@ -299,8 +299,8 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                 currentStep === step.id
                   ? "border-primary bg-primary text-primary-foreground"
                   : currentStep > step.id
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-muted-foreground/30 text-muted-foreground"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-muted-foreground/30 text-muted-foreground"
               )}
             >
               {currentStep > step.id ? (
@@ -527,8 +527,8 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                     formData.headerDisplay === "logo_only"
                       ? "border-primary bg-primary/5"
                       : logo
-                      ? "border-muted hover:border-muted-foreground/50"
-                      : "border-muted"
+                        ? "border-muted hover:border-muted-foreground/50"
+                        : "border-muted"
                   )}
                 >
                   <RadioGroupItem
@@ -570,8 +570,8 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
                     formData.headerDisplay === "logo_and_name"
                       ? "border-primary bg-primary/5"
                       : logo
-                      ? "border-muted hover:border-muted-foreground/50"
-                      : "border-muted"
+                        ? "border-muted hover:border-muted-foreground/50"
+                        : "border-muted"
                   )}
                 >
                   <RadioGroupItem

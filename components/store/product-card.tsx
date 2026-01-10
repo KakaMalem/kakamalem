@@ -215,15 +215,17 @@ export function ProductCard({
           disabled={isOutOfStock || isAddingToCart}
           aria-label={isOutOfStock ? "Out of stock" : "Add to cart"}
         >
-          <Plus
-            className={cn("w-3.5 h-3.5", isAddingToCart && "animate-spin")}
-          />
+          {!isOutOfStock && (
+            <Plus
+              className={cn("w-3.5 h-3.5", isAddingToCart && "animate-spin")}
+            />
+          )}
           <span>
             {isOutOfStock
               ? "Out of Stock"
               : isAddingToCart
-              ? "Adding..."
-              : "Add to Cart"}
+                ? "Adding..."
+                : "Add to Cart"}
           </span>
         </button>
       </div>

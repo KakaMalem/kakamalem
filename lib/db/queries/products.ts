@@ -9,7 +9,17 @@ import {
   productCategories,
   productVariants,
 } from "@/lib/db/schema";
-import { eq, and, or, ilike, desc, asc, count, sql, inArray } from "drizzle-orm";
+import {
+  eq,
+  and,
+  or,
+  ilike,
+  desc,
+  asc,
+  count,
+  sql,
+  inArray,
+} from "drizzle-orm";
 
 export type ProductWithCategory = Awaited<
   ReturnType<typeof getProducts>
@@ -168,13 +178,18 @@ export async function getProducts(
     productIds.length > 0
       ? await db
           .select({
-            productId: sql<string>`${productCategories.productId}`.as("productId"),
+            productId: sql<string>`${productCategories.productId}`.as(
+              "productId"
+            ),
             categoryId: categories.id,
             categoryName: categories.name,
             categorySlug: categories.slug,
           })
           .from(productCategories)
-          .innerJoin(categories, eq(productCategories.categoryId, categories.id))
+          .innerJoin(
+            categories,
+            eq(productCategories.categoryId, categories.id)
+          )
           .where(inArray(productCategories.productId, productIds))
       : [];
 
@@ -183,8 +198,13 @@ export async function getProducts(
     productIds.length > 0
       ? await db
           .select({
-            productId: sql<string>`${productVariants.productId}`.as("productId"),
-            totalStock: sql<number>`COALESCE(SUM(${productVariants.stock}), 0)`.as("totalStock"),
+            productId: sql<string>`${productVariants.productId}`.as(
+              "productId"
+            ),
+            totalStock:
+              sql<number>`COALESCE(SUM(${productVariants.stock}), 0)`.as(
+                "totalStock"
+              ),
           })
           .from(productVariants)
           .where(
@@ -198,10 +218,15 @@ export async function getProducts(
 
   // Map images, categories, and variant stocks to products
   const imageMap = new Map(images.map((img) => [img.productId, img]));
-  const variantStockMap = new Map(variantStockSums.map((vs) => [vs.productId, vs.totalStock]));
+  const variantStockMap = new Map(
+    variantStockSums.map((vs) => [vs.productId, vs.totalStock])
+  );
 
   // Group categories by product
-  const categoriesMap = new Map<string, Array<{ id: string; name: string; slug: string }>>();
+  const categoriesMap = new Map<
+    string,
+    Array<{ id: string; name: string; slug: string }>
+  >();
   productCategoriesData.forEach((pc) => {
     if (!categoriesMap.has(pc.productId)) {
       categoriesMap.set(pc.productId, []);
@@ -218,7 +243,9 @@ export async function getProducts(
     const variantTotalStock = variantStockMap.get(product.id) || 0;
 
     // Use variant stock sum if product has variants, otherwise use product.stock
-    const effectiveStock = product.hasVariants ? variantTotalStock : product.stock;
+    const effectiveStock = product.hasVariants
+      ? variantTotalStock
+      : product.stock;
 
     return {
       ...product,
@@ -309,7 +336,10 @@ export async function getProductBySlug(tenantId: string, slug: string) {
 /**
  * Get product by slug with all details (for product detail page)
  */
-export async function getProductBySlugWithDetails(tenantId: string, slug: string) {
+export async function getProductBySlugWithDetails(
+  tenantId: string,
+  slug: string
+) {
   const product = await db.query.products.findFirst({
     where: and(eq(products.tenantId, tenantId), eq(products.slug, slug)),
     with: {
@@ -347,7 +377,9 @@ export async function getProductBySlugWithDetails(tenantId: string, slug: string
   return product;
 }
 
-export type ProductWithDetails = NonNullable<Awaited<ReturnType<typeof getProductBySlugWithDetails>>>;
+export type ProductWithDetails = NonNullable<
+  Awaited<ReturnType<typeof getProductBySlugWithDetails>>
+>;
 
 /**
  * Check if a product slug is available within a tenant
@@ -357,10 +389,7 @@ export async function checkProductSlugAvailable(
   slug: string,
   excludeProductId?: string
 ): Promise<boolean> {
-  const conditions = [
-    eq(products.tenantId, tenantId),
-    eq(products.slug, slug),
-  ];
+  const conditions = [eq(products.tenantId, tenantId), eq(products.slug, slug)];
 
   if (excludeProductId) {
     conditions.push(sql`${products.id} != ${excludeProductId}`);

@@ -223,7 +223,7 @@ export function groupVariantsByFirstOption(
  * @returns Map of first option value to its variants
  */
 export function groupVariantsByFirstOptionGeneric<
-  T extends { optionValues: { value: string }[] }
+  T extends { optionValues: { value: string }[] },
 >(variants: T[]): Map<string, T[]> {
   const groups = new Map<string, T[]>();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -40,7 +40,10 @@ import { cn } from "@/lib/utils";
 
 import type { GeneratedVariant } from "@/lib/validations/variant-form";
 import { groupVariantsByFirstOptionGeneric } from "@/lib/variants/cartesian";
-import { UnifiedMediaSelector, type MediaSelection } from "@/components/dashboard/media/unified-media-selector";
+import {
+  UnifiedMediaSelector,
+  type MediaSelection,
+} from "@/components/dashboard/media/unified-media-selector";
 
 interface VariantMatrixTableProps {
   /** Generated variants to display */
@@ -523,6 +526,12 @@ function VariantRow({
 }: VariantRowProps) {
   const isExcluded = variant.isExcluded;
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
+  // Track mounted state to prevent hydration mismatch with Radix dropdown IDs
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <>
@@ -637,40 +646,49 @@ function VariantRow({
 
         {/* Actions */}
         <TableCell>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
-                <MoreHorizontal className="size-4" />
-                <span className="sr-only">Actions</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {showCopyFromAbove && !isExcluded && (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => onCopyFromAbove(variant.tempId)}
-                  >
-                    <Copy className="mr-2 size-4" />
-                    Copy price from above
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem onClick={() => onToggleExclude(variant.tempId)}>
-                {isExcluded ? (
+          {mounted ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-8">
+                  <MoreHorizontal className="size-4" />
+                  <span className="sr-only">Actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {showCopyFromAbove && !isExcluded && (
                   <>
-                    <Check className="mr-2 size-4" />
-                    Include variant
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="mr-2 size-4" />
-                    Exclude variant
+                    <DropdownMenuItem
+                      onClick={() => onCopyFromAbove(variant.tempId)}
+                    >
+                      <Copy className="mr-2 size-4" />
+                      Copy price from above
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                   </>
                 )}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem
+                  onClick={() => onToggleExclude(variant.tempId)}
+                >
+                  {isExcluded ? (
+                    <>
+                      <Check className="mr-2 size-4" />
+                      Include variant
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 size-4" />
+                      Exclude variant
+                    </>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="ghost" size="icon" className="size-8" disabled>
+              <MoreHorizontal className="size-4" />
+              <span className="sr-only">Actions</span>
+            </Button>
+          )}
         </TableCell>
       </TableRow>
 

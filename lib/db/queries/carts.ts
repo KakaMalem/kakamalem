@@ -77,7 +77,9 @@ export async function getOrCreateCart(
 
   if (!cart) {
     // Create new cart
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+    const expiresAt = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000
+    ).toISOString(); // 30 days
     const [newCart] = await db
       .insert(carts)
       .values({
@@ -290,7 +292,9 @@ function getApplicableTierPrice(
   if (priceTiers.length === 0) return basePrice;
 
   // Sort by minQuantity descending to find the highest applicable tier
-  const sortedTiers = [...priceTiers].sort((a, b) => b.minQuantity - a.minQuantity);
+  const sortedTiers = [...priceTiers].sort(
+    (a, b) => b.minQuantity - a.minQuantity
+  );
 
   for (const tier of sortedTiers) {
     if (quantity >= tier.minQuantity) {

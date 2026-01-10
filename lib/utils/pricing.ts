@@ -86,7 +86,9 @@ async function getBasePrice(
     }
 
     return {
-      price: variant.price ? parseFloat(variant.price) : parseFloat(variant.product.price),
+      price: variant.price
+        ? parseFloat(variant.price)
+        : parseFloat(variant.product.price),
       compareAtPrice: variant.compareAtPrice
         ? parseFloat(variant.compareAtPrice)
         : variant.product.compareAtPrice
@@ -111,7 +113,9 @@ async function getBasePrice(
 
   return {
     price: parseFloat(product.price),
-    compareAtPrice: product.compareAtPrice ? parseFloat(product.compareAtPrice) : null,
+    compareAtPrice: product.compareAtPrice
+      ? parseFloat(product.compareAtPrice)
+      : null,
     costPrice: product.costPrice ? parseFloat(product.costPrice) : null,
   };
 }
@@ -173,7 +177,9 @@ async function getCustomerGroupPrice(
 
   return {
     price: parseFloat(groupPrice.price),
-    compareAtPrice: groupPrice.compareAtPrice ? parseFloat(groupPrice.compareAtPrice) : null,
+    compareAtPrice: groupPrice.compareAtPrice
+      ? parseFloat(groupPrice.compareAtPrice)
+      : null,
   };
 }
 
@@ -204,7 +210,9 @@ async function getApplicableTier(
 /**
  * Get all price tiers for a product
  */
-export async function getProductPriceTiers(productId: string): Promise<PriceTier[]> {
+export async function getProductPriceTiers(
+  productId: string
+): Promise<PriceTier[]> {
   return db.query.priceTiers.findMany({
     where: eq(priceTiers.productId, productId),
     orderBy: [priceTiers.minQuantity],
@@ -214,7 +222,10 @@ export async function getProductPriceTiers(productId: string): Promise<PriceTier
 /**
  * Calculate discount percentage
  */
-function calculateDiscountPercent(price: number, compareAtPrice: number | null): number | null {
+function calculateDiscountPercent(
+  price: number,
+  compareAtPrice: number | null
+): number | null {
   if (!compareAtPrice || compareAtPrice <= price) return null;
   return Math.round(((compareAtPrice - price) / compareAtPrice) * 100);
 }
@@ -247,7 +258,9 @@ function calculateDiscountPercent(price: number, compareAtPrice: number | null):
  * });
  * ```
  */
-export async function resolveProductPrice(options: PriceResolveOptions): Promise<PriceResult> {
+export async function resolveProductPrice(
+  options: PriceResolveOptions
+): Promise<PriceResult> {
   const {
     productId,
     variantId,
@@ -267,7 +280,10 @@ export async function resolveProductPrice(options: PriceResolveOptions): Promise
     compareAtPrice: basePrice.compareAtPrice,
     costPrice: includeCostPrice ? basePrice.costPrice : null,
     source: "base",
-    discountPercent: calculateDiscountPercent(basePrice.price, basePrice.compareAtPrice),
+    discountPercent: calculateDiscountPercent(
+      basePrice.price,
+      basePrice.compareAtPrice
+    ),
   };
 
   // 1. Check for active scheduled sale (highest priority)
@@ -290,7 +306,10 @@ export async function resolveProductPrice(options: PriceResolveOptions): Promise
   else if (userId && tenantId) {
     const customerGroupId = await getCustomerGroup(userId, tenantId);
     if (customerGroupId) {
-      const groupPrice = await getCustomerGroupPrice(productId, customerGroupId);
+      const groupPrice = await getCustomerGroupPrice(
+        productId,
+        customerGroupId
+      );
       if (groupPrice) {
         result = {
           ...result,
@@ -353,7 +372,9 @@ export async function resolveProductPricesBatch(
   // For now, resolve each individually
   // TODO: Optimize with batch queries
   for (const item of items) {
-    const key = item.variantId ? `${item.productId}:${item.variantId}` : item.productId;
+    const key = item.variantId
+      ? `${item.productId}:${item.variantId}`
+      : item.productId;
     const result = await resolveProductPrice({
       productId: item.productId,
       variantId: item.variantId,
@@ -402,7 +423,10 @@ export function getDisplayPrices(
  * Format price tier for display
  * Example: "10-49 units: AFN 800" or "50+ units: AFN 600"
  */
-export function formatPriceTier(tier: PriceTier, currency: string = "AFN"): string {
+export function formatPriceTier(
+  tier: PriceTier,
+  currency: string = "AFN"
+): string {
   const price = parseFloat(tier.price);
   const formattedPrice = new Intl.NumberFormat("en-US", {
     style: "currency",

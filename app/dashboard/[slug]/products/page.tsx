@@ -7,6 +7,7 @@ interface ProductsPageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{
     page?: string;
+    limit?: string;
     search?: string;
     status?: string;
     sort?: string;
@@ -28,6 +29,7 @@ export default async function ProductsPage({
 
   // Parse search params
   const page = parseInt(search.page || "1");
+  const limit = Math.min(Math.max(parseInt(search.limit || "10"), 10), 500); // Clamp between 10 and 500
   const showArchived = search.status === "archived";
   const filters = {
     search: search.search,
@@ -48,7 +50,7 @@ export default async function ProductsPage({
   // Fetch products
   const { products, pagination } = await getProducts(store.id, {
     page,
-    limit: 10,
+    limit,
     filters,
     sort,
   });
@@ -61,6 +63,7 @@ export default async function ProductsPage({
       products={products}
       pagination={pagination}
       searchParams={search}
+      currentLimit={limit}
       showArchived={showArchived}
     />
   );

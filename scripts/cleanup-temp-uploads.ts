@@ -54,7 +54,9 @@ async function cleanupOrphanedTempFiles(): Promise<void> {
         if (ageMs > MAX_AGE_MS) {
           await unlink(filePath);
           deletedCount++;
-          console.log(`  Deleted: ${file} (age: ${Math.round(ageMs / 1000 / 60)} minutes)`);
+          console.log(
+            `  Deleted: ${file} (age: ${Math.round(ageMs / 1000 / 60)} minutes)`
+          );
         }
       } catch (fileError) {
         errorCount++;
@@ -62,7 +64,9 @@ async function cleanupOrphanedTempFiles(): Promise<void> {
       }
     }
 
-    console.log(`  Cleanup complete: ${deletedCount} files deleted, ${errorCount} errors`);
+    console.log(
+      `  Cleanup complete: ${deletedCount} files deleted, ${errorCount} errors`
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       console.log(`  Temp directory does not exist (nothing to clean up)`);

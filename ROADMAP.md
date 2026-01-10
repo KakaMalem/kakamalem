@@ -408,20 +408,17 @@ Enhance product creation/editing with inline variant generation:
 #### High Priority (Noticeable UX Improvement)
 
 - [x] **Add debounced syncing for quantity changes**
-
   - Rapid +/- clicks batch into single API call
   - Wait 400ms after last click before syncing
   - Prevents "request spam" on rapid clicking
   - Implementation: `lib/hooks/use-debounced-cart-sync.ts`
 
 - [x] **Better rollback on sync failure**
-
   - On sync failure: Refetch entire cart from server
   - Prevents cart getting out of sync with DB
   - Added `getCartAction` for refetching
 
 - [x] **Editable quantity input field**
-
   - Users can type quantities directly (e.g., 1000)
   - No more clicking +/- for large orders
   - Input validates on blur, supports Enter/Escape keys
@@ -433,7 +430,6 @@ Enhance product creation/editing with inline variant generation:
 #### Medium Priority (Code Quality / Maintainability)
 
 - [ ] **Consider TanStack Query for cart operations** (Optional)
-
   - Pros: Built-in optimistic updates, rollback, caching, deduplication
   - Cons: New dependency, learning curve, may be overkill
   - Decision: Skip unless you're already using TanStack Query elsewhere
@@ -774,14 +770,12 @@ Handle `store_customers` record lifecycle (lazy creation on first order).
 ### Implementation Priority
 
 1. **High Priority (Auth Flow)**
-
    - Store login/signup pages
    - OAuth callback handling
    - Auth context helpers
    - Header auth state
 
 2. **Medium Priority (Account)**
-
    - Account dashboard
    - Order history
    - Saved addresses

@@ -52,7 +52,10 @@ export async function GET(
     const normalizedFull = resolve(fullPath);
 
     if (!normalizedFull.startsWith(normalizedRoot)) {
-      console.error("Path traversal blocked:", { normalizedFull, normalizedRoot });
+      console.error("Path traversal blocked:", {
+        normalizedFull,
+        normalizedRoot,
+      });
       return new NextResponse("Forbidden", { status: 403 });
     }
 
@@ -93,7 +96,9 @@ export async function GET(
         // For images, allow embedding
         ...(mimeType.startsWith("image/")
           ? {}
-          : { "Content-Disposition": `inline; filename="${path[path.length - 1]}"` }),
+          : {
+              "Content-Disposition": `inline; filename="${path[path.length - 1]}"`,
+            }),
       },
     });
   } catch (error) {

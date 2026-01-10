@@ -25,7 +25,9 @@ import { eq, and, desc, asc, lte, gte } from "drizzle-orm";
 /**
  * Get all price tiers for a product, sorted by minQuantity
  */
-export async function getProductPriceTiers(productId: string): Promise<PriceTier[]> {
+export async function getProductPriceTiers(
+  productId: string
+): Promise<PriceTier[]> {
   return db.query.priceTiers.findMany({
     where: eq(priceTiers.productId, productId),
     orderBy: [asc(priceTiers.minQuantity)],
@@ -65,7 +67,9 @@ export async function deletePriceTier(id: string): Promise<void> {
 /**
  * Delete all price tiers for a product (useful when replacing tiers)
  */
-export async function deleteProductPriceTiers(productId: string): Promise<void> {
+export async function deleteProductPriceTiers(
+  productId: string
+): Promise<void> {
   await db.delete(priceTiers).where(eq(priceTiers.productId, productId));
 }
 
@@ -75,7 +79,9 @@ export async function deleteProductPriceTiers(productId: string): Promise<void> 
 export async function replaceProductPriceTiers(
   productId: string,
   tenantId: string,
-  tiers: Array<Omit<NewPriceTier, "id" | "tenantId" | "productId" | "createdAt">>
+  tiers: Array<
+    Omit<NewPriceTier, "id" | "tenantId" | "productId" | "createdAt">
+  >
 ): Promise<PriceTier[]> {
   // Delete existing tiers
   await deleteProductPriceTiers(productId);
@@ -104,7 +110,9 @@ export async function replaceProductPriceTiers(
 /**
  * Get all customer groups for a tenant
  */
-export async function getTenantCustomerGroups(tenantId: string): Promise<CustomerGroup[]> {
+export async function getTenantCustomerGroups(
+  tenantId: string
+): Promise<CustomerGroup[]> {
   return db.query.customerGroups.findMany({
     where: eq(customerGroups.tenantId, tenantId),
     orderBy: [asc(customerGroups.name)],
@@ -114,7 +122,9 @@ export async function getTenantCustomerGroups(tenantId: string): Promise<Custome
 /**
  * Get a customer group by ID
  */
-export async function getCustomerGroupById(id: string): Promise<CustomerGroup | null> {
+export async function getCustomerGroupById(
+  id: string
+): Promise<CustomerGroup | null> {
   const group = await db.query.customerGroups.findFirst({
     where: eq(customerGroups.id, id),
   });
@@ -124,7 +134,9 @@ export async function getCustomerGroupById(id: string): Promise<CustomerGroup | 
 /**
  * Create a new customer group
  */
-export async function createCustomerGroup(data: NewCustomerGroup): Promise<CustomerGroup> {
+export async function createCustomerGroup(
+  data: NewCustomerGroup
+): Promise<CustomerGroup> {
   // If this is set as default, unset other defaults first
   if (data.isDefault) {
     await db
@@ -219,7 +231,10 @@ export async function setCustomerGroupMembership(
     );
 
   // Add new membership
-  const [membership] = await db.insert(customerGroupMembers).values(data).returning();
+  const [membership] = await db
+    .insert(customerGroupMembers)
+    .values(data)
+    .returning();
   return membership;
 }
 
@@ -247,7 +262,9 @@ export async function removeCustomerGroupMembership(
 /**
  * Get all group prices for a product
  */
-export async function getProductGroupPrices(productId: string): Promise<CustomerGroupPrice[]> {
+export async function getProductGroupPrices(
+  productId: string
+): Promise<CustomerGroupPrice[]> {
   return db.query.customerGroupPrices.findMany({
     where: eq(customerGroupPrices.productId, productId),
   });
@@ -276,7 +293,10 @@ export async function setProductGroupPrice(
   data: NewCustomerGroupPrice
 ): Promise<CustomerGroupPrice> {
   // Check if exists
-  const existing = await getProductGroupPrice(data.productId, data.customerGroupId);
+  const existing = await getProductGroupPrice(
+    data.productId,
+    data.customerGroupId
+  );
 
   if (existing) {
     const [updated] = await db
@@ -290,7 +310,10 @@ export async function setProductGroupPrice(
     return updated;
   }
 
-  const [created] = await db.insert(customerGroupPrices).values(data).returning();
+  const [created] = await db
+    .insert(customerGroupPrices)
+    .values(data)
+    .returning();
   return created;
 }
 
@@ -318,7 +341,9 @@ export async function deleteProductGroupPrice(
 /**
  * Get all scheduled sales for a product
  */
-export async function getProductScheduledSales(productId: string): Promise<ScheduledSale[]> {
+export async function getProductScheduledSales(
+  productId: string
+): Promise<ScheduledSale[]> {
   return db.query.scheduledSales.findMany({
     where: eq(scheduledSales.productId, productId),
     orderBy: [desc(scheduledSales.startsAt)],
@@ -328,7 +353,9 @@ export async function getProductScheduledSales(productId: string): Promise<Sched
 /**
  * Get all scheduled sales for a tenant
  */
-export async function getTenantScheduledSales(tenantId: string): Promise<ScheduledSale[]> {
+export async function getTenantScheduledSales(
+  tenantId: string
+): Promise<ScheduledSale[]> {
   return db.query.scheduledSales.findMany({
     where: eq(scheduledSales.tenantId, tenantId),
     orderBy: [desc(scheduledSales.startsAt)],
@@ -388,7 +415,9 @@ export async function getActiveProductSale(
 /**
  * Create a new scheduled sale
  */
-export async function createScheduledSale(data: NewScheduledSale): Promise<ScheduledSale> {
+export async function createScheduledSale(
+  data: NewScheduledSale
+): Promise<ScheduledSale> {
   const [sale] = await db.insert(scheduledSales).values(data).returning();
   return sale;
 }

@@ -93,24 +93,35 @@ export async function uploadMedia(
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      return { success: false, error: { message: "Only image files are allowed" } };
+      return {
+        success: false,
+        error: { message: "Only image files are allowed" },
+      };
     }
 
     // Validate file size (5MB max)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      return { success: false, error: { message: "File size must be less than 5MB" } };
+      return {
+        success: false,
+        error: { message: "File size must be less than 5MB" },
+      };
     }
 
     // TODO: Implement local file storage upload
     // For now, return an error - file upload needs to be implemented
     // via the /api/upload route with local storage
-    console.log("uploadMedia: Local storage upload not yet implemented in server action");
+    console.log(
+      "uploadMedia: Local storage upload not yet implemented in server action"
+    );
     console.log("Use the /api/upload endpoint instead for file uploads");
 
     return {
       success: false,
-      error: { message: "File upload via server action not supported. Use the upload API endpoint." }
+      error: {
+        message:
+          "File upload via server action not supported. Use the upload API endpoint.",
+      },
     };
   } catch (error) {
     console.error("Error uploading media:", error);
@@ -158,13 +169,17 @@ export async function createMediaRecord(
       success: true,
       data: {
         id: newMedia.id,
-        url: newMedia.url,
+        // Use data.url as fallback in case returning() doesn't populate url
+        url: newMedia.url || data.url,
         fileName: newMedia.fileName || data.fileName,
       },
     };
   } catch (error) {
     console.error("Error creating media record:", error);
-    return { success: false, error: { message: "Failed to create media record" } };
+    return {
+      success: false,
+      error: { message: "Failed to create media record" },
+    };
   }
 }
 
@@ -210,7 +225,9 @@ export async function deleteMedia(
   if (productUsage.length > 0) {
     return {
       success: false,
-      error: { message: "Cannot delete: this image is used by one or more products" },
+      error: {
+        message: "Cannot delete: this image is used by one or more products",
+      },
     };
   }
 
@@ -218,13 +235,17 @@ export async function deleteMedia(
   const categoryUsage = await db
     .select({ id: categories.id })
     .from(categories)
-    .where(and(eq(categories.tenantId, tenantId), eq(categories.imageId, mediaId)))
+    .where(
+      and(eq(categories.tenantId, tenantId), eq(categories.imageId, mediaId))
+    )
     .limit(1);
 
   if (categoryUsage.length > 0) {
     return {
       success: false,
-      error: { message: "Cannot delete: this image is used by one or more categories" },
+      error: {
+        message: "Cannot delete: this image is used by one or more categories",
+      },
     };
   }
 
@@ -258,15 +279,15 @@ export async function forceDeleteMedia(
   mediaId: string
 ): Promise<ActionResult> {
   // Remove from product_images
-  await db
-    .delete(productImages)
-    .where(eq(productImages.mediaId, mediaId));
+  await db.delete(productImages).where(eq(productImages.mediaId, mediaId));
 
   // Remove from categories (set imageId to null)
   await db
     .update(categories)
     .set({ imageId: null })
-    .where(and(eq(categories.tenantId, tenantId), eq(categories.imageId, mediaId)));
+    .where(
+      and(eq(categories.tenantId, tenantId), eq(categories.imageId, mediaId))
+    );
 
   // Now delete the media item itself
   return deleteMedia(tenantId, mediaId);

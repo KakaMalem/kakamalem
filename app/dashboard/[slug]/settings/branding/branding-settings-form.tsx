@@ -409,8 +409,8 @@ export function BrandingSettingsForm({
                 headerDisplay === "logo_only"
                   ? "border-primary bg-primary/5"
                   : logo
-                  ? "border-muted hover:border-muted-foreground/50"
-                  : "border-muted"
+                    ? "border-muted hover:border-muted-foreground/50"
+                    : "border-muted"
               )}
             >
               <RadioGroupItem
@@ -448,8 +448,8 @@ export function BrandingSettingsForm({
                 headerDisplay === "logo_and_name"
                   ? "border-primary bg-primary/5"
                   : logo
-                  ? "border-muted hover:border-muted-foreground/50"
-                  : "border-muted"
+                    ? "border-muted hover:border-muted-foreground/50"
+                    : "border-muted"
               )}
             >
               <RadioGroupItem

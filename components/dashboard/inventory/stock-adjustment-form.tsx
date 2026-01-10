@@ -154,8 +154,8 @@ export function StockAdjustmentForm({
             adjustmentType === "set"
               ? "set to"
               : adjustmentType === "add"
-              ? "increased by"
-              : "decreased by"
+                ? "increased by"
+                : "decreased by"
           } ${qty}`
         );
         // Reset form

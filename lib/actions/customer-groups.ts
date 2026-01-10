@@ -44,7 +44,10 @@ export async function getCustomerGroupsAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to get customer groups",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get customer groups",
       },
     };
   }
@@ -62,7 +65,10 @@ export async function createCustomerGroupAction(
     if (!input.name || input.name.trim().length < 2) {
       return {
         success: false,
-        error: { message: "Group name must be at least 2 characters", field: "name" },
+        error: {
+          message: "Group name must be at least 2 characters",
+          field: "name",
+        },
       };
     }
 
@@ -85,7 +91,10 @@ export async function createCustomerGroupAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to create customer group",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to create customer group",
       },
     };
   }
@@ -103,7 +112,10 @@ export async function updateCustomerGroupAction(
     if (input.name !== undefined && input.name.trim().length < 2) {
       return {
         success: false,
-        error: { message: "Group name must be at least 2 characters", field: "name" },
+        error: {
+          message: "Group name must be at least 2 characters",
+          field: "name",
+        },
       };
     }
 
@@ -132,7 +144,10 @@ export async function updateCustomerGroupAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to update customer group",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to update customer group",
       },
     };
   }
@@ -168,7 +183,10 @@ export async function deleteCustomerGroupAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to delete customer group",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to delete customer group",
       },
     };
   }
@@ -198,7 +216,10 @@ export async function getCustomerGroupAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to get customer group",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get customer group",
       },
     };
   }

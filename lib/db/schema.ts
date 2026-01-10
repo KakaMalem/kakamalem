@@ -172,12 +172,15 @@ export const customerGroupTypeEnum = pgEnum("customer_group_type", [
 ]);
 
 // Commission Transaction Type
-export const commissionTransactionTypeEnum = pgEnum("commission_transaction_type", [
-  "order_commission", // Commission from order
-  "payment", // Payment received from store owner
-  "adjustment", // Manual adjustment by admin
-  "forgiveness", // Debt forgiven (write-off)
-]);
+export const commissionTransactionTypeEnum = pgEnum(
+  "commission_transaction_type",
+  [
+    "order_commission", // Commission from order
+    "payment", // Payment received from store owner
+    "adjustment", // Manual adjustment by admin
+    "forgiveness", // Debt forgiven (write-off)
+  ]
+);
 
 // Analytics Event Types
 export const analyticsEventTypeEnum = pgEnum("analytics_event_type", [
@@ -279,16 +282,19 @@ export const deliveryProviderStatusEnum = pgEnum("delivery_provider_status", [
 ]);
 
 // Delivery assignment status
-export const deliveryAssignmentStatusEnum = pgEnum("delivery_assignment_status", [
-  "pending", // Awaiting acceptance
-  "accepted", // Driver accepted
-  "picked_up", // Package picked up
-  "in_transit", // On the way
-  "delivered", // Successfully delivered
-  "failed", // Delivery failed
-  "returned", // Returned to sender
-  "cancelled", // Assignment cancelled
-]);
+export const deliveryAssignmentStatusEnum = pgEnum(
+  "delivery_assignment_status",
+  [
+    "pending", // Awaiting acceptance
+    "accepted", // Driver accepted
+    "picked_up", // Package picked up
+    "in_transit", // On the way
+    "delivered", // Successfully delivered
+    "failed", // Delivery failed
+    "returned", // Returned to sender
+    "cancelled", // Assignment cancelled
+  ]
+);
 
 // Delivery provider payout status
 export const deliveryPayoutStatusEnum = pgEnum("delivery_payout_status", [
@@ -375,8 +381,12 @@ export const userProfiles = pgTable(
     platformRole: platformRoleEnum("platform_role").default("user").notNull(),
 
     // Preferences
-    preferredCurrency: varchar("preferred_currency", { length: 3 }).default("AFN"),
-    preferredLanguage: varchar("preferred_language", { length: 10 }).default("fa"), // Dari
+    preferredCurrency: varchar("preferred_currency", { length: 3 }).default(
+      "AFN"
+    ),
+    preferredLanguage: varchar("preferred_language", { length: 10 }).default(
+      "fa"
+    ), // Dari
 
     // Soft delete for GDPR compliance
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
@@ -444,9 +454,7 @@ export const userAddresses = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
-    index("user_addresses_user_id_idx").on(table.userId),
-  ]
+  (table) => [index("user_addresses_user_id_idx").on(table.userId)]
 );
 
 // ============================================================================
@@ -466,7 +474,9 @@ export const tenants = pgTable(
     // Branding
     logoUrl: text("logo_url"),
     faviconUrl: text("favicon_url"), // Browser tab icon
-    headerDisplay: varchar("header_display", { length: 20 }).default("logo_and_name"), // logo_and_name, logo_only, name_only
+    headerDisplay: varchar("header_display", { length: 20 }).default(
+      "logo_and_name"
+    ), // logo_and_name, logo_only, name_only
 
     // Contact
     contactEmail: varchar("contact_email", { length: 255 }),
@@ -483,12 +493,29 @@ export const tenants = pgTable(
     status: tenantStatusEnum("status").default("pending_review").notNull(),
 
     // Billing & Commission
-    billingStatus: billingStatusEnum("billing_status").default("free_tier").notNull(),
-    commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("5.00").notNull(), // 5% default
-    commissionBalance: decimal("commission_balance", { precision: 14, scale: 2 }).default("0").notNull(), // Current owed (increased precision)
-    freeTierLimit: decimal("free_tier_limit", { precision: 14, scale: 2 }).default("10000").notNull(), // 10,000 AFN
-    freeTierExceededAt: timestamp("free_tier_exceeded_at", { withTimezone: true, mode: "string" }),
-    gracePeriodEndsAt: timestamp("grace_period_ends_at", { withTimezone: true, mode: "string" }),
+    billingStatus: billingStatusEnum("billing_status")
+      .default("free_tier")
+      .notNull(),
+    commissionRate: decimal("commission_rate", { precision: 5, scale: 2 })
+      .default("5.00")
+      .notNull(), // 5% default
+    commissionBalance: decimal("commission_balance", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(), // Current owed (increased precision)
+    freeTierLimit: decimal("free_tier_limit", { precision: 14, scale: 2 })
+      .default("10000")
+      .notNull(), // 10,000 AFN
+    freeTierExceededAt: timestamp("free_tier_exceeded_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    gracePeriodEndsAt: timestamp("grace_period_ends_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Analytics (system-managed, read-only for owners)
     analytics: jsonb("analytics").$type<StoreAnalytics>().default({
@@ -536,7 +563,9 @@ export const tenantMembers = pgTable(
     // Granular permissions (for staff role customization)
     canManageProducts: boolean("can_manage_products").default(true).notNull(),
     canManageOrders: boolean("can_manage_orders").default(true).notNull(),
-    canManageCustomers: boolean("can_manage_customers").default(false).notNull(),
+    canManageCustomers: boolean("can_manage_customers")
+      .default(false)
+      .notNull(),
     canViewAnalytics: boolean("can_view_analytics").default(false).notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -548,7 +577,10 @@ export const tenantMembers = pgTable(
   },
   (table) => [
     // One membership per user per tenant
-    uniqueIndex("tenant_members_tenant_user_idx").on(table.tenantId, table.userId),
+    uniqueIndex("tenant_members_tenant_user_idx").on(
+      table.tenantId,
+      table.userId
+    ),
     // Find all tenants a user belongs to (dashboard sidebar)
     index("tenant_members_user_id_idx").on(table.userId),
   ]
@@ -589,9 +621,17 @@ export const storeCustomers = pgTable(
 
     // Aggregated order stats (updated on order completion)
     totalOrders: integer("total_orders").default(0).notNull(),
-    totalSpent: decimal("total_spent", { precision: 14, scale: 2 }).default("0").notNull(),
-    firstOrderAt: timestamp("first_order_at", { withTimezone: true, mode: "string" }),
-    lastOrderAt: timestamp("last_order_at", { withTimezone: true, mode: "string" }),
+    totalSpent: decimal("total_spent", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    firstOrderAt: timestamp("first_order_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    lastOrderAt: timestamp("last_order_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -602,7 +642,10 @@ export const storeCustomers = pgTable(
   },
   (table) => [
     // One customer record per user per store
-    uniqueIndex("store_customers_tenant_user_idx").on(table.tenantId, table.userId),
+    uniqueIndex("store_customers_tenant_user_idx").on(
+      table.tenantId,
+      table.userId
+    ),
     index("store_customers_user_id_idx").on(table.userId),
     index("store_customers_tenant_id_idx").on(table.tenantId),
   ]
@@ -664,7 +707,9 @@ export const wishlistItems = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     // Optional: specific variant wished for
-    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "cascade",
+    }),
     // Optional note from user (e.g., "Size M in Blue")
     note: text("note"),
     // When item was added
@@ -695,7 +740,9 @@ export const categories = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     slug: varchar("slug", { length: 255 }).notNull(),
     description: text("description"),
-    imageId: uuid("image_id").references(() => media.id, { onDelete: "set null" }),
+    imageId: uuid("image_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     displayOrder: integer("display_order").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -762,8 +809,14 @@ export const products = pgTable(
     status: productStatusEnum("status").default("draft").notNull(),
 
     // Publishing timestamps
-    publishedAt: timestamp("published_at", { withTimezone: true, mode: "string" }),
-    archivedAt: timestamp("archived_at", { withTimezone: true, mode: "string" }),
+    publishedAt: timestamp("published_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    archivedAt: timestamp("archived_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -829,7 +882,10 @@ export const productImages = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("product_images_product_media_idx").on(table.productId, table.mediaId),
+    uniqueIndex("product_images_product_media_idx").on(
+      table.productId,
+      table.mediaId
+    ),
   ]
 );
 
@@ -851,7 +907,10 @@ export const productCategories = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("product_categories_product_category_idx").on(table.productId, table.categoryId),
+    uniqueIndex("product_categories_product_category_idx").on(
+      table.productId,
+      table.categoryId
+    ),
     index("product_categories_category_id_idx").on(table.categoryId),
   ]
 );
@@ -876,7 +935,10 @@ export const variantOptions = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("variant_options_tenant_name_idx").on(table.tenantId, table.name),
+    uniqueIndex("variant_options_tenant_name_idx").on(
+      table.tenantId,
+      table.name
+    ),
   ]
 );
 
@@ -934,7 +996,9 @@ export const productVariants = pgTable(
     stock: integer("stock").default(0).notNull(),
     reservedStock: integer("reserved_stock").default(0).notNull(),
     stockStatus: stockStatusEnum("stock_status").default("in_stock").notNull(),
-    imageId: uuid("image_id").references(() => media.id, { onDelete: "set null" }),
+    imageId: uuid("image_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     isActive: boolean("is_active").default(true).notNull(),
     displayOrder: integer("display_order").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -945,7 +1009,11 @@ export const productVariants = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("product_variants_tenant_product_sku_idx").on(table.tenantId, table.productId, table.sku),
+    uniqueIndex("product_variants_tenant_product_sku_idx").on(
+      table.tenantId,
+      table.productId,
+      table.sku
+    ),
     index("product_variants_product_id_idx").on(table.productId),
   ]
 );
@@ -1001,7 +1069,10 @@ export const productVariantOptions = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("product_variant_options_variant_value_idx").on(table.variantId, table.optionValueId),
+    uniqueIndex("product_variant_options_variant_value_idx").on(
+      table.variantId,
+      table.optionValueId
+    ),
   ]
 );
 
@@ -1029,7 +1100,10 @@ export const priceTiers = pgTable(
   },
   (table) => [
     index("price_tiers_product_idx").on(table.productId),
-    uniqueIndex("price_tiers_product_min_qty_idx").on(table.productId, table.minQuantity),
+    uniqueIndex("price_tiers_product_min_qty_idx").on(
+      table.productId,
+      table.minQuantity
+    ),
   ]
 );
 
@@ -1056,7 +1130,10 @@ export const customerGroups = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("customer_groups_tenant_name_idx").on(table.tenantId, table.name),
+    uniqueIndex("customer_groups_tenant_name_idx").on(
+      table.tenantId,
+      table.name
+    ),
     index("customer_groups_tenant_idx").on(table.tenantId),
   ]
 );
@@ -1084,7 +1161,10 @@ export const customerGroupMembers = pgTable(
   },
   (table) => [
     // One group per user per tenant
-    uniqueIndex("customer_group_members_tenant_user_idx").on(table.tenantId, table.userId),
+    uniqueIndex("customer_group_members_tenant_user_idx").on(
+      table.tenantId,
+      table.userId
+    ),
     index("customer_group_members_group_idx").on(table.customerGroupId),
   ]
 );
@@ -1113,7 +1193,10 @@ export const customerGroupPrices = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("customer_group_prices_product_group_idx").on(table.productId, table.customerGroupId),
+    uniqueIndex("customer_group_prices_product_group_idx").on(
+      table.productId,
+      table.customerGroupId
+    ),
     index("customer_group_prices_group_idx").on(table.customerGroupId),
   ]
 );
@@ -1134,8 +1217,14 @@ export const scheduledSales = pgTable(
       .references(() => products.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }), // e.g., "Black Friday Sale", "Eid Special"
     salePrice: decimal("sale_price", { precision: 12, scale: 2 }).notNull(),
-    startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" }).notNull(),
-    endsAt: timestamp("ends_at", { withTimezone: true, mode: "string" }).notNull(),
+    startsAt: timestamp("starts_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    endsAt: timestamp("ends_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
     isActive: boolean("is_active").default(true).notNull(), // Can manually disable
     priority: integer("priority").default(0).notNull(), // Higher = takes precedence
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -1144,7 +1233,11 @@ export const scheduledSales = pgTable(
   },
   (table) => [
     index("scheduled_sales_product_idx").on(table.productId),
-    index("scheduled_sales_active_dates_idx").on(table.isActive, table.startsAt, table.endsAt),
+    index("scheduled_sales_active_dates_idx").on(
+      table.isActive,
+      table.startsAt,
+      table.endsAt
+    ),
     index("scheduled_sales_tenant_idx").on(table.tenantId),
   ]
 );
@@ -1186,8 +1279,14 @@ export const inventoryLocations = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("inventory_locations_tenant_name_idx").on(table.tenantId, table.name),
-    index("inventory_locations_tenant_active_idx").on(table.tenantId, table.isActive),
+    uniqueIndex("inventory_locations_tenant_name_idx").on(
+      table.tenantId,
+      table.name
+    ),
+    index("inventory_locations_tenant_active_idx").on(
+      table.tenantId,
+      table.isActive
+    ),
   ]
 );
 
@@ -1208,7 +1307,9 @@ export const inventoryLevels = pgTable(
     productId: uuid("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
-    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "cascade",
+    }),
 
     // Stock levels
     available: integer("available").default(0).notNull(), // Ready to sell
@@ -1250,11 +1351,15 @@ export const inventoryMovements = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    locationId: uuid("location_id").references(() => inventoryLocations.id, { onDelete: "set null" }),
+    locationId: uuid("location_id").references(() => inventoryLocations.id, {
+      onDelete: "set null",
+    }),
     productId: uuid("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
-    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "cascade",
+    }),
 
     type: inventoryMovementTypeEnum("type").notNull(),
     quantity: integer("quantity").notNull(), // Positive for additions, negative for reductions
@@ -1266,8 +1371,12 @@ export const inventoryMovements = pgTable(
     totalCost: decimal("total_cost", { precision: 14, scale: 2 }),
 
     // References
-    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
-    shipmentId: uuid("shipment_id").references(() => shipments.id, { onDelete: "set null" }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    shipmentId: uuid("shipment_id").references(() => shipments.id, {
+      onDelete: "set null",
+    }),
     purchaseOrderRef: varchar("purchase_order_ref", { length: 100 }), // External PO reference
 
     // Who made the change
@@ -1306,13 +1415,20 @@ export const inventoryCounts = pgTable(
     status: varchar("status", { length: 20 }).default("pending").notNull(), // pending, in_progress, completed, cancelled
 
     // Who performed the count
-    countedById: text("counted_by_id").references(() => user.id, { onDelete: "set null" }),
-    verifiedById: text("verified_by_id").references(() => user.id, { onDelete: "set null" }),
+    countedById: text("counted_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    verifiedById: text("verified_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
 
     notes: text("notes"),
 
     startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
-    completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1336,7 +1452,9 @@ export const inventoryCountItems = pgTable(
     productId: uuid("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
-    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "cascade",
+    }),
 
     // Counts
     expectedQuantity: integer("expected_quantity").notNull(), // System's count
@@ -1379,7 +1497,10 @@ export const carts = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
 
     // Cart expiration (for cleanup jobs)
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -1411,7 +1532,9 @@ export const cartItems = pgTable(
     productId: uuid("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
-    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "cascade",
+    }),
     quantity: integer("quantity").default(1).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -1421,7 +1544,11 @@ export const cartItems = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("cart_items_cart_product_variant_idx").on(table.cartId, table.productId, table.variantId),
+    uniqueIndex("cart_items_cart_product_variant_idx").on(
+      table.cartId,
+      table.productId,
+      table.variantId
+    ),
     check("cart_items_quantity_check", sql`quantity > 0`),
   ]
 );
@@ -1444,12 +1571,17 @@ export const orders = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
 
     // Optional link to store customer record (for store-specific data)
-    storeCustomerId: uuid("store_customer_id").references(() => storeCustomers.id, {
-      onDelete: "set null",
-    }),
+    storeCustomerId: uuid("store_customer_id").references(
+      () => storeCustomers.id,
+      {
+        onDelete: "set null",
+      }
+    ),
 
     // Snapshot of customer info at time of order (immutable historical record)
-    customerSnapshot: jsonb("customer_snapshot").$type<CustomerSnapshot>().notNull(),
+    customerSnapshot: jsonb("customer_snapshot")
+      .$type<CustomerSnapshot>()
+      .notNull(),
 
     // Structured addresses
     shippingAddress: jsonb("shipping_address").$type<Address>().notNull(),
@@ -1457,9 +1589,15 @@ export const orders = pgTable(
 
     // Financial breakdown
     subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
-    shippingTotal: decimal("shipping_total", { precision: 12, scale: 2 }).default("0").notNull(),
-    taxTotal: decimal("tax_total", { precision: 12, scale: 2 }).default("0").notNull(),
-    discountTotal: decimal("discount_total", { precision: 12, scale: 2 }).default("0").notNull(),
+    shippingTotal: decimal("shipping_total", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
+    taxTotal: decimal("tax_total", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
+    discountTotal: decimal("discount_total", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
     total: decimal("total", { precision: 12, scale: 2 }).notNull(),
 
     // Status
@@ -1478,7 +1616,10 @@ export const orders = pgTable(
   },
   (table) => [
     // Unique order number per tenant
-    uniqueIndex("orders_tenant_order_number_idx").on(table.tenantId, table.orderNumber),
+    uniqueIndex("orders_tenant_order_number_idx").on(
+      table.tenantId,
+      table.orderNumber
+    ),
     // Order history queries
     index("orders_tenant_created_idx").on(table.tenantId, table.createdAt),
     // Status filtering
@@ -1503,7 +1644,9 @@ export const orderItems = pgTable(
     productId: uuid("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "restrict" }),
-    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "restrict" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "restrict",
+    }),
     // Snapshot of product info at time of purchase
     productName: varchar("product_name", { length: 255 }).notNull(),
     variantName: varchar("variant_name", { length: 255 }),
@@ -1546,7 +1689,10 @@ export const shippingZones = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("shipping_zones_tenant_name_idx").on(table.tenantId, table.name),
+    uniqueIndex("shipping_zones_tenant_name_idx").on(
+      table.tenantId,
+      table.name
+    ),
   ]
 );
 
@@ -1581,7 +1727,9 @@ export const shippingMethods = pgTable(
     rateType: shippingRateTypeEnum("rate_type").default("flat").notNull(),
 
     // Base/flat rate (used by all rate types)
-    baseRate: decimal("base_rate", { precision: 12, scale: 2 }).default("0").notNull(),
+    baseRate: decimal("base_rate", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
 
     // Per-item rate (for per_item type)
     perItemRate: decimal("per_item_rate", { precision: 12, scale: 2 }),
@@ -1590,14 +1738,19 @@ export const shippingMethods = pgTable(
     perKgRate: decimal("per_kg_rate", { precision: 12, scale: 2 }),
 
     // Free shipping threshold (for price_based type, also optional on others)
-    freeShippingThreshold: decimal("free_shipping_threshold", { precision: 12, scale: 2 }),
+    freeShippingThreshold: decimal("free_shipping_threshold", {
+      precision: 12,
+      scale: 2,
+    }),
 
     // Weight limits
     minWeight: decimal("min_weight_kg", { precision: 10, scale: 3 }), // Min weight for this method
     maxWeight: decimal("max_weight_kg", { precision: 10, scale: 3 }), // Max weight for this method
 
     // Handling fee (added on top of calculated rate)
-    handlingFee: decimal("handling_fee", { precision: 12, scale: 2 }).default("0"),
+    handlingFee: decimal("handling_fee", { precision: 12, scale: 2 }).default(
+      "0"
+    ),
 
     // Insurance
     includesInsurance: boolean("includes_insurance").default(false).notNull(),
@@ -1618,7 +1771,11 @@ export const shippingMethods = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("shipping_methods_tenant_zone_name_idx").on(table.tenantId, table.zoneId, table.name),
+    uniqueIndex("shipping_methods_tenant_zone_name_idx").on(
+      table.tenantId,
+      table.zoneId,
+      table.name
+    ),
     index("shipping_methods_zone_id_idx").on(table.zoneId),
   ]
 );
@@ -1646,7 +1803,10 @@ export const shippingWeightTiers = pgTable(
     rate: decimal("rate", { precision: 12, scale: 2 }).notNull(),
 
     // Optional per-kg rate within tier (for incremental pricing within tier)
-    perKgRateInTier: decimal("per_kg_rate_in_tier", { precision: 12, scale: 2 }),
+    perKgRateInTier: decimal("per_kg_rate_in_tier", {
+      precision: 12,
+      scale: 2,
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -1655,7 +1815,10 @@ export const shippingWeightTiers = pgTable(
   (table) => [
     index("shipping_weight_tiers_method_id_idx").on(table.methodId),
     // Order by min weight for tier lookup
-    index("shipping_weight_tiers_method_weight_idx").on(table.methodId, table.minWeight),
+    index("shipping_weight_tiers_method_weight_idx").on(
+      table.methodId,
+      table.minWeight
+    ),
   ]
 );
 
@@ -1672,16 +1835,24 @@ export const shipments = pgTable(
     orderId: uuid("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
-    shippingMethodId: uuid("shipping_method_id").references(() => shippingMethods.id, {
-      onDelete: "set null",
-    }),
+    shippingMethodId: uuid("shipping_method_id").references(
+      () => shippingMethods.id,
+      {
+        onDelete: "set null",
+      }
+    ),
     carrierName: varchar("carrier_name", { length: 255 }),
     trackingNumber: varchar("tracking_number", { length: 255 }),
     trackingUrl: text("tracking_url"),
-    shippingCost: decimal("shipping_cost", { precision: 12, scale: 2 }).default("0").notNull(),
+    shippingCost: decimal("shipping_cost", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
     status: shipmentStatusEnum("status").default("pending").notNull(),
     shippedAt: timestamp("shipped_at", { withTimezone: true, mode: "string" }),
-    deliveredAt: timestamp("delivered_at", { withTimezone: true, mode: "string" }),
+    deliveredAt: timestamp("delivered_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     deliveryAddress: jsonb("delivery_address").$type<Address>(),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -1691,9 +1862,7 @@ export const shipments = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
-    index("shipments_order_id_idx").on(table.orderId),
-  ]
+  (table) => [index("shipments_order_id_idx").on(table.orderId)]
 );
 
 // ============================================================================
@@ -1715,7 +1884,10 @@ export const shipmentItems = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("shipment_items_shipment_order_item_idx").on(table.shipmentId, table.orderItemId),
+    uniqueIndex("shipment_items_shipment_order_item_idx").on(
+      table.shipmentId,
+      table.orderItemId
+    ),
     index("shipment_items_order_item_id_idx").on(table.orderItemId),
     check("shipment_items_quantity_check", sql`quantity > 0`),
   ]
@@ -1771,7 +1943,9 @@ export const reviews = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
 
     // Snapshot of reviewer info (immutable)
-    customerSnapshot: jsonb("customer_snapshot").$type<CustomerSnapshot>().notNull(),
+    customerSnapshot: jsonb("customer_snapshot")
+      .$type<CustomerSnapshot>()
+      .notNull(),
 
     // Review content
     rating: integer("rating").notNull(), // 1-5 stars
@@ -1783,7 +1957,9 @@ export const reviews = pgTable(
     repliedAt: timestamp("replied_at", { withTimezone: true, mode: "string" }),
 
     // Verification
-    isVerifiedPurchase: boolean("is_verified_purchase").default(false).notNull(),
+    isVerifiedPurchase: boolean("is_verified_purchase")
+      .default(false)
+      .notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -1823,7 +1999,11 @@ export const reviewMedia = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("review_media_tenant_review_media_idx").on(table.tenantId, table.reviewId, table.mediaId),
+    uniqueIndex("review_media_tenant_review_media_idx").on(
+      table.tenantId,
+      table.reviewId,
+      table.mediaId
+    ),
   ]
 );
 
@@ -1839,17 +2019,22 @@ export const commissionTransactions = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     type: commissionTransactionTypeEnum("type").notNull(),
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
-    balanceAfter: decimal("balance_after", { precision: 14, scale: 2 }).notNull(),
-    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    balanceAfter: decimal("balance_after", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
     description: text("description"),
-    processedBy: text("processed_by").references(() => user.id, { onDelete: "set null" }),
+    processedBy: text("processed_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
   },
-  (table) => [
-    index("commission_transactions_tenant_id_idx").on(table.tenantId),
-  ]
+  (table) => [index("commission_transactions_tenant_id_idx").on(table.tenantId)]
 );
 
 // ============================================================================
@@ -1865,15 +2050,25 @@ export const commissionRules = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
 
     // Rule scope (one of these should be set, or none for store-wide)
-    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "cascade" }),
-    productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id").references(() => categories.id, {
+      onDelete: "cascade",
+    }),
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "cascade",
+    }),
 
     // Commission rate (overrides tenant default)
-    commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull(),
+    commissionRate: decimal("commission_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
 
     // Validity period (for promotional rates)
     validFrom: timestamp("valid_from", { withTimezone: true, mode: "string" }),
-    validUntil: timestamp("valid_until", { withTimezone: true, mode: "string" }),
+    validUntil: timestamp("valid_until", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Priority (higher = more specific, takes precedence)
     priority: integer("priority").default(0).notNull(),
@@ -1907,13 +2102,22 @@ export const commissionTiers = pgTable(
     description: text("description"),
 
     // Qualification criteria
-    minMonthlyRevenue: decimal("min_monthly_revenue", { precision: 14, scale: 2 }), // Min monthly sales
+    minMonthlyRevenue: decimal("min_monthly_revenue", {
+      precision: 14,
+      scale: 2,
+    }), // Min monthly sales
     minMonthlyOrders: integer("min_monthly_orders"), // Min orders per month
     minAccountAge: integer("min_account_age_days"), // Days since store creation
 
     // Benefits
-    commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull(),
-    freeShippingCredits: decimal("free_shipping_credits", { precision: 12, scale: 2 }),
+    commissionRate: decimal("commission_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    freeShippingCredits: decimal("free_shipping_credits", {
+      precision: 12,
+      scale: 2,
+    }),
     prioritySupport: boolean("priority_support").default(false).notNull(),
 
     // Display
@@ -1928,9 +2132,7 @@ export const commissionTiers = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
-    uniqueIndex("commission_tiers_name_idx").on(table.name),
-  ]
+  (table) => [uniqueIndex("commission_tiers_name_idx").on(table.name)]
 );
 
 // ============================================================================
@@ -1947,19 +2149,38 @@ export const sellerBalances = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
 
     // Balance breakdown
-    available: decimal("available", { precision: 14, scale: 2 }).default("0").notNull(), // Ready for payout
-    pending: decimal("pending", { precision: 14, scale: 2 }).default("0").notNull(), // From recent orders (holding period)
-    reserved: decimal("reserved", { precision: 14, scale: 2 }).default("0").notNull(), // Held for disputes/refunds
-    lifetimeEarnings: decimal("lifetime_earnings", { precision: 14, scale: 2 }).default("0").notNull(),
-    lifetimePaidOut: decimal("lifetime_paid_out", { precision: 14, scale: 2 }).default("0").notNull(),
+    available: decimal("available", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(), // Ready for payout
+    pending: decimal("pending", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(), // From recent orders (holding period)
+    reserved: decimal("reserved", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(), // Held for disputes/refunds
+    lifetimeEarnings: decimal("lifetime_earnings", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    lifetimePaidOut: decimal("lifetime_paid_out", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
 
     // Commission tier
-    currentTierId: uuid("current_tier_id").references(() => commissionTiers.id, { onDelete: "set null" }),
-    tierQualifiedAt: timestamp("tier_qualified_at", { withTimezone: true, mode: "string" }),
+    currentTierId: uuid("current_tier_id").references(
+      () => commissionTiers.id,
+      { onDelete: "set null" }
+    ),
+    tierQualifiedAt: timestamp("tier_qualified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Payout settings
     autoPayout: boolean("auto_payout").default(false).notNull(),
-    autoPayoutThreshold: decimal("auto_payout_threshold", { precision: 12, scale: 2 }),
+    autoPayoutThreshold: decimal("auto_payout_threshold", {
+      precision: 12,
+      scale: 2,
+    }),
     payoutHoldDays: integer("payout_hold_days").default(7).notNull(), // Days before pending becomes available
 
     // Currency
@@ -1969,9 +2190,7 @@ export const sellerBalances = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
-    index("seller_balances_tenant_id_idx").on(table.tenantId),
-  ]
+  (table) => [index("seller_balances_tenant_id_idx").on(table.tenantId)]
 );
 
 // ============================================================================
@@ -2008,7 +2227,10 @@ export const sellerPayoutMethods = pgTable(
     // Status
     isDefault: boolean("is_default").default(false).notNull(),
     isVerified: boolean("is_verified").default(false).notNull(),
-    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "string" }),
+    verifiedAt: timestamp("verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -2017,9 +2239,7 @@ export const sellerPayoutMethods = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [
-    index("seller_payout_methods_tenant_id_idx").on(table.tenantId),
-  ]
+  (table) => [index("seller_payout_methods_tenant_id_idx").on(table.tenantId)]
 );
 
 // ============================================================================
@@ -2040,13 +2260,26 @@ export const sellerTransactions = pgTable(
     currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
 
     // Balance snapshot after this transaction
-    availableAfter: decimal("available_after", { precision: 14, scale: 2 }).notNull(),
-    pendingAfter: decimal("pending_after", { precision: 14, scale: 2 }).notNull(),
-    reservedAfter: decimal("reserved_after", { precision: 14, scale: 2 }).notNull(),
+    availableAfter: decimal("available_after", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    pendingAfter: decimal("pending_after", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    reservedAfter: decimal("reserved_after", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
 
     // References
-    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
-    orderItemId: uuid("order_item_id").references(() => orderItems.id, { onDelete: "set null" }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    orderItemId: uuid("order_item_id").references(() => orderItems.id, {
+      onDelete: "set null",
+    }),
     payoutId: uuid("payout_id"), // Forward reference - will link to sellerPayouts
     affiliateId: uuid("affiliate_id"), // Forward reference - will link to affiliates
 
@@ -2079,8 +2312,10 @@ export const sellerPayouts = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    payoutMethodId: uuid("payout_method_id")
-      .references(() => sellerPayoutMethods.id, { onDelete: "set null" }),
+    payoutMethodId: uuid("payout_method_id").references(
+      () => sellerPayoutMethods.id,
+      { onDelete: "set null" }
+    ),
 
     // Payout reference number
     payoutNumber: varchar("payout_number", { length: 50 }).notNull(),
@@ -2095,11 +2330,20 @@ export const sellerPayouts = pgTable(
     status: payoutStatusEnum("status").default("pending").notNull(),
 
     // Timing
-    requestedAt: timestamp("requested_at", { withTimezone: true, mode: "string" })
+    requestedAt: timestamp("requested_at", {
+      withTimezone: true,
+      mode: "string",
+    })
       .defaultNow()
       .notNull(),
-    processedAt: timestamp("processed_at", { withTimezone: true, mode: "string" }),
-    completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" }),
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     failedAt: timestamp("failed_at", { withTimezone: true, mode: "string" }),
 
     // External reference
@@ -2107,7 +2351,9 @@ export const sellerPayouts = pgTable(
     failureReason: text("failure_reason"),
 
     // Who processed
-    processedById: text("processed_by_id").references(() => user.id, { onDelete: "set null" }),
+    processedById: text("processed_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
 
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -2145,7 +2391,10 @@ export const sellerPayoutItems = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("seller_payout_items_payout_transaction_idx").on(table.payoutId, table.transactionId),
+    uniqueIndex("seller_payout_items_payout_transaction_idx").on(
+      table.payoutId,
+      table.transactionId
+    ),
     index("seller_payout_items_payout_id_idx").on(table.payoutId),
   ]
 );
@@ -2163,20 +2412,42 @@ export const analyticsDailySnapshots = pgTable(
     snapshotDate: date("snapshot_date").notNull(),
 
     // Revenue & Sales
-    grossRevenue: decimal("gross_revenue", { precision: 14, scale: 2 }).default("0").notNull(),
-    netRevenue: decimal("net_revenue", { precision: 14, scale: 2 }).default("0").notNull(),
-    shippingRevenue: decimal("shipping_revenue", { precision: 14, scale: 2 }).default("0").notNull(),
-    taxCollected: decimal("tax_collected", { precision: 14, scale: 2 }).default("0").notNull(),
-    discountsGiven: decimal("discounts_given", { precision: 14, scale: 2 }).default("0").notNull(),
-    refundsIssued: decimal("refunds_issued", { precision: 14, scale: 2 }).default("0").notNull(),
-    commissionAccrued: decimal("commission_accrued", { precision: 14, scale: 2 }).default("0").notNull(),
+    grossRevenue: decimal("gross_revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    netRevenue: decimal("net_revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    shippingRevenue: decimal("shipping_revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    taxCollected: decimal("tax_collected", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    discountsGiven: decimal("discounts_given", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    refundsIssued: decimal("refunds_issued", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    commissionAccrued: decimal("commission_accrued", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
 
     // Orders
     totalOrders: integer("total_orders").default(0).notNull(),
     completedOrders: integer("completed_orders").default(0).notNull(),
     cancelledOrders: integer("cancelled_orders").default(0).notNull(),
     pendingOrders: integer("pending_orders").default(0).notNull(),
-    averageOrderValue: decimal("average_order_value", { precision: 12, scale: 2 }).default("0").notNull(),
+    averageOrderValue: decimal("average_order_value", {
+      precision: 12,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
 
     // Products
     itemsSold: integer("items_sold").default(0).notNull(),
@@ -2192,7 +2463,9 @@ export const analyticsDailySnapshots = pgTable(
     cartCreations: integer("cart_creations").default(0).notNull(),
     checkoutStarts: integer("checkout_starts").default(0).notNull(),
     checkoutCompletions: integer("checkout_completions").default(0).notNull(),
-    conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 })
+      .default("0")
+      .notNull(),
 
     // Customers
     newCustomers: integer("new_customers").default(0).notNull(),
@@ -2206,7 +2479,10 @@ export const analyticsDailySnapshots = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("analytics_daily_snapshots_tenant_date_idx").on(table.tenantId, table.snapshotDate),
+    uniqueIndex("analytics_daily_snapshots_tenant_date_idx").on(
+      table.tenantId,
+      table.snapshotDate
+    ),
   ]
 );
 
@@ -2226,13 +2502,24 @@ export const analyticsProductPerformance = pgTable(
     snapshotDate: date("snapshot_date").notNull(),
 
     quantitySold: integer("quantity_sold").default(0).notNull(),
-    revenue: decimal("revenue", { precision: 14, scale: 2 }).default("0").notNull(),
+    revenue: decimal("revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
     ordersContaining: integer("orders_containing").default(0).notNull(),
     productViews: integer("product_views").default(0).notNull(),
     addToCartCount: integer("add_to_cart_count").default(0).notNull(),
-    viewToCartRate: decimal("view_to_cart_rate", { precision: 5, scale: 2 }).default("0").notNull(),
-    cartToPurchaseRate: decimal("cart_to_purchase_rate", { precision: 5, scale: 2 }).default("0").notNull(),
-    revenuePerView: decimal("revenue_per_view", { precision: 12, scale: 2 }).default("0").notNull(),
+    viewToCartRate: decimal("view_to_cart_rate", { precision: 5, scale: 2 })
+      .default("0")
+      .notNull(),
+    cartToPurchaseRate: decimal("cart_to_purchase_rate", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
+    revenuePerView: decimal("revenue_per_view", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
     reviewsReceived: integer("reviews_received").default(0).notNull(),
     averageRating: decimal("average_rating", { precision: 3, scale: 2 }),
     stockAtEndOfDay: integer("stock_at_end_of_day").default(0).notNull(),
@@ -2267,11 +2554,15 @@ export const analyticsCategoryPerformance = pgTable(
     snapshotDate: date("snapshot_date").notNull(),
 
     quantitySold: integer("quantity_sold").default(0).notNull(),
-    revenue: decimal("revenue", { precision: 14, scale: 2 }).default("0").notNull(),
+    revenue: decimal("revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
     ordersContaining: integer("orders_containing").default(0).notNull(),
     uniqueProductsSold: integer("unique_products_sold").default(0).notNull(),
     categoryViews: integer("category_views").default(0).notNull(),
-    productViewsInCategory: integer("product_views_in_category").default(0).notNull(),
+    productViewsInCategory: integer("product_views_in_category")
+      .default(0)
+      .notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -2306,8 +2597,12 @@ export const analyticsTrafficSources = pgTable(
     visitors: integer("visitors").default(0).notNull(),
     pageViews: integer("page_views").default(0).notNull(),
     orders: integer("orders").default(0).notNull(),
-    revenue: decimal("revenue", { precision: 14, scale: 2 }).default("0").notNull(),
-    conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    revenue: decimal("revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 })
+      .default("0")
+      .notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -2340,9 +2635,13 @@ export const analyticsGeographicSales = pgTable(
     city: varchar("city", { length: 100 }),
 
     orders: integer("orders").default(0).notNull(),
-    revenue: decimal("revenue", { precision: 14, scale: 2 }).default("0").notNull(),
+    revenue: decimal("revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
     itemsSold: integer("items_sold").default(0).notNull(),
-    shippingRevenue: decimal("shipping_revenue", { precision: 14, scale: 2 }).default("0").notNull(),
+    shippingRevenue: decimal("shipping_revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
     uniqueCustomers: integer("unique_customers").default(0).notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -2375,7 +2674,9 @@ export const analyticsHourlyMetrics = pgTable(
     pageViews: integer("page_views").default(0).notNull(),
     uniqueVisitors: integer("unique_visitors").default(0).notNull(),
     orders: integer("orders").default(0).notNull(),
-    revenue: decimal("revenue", { precision: 14, scale: 2 }).default("0").notNull(),
+    revenue: decimal("revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
     cartCreations: integer("cart_creations").default(0).notNull(),
     checkoutStarts: integer("checkout_starts").default(0).notNull(),
 
@@ -2384,7 +2685,10 @@ export const analyticsHourlyMetrics = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("analytics_hourly_tenant_hour_idx").on(table.tenantId, table.hour),
+    uniqueIndex("analytics_hourly_tenant_hour_idx").on(
+      table.tenantId,
+      table.hour
+    ),
   ]
 );
 
@@ -2405,8 +2709,12 @@ export const analyticsPageViews = pgTable(
 
     pageType: varchar("page_type", { length: 50 }).notNull(),
     pagePath: varchar("page_path", { length: 500 }).notNull(),
-    productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
-    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "set null",
+    }),
+    categoryId: uuid("category_id").references(() => categories.id, {
+      onDelete: "set null",
+    }),
 
     referrer: text("referrer"),
     utmSource: varchar("utm_source", { length: 100 }),
@@ -2446,11 +2754,21 @@ export const analyticsConversionEvents = pgTable(
     visitorId: varchar("visitor_id", { length: 255 }),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
 
-    productId: uuid("product_id").references(() => products.id, { onDelete: "set null" }),
-    variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "set null" }),
-    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
-    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
-    cartId: uuid("cart_id").references(() => carts.id, { onDelete: "set null" }),
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "set null",
+    }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "set null",
+    }),
+    categoryId: uuid("category_id").references(() => categories.id, {
+      onDelete: "set null",
+    }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    cartId: uuid("cart_id").references(() => carts.id, {
+      onDelete: "set null",
+    }),
 
     quantity: integer("quantity"),
     value: decimal("value", { precision: 14, scale: 2 }),
@@ -2502,20 +2820,35 @@ export const affiliates = pgTable(
     appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
-    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "string" }),
-    suspendedAt: timestamp("suspended_at", { withTimezone: true, mode: "string" }),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    suspendedAt: timestamp("suspended_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     suspensionReason: text("suspension_reason"),
 
     // Verification & trust
     isVerified: boolean("is_verified").default(false).notNull(),
-    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "string" }),
+    verifiedAt: timestamp("verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Aggregated stats (for portfolio display)
     totalClicks: integer("total_clicks").default(0).notNull(),
     totalConversions: integer("total_conversions").default(0).notNull(),
-    totalEarnings: decimal("total_earnings", { precision: 14, scale: 2 }).default("0").notNull(),
-    totalPaidOut: decimal("total_paid_out", { precision: 14, scale: 2 }).default("0").notNull(),
-    conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    totalEarnings: decimal("total_earnings", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    totalPaidOut: decimal("total_paid_out", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 })
+      .default("0")
+      .notNull(),
     averageRating: decimal("average_rating", { precision: 3, scale: 2 }),
     totalReviews: integer("total_reviews").default(0).notNull(),
 
@@ -2565,7 +2898,10 @@ export const affiliatePayoutMethods = pgTable(
 
     isDefault: boolean("is_default").default(false).notNull(),
     isVerified: boolean("is_verified").default(false).notNull(),
-    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "string" }),
+    verifiedAt: timestamp("verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -2599,12 +2935,20 @@ export const affiliateTenantPartnerships = pgTable(
     appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
-    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "string" }),
-    rejectedAt: timestamp("rejected_at", { withTimezone: true, mode: "string" }),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    rejectedAt: timestamp("rejected_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     rejectionReason: text("rejection_reason"),
 
     // Custom commission for this affiliate-store pair (overrides store default)
-    commissionType: affiliateCommissionTypeEnum("commission_type").default("percentage").notNull(),
+    commissionType: affiliateCommissionTypeEnum("commission_type")
+      .default("percentage")
+      .notNull(),
     commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }), // % or fixed amount
     commissionFixed: decimal("commission_fixed", { precision: 12, scale: 2 }), // For hybrid: base amount
 
@@ -2614,8 +2958,15 @@ export const affiliateTenantPartnerships = pgTable(
     // Partnership stats (for this store only)
     totalClicks: integer("total_clicks").default(0).notNull(),
     totalConversions: integer("total_conversions").default(0).notNull(),
-    totalRevenue: decimal("total_revenue", { precision: 14, scale: 2 }).default("0").notNull(),
-    totalCommissionEarned: decimal("total_commission_earned", { precision: 14, scale: 2 }).default("0").notNull(),
+    totalRevenue: decimal("total_revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    totalCommissionEarned: decimal("total_commission_earned", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
 
     // Notes from store owner
     internalNotes: text("internal_notes"),
@@ -2653,15 +3004,21 @@ export const affiliateLinks = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     partnershipId: uuid("partnership_id")
       .notNull()
-      .references(() => affiliateTenantPartnerships.id, { onDelete: "cascade" }),
+      .references(() => affiliateTenantPartnerships.id, {
+        onDelete: "cascade",
+      }),
 
     // Unique tracking code (e.g., "abc123" -> /store/shop?ref=abc123)
     code: varchar("code", { length: 50 }).notNull().unique(),
 
     // What the link points to
     targetType: varchar("target_type", { length: 20 }).notNull(), // "store", "product", "category"
-    productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }),
-    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "cascade",
+    }),
+    categoryId: uuid("category_id").references(() => categories.id, {
+      onDelete: "cascade",
+    }),
 
     // Custom name for affiliate's reference
     name: varchar("name", { length: 255 }),
@@ -2670,7 +3027,9 @@ export const affiliateLinks = pgTable(
     totalClicks: integer("total_clicks").default(0).notNull(),
     uniqueClicks: integer("unique_clicks").default(0).notNull(),
     totalConversions: integer("total_conversions").default(0).notNull(),
-    totalRevenue: decimal("total_revenue", { precision: 14, scale: 2 }).default("0").notNull(),
+    totalRevenue: decimal("total_revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
 
     isActive: boolean("is_active").default(true).notNull(),
 
@@ -2721,8 +3080,13 @@ export const affiliateClicks = pgTable(
 
     // Conversion tracking
     isConverted: boolean("is_converted").default(false).notNull(),
-    convertedAt: timestamp("converted_at", { withTimezone: true, mode: "string" }),
-    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    convertedAt: timestamp("converted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
 
     clickedAt: timestamp("clicked_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -2752,34 +3116,54 @@ export const affiliateConversions = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     partnershipId: uuid("partnership_id")
       .notNull()
-      .references(() => affiliateTenantPartnerships.id, { onDelete: "cascade" }),
-    linkId: uuid("link_id").references(() => affiliateLinks.id, { onDelete: "set null" }),
-    clickId: uuid("click_id").references(() => affiliateClicks.id, { onDelete: "set null" }),
+      .references(() => affiliateTenantPartnerships.id, {
+        onDelete: "cascade",
+      }),
+    linkId: uuid("link_id").references(() => affiliateLinks.id, {
+      onDelete: "set null",
+    }),
+    clickId: uuid("click_id").references(() => affiliateClicks.id, {
+      onDelete: "set null",
+    }),
     orderId: uuid("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
 
     // Order details at time of conversion
     orderTotal: decimal("order_total", { precision: 14, scale: 2 }).notNull(),
-    orderCurrency: varchar("order_currency", { length: 3 }).default("AFN").notNull(),
+    orderCurrency: varchar("order_currency", { length: 3 })
+      .default("AFN")
+      .notNull(),
 
     // Commission calculation
     commissionType: affiliateCommissionTypeEnum("commission_type").notNull(),
     commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }),
     commissionFixed: decimal("commission_fixed", { precision: 12, scale: 2 }),
-    commissionAmount: decimal("commission_amount", { precision: 14, scale: 2 }).notNull(),
+    commissionAmount: decimal("commission_amount", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
 
     // Status
     status: varchar("status", { length: 20 }).default("pending").notNull(), // pending, approved, rejected, paid
-    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "string" }),
-    rejectedAt: timestamp("rejected_at", { withTimezone: true, mode: "string" }),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    rejectedAt: timestamp("rejected_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     rejectionReason: text("rejection_reason"),
 
     // Payment tracking
     payoutId: uuid("payout_id"), // Forward reference to affiliatePayouts
     paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
 
-    convertedAt: timestamp("converted_at", { withTimezone: true, mode: "string" })
+    convertedAt: timestamp("converted_at", {
+      withTimezone: true,
+      mode: "string",
+    })
       .defaultNow()
       .notNull(),
   },
@@ -2802,8 +3186,10 @@ export const affiliatePayouts = pgTable(
     affiliateId: uuid("affiliate_id")
       .notNull()
       .references(() => affiliates.id, { onDelete: "cascade" }),
-    payoutMethodId: uuid("payout_method_id")
-      .references(() => affiliatePayoutMethods.id, { onDelete: "set null" }),
+    payoutMethodId: uuid("payout_method_id").references(
+      () => affiliatePayoutMethods.id,
+      { onDelete: "set null" }
+    ),
 
     // Payout reference
     payoutNumber: varchar("payout_number", { length: 50 }).notNull(),
@@ -2820,16 +3206,27 @@ export const affiliatePayouts = pgTable(
     // Status
     status: affiliatePayoutStatusEnum("status").default("pending").notNull(),
 
-    requestedAt: timestamp("requested_at", { withTimezone: true, mode: "string" })
+    requestedAt: timestamp("requested_at", {
+      withTimezone: true,
+      mode: "string",
+    })
       .defaultNow()
       .notNull(),
-    processedAt: timestamp("processed_at", { withTimezone: true, mode: "string" }),
-    completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" }),
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     failedAt: timestamp("failed_at", { withTimezone: true, mode: "string" }),
 
     externalReference: varchar("external_reference", { length: 255 }),
     failureReason: text("failure_reason"),
-    processedById: text("processed_by_id").references(() => user.id, { onDelete: "set null" }),
+    processedById: text("processed_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     notes: text("notes"),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -2862,7 +3259,9 @@ export const affiliateRatings = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     partnershipId: uuid("partnership_id")
       .notNull()
-      .references(() => affiliateTenantPartnerships.id, { onDelete: "cascade" }),
+      .references(() => affiliateTenantPartnerships.id, {
+        onDelete: "cascade",
+      }),
 
     // Who gave the rating
     ratedById: text("rated_by_id")
@@ -2884,7 +3283,10 @@ export const affiliateRatings = pgTable(
 
     // Affiliate response
     response: text("response"),
-    respondedAt: timestamp("responded_at", { withTimezone: true, mode: "string" }),
+    respondedAt: timestamp("responded_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -2940,36 +3342,60 @@ export const deliveryProviders = pgTable(
     // Vehicle information (for individual drivers)
     vehicleType: varchar("vehicle_type", { length: 50 }), // motorcycle, car, van, truck
     vehiclePlate: varchar("vehicle_plate", { length: 20 }),
-    vehicleCapacityKg: decimal("vehicle_capacity_kg", { precision: 10, scale: 2 }),
+    vehicleCapacityKg: decimal("vehicle_capacity_kg", {
+      precision: 10,
+      scale: 2,
+    }),
 
     // Status
     status: deliveryProviderStatusEnum("status").default("pending").notNull(),
     appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
-    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "string" }),
-    suspendedAt: timestamp("suspended_at", { withTimezone: true, mode: "string" }),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    suspendedAt: timestamp("suspended_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     suspensionReason: text("suspension_reason"),
 
     // Verification
     isVerified: boolean("is_verified").default(false).notNull(),
-    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "string" }),
+    verifiedAt: timestamp("verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     idDocumentUrl: text("id_document_url"), // For verification
     licenseDocumentUrl: text("license_document_url"),
 
     // Operating hours
-    operatingHours: jsonb("operating_hours").$type<Record<string, { start: string; end: string }>>(),
+    operatingHours:
+      jsonb("operating_hours").$type<
+        Record<string, { start: string; end: string }>
+      >(),
     isAvailable: boolean("is_available").default(true).notNull(),
 
     // Aggregated stats (for portfolio)
     totalDeliveries: integer("total_deliveries").default(0).notNull(),
     completedDeliveries: integer("completed_deliveries").default(0).notNull(),
     failedDeliveries: integer("failed_deliveries").default(0).notNull(),
-    onTimeDeliveryRate: decimal("on_time_delivery_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    onTimeDeliveryRate: decimal("on_time_delivery_rate", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
     averageRating: decimal("average_rating", { precision: 3, scale: 2 }),
     totalReviews: integer("total_reviews").default(0).notNull(),
-    totalEarnings: decimal("total_earnings", { precision: 14, scale: 2 }).default("0").notNull(),
-    totalPaidOut: decimal("total_paid_out", { precision: 14, scale: 2 }).default("0").notNull(),
+    totalEarnings: decimal("total_earnings", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    totalPaidOut: decimal("total_paid_out", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
 
     // Active partnerships
     activePartnerships: integer("active_partnerships").default(0).notNull(),
@@ -3016,7 +3442,10 @@ export const deliveryPayoutMethods = pgTable(
 
     isDefault: boolean("is_default").default(false).notNull(),
     isVerified: boolean("is_verified").default(false).notNull(),
-    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "string" }),
+    verifiedAt: timestamp("verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -3096,8 +3525,14 @@ export const deliveryTenantPartnerships = pgTable(
     appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
-    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "string" }),
-    rejectedAt: timestamp("rejected_at", { withTimezone: true, mode: "string" }),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    rejectedAt: timestamp("rejected_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     rejectionReason: text("rejection_reason"),
 
     // Custom rates for this partnership (overrides provider defaults)
@@ -3112,7 +3547,9 @@ export const deliveryTenantPartnerships = pgTable(
     totalDeliveries: integer("total_deliveries").default(0).notNull(),
     completedDeliveries: integer("completed_deliveries").default(0).notNull(),
     failedDeliveries: integer("failed_deliveries").default(0).notNull(),
-    totalEarned: decimal("total_earned", { precision: 14, scale: 2 }).default("0").notNull(),
+    totalEarned: decimal("total_earned", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
 
     // Notes
     internalNotes: text("internal_notes"),
@@ -3150,8 +3587,10 @@ export const deliveryAssignments = pgTable(
     providerId: uuid("provider_id")
       .notNull()
       .references(() => deliveryProviders.id, { onDelete: "cascade" }),
-    partnershipId: uuid("partnership_id")
-      .references(() => deliveryTenantPartnerships.id, { onDelete: "set null" }),
+    partnershipId: uuid("partnership_id").references(
+      () => deliveryTenantPartnerships.id,
+      { onDelete: "set null" }
+    ),
 
     // Assignment reference number
     assignmentNumber: varchar("assignment_number", { length: 50 }).notNull(),
@@ -3162,14 +3601,26 @@ export const deliveryAssignments = pgTable(
     // Pickup details
     pickupAddress: jsonb("pickup_address").$type<Address>().notNull(),
     pickupInstructions: text("pickup_instructions"),
-    scheduledPickupAt: timestamp("scheduled_pickup_at", { withTimezone: true, mode: "string" }),
-    actualPickupAt: timestamp("actual_pickup_at", { withTimezone: true, mode: "string" }),
+    scheduledPickupAt: timestamp("scheduled_pickup_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    actualPickupAt: timestamp("actual_pickup_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Delivery details
     deliveryAddress: jsonb("delivery_address").$type<Address>().notNull(),
     deliveryInstructions: text("delivery_instructions"),
-    estimatedDeliveryAt: timestamp("estimated_delivery_at", { withTimezone: true, mode: "string" }),
-    actualDeliveryAt: timestamp("actual_delivery_at", { withTimezone: true, mode: "string" }),
+    estimatedDeliveryAt: timestamp("estimated_delivery_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    actualDeliveryAt: timestamp("actual_delivery_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Package details
     weightKg: decimal("weight_kg", { precision: 10, scale: 3 }),
@@ -3178,14 +3629,22 @@ export const deliveryAssignments = pgTable(
 
     // Pricing
     deliveryFee: decimal("delivery_fee", { precision: 12, scale: 2 }).notNull(),
-    platformFee: decimal("platform_fee", { precision: 12, scale: 2 }).default("0").notNull(),
-    providerEarnings: decimal("provider_earnings", { precision: 12, scale: 2 }).notNull(),
+    platformFee: decimal("platform_fee", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
+    providerEarnings: decimal("provider_earnings", {
+      precision: 12,
+      scale: 2,
+    }).notNull(),
 
     // Cash on delivery
     isCod: boolean("is_cod").default(false).notNull(), // Cash on delivery?
     codAmount: decimal("cod_amount", { precision: 14, scale: 2 }),
     codCollected: boolean("cod_collected").default(false).notNull(),
-    codCollectedAt: timestamp("cod_collected_at", { withTimezone: true, mode: "string" }),
+    codCollectedAt: timestamp("cod_collected_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Failure handling
     failureReason: text("failure_reason"),
@@ -3208,7 +3667,9 @@ export const deliveryAssignments = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("delivery_assignments_assignment_number_idx").on(table.assignmentNumber),
+    uniqueIndex("delivery_assignments_assignment_number_idx").on(
+      table.assignmentNumber
+    ),
     index("delivery_assignments_shipment_id_idx").on(table.shipmentId),
     index("delivery_assignments_provider_id_idx").on(table.providerId),
     index("delivery_assignments_tenant_id_idx").on(table.tenantId),
@@ -3264,8 +3725,9 @@ export const deliveryRatings = pgTable(
     assignmentId: uuid("assignment_id")
       .notNull()
       .references(() => deliveryAssignments.id, { onDelete: "cascade" }),
-    tenantId: uuid("tenant_id")
-      .references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id").references(() => tenants.id, {
+      onDelete: "cascade",
+    }),
 
     // Who gave the rating
     ratedById: text("rated_by_id")
@@ -3288,7 +3750,10 @@ export const deliveryRatings = pgTable(
 
     // Provider response
     response: text("response"),
-    respondedAt: timestamp("responded_at", { withTimezone: true, mode: "string" }),
+    respondedAt: timestamp("responded_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -3298,7 +3763,10 @@ export const deliveryRatings = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("delivery_ratings_assignment_rater_idx").on(table.assignmentId, table.ratedById),
+    uniqueIndex("delivery_ratings_assignment_rater_idx").on(
+      table.assignmentId,
+      table.ratedById
+    ),
     index("delivery_ratings_provider_id_idx").on(table.providerId),
     check("delivery_ratings_rating_check", sql`rating >= 1 AND rating <= 5`),
   ]
@@ -3314,8 +3782,10 @@ export const deliveryPayouts = pgTable(
     providerId: uuid("provider_id")
       .notNull()
       .references(() => deliveryProviders.id, { onDelete: "cascade" }),
-    payoutMethodId: uuid("payout_method_id")
-      .references(() => deliveryPayoutMethods.id, { onDelete: "set null" }),
+    payoutMethodId: uuid("payout_method_id").references(
+      () => deliveryPayoutMethods.id,
+      { onDelete: "set null" }
+    ),
 
     payoutNumber: varchar("payout_number", { length: 50 }).notNull(),
 
@@ -3328,20 +3798,33 @@ export const deliveryPayouts = pgTable(
     deliveryCount: integer("delivery_count").notNull(),
 
     // COD amounts (if applicable)
-    codCollected: decimal("cod_collected", { precision: 14, scale: 2 }).default("0").notNull(),
+    codCollected: decimal("cod_collected", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
 
     status: deliveryPayoutStatusEnum("status").default("pending").notNull(),
 
-    requestedAt: timestamp("requested_at", { withTimezone: true, mode: "string" })
+    requestedAt: timestamp("requested_at", {
+      withTimezone: true,
+      mode: "string",
+    })
       .defaultNow()
       .notNull(),
-    processedAt: timestamp("processed_at", { withTimezone: true, mode: "string" }),
-    completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" }),
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     failedAt: timestamp("failed_at", { withTimezone: true, mode: "string" }),
 
     externalReference: varchar("external_reference", { length: 255 }),
     failureReason: text("failure_reason"),
-    processedById: text("processed_by_id").references(() => user.id, { onDelete: "set null" }),
+    processedById: text("processed_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     notes: text("notes"),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -3378,7 +3861,10 @@ export const deliveryPayoutItems = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("delivery_payout_items_payout_assignment_idx").on(table.payoutId, table.assignmentId),
+    uniqueIndex("delivery_payout_items_payout_assignment_idx").on(
+      table.payoutId,
+      table.assignmentId
+    ),
     index("delivery_payout_items_payout_id_idx").on(table.payoutId),
   ]
 );
@@ -3515,17 +4001,20 @@ export const tenantMembersRelations = relations(tenantMembers, ({ one }) => ({
   }),
 }));
 
-export const storeCustomersRelations = relations(storeCustomers, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [storeCustomers.tenantId],
-    references: [tenants.id],
-  }),
-  user: one(user, {
-    fields: [storeCustomers.userId],
-    references: [user.id],
-  }),
-  orders: many(orders),
-}));
+export const storeCustomersRelations = relations(
+  storeCustomers,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [storeCustomers.tenantId],
+      references: [tenants.id],
+    }),
+    user: one(user, {
+      fields: [storeCustomers.userId],
+      references: [user.id],
+    }),
+    orders: many(orders),
+  })
+);
 
 export const wishlistsRelations = relations(wishlists, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -3635,91 +4124,109 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
   }),
 }));
 
-export const productCategoriesRelations = relations(productCategories, ({ one }) => ({
-  product: one(products, {
-    fields: [productCategories.productId],
-    references: [products.id],
-  }),
-  category: one(categories, {
-    fields: [productCategories.categoryId],
-    references: [categories.id],
-  }),
-}));
+export const productCategoriesRelations = relations(
+  productCategories,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productCategories.productId],
+      references: [products.id],
+    }),
+    category: one(categories, {
+      fields: [productCategories.categoryId],
+      references: [categories.id],
+    }),
+  })
+);
 
-export const variantOptionsRelations = relations(variantOptions, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [variantOptions.tenantId],
-    references: [tenants.id],
-  }),
-  values: many(variantOptionValues),
-}));
+export const variantOptionsRelations = relations(
+  variantOptions,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [variantOptions.tenantId],
+      references: [tenants.id],
+    }),
+    values: many(variantOptionValues),
+  })
+);
 
-export const variantOptionValuesRelations = relations(variantOptionValues, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [variantOptionValues.tenantId],
-    references: [tenants.id],
-  }),
-  option: one(variantOptions, {
-    fields: [variantOptionValues.optionId],
-    references: [variantOptions.id],
-  }),
-  productVariantOptions: many(productVariantOptions),
-}));
+export const variantOptionValuesRelations = relations(
+  variantOptionValues,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [variantOptionValues.tenantId],
+      references: [tenants.id],
+    }),
+    option: one(variantOptions, {
+      fields: [variantOptionValues.optionId],
+      references: [variantOptions.id],
+    }),
+    productVariantOptions: many(productVariantOptions),
+  })
+);
 
-export const productVariantsRelations = relations(productVariants, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [productVariants.tenantId],
-    references: [tenants.id],
-  }),
-  product: one(products, {
-    fields: [productVariants.productId],
-    references: [products.id],
-  }),
-  image: one(media, {
-    fields: [productVariants.imageId],
-    references: [media.id],
-  }),
-  images: many(productVariantImages),
-  options: many(productVariantOptions),
-  inventoryLevels: many(inventoryLevels),
-  inventoryMovements: many(inventoryMovements),
-  inventoryCountItems: many(inventoryCountItems),
-  cartItems: many(cartItems),
-  orderItems: many(orderItems),
-  wishlistItems: many(wishlistItems),
-  reviews: many(reviews),
-  conversionEvents: many(analyticsConversionEvents),
-}));
+export const productVariantsRelations = relations(
+  productVariants,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [productVariants.tenantId],
+      references: [tenants.id],
+    }),
+    product: one(products, {
+      fields: [productVariants.productId],
+      references: [products.id],
+    }),
+    image: one(media, {
+      fields: [productVariants.imageId],
+      references: [media.id],
+    }),
+    images: many(productVariantImages),
+    options: many(productVariantOptions),
+    inventoryLevels: many(inventoryLevels),
+    inventoryMovements: many(inventoryMovements),
+    inventoryCountItems: many(inventoryCountItems),
+    cartItems: many(cartItems),
+    orderItems: many(orderItems),
+    wishlistItems: many(wishlistItems),
+    reviews: many(reviews),
+    conversionEvents: many(analyticsConversionEvents),
+  })
+);
 
-export const productVariantImagesRelations = relations(productVariantImages, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [productVariantImages.tenantId],
-    references: [tenants.id],
-  }),
-  variant: one(productVariants, {
-    fields: [productVariantImages.variantId],
-    references: [productVariants.id],
-  }),
-  media: one(media, {
-    fields: [productVariantImages.mediaId],
-    references: [media.id],
-  }),
-}));
+export const productVariantImagesRelations = relations(
+  productVariantImages,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [productVariantImages.tenantId],
+      references: [tenants.id],
+    }),
+    variant: one(productVariants, {
+      fields: [productVariantImages.variantId],
+      references: [productVariants.id],
+    }),
+    media: one(media, {
+      fields: [productVariantImages.mediaId],
+      references: [media.id],
+    }),
+  })
+);
 
-export const productVariantOptionsRelations = relations(productVariantOptions, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [productVariantOptions.tenantId],
-    references: [tenants.id],
-  }),
-  variant: one(productVariants, {
-    fields: [productVariantOptions.variantId],
-    references: [productVariants.id],
-  }),
-  optionValue: one(variantOptionValues, {
-    fields: [productVariantOptions.optionValueId],
-    references: [variantOptionValues.id],
-  }),
-}));
+export const productVariantOptionsRelations = relations(
+  productVariantOptions,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [productVariantOptions.tenantId],
+      references: [tenants.id],
+    }),
+    variant: one(productVariants, {
+      fields: [productVariantOptions.variantId],
+      references: [productVariants.id],
+    }),
+    optionValue: one(variantOptionValues, {
+      fields: [productVariantOptions.optionValueId],
+      references: [variantOptionValues.id],
+    }),
+  })
+);
 
 // ============================================================================
 // PRICING RELATIONS
@@ -3736,44 +4243,53 @@ export const priceTiersRelations = relations(priceTiers, ({ one }) => ({
   }),
 }));
 
-export const customerGroupsRelations = relations(customerGroups, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [customerGroups.tenantId],
-    references: [tenants.id],
-  }),
-  members: many(customerGroupMembers),
-  prices: many(customerGroupPrices),
-}));
+export const customerGroupsRelations = relations(
+  customerGroups,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [customerGroups.tenantId],
+      references: [tenants.id],
+    }),
+    members: many(customerGroupMembers),
+    prices: many(customerGroupPrices),
+  })
+);
 
-export const customerGroupMembersRelations = relations(customerGroupMembers, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [customerGroupMembers.tenantId],
-    references: [tenants.id],
-  }),
-  user: one(user, {
-    fields: [customerGroupMembers.userId],
-    references: [user.id],
-  }),
-  customerGroup: one(customerGroups, {
-    fields: [customerGroupMembers.customerGroupId],
-    references: [customerGroups.id],
-  }),
-}));
+export const customerGroupMembersRelations = relations(
+  customerGroupMembers,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [customerGroupMembers.tenantId],
+      references: [tenants.id],
+    }),
+    user: one(user, {
+      fields: [customerGroupMembers.userId],
+      references: [user.id],
+    }),
+    customerGroup: one(customerGroups, {
+      fields: [customerGroupMembers.customerGroupId],
+      references: [customerGroups.id],
+    }),
+  })
+);
 
-export const customerGroupPricesRelations = relations(customerGroupPrices, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [customerGroupPrices.tenantId],
-    references: [tenants.id],
-  }),
-  product: one(products, {
-    fields: [customerGroupPrices.productId],
-    references: [products.id],
-  }),
-  customerGroup: one(customerGroups, {
-    fields: [customerGroupPrices.customerGroupId],
-    references: [customerGroups.id],
-  }),
-}));
+export const customerGroupPricesRelations = relations(
+  customerGroupPrices,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [customerGroupPrices.tenantId],
+      references: [tenants.id],
+    }),
+    product: one(products, {
+      fields: [customerGroupPrices.productId],
+      references: [products.id],
+    }),
+    customerGroup: one(customerGroups, {
+      fields: [customerGroupPrices.customerGroupId],
+      references: [customerGroups.id],
+    }),
+  })
+);
 
 export const scheduledSalesRelations = relations(scheduledSales, ({ one }) => ({
   tenant: one(tenants, {
@@ -3786,36 +4302,39 @@ export const scheduledSalesRelations = relations(scheduledSales, ({ one }) => ({
   }),
 }));
 
-export const inventoryMovementsRelations = relations(inventoryMovements, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [inventoryMovements.tenantId],
-    references: [tenants.id],
-  }),
-  location: one(inventoryLocations, {
-    fields: [inventoryMovements.locationId],
-    references: [inventoryLocations.id],
-  }),
-  product: one(products, {
-    fields: [inventoryMovements.productId],
-    references: [products.id],
-  }),
-  variant: one(productVariants, {
-    fields: [inventoryMovements.variantId],
-    references: [productVariants.id],
-  }),
-  order: one(orders, {
-    fields: [inventoryMovements.orderId],
-    references: [orders.id],
-  }),
-  shipment: one(shipments, {
-    fields: [inventoryMovements.shipmentId],
-    references: [shipments.id],
-  }),
-  user: one(user, {
-    fields: [inventoryMovements.userId],
-    references: [user.id],
-  }),
-}));
+export const inventoryMovementsRelations = relations(
+  inventoryMovements,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [inventoryMovements.tenantId],
+      references: [tenants.id],
+    }),
+    location: one(inventoryLocations, {
+      fields: [inventoryMovements.locationId],
+      references: [inventoryLocations.id],
+    }),
+    product: one(products, {
+      fields: [inventoryMovements.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [inventoryMovements.variantId],
+      references: [productVariants.id],
+    }),
+    order: one(orders, {
+      fields: [inventoryMovements.orderId],
+      references: [orders.id],
+    }),
+    shipment: one(shipments, {
+      fields: [inventoryMovements.shipmentId],
+      references: [shipments.id],
+    }),
+    user: one(user, {
+      fields: [inventoryMovements.userId],
+      references: [user.id],
+    }),
+  })
+);
 
 export const cartsRelations = relations(carts, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -3886,26 +4405,32 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   sellerTransactions: many(sellerTransactions),
 }));
 
-export const shippingZonesRelations = relations(shippingZones, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [shippingZones.tenantId],
-    references: [tenants.id],
-  }),
-  methods: many(shippingMethods),
-}));
+export const shippingZonesRelations = relations(
+  shippingZones,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [shippingZones.tenantId],
+      references: [tenants.id],
+    }),
+    methods: many(shippingMethods),
+  })
+);
 
-export const shippingMethodsRelations = relations(shippingMethods, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [shippingMethods.tenantId],
-    references: [tenants.id],
-  }),
-  zone: one(shippingZones, {
-    fields: [shippingMethods.zoneId],
-    references: [shippingZones.id],
-  }),
-  weightTiers: many(shippingWeightTiers),
-  shipments: many(shipments),
-}));
+export const shippingMethodsRelations = relations(
+  shippingMethods,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [shippingMethods.tenantId],
+      references: [tenants.id],
+    }),
+    zone: one(shippingZones, {
+      fields: [shippingMethods.zoneId],
+      references: [shippingZones.id],
+    }),
+    weightTiers: many(shippingWeightTiers),
+    shipments: many(shipments),
+  })
+);
 
 export const shipmentsRelations = relations(shipments, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -3937,12 +4462,15 @@ export const shipmentItemsRelations = relations(shipmentItems, ({ one }) => ({
   }),
 }));
 
-export const shipmentTrackingEventsRelations = relations(shipmentTrackingEvents, ({ one }) => ({
-  shipment: one(shipments, {
-    fields: [shipmentTrackingEvents.shipmentId],
-    references: [shipments.id],
-  }),
-}));
+export const shipmentTrackingEventsRelations = relations(
+  shipmentTrackingEvents,
+  ({ one }) => ({
+    shipment: one(shipments, {
+      fields: [shipmentTrackingEvents.shipmentId],
+      references: [shipments.id],
+    }),
+  })
+);
 
 export const reviewsRelations = relations(reviews, ({ one, many }) => ({
   tenant: one(tenants, {
@@ -3983,218 +4511,266 @@ export const reviewMediaRelations = relations(reviewMedia, ({ one }) => ({
   }),
 }));
 
-export const commissionTransactionsRelations = relations(commissionTransactions, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [commissionTransactions.tenantId],
-    references: [tenants.id],
-  }),
-  order: one(orders, {
-    fields: [commissionTransactions.orderId],
-    references: [orders.id],
-  }),
-  processedByUser: one(user, {
-    fields: [commissionTransactions.processedBy],
-    references: [user.id],
-  }),
-}));
+export const commissionTransactionsRelations = relations(
+  commissionTransactions,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [commissionTransactions.tenantId],
+      references: [tenants.id],
+    }),
+    order: one(orders, {
+      fields: [commissionTransactions.orderId],
+      references: [orders.id],
+    }),
+    processedByUser: one(user, {
+      fields: [commissionTransactions.processedBy],
+      references: [user.id],
+    }),
+  })
+);
 
 // Analytics Relations
-export const analyticsDailySnapshotsRelations = relations(analyticsDailySnapshots, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsDailySnapshots.tenantId],
-    references: [tenants.id],
-  }),
-}));
+export const analyticsDailySnapshotsRelations = relations(
+  analyticsDailySnapshots,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsDailySnapshots.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
 
-export const analyticsProductPerformanceRelations = relations(analyticsProductPerformance, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsProductPerformance.tenantId],
-    references: [tenants.id],
-  }),
-  product: one(products, {
-    fields: [analyticsProductPerformance.productId],
-    references: [products.id],
-  }),
-}));
+export const analyticsProductPerformanceRelations = relations(
+  analyticsProductPerformance,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsProductPerformance.tenantId],
+      references: [tenants.id],
+    }),
+    product: one(products, {
+      fields: [analyticsProductPerformance.productId],
+      references: [products.id],
+    }),
+  })
+);
 
-export const analyticsCategoryPerformanceRelations = relations(analyticsCategoryPerformance, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsCategoryPerformance.tenantId],
-    references: [tenants.id],
-  }),
-  category: one(categories, {
-    fields: [analyticsCategoryPerformance.categoryId],
-    references: [categories.id],
-  }),
-}));
+export const analyticsCategoryPerformanceRelations = relations(
+  analyticsCategoryPerformance,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsCategoryPerformance.tenantId],
+      references: [tenants.id],
+    }),
+    category: one(categories, {
+      fields: [analyticsCategoryPerformance.categoryId],
+      references: [categories.id],
+    }),
+  })
+);
 
-export const analyticsTrafficSourcesRelations = relations(analyticsTrafficSources, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsTrafficSources.tenantId],
-    references: [tenants.id],
-  }),
-}));
+export const analyticsTrafficSourcesRelations = relations(
+  analyticsTrafficSources,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsTrafficSources.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
 
-export const analyticsGeographicSalesRelations = relations(analyticsGeographicSales, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsGeographicSales.tenantId],
-    references: [tenants.id],
-  }),
-}));
+export const analyticsGeographicSalesRelations = relations(
+  analyticsGeographicSales,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsGeographicSales.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
 
-export const analyticsHourlyMetricsRelations = relations(analyticsHourlyMetrics, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsHourlyMetrics.tenantId],
-    references: [tenants.id],
-  }),
-}));
+export const analyticsHourlyMetricsRelations = relations(
+  analyticsHourlyMetrics,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsHourlyMetrics.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
 
-export const analyticsPageViewsRelations = relations(analyticsPageViews, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsPageViews.tenantId],
-    references: [tenants.id],
-  }),
-  user: one(user, {
-    fields: [analyticsPageViews.userId],
-    references: [user.id],
-  }),
-  product: one(products, {
-    fields: [analyticsPageViews.productId],
-    references: [products.id],
-  }),
-  category: one(categories, {
-    fields: [analyticsPageViews.categoryId],
-    references: [categories.id],
-  }),
-}));
+export const analyticsPageViewsRelations = relations(
+  analyticsPageViews,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsPageViews.tenantId],
+      references: [tenants.id],
+    }),
+    user: one(user, {
+      fields: [analyticsPageViews.userId],
+      references: [user.id],
+    }),
+    product: one(products, {
+      fields: [analyticsPageViews.productId],
+      references: [products.id],
+    }),
+    category: one(categories, {
+      fields: [analyticsPageViews.categoryId],
+      references: [categories.id],
+    }),
+  })
+);
 
-export const analyticsConversionEventsRelations = relations(analyticsConversionEvents, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [analyticsConversionEvents.tenantId],
-    references: [tenants.id],
-  }),
-  user: one(user, {
-    fields: [analyticsConversionEvents.userId],
-    references: [user.id],
-  }),
-  product: one(products, {
-    fields: [analyticsConversionEvents.productId],
-    references: [products.id],
-  }),
-  variant: one(productVariants, {
-    fields: [analyticsConversionEvents.variantId],
-    references: [productVariants.id],
-  }),
-  category: one(categories, {
-    fields: [analyticsConversionEvents.categoryId],
-    references: [categories.id],
-  }),
-  order: one(orders, {
-    fields: [analyticsConversionEvents.orderId],
-    references: [orders.id],
-  }),
-  cart: one(carts, {
-    fields: [analyticsConversionEvents.cartId],
-    references: [carts.id],
-  }),
-}));
+export const analyticsConversionEventsRelations = relations(
+  analyticsConversionEvents,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [analyticsConversionEvents.tenantId],
+      references: [tenants.id],
+    }),
+    user: one(user, {
+      fields: [analyticsConversionEvents.userId],
+      references: [user.id],
+    }),
+    product: one(products, {
+      fields: [analyticsConversionEvents.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [analyticsConversionEvents.variantId],
+      references: [productVariants.id],
+    }),
+    category: one(categories, {
+      fields: [analyticsConversionEvents.categoryId],
+      references: [categories.id],
+    }),
+    order: one(orders, {
+      fields: [analyticsConversionEvents.orderId],
+      references: [orders.id],
+    }),
+    cart: one(carts, {
+      fields: [analyticsConversionEvents.cartId],
+      references: [carts.id],
+    }),
+  })
+);
 
 // Inventory Relations
-export const inventoryLocationsRelations = relations(inventoryLocations, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [inventoryLocations.tenantId],
-    references: [tenants.id],
-  }),
-  levels: many(inventoryLevels),
-  movements: many(inventoryMovements),
-  counts: many(inventoryCounts),
-}));
+export const inventoryLocationsRelations = relations(
+  inventoryLocations,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [inventoryLocations.tenantId],
+      references: [tenants.id],
+    }),
+    levels: many(inventoryLevels),
+    movements: many(inventoryMovements),
+    counts: many(inventoryCounts),
+  })
+);
 
-export const inventoryLevelsRelations = relations(inventoryLevels, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [inventoryLevels.tenantId],
-    references: [tenants.id],
-  }),
-  location: one(inventoryLocations, {
-    fields: [inventoryLevels.locationId],
-    references: [inventoryLocations.id],
-  }),
-  product: one(products, {
-    fields: [inventoryLevels.productId],
-    references: [products.id],
-  }),
-  variant: one(productVariants, {
-    fields: [inventoryLevels.variantId],
-    references: [productVariants.id],
-  }),
-}));
+export const inventoryLevelsRelations = relations(
+  inventoryLevels,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [inventoryLevels.tenantId],
+      references: [tenants.id],
+    }),
+    location: one(inventoryLocations, {
+      fields: [inventoryLevels.locationId],
+      references: [inventoryLocations.id],
+    }),
+    product: one(products, {
+      fields: [inventoryLevels.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [inventoryLevels.variantId],
+      references: [productVariants.id],
+    }),
+  })
+);
 
-export const inventoryCountsRelations = relations(inventoryCounts, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [inventoryCounts.tenantId],
-    references: [tenants.id],
-  }),
-  location: one(inventoryLocations, {
-    fields: [inventoryCounts.locationId],
-    references: [inventoryLocations.id],
-  }),
-  countedBy: one(user, {
-    fields: [inventoryCounts.countedById],
-    references: [user.id],
-  }),
-  verifiedBy: one(user, {
-    fields: [inventoryCounts.verifiedById],
-    references: [user.id],
-  }),
-  items: many(inventoryCountItems),
-}));
+export const inventoryCountsRelations = relations(
+  inventoryCounts,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [inventoryCounts.tenantId],
+      references: [tenants.id],
+    }),
+    location: one(inventoryLocations, {
+      fields: [inventoryCounts.locationId],
+      references: [inventoryLocations.id],
+    }),
+    countedBy: one(user, {
+      fields: [inventoryCounts.countedById],
+      references: [user.id],
+    }),
+    verifiedBy: one(user, {
+      fields: [inventoryCounts.verifiedById],
+      references: [user.id],
+    }),
+    items: many(inventoryCountItems),
+  })
+);
 
-export const inventoryCountItemsRelations = relations(inventoryCountItems, ({ one }) => ({
-  count: one(inventoryCounts, {
-    fields: [inventoryCountItems.countId],
-    references: [inventoryCounts.id],
-  }),
-  product: one(products, {
-    fields: [inventoryCountItems.productId],
-    references: [products.id],
-  }),
-  variant: one(productVariants, {
-    fields: [inventoryCountItems.variantId],
-    references: [productVariants.id],
-  }),
-}));
+export const inventoryCountItemsRelations = relations(
+  inventoryCountItems,
+  ({ one }) => ({
+    count: one(inventoryCounts, {
+      fields: [inventoryCountItems.countId],
+      references: [inventoryCounts.id],
+    }),
+    product: one(products, {
+      fields: [inventoryCountItems.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [inventoryCountItems.variantId],
+      references: [productVariants.id],
+    }),
+  })
+);
 
 // Shipping Weight Tiers Relations
-export const shippingWeightTiersRelations = relations(shippingWeightTiers, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [shippingWeightTiers.tenantId],
-    references: [tenants.id],
-  }),
-  method: one(shippingMethods, {
-    fields: [shippingWeightTiers.methodId],
-    references: [shippingMethods.id],
-  }),
-}));
+export const shippingWeightTiersRelations = relations(
+  shippingWeightTiers,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [shippingWeightTiers.tenantId],
+      references: [tenants.id],
+    }),
+    method: one(shippingMethods, {
+      fields: [shippingWeightTiers.methodId],
+      references: [shippingMethods.id],
+    }),
+  })
+);
 
 // Commission Relations
-export const commissionRulesRelations = relations(commissionRules, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [commissionRules.tenantId],
-    references: [tenants.id],
-  }),
-  category: one(categories, {
-    fields: [commissionRules.categoryId],
-    references: [categories.id],
-  }),
-  product: one(products, {
-    fields: [commissionRules.productId],
-    references: [products.id],
-  }),
-}));
+export const commissionRulesRelations = relations(
+  commissionRules,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [commissionRules.tenantId],
+      references: [tenants.id],
+    }),
+    category: one(categories, {
+      fields: [commissionRules.categoryId],
+      references: [categories.id],
+    }),
+    product: one(products, {
+      fields: [commissionRules.productId],
+      references: [products.id],
+    }),
+  })
+);
 
-export const commissionTiersRelations = relations(commissionTiers, ({ many }) => ({
-  sellerBalances: many(sellerBalances),
-}));
+export const commissionTiersRelations = relations(
+  commissionTiers,
+  ({ many }) => ({
+    sellerBalances: many(sellerBalances),
+  })
+);
 
 // Seller Finance Relations
 export const sellerBalancesRelations = relations(sellerBalances, ({ one }) => ({
@@ -4208,56 +4784,68 @@ export const sellerBalancesRelations = relations(sellerBalances, ({ one }) => ({
   }),
 }));
 
-export const sellerPayoutMethodsRelations = relations(sellerPayoutMethods, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [sellerPayoutMethods.tenantId],
-    references: [tenants.id],
-  }),
-  payouts: many(sellerPayouts),
-}));
+export const sellerPayoutMethodsRelations = relations(
+  sellerPayoutMethods,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [sellerPayoutMethods.tenantId],
+      references: [tenants.id],
+    }),
+    payouts: many(sellerPayouts),
+  })
+);
 
-export const sellerTransactionsRelations = relations(sellerTransactions, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [sellerTransactions.tenantId],
-    references: [tenants.id],
-  }),
-  order: one(orders, {
-    fields: [sellerTransactions.orderId],
-    references: [orders.id],
-  }),
-  orderItem: one(orderItems, {
-    fields: [sellerTransactions.orderItemId],
-    references: [orderItems.id],
-  }),
-  payoutItems: many(sellerPayoutItems),
-}));
+export const sellerTransactionsRelations = relations(
+  sellerTransactions,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [sellerTransactions.tenantId],
+      references: [tenants.id],
+    }),
+    order: one(orders, {
+      fields: [sellerTransactions.orderId],
+      references: [orders.id],
+    }),
+    orderItem: one(orderItems, {
+      fields: [sellerTransactions.orderItemId],
+      references: [orderItems.id],
+    }),
+    payoutItems: many(sellerPayoutItems),
+  })
+);
 
-export const sellerPayoutsRelations = relations(sellerPayouts, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [sellerPayouts.tenantId],
-    references: [tenants.id],
-  }),
-  payoutMethod: one(sellerPayoutMethods, {
-    fields: [sellerPayouts.payoutMethodId],
-    references: [sellerPayoutMethods.id],
-  }),
-  processedBy: one(user, {
-    fields: [sellerPayouts.processedById],
-    references: [user.id],
-  }),
-  items: many(sellerPayoutItems),
-}));
+export const sellerPayoutsRelations = relations(
+  sellerPayouts,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [sellerPayouts.tenantId],
+      references: [tenants.id],
+    }),
+    payoutMethod: one(sellerPayoutMethods, {
+      fields: [sellerPayouts.payoutMethodId],
+      references: [sellerPayoutMethods.id],
+    }),
+    processedBy: one(user, {
+      fields: [sellerPayouts.processedById],
+      references: [user.id],
+    }),
+    items: many(sellerPayoutItems),
+  })
+);
 
-export const sellerPayoutItemsRelations = relations(sellerPayoutItems, ({ one }) => ({
-  payout: one(sellerPayouts, {
-    fields: [sellerPayoutItems.payoutId],
-    references: [sellerPayouts.id],
-  }),
-  transaction: one(sellerTransactions, {
-    fields: [sellerPayoutItems.transactionId],
-    references: [sellerTransactions.id],
-  }),
-}));
+export const sellerPayoutItemsRelations = relations(
+  sellerPayoutItems,
+  ({ one }) => ({
+    payout: one(sellerPayouts, {
+      fields: [sellerPayoutItems.payoutId],
+      references: [sellerPayouts.id],
+    }),
+    transaction: one(sellerTransactions, {
+      fields: [sellerPayoutItems.transactionId],
+      references: [sellerTransactions.id],
+    }),
+  })
+);
 
 // Affiliate Relations
 export const affiliatesRelations = relations(affiliates, ({ one, many }) => ({
@@ -4274,248 +4862,296 @@ export const affiliatesRelations = relations(affiliates, ({ one, many }) => ({
   ratings: many(affiliateRatings),
 }));
 
-export const affiliatePayoutMethodsRelations = relations(affiliatePayoutMethods, ({ one, many }) => ({
-  affiliate: one(affiliates, {
-    fields: [affiliatePayoutMethods.affiliateId],
-    references: [affiliates.id],
-  }),
-  payouts: many(affiliatePayouts),
-}));
+export const affiliatePayoutMethodsRelations = relations(
+  affiliatePayoutMethods,
+  ({ one, many }) => ({
+    affiliate: one(affiliates, {
+      fields: [affiliatePayoutMethods.affiliateId],
+      references: [affiliates.id],
+    }),
+    payouts: many(affiliatePayouts),
+  })
+);
 
-export const affiliateTenantPartnershipsRelations = relations(affiliateTenantPartnerships, ({ one, many }) => ({
-  affiliate: one(affiliates, {
-    fields: [affiliateTenantPartnerships.affiliateId],
-    references: [affiliates.id],
-  }),
-  tenant: one(tenants, {
-    fields: [affiliateTenantPartnerships.tenantId],
-    references: [tenants.id],
-  }),
-  links: many(affiliateLinks),
-  conversions: many(affiliateConversions),
-  ratings: many(affiliateRatings),
-}));
+export const affiliateTenantPartnershipsRelations = relations(
+  affiliateTenantPartnerships,
+  ({ one, many }) => ({
+    affiliate: one(affiliates, {
+      fields: [affiliateTenantPartnerships.affiliateId],
+      references: [affiliates.id],
+    }),
+    tenant: one(tenants, {
+      fields: [affiliateTenantPartnerships.tenantId],
+      references: [tenants.id],
+    }),
+    links: many(affiliateLinks),
+    conversions: many(affiliateConversions),
+    ratings: many(affiliateRatings),
+  })
+);
 
-export const affiliateLinksRelations = relations(affiliateLinks, ({ one, many }) => ({
-  affiliate: one(affiliates, {
-    fields: [affiliateLinks.affiliateId],
-    references: [affiliates.id],
-  }),
-  tenant: one(tenants, {
-    fields: [affiliateLinks.tenantId],
-    references: [tenants.id],
-  }),
-  partnership: one(affiliateTenantPartnerships, {
-    fields: [affiliateLinks.partnershipId],
-    references: [affiliateTenantPartnerships.id],
-  }),
-  product: one(products, {
-    fields: [affiliateLinks.productId],
-    references: [products.id],
-  }),
-  category: one(categories, {
-    fields: [affiliateLinks.categoryId],
-    references: [categories.id],
-  }),
-  clicks: many(affiliateClicks),
-  conversions: many(affiliateConversions),
-}));
+export const affiliateLinksRelations = relations(
+  affiliateLinks,
+  ({ one, many }) => ({
+    affiliate: one(affiliates, {
+      fields: [affiliateLinks.affiliateId],
+      references: [affiliates.id],
+    }),
+    tenant: one(tenants, {
+      fields: [affiliateLinks.tenantId],
+      references: [tenants.id],
+    }),
+    partnership: one(affiliateTenantPartnerships, {
+      fields: [affiliateLinks.partnershipId],
+      references: [affiliateTenantPartnerships.id],
+    }),
+    product: one(products, {
+      fields: [affiliateLinks.productId],
+      references: [products.id],
+    }),
+    category: one(categories, {
+      fields: [affiliateLinks.categoryId],
+      references: [categories.id],
+    }),
+    clicks: many(affiliateClicks),
+    conversions: many(affiliateConversions),
+  })
+);
 
-export const affiliateClicksRelations = relations(affiliateClicks, ({ one }) => ({
-  link: one(affiliateLinks, {
-    fields: [affiliateClicks.linkId],
-    references: [affiliateLinks.id],
-  }),
-  affiliate: one(affiliates, {
-    fields: [affiliateClicks.affiliateId],
-    references: [affiliates.id],
-  }),
-  tenant: one(tenants, {
-    fields: [affiliateClicks.tenantId],
-    references: [tenants.id],
-  }),
-  order: one(orders, {
-    fields: [affiliateClicks.orderId],
-    references: [orders.id],
-  }),
-}));
+export const affiliateClicksRelations = relations(
+  affiliateClicks,
+  ({ one }) => ({
+    link: one(affiliateLinks, {
+      fields: [affiliateClicks.linkId],
+      references: [affiliateLinks.id],
+    }),
+    affiliate: one(affiliates, {
+      fields: [affiliateClicks.affiliateId],
+      references: [affiliates.id],
+    }),
+    tenant: one(tenants, {
+      fields: [affiliateClicks.tenantId],
+      references: [tenants.id],
+    }),
+    order: one(orders, {
+      fields: [affiliateClicks.orderId],
+      references: [orders.id],
+    }),
+  })
+);
 
-export const affiliateConversionsRelations = relations(affiliateConversions, ({ one }) => ({
-  affiliate: one(affiliates, {
-    fields: [affiliateConversions.affiliateId],
-    references: [affiliates.id],
-  }),
-  tenant: one(tenants, {
-    fields: [affiliateConversions.tenantId],
-    references: [tenants.id],
-  }),
-  partnership: one(affiliateTenantPartnerships, {
-    fields: [affiliateConversions.partnershipId],
-    references: [affiliateTenantPartnerships.id],
-  }),
-  link: one(affiliateLinks, {
-    fields: [affiliateConversions.linkId],
-    references: [affiliateLinks.id],
-  }),
-  click: one(affiliateClicks, {
-    fields: [affiliateConversions.clickId],
-    references: [affiliateClicks.id],
-  }),
-  order: one(orders, {
-    fields: [affiliateConversions.orderId],
-    references: [orders.id],
-  }),
-}));
+export const affiliateConversionsRelations = relations(
+  affiliateConversions,
+  ({ one }) => ({
+    affiliate: one(affiliates, {
+      fields: [affiliateConversions.affiliateId],
+      references: [affiliates.id],
+    }),
+    tenant: one(tenants, {
+      fields: [affiliateConversions.tenantId],
+      references: [tenants.id],
+    }),
+    partnership: one(affiliateTenantPartnerships, {
+      fields: [affiliateConversions.partnershipId],
+      references: [affiliateTenantPartnerships.id],
+    }),
+    link: one(affiliateLinks, {
+      fields: [affiliateConversions.linkId],
+      references: [affiliateLinks.id],
+    }),
+    click: one(affiliateClicks, {
+      fields: [affiliateConversions.clickId],
+      references: [affiliateClicks.id],
+    }),
+    order: one(orders, {
+      fields: [affiliateConversions.orderId],
+      references: [orders.id],
+    }),
+  })
+);
 
-export const affiliatePayoutsRelations = relations(affiliatePayouts, ({ one }) => ({
-  affiliate: one(affiliates, {
-    fields: [affiliatePayouts.affiliateId],
-    references: [affiliates.id],
-  }),
-  payoutMethod: one(affiliatePayoutMethods, {
-    fields: [affiliatePayouts.payoutMethodId],
-    references: [affiliatePayoutMethods.id],
-  }),
-  processedBy: one(user, {
-    fields: [affiliatePayouts.processedById],
-    references: [user.id],
-  }),
-}));
+export const affiliatePayoutsRelations = relations(
+  affiliatePayouts,
+  ({ one }) => ({
+    affiliate: one(affiliates, {
+      fields: [affiliatePayouts.affiliateId],
+      references: [affiliates.id],
+    }),
+    payoutMethod: one(affiliatePayoutMethods, {
+      fields: [affiliatePayouts.payoutMethodId],
+      references: [affiliatePayoutMethods.id],
+    }),
+    processedBy: one(user, {
+      fields: [affiliatePayouts.processedById],
+      references: [user.id],
+    }),
+  })
+);
 
-export const affiliateRatingsRelations = relations(affiliateRatings, ({ one }) => ({
-  affiliate: one(affiliates, {
-    fields: [affiliateRatings.affiliateId],
-    references: [affiliates.id],
-  }),
-  tenant: one(tenants, {
-    fields: [affiliateRatings.tenantId],
-    references: [tenants.id],
-  }),
-  partnership: one(affiliateTenantPartnerships, {
-    fields: [affiliateRatings.partnershipId],
-    references: [affiliateTenantPartnerships.id],
-  }),
-  ratedBy: one(user, {
-    fields: [affiliateRatings.ratedById],
-    references: [user.id],
-  }),
-}));
+export const affiliateRatingsRelations = relations(
+  affiliateRatings,
+  ({ one }) => ({
+    affiliate: one(affiliates, {
+      fields: [affiliateRatings.affiliateId],
+      references: [affiliates.id],
+    }),
+    tenant: one(tenants, {
+      fields: [affiliateRatings.tenantId],
+      references: [tenants.id],
+    }),
+    partnership: one(affiliateTenantPartnerships, {
+      fields: [affiliateRatings.partnershipId],
+      references: [affiliateTenantPartnerships.id],
+    }),
+    ratedBy: one(user, {
+      fields: [affiliateRatings.ratedById],
+      references: [user.id],
+    }),
+  })
+);
 
 // Delivery Provider Relations
-export const deliveryProvidersRelations = relations(deliveryProviders, ({ one, many }) => ({
-  user: one(user, {
-    fields: [deliveryProviders.userId],
-    references: [user.id],
-  }),
-  payoutMethods: many(deliveryPayoutMethods),
-  zones: many(deliveryProviderZones),
-  partnerships: many(deliveryTenantPartnerships),
-  assignments: many(deliveryAssignments),
-  ratings: many(deliveryRatings),
-  payouts: many(deliveryPayouts),
-}));
+export const deliveryProvidersRelations = relations(
+  deliveryProviders,
+  ({ one, many }) => ({
+    user: one(user, {
+      fields: [deliveryProviders.userId],
+      references: [user.id],
+    }),
+    payoutMethods: many(deliveryPayoutMethods),
+    zones: many(deliveryProviderZones),
+    partnerships: many(deliveryTenantPartnerships),
+    assignments: many(deliveryAssignments),
+    ratings: many(deliveryRatings),
+    payouts: many(deliveryPayouts),
+  })
+);
 
-export const deliveryPayoutMethodsRelations = relations(deliveryPayoutMethods, ({ one, many }) => ({
-  provider: one(deliveryProviders, {
-    fields: [deliveryPayoutMethods.providerId],
-    references: [deliveryProviders.id],
-  }),
-  payouts: many(deliveryPayouts),
-}));
+export const deliveryPayoutMethodsRelations = relations(
+  deliveryPayoutMethods,
+  ({ one, many }) => ({
+    provider: one(deliveryProviders, {
+      fields: [deliveryPayoutMethods.providerId],
+      references: [deliveryProviders.id],
+    }),
+    payouts: many(deliveryPayouts),
+  })
+);
 
-export const deliveryProviderZonesRelations = relations(deliveryProviderZones, ({ one }) => ({
-  provider: one(deliveryProviders, {
-    fields: [deliveryProviderZones.providerId],
-    references: [deliveryProviders.id],
-  }),
-}));
+export const deliveryProviderZonesRelations = relations(
+  deliveryProviderZones,
+  ({ one }) => ({
+    provider: one(deliveryProviders, {
+      fields: [deliveryProviderZones.providerId],
+      references: [deliveryProviders.id],
+    }),
+  })
+);
 
-export const deliveryTenantPartnershipsRelations = relations(deliveryTenantPartnerships, ({ one, many }) => ({
-  provider: one(deliveryProviders, {
-    fields: [deliveryTenantPartnerships.providerId],
-    references: [deliveryProviders.id],
-  }),
-  tenant: one(tenants, {
-    fields: [deliveryTenantPartnerships.tenantId],
-    references: [tenants.id],
-  }),
-  assignments: many(deliveryAssignments),
-}));
+export const deliveryTenantPartnershipsRelations = relations(
+  deliveryTenantPartnerships,
+  ({ one, many }) => ({
+    provider: one(deliveryProviders, {
+      fields: [deliveryTenantPartnerships.providerId],
+      references: [deliveryProviders.id],
+    }),
+    tenant: one(tenants, {
+      fields: [deliveryTenantPartnerships.tenantId],
+      references: [tenants.id],
+    }),
+    assignments: many(deliveryAssignments),
+  })
+);
 
-export const deliveryAssignmentsRelations = relations(deliveryAssignments, ({ one, many }) => ({
-  tenant: one(tenants, {
-    fields: [deliveryAssignments.tenantId],
-    references: [tenants.id],
-  }),
-  shipment: one(shipments, {
-    fields: [deliveryAssignments.shipmentId],
-    references: [shipments.id],
-  }),
-  provider: one(deliveryProviders, {
-    fields: [deliveryAssignments.providerId],
-    references: [deliveryProviders.id],
-  }),
-  partnership: one(deliveryTenantPartnerships, {
-    fields: [deliveryAssignments.partnershipId],
-    references: [deliveryTenantPartnerships.id],
-  }),
-  trackingEvents: many(deliveryTrackingEvents),
-  ratings: many(deliveryRatings),
-  payoutItems: many(deliveryPayoutItems),
-}));
+export const deliveryAssignmentsRelations = relations(
+  deliveryAssignments,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [deliveryAssignments.tenantId],
+      references: [tenants.id],
+    }),
+    shipment: one(shipments, {
+      fields: [deliveryAssignments.shipmentId],
+      references: [shipments.id],
+    }),
+    provider: one(deliveryProviders, {
+      fields: [deliveryAssignments.providerId],
+      references: [deliveryProviders.id],
+    }),
+    partnership: one(deliveryTenantPartnerships, {
+      fields: [deliveryAssignments.partnershipId],
+      references: [deliveryTenantPartnerships.id],
+    }),
+    trackingEvents: many(deliveryTrackingEvents),
+    ratings: many(deliveryRatings),
+    payoutItems: many(deliveryPayoutItems),
+  })
+);
 
-export const deliveryTrackingEventsRelations = relations(deliveryTrackingEvents, ({ one }) => ({
-  assignment: one(deliveryAssignments, {
-    fields: [deliveryTrackingEvents.assignmentId],
-    references: [deliveryAssignments.id],
-  }),
-}));
+export const deliveryTrackingEventsRelations = relations(
+  deliveryTrackingEvents,
+  ({ one }) => ({
+    assignment: one(deliveryAssignments, {
+      fields: [deliveryTrackingEvents.assignmentId],
+      references: [deliveryAssignments.id],
+    }),
+  })
+);
 
-export const deliveryRatingsRelations = relations(deliveryRatings, ({ one }) => ({
-  provider: one(deliveryProviders, {
-    fields: [deliveryRatings.providerId],
-    references: [deliveryProviders.id],
-  }),
-  assignment: one(deliveryAssignments, {
-    fields: [deliveryRatings.assignmentId],
-    references: [deliveryAssignments.id],
-  }),
-  tenant: one(tenants, {
-    fields: [deliveryRatings.tenantId],
-    references: [tenants.id],
-  }),
-  ratedBy: one(user, {
-    fields: [deliveryRatings.ratedById],
-    references: [user.id],
-  }),
-}));
+export const deliveryRatingsRelations = relations(
+  deliveryRatings,
+  ({ one }) => ({
+    provider: one(deliveryProviders, {
+      fields: [deliveryRatings.providerId],
+      references: [deliveryProviders.id],
+    }),
+    assignment: one(deliveryAssignments, {
+      fields: [deliveryRatings.assignmentId],
+      references: [deliveryAssignments.id],
+    }),
+    tenant: one(tenants, {
+      fields: [deliveryRatings.tenantId],
+      references: [tenants.id],
+    }),
+    ratedBy: one(user, {
+      fields: [deliveryRatings.ratedById],
+      references: [user.id],
+    }),
+  })
+);
 
-export const deliveryPayoutsRelations = relations(deliveryPayouts, ({ one, many }) => ({
-  provider: one(deliveryProviders, {
-    fields: [deliveryPayouts.providerId],
-    references: [deliveryProviders.id],
-  }),
-  payoutMethod: one(deliveryPayoutMethods, {
-    fields: [deliveryPayouts.payoutMethodId],
-    references: [deliveryPayoutMethods.id],
-  }),
-  processedBy: one(user, {
-    fields: [deliveryPayouts.processedById],
-    references: [user.id],
-  }),
-  items: many(deliveryPayoutItems),
-}));
+export const deliveryPayoutsRelations = relations(
+  deliveryPayouts,
+  ({ one, many }) => ({
+    provider: one(deliveryProviders, {
+      fields: [deliveryPayouts.providerId],
+      references: [deliveryProviders.id],
+    }),
+    payoutMethod: one(deliveryPayoutMethods, {
+      fields: [deliveryPayouts.payoutMethodId],
+      references: [deliveryPayoutMethods.id],
+    }),
+    processedBy: one(user, {
+      fields: [deliveryPayouts.processedById],
+      references: [user.id],
+    }),
+    items: many(deliveryPayoutItems),
+  })
+);
 
-export const deliveryPayoutItemsRelations = relations(deliveryPayoutItems, ({ one }) => ({
-  payout: one(deliveryPayouts, {
-    fields: [deliveryPayoutItems.payoutId],
-    references: [deliveryPayouts.id],
-  }),
-  assignment: one(deliveryAssignments, {
-    fields: [deliveryPayoutItems.assignmentId],
-    references: [deliveryAssignments.id],
-  }),
-}));
+export const deliveryPayoutItemsRelations = relations(
+  deliveryPayoutItems,
+  ({ one }) => ({
+    payout: one(deliveryPayouts, {
+      fields: [deliveryPayoutItems.payoutId],
+      references: [deliveryPayouts.id],
+    }),
+    assignment: one(deliveryAssignments, {
+      fields: [deliveryPayoutItems.assignmentId],
+      references: [deliveryAssignments.id],
+    }),
+  })
+);
 
 // ============================================================================
 // TYPE EXPORTS
@@ -4591,7 +5227,8 @@ export type PriceTier = typeof priceTiers.$inferSelect;
 export type NewPriceTier = typeof priceTiers.$inferInsert;
 export type CustomerGroup = typeof customerGroups.$inferSelect;
 export type NewCustomerGroup = typeof customerGroups.$inferInsert;
-export type CustomerGroupType = (typeof customerGroupTypeEnum.enumValues)[number];
+export type CustomerGroupType =
+  (typeof customerGroupTypeEnum.enumValues)[number];
 export type CustomerGroupMember = typeof customerGroupMembers.$inferSelect;
 export type NewCustomerGroupMember = typeof customerGroupMembers.$inferInsert;
 export type CustomerGroupPrice = typeof customerGroupPrices.$inferSelect;
@@ -4602,7 +5239,8 @@ export type NewScheduledSale = typeof scheduledSales.$inferInsert;
 // Inventory types
 export type InventoryMovement = typeof inventoryMovements.$inferSelect;
 export type NewInventoryMovement = typeof inventoryMovements.$inferInsert;
-export type InventoryMovementType = (typeof inventoryMovementTypeEnum.enumValues)[number];
+export type InventoryMovementType =
+  (typeof inventoryMovementTypeEnum.enumValues)[number];
 
 // Cart types
 export type Cart = typeof carts.$inferSelect;
@@ -4629,7 +5267,8 @@ export type ShipmentItem = typeof shipmentItems.$inferSelect;
 export type NewShipmentItem = typeof shipmentItems.$inferInsert;
 export type ShipmentStatus = (typeof shipmentStatusEnum.enumValues)[number];
 export type ShipmentTrackingEvent = typeof shipmentTrackingEvents.$inferSelect;
-export type NewShipmentTrackingEvent = typeof shipmentTrackingEvents.$inferInsert;
+export type NewShipmentTrackingEvent =
+  typeof shipmentTrackingEvents.$inferInsert;
 
 // Review types
 export type Review = typeof reviews.$inferSelect;
@@ -4638,28 +5277,44 @@ export type ReviewMedia = typeof reviewMedia.$inferSelect;
 export type NewReviewMedia = typeof reviewMedia.$inferInsert;
 
 // Commission types
-export type CommissionTransactionType = (typeof commissionTransactionTypeEnum.enumValues)[number];
+export type CommissionTransactionType =
+  (typeof commissionTransactionTypeEnum.enumValues)[number];
 export type CommissionTransaction = typeof commissionTransactions.$inferSelect;
-export type NewCommissionTransaction = typeof commissionTransactions.$inferInsert;
+export type NewCommissionTransaction =
+  typeof commissionTransactions.$inferInsert;
 
 // Analytics types
-export type AnalyticsDailySnapshot = typeof analyticsDailySnapshots.$inferSelect;
-export type NewAnalyticsDailySnapshot = typeof analyticsDailySnapshots.$inferInsert;
-export type AnalyticsProductPerformance = typeof analyticsProductPerformance.$inferSelect;
-export type NewAnalyticsProductPerformance = typeof analyticsProductPerformance.$inferInsert;
-export type AnalyticsCategoryPerformance = typeof analyticsCategoryPerformance.$inferSelect;
-export type NewAnalyticsCategoryPerformance = typeof analyticsCategoryPerformance.$inferInsert;
-export type AnalyticsTrafficSource = typeof analyticsTrafficSources.$inferSelect;
-export type NewAnalyticsTrafficSource = typeof analyticsTrafficSources.$inferInsert;
-export type AnalyticsGeographicSales = typeof analyticsGeographicSales.$inferSelect;
-export type NewAnalyticsGeographicSales = typeof analyticsGeographicSales.$inferInsert;
+export type AnalyticsDailySnapshot =
+  typeof analyticsDailySnapshots.$inferSelect;
+export type NewAnalyticsDailySnapshot =
+  typeof analyticsDailySnapshots.$inferInsert;
+export type AnalyticsProductPerformance =
+  typeof analyticsProductPerformance.$inferSelect;
+export type NewAnalyticsProductPerformance =
+  typeof analyticsProductPerformance.$inferInsert;
+export type AnalyticsCategoryPerformance =
+  typeof analyticsCategoryPerformance.$inferSelect;
+export type NewAnalyticsCategoryPerformance =
+  typeof analyticsCategoryPerformance.$inferInsert;
+export type AnalyticsTrafficSource =
+  typeof analyticsTrafficSources.$inferSelect;
+export type NewAnalyticsTrafficSource =
+  typeof analyticsTrafficSources.$inferInsert;
+export type AnalyticsGeographicSales =
+  typeof analyticsGeographicSales.$inferSelect;
+export type NewAnalyticsGeographicSales =
+  typeof analyticsGeographicSales.$inferInsert;
 export type AnalyticsHourlyMetrics = typeof analyticsHourlyMetrics.$inferSelect;
-export type NewAnalyticsHourlyMetrics = typeof analyticsHourlyMetrics.$inferInsert;
+export type NewAnalyticsHourlyMetrics =
+  typeof analyticsHourlyMetrics.$inferInsert;
 export type AnalyticsPageView = typeof analyticsPageViews.$inferSelect;
 export type NewAnalyticsPageView = typeof analyticsPageViews.$inferInsert;
-export type AnalyticsEventType = (typeof analyticsEventTypeEnum.enumValues)[number];
-export type AnalyticsConversionEvent = typeof analyticsConversionEvents.$inferSelect;
-export type NewAnalyticsConversionEvent = typeof analyticsConversionEvents.$inferInsert;
+export type AnalyticsEventType =
+  (typeof analyticsEventTypeEnum.enumValues)[number];
+export type AnalyticsConversionEvent =
+  typeof analyticsConversionEvents.$inferSelect;
+export type NewAnalyticsConversionEvent =
+  typeof analyticsConversionEvents.$inferInsert;
 
 // Product status types
 export type ProductStatus = (typeof productStatusEnum.enumValues)[number];
@@ -4685,7 +5340,8 @@ export type CommissionTier = typeof commissionTiers.$inferSelect;
 export type NewCommissionTier = typeof commissionTiers.$inferInsert;
 
 // Seller finance types
-export type SellerTransactionType = (typeof sellerTransactionTypeEnum.enumValues)[number];
+export type SellerTransactionType =
+  (typeof sellerTransactionTypeEnum.enumValues)[number];
 export type PayoutStatus = (typeof payoutStatusEnum.enumValues)[number];
 export type PayoutMethodType = (typeof payoutMethodTypeEnum.enumValues)[number];
 export type SellerBalance = typeof sellerBalances.$inferSelect;
@@ -4701,14 +5357,19 @@ export type NewSellerPayoutItem = typeof sellerPayoutItems.$inferInsert;
 
 // Affiliate types
 export type AffiliateStatus = (typeof affiliateStatusEnum.enumValues)[number];
-export type AffiliateCommissionType = (typeof affiliateCommissionTypeEnum.enumValues)[number];
-export type AffiliatePayoutStatus = (typeof affiliatePayoutStatusEnum.enumValues)[number];
+export type AffiliateCommissionType =
+  (typeof affiliateCommissionTypeEnum.enumValues)[number];
+export type AffiliatePayoutStatus =
+  (typeof affiliatePayoutStatusEnum.enumValues)[number];
 export type Affiliate = typeof affiliates.$inferSelect;
 export type NewAffiliate = typeof affiliates.$inferInsert;
 export type AffiliatePayoutMethod = typeof affiliatePayoutMethods.$inferSelect;
-export type NewAffiliatePayoutMethod = typeof affiliatePayoutMethods.$inferInsert;
-export type AffiliateTenantPartnership = typeof affiliateTenantPartnerships.$inferSelect;
-export type NewAffiliateTenantPartnership = typeof affiliateTenantPartnerships.$inferInsert;
+export type NewAffiliatePayoutMethod =
+  typeof affiliatePayoutMethods.$inferInsert;
+export type AffiliateTenantPartnership =
+  typeof affiliateTenantPartnerships.$inferSelect;
+export type NewAffiliateTenantPartnership =
+  typeof affiliateTenantPartnerships.$inferInsert;
 export type AffiliateLink = typeof affiliateLinks.$inferSelect;
 export type NewAffiliateLink = typeof affiliateLinks.$inferInsert;
 export type AffiliateClick = typeof affiliateClicks.$inferSelect;
@@ -4721,22 +5382,29 @@ export type AffiliateRating = typeof affiliateRatings.$inferSelect;
 export type NewAffiliateRating = typeof affiliateRatings.$inferInsert;
 
 // Delivery provider types
-export type DeliveryProviderType = (typeof deliveryProviderTypeEnum.enumValues)[number];
-export type DeliveryProviderStatus = (typeof deliveryProviderStatusEnum.enumValues)[number];
-export type DeliveryAssignmentStatus = (typeof deliveryAssignmentStatusEnum.enumValues)[number];
-export type DeliveryPayoutStatus = (typeof deliveryPayoutStatusEnum.enumValues)[number];
+export type DeliveryProviderType =
+  (typeof deliveryProviderTypeEnum.enumValues)[number];
+export type DeliveryProviderStatus =
+  (typeof deliveryProviderStatusEnum.enumValues)[number];
+export type DeliveryAssignmentStatus =
+  (typeof deliveryAssignmentStatusEnum.enumValues)[number];
+export type DeliveryPayoutStatus =
+  (typeof deliveryPayoutStatusEnum.enumValues)[number];
 export type DeliveryProvider = typeof deliveryProviders.$inferSelect;
 export type NewDeliveryProvider = typeof deliveryProviders.$inferInsert;
 export type DeliveryPayoutMethod = typeof deliveryPayoutMethods.$inferSelect;
 export type NewDeliveryPayoutMethod = typeof deliveryPayoutMethods.$inferInsert;
 export type DeliveryProviderZone = typeof deliveryProviderZones.$inferSelect;
 export type NewDeliveryProviderZone = typeof deliveryProviderZones.$inferInsert;
-export type DeliveryTenantPartnership = typeof deliveryTenantPartnerships.$inferSelect;
-export type NewDeliveryTenantPartnership = typeof deliveryTenantPartnerships.$inferInsert;
+export type DeliveryTenantPartnership =
+  typeof deliveryTenantPartnerships.$inferSelect;
+export type NewDeliveryTenantPartnership =
+  typeof deliveryTenantPartnerships.$inferInsert;
 export type DeliveryAssignment = typeof deliveryAssignments.$inferSelect;
 export type NewDeliveryAssignment = typeof deliveryAssignments.$inferInsert;
 export type DeliveryTrackingEvent = typeof deliveryTrackingEvents.$inferSelect;
-export type NewDeliveryTrackingEvent = typeof deliveryTrackingEvents.$inferInsert;
+export type NewDeliveryTrackingEvent =
+  typeof deliveryTrackingEvents.$inferInsert;
 export type DeliveryRating = typeof deliveryRatings.$inferSelect;
 export type NewDeliveryRating = typeof deliveryRatings.$inferInsert;
 export type DeliveryPayout = typeof deliveryPayouts.$inferSelect;

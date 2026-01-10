@@ -24,9 +24,7 @@ export async function getMediaLibrary(
   const conditions = [eq(media.tenantId, tenantId)];
 
   if (search) {
-    conditions.push(
-      ilike(media.fileName, `%${search}%`)
-    );
+    conditions.push(ilike(media.fileName, `%${search}%`));
   }
 
   const whereClause = and(...conditions);
@@ -89,12 +87,7 @@ export async function getMediaByIds(
   const items = await db
     .select()
     .from(media)
-    .where(
-      and(
-        eq(media.tenantId, tenantId),
-        inArray(media.id, mediaIds)
-      )
-    );
+    .where(and(eq(media.tenantId, tenantId), inArray(media.id, mediaIds)));
 
   return items;
 }
@@ -133,7 +126,9 @@ export async function getMediaUsageCount(
   const [categoryResult] = await db
     .select({ count: count() })
     .from(categories)
-    .where(and(eq(categories.tenantId, tenantId), eq(categories.imageId, mediaId)));
+    .where(
+      and(eq(categories.tenantId, tenantId), eq(categories.imageId, mediaId))
+    );
 
   return {
     productCount: productResult?.count ?? 0,

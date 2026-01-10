@@ -76,7 +76,9 @@ export type ProductVariantInput = z.infer<typeof productVariantSchema>;
 
 // Bulk variant creation schema
 export const bulkVariantSchema = z.object({
-  variants: z.array(productVariantSchema).min(1, "At least one variant is required"),
+  variants: z
+    .array(productVariantSchema)
+    .min(1, "At least one variant is required"),
 });
 
 export type BulkVariantInput = z.infer<typeof bulkVariantSchema>;
@@ -102,4 +104,6 @@ export const variantOptionWithValuesSchema = z.object({
     .min(1, "At least one value is required"),
 });
 
-export type VariantOptionWithValuesInput = z.infer<typeof variantOptionWithValuesSchema>;
+export type VariantOptionWithValuesInput = z.infer<
+  typeof variantOptionWithValuesSchema
+>;

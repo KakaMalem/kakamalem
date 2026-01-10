@@ -118,7 +118,7 @@ export function generateUniqueSlug(
 export function shouldUpdateSlug(
   currentName: string,
   currentSlug: string,
-  previousName: string,
+  previousName: string
 ): { shouldUpdate: boolean; newSlug: string } {
   // If slug was manually edited (doesn't match slugified previous name), don't auto-update
   const expectedSlug = slugify(previousName);
@@ -141,7 +141,10 @@ export function shouldUpdateSlug(
  * @param slug - The slug to validate
  * @returns Object with isValid and error message
  */
-export function validateSlug(slug: string): { isValid: boolean; error?: string } {
+export function validateSlug(slug: string): {
+  isValid: boolean;
+  error?: string;
+} {
   if (!slug || slug.length === 0) {
     return { isValid: false, error: "Slug cannot be empty" };
   }
@@ -177,7 +180,10 @@ export function validateSlug(slug: string): { isValid: boolean; error?: string }
   ];
 
   if (reservedSlugs.includes(slug)) {
-    return { isValid: false, error: "This slug is reserved and cannot be used" };
+    return {
+      isValid: false,
+      error: "This slug is reserved and cannot be used",
+    };
   }
 
   return { isValid: true };
@@ -188,7 +194,10 @@ export function validateSlug(slug: string): { isValid: boolean; error?: string }
  * @param slug - The slug to validate
  * @returns Object with isValid and error message
  */
-export function validateAsciiSlug(slug: string): { isValid: boolean; error?: string } {
+export function validateAsciiSlug(slug: string): {
+  isValid: boolean;
+  error?: string;
+} {
   if (!slug || slug.length === 0) {
     return { isValid: false, error: "Slug cannot be empty" };
   }
@@ -202,7 +211,8 @@ export function validateAsciiSlug(slug: string): { isValid: boolean; error?: str
   if (!asciiSlugRegex.test(slug)) {
     return {
       isValid: false,
-      error: "Slug can only contain lowercase letters (a-z), numbers, and hyphens",
+      error:
+        "Slug can only contain lowercase letters (a-z), numbers, and hyphens",
     };
   }
 
@@ -224,7 +234,10 @@ export function validateAsciiSlug(slug: string): { isValid: boolean; error?: str
   ];
 
   if (reservedSlugs.includes(slug)) {
-    return { isValid: false, error: "This slug is reserved and cannot be used" };
+    return {
+      isValid: false,
+      error: "This slug is reserved and cannot be used",
+    };
   }
 
   return { isValid: true };

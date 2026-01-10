@@ -157,7 +157,12 @@ export async function removeFromCartAction(
   const sessionId = await getOrCreateCartSessionInAction();
   const user = await getUser();
 
-  const result = await dbRemoveFromCart(tenantId, sessionId, cartItemId, user?.id);
+  const result = await dbRemoveFromCart(
+    tenantId,
+    sessionId,
+    cartItemId,
+    user?.id
+  );
 
   if (result.success) {
     revalidatePath(`/store/${storeSlug}`);
@@ -188,7 +193,9 @@ export async function clearCartAction(
 /**
  * Get cart summary (item count and subtotal)
  */
-export async function getCartSummaryAction(tenantId: string): Promise<CartSummary> {
+export async function getCartSummaryAction(
+  tenantId: string
+): Promise<CartSummary> {
   const sessionId = await getOrCreateCartSessionInAction();
   const user = await getUser();
 

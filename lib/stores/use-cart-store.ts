@@ -105,7 +105,9 @@ function getApplicableTierPrice(
   if (!priceTiers || priceTiers.length === 0) return basePrice;
 
   // Sort by minQuantity descending to find the highest applicable tier
-  const sortedTiers = [...priceTiers].sort((a, b) => b.minQuantity - a.minQuantity);
+  const sortedTiers = [...priceTiers].sort(
+    (a, b) => b.minQuantity - a.minQuantity
+  );
 
   for (const tier of sortedTiers) {
     if (quantity >= tier.minQuantity) {
@@ -224,8 +226,7 @@ export const useCartStore = create<CartStore>()(
         const items = get().items;
         const existingIndex = items.findIndex(
           (i) =>
-            i.productId === item.productId &&
-            i.variantId === item.variantId
+            i.productId === item.productId && i.variantId === item.variantId
         );
 
         let newItems: CartItem[];

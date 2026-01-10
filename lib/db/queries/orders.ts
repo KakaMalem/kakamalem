@@ -1,7 +1,13 @@
 import { cache } from "react";
 import { eq, and, desc, count as drizzleCount } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { orders, orderItems, products, media, productImages } from "@/lib/db/schema";
+import {
+  orders,
+  orderItems,
+  products,
+  media,
+  productImages,
+} from "@/lib/db/schema";
 
 // =============================================================================
 // ORDER QUERIES (CUSTOMER VIEW)

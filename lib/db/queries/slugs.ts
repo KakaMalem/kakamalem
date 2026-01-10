@@ -33,7 +33,10 @@ export async function generateUniqueProductSlug(
           ),
         })
       : await db.query.products.findFirst({
-          where: and(eq(products.tenantId, tenantId), eq(products.slug, baseSlug)),
+          where: and(
+            eq(products.tenantId, tenantId),
+            eq(products.slug, baseSlug)
+          ),
         });
 
     // If slug is available, return it as-is (no suffix needed)
@@ -50,7 +53,10 @@ export async function generateUniqueProductSlug(
           sql`${products.slug} LIKE ${pattern}`,
           ne(products.id, existingProductId),
         ]
-      : [eq(products.tenantId, tenantId), sql`${products.slug} LIKE ${pattern}`];
+      : [
+          eq(products.tenantId, tenantId),
+          sql`${products.slug} LIKE ${pattern}`,
+        ];
 
     const existingSlugs = await db
       .select({ slug: products.slug })
@@ -107,7 +113,10 @@ export async function generateUniqueCategorySlug(
           ),
         })
       : await db.query.categories.findFirst({
-          where: and(eq(categories.tenantId, tenantId), eq(categories.slug, baseSlug)),
+          where: and(
+            eq(categories.tenantId, tenantId),
+            eq(categories.slug, baseSlug)
+          ),
         });
 
     if (!existingCategory) {
@@ -121,7 +130,10 @@ export async function generateUniqueCategorySlug(
           sql`${categories.slug} LIKE ${pattern}`,
           ne(categories.id, existingCategoryId),
         ]
-      : [eq(categories.tenantId, tenantId), sql`${categories.slug} LIKE ${pattern}`];
+      : [
+          eq(categories.tenantId, tenantId),
+          sql`${categories.slug} LIKE ${pattern}`,
+        ];
 
     const existingSlugs = await db
       .select({ slug: categories.slug })
@@ -168,7 +180,10 @@ export async function generateUniqueStoreSlug(
 
   const existingTenant = existingTenantId
     ? await db.query.tenants.findFirst({
-        where: and(eq(tenants.slug, baseSlug), ne(tenants.id, existingTenantId)),
+        where: and(
+          eq(tenants.slug, baseSlug),
+          ne(tenants.id, existingTenantId)
+        ),
       })
     : await db.query.tenants.findFirst({
         where: eq(tenants.slug, baseSlug),

@@ -22,7 +22,9 @@ export async function addToWishlistAction(
 ) {
   const user = await getUser();
   if (!user) {
-    return { error: { message: "Please log in to save items to your wishlist" } };
+    return {
+      error: { message: "Please log in to save items to your wishlist" },
+    };
   }
 
   try {
@@ -157,7 +159,9 @@ export async function toggleWishlistAction(
 ) {
   const user = await getUser();
   if (!user) {
-    return { error: { message: "Please log in to save items to your wishlist" } };
+    return {
+      error: { message: "Please log in to save items to your wishlist" },
+    };
   }
 
   try {
@@ -174,7 +178,9 @@ export async function toggleWishlistAction(
 
     if (existingItem) {
       // Remove it
-      await db.delete(wishlistItems).where(eq(wishlistItems.id, existingItem.id));
+      await db
+        .delete(wishlistItems)
+        .where(eq(wishlistItems.id, existingItem.id));
       revalidatePath("/store/[slug]/account/wishlist", "page");
       revalidatePath("/store/[slug]/product/[productSlug]", "page");
       return { data: { action: "removed" as const } };

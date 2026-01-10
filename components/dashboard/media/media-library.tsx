@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -17,6 +17,8 @@ import {
   CheckSquare,
   Square,
   X,
+  LayoutGrid,
+  LayoutList,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -76,14 +78,32 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.03 },
+    transition: {
+      staggerChildren: 0.02,
+      delayChildren: 0.05,
+    },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: { opacity: 1, scale: 1 },
-  exit: { opacity: 0, scale: 0.9 },
+  hidden: { opacity: 0, y: 8 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: "spring" as const,
+      stiffness: 500,
+      damping: 30,
+    },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    transition: {
+      duration: 0.15,
+      ease: "easeOut" as const,
+    },
+  },
 };
 
 export function MediaLibrary({
@@ -114,6 +134,27 @@ export function MediaLibrary({
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
+
+  // View mode state (persisted in localStorage)
+  // Use null initially to indicate "not yet loaded from localStorage"
+  const [viewMode, setViewMode] = useState<"grid" | "list" | null>(null);
+
+  // Load view mode from localStorage after mount
+  useEffect(() => {
+    const savedMode = localStorage.getItem("media-view-mode") as
+      | "grid"
+      | "list"
+      | null;
+    setViewMode(savedMode === "grid" ? "grid" : "list");
+  }, []);
+
+  const toggleViewMode = () => {
+    const newMode = viewMode === "grid" ? "list" : "grid";
+    setViewMode(newMode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("media-view-mode", newMode);
+    }
+  };
 
   // Toggle selection for a single item
   const toggleSelection = (itemId: string) => {
@@ -320,6 +361,22 @@ export function MediaLibrary({
           />
         </div>
         <Button
+          variant="outline"
+          size="icon"
+          onClick={toggleViewMode}
+          className="cursor-pointer shrink-0"
+          disabled={viewMode === null}
+          title={
+            viewMode === "grid" ? "Switch to list view" : "Switch to grid view"
+          }
+        >
+          {viewMode === "grid" ? (
+            <LayoutList className="size-4" />
+          ) : (
+            <LayoutGrid className="size-4" />
+          )}
+        </Button>
+        <Button
           variant={selectionMode ? "secondary" : "outline"}
           size="sm"
           onClick={toggleSelectionMode}
@@ -379,7 +436,7 @@ export function MediaLibrary({
       />
 
       {/* Media List */}
-      {isLoading ? (
+      {isLoading || viewMode === null ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-8 animate-spin text-muted-foreground" />
         </div>
@@ -397,23 +454,128 @@ export function MediaLibrary({
         </Card>
       ) : (
         <>
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="space-y-2"
-          >
-            <AnimatePresence>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={viewMode}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              className={
+                viewMode === "grid"
+                  ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
+                  : "space-y-2"
+              }
+            >
               {items.map((item) => {
                 const isSelected = selectedIds.has(item.id);
+
+                // Grid view item
+                if (viewMode === "grid") {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      variants={itemVariants}
+                      className={`group relative rounded-lg border overflow-hidden ${
+                        isSelected ? "ring-2 ring-primary" : ""
+                      }`}
+                      onClick={
+                        selectionMode
+                          ? () => toggleSelection(item.id)
+                          : undefined
+                      }
+                      style={selectionMode ? { cursor: "pointer" } : undefined}
+                    >
+                      {/* Image */}
+                      <div className="relative aspect-square bg-muted">
+                        <Image
+                          src={item.url}
+                          alt={item.altText || item.fileName || "Image"}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 16vw"
+                        />
+
+                        {/* Selection Checkbox - overlay on image */}
+                        {selectionMode && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelection(item.id);
+                            }}
+                            className="absolute top-2 left-2 cursor-pointer z-10"
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="size-5 text-primary bg-white rounded" />
+                            ) : (
+                              <Square className="size-5 text-muted-foreground bg-white/80 rounded hover:text-foreground transition-colors" />
+                            )}
+                          </button>
+                        )}
+
+                        {/* Actions Menu - overlay on image */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="secondary"
+                                size="icon-sm"
+                                className="cursor-pointer size-7"
+                              >
+                                <MoreVertical className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleCopyUrl(item)}
+                              >
+                                {copiedId === item.id ? (
+                                  <Check className="mr-2 size-4" />
+                                ) : (
+                                  <Copy className="mr-2 size-4" />
+                                )}
+                                Copy URL
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleEditOpen(item)}
+                              >
+                                <Pencil className="mr-2 size-4" />
+                                Edit Alt Text
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteOpen(item)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 size-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+
+                      {/* File info */}
+                      <div className="p-2 bg-background">
+                        <p className="text-sm font-medium truncate">
+                          {item.fileName || "Untitled"}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {formatFileSize(item.fileSize || 0)}
+                          {item.width &&
+                            item.height &&
+                            ` • ${item.width}×${item.height}`}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                // List view item
                 return (
                   <motion.div
                     key={item.id}
                     variants={itemVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    layout
                     className={`group flex items-center gap-3 p-2 rounded-lg border ${
                       isSelected ? "bg-primary/10 border-primary" : "bg-muted"
                     }`}
@@ -496,8 +658,8 @@ export function MediaLibrary({
                   </motion.div>
                 );
               })}
-            </AnimatePresence>
-          </motion.div>
+            </motion.div>
+          </AnimatePresence>
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (

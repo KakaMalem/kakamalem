@@ -36,6 +36,7 @@ interface ProductsPageClientProps {
     total: number;
   };
   searchParams: Record<string, string | undefined>;
+  currentLimit: number;
   showArchived: boolean;
 }
 
@@ -46,6 +47,7 @@ export function ProductsPageClient({
   products,
   pagination,
   searchParams,
+  currentLimit,
   showArchived,
 }: ProductsPageClientProps) {
   const router = useRouter();
@@ -156,6 +158,7 @@ export function ProductsPageClient({
         storeSlug={storeSlug}
         pagination={pagination}
         searchParams={searchParams}
+        currentLimit={currentLimit}
         selectedCount={selectedIds.size}
         selectionMode={selectionMode}
         onSelectionModeToggle={handleSelectionModeToggle}

@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { products, productImages, productCategories, media } from "@/lib/db/schema";
+import {
+  products,
+  productImages,
+  productCategories,
+  media,
+} from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
 import { generateUniqueProductSlug } from "@/lib/db/queries/slugs";
@@ -55,11 +60,22 @@ export async function createProduct(
         slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
-        compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
-        costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
-        minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
-        maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
-        categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
+        compareAtPrice:
+          data.compareAtPrice && data.compareAtPrice !== ""
+            ? data.compareAtPrice
+            : null,
+        costPrice:
+          data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+        minOrderQuantity:
+          data.minOrderQuantity && data.minOrderQuantity !== ""
+            ? parseInt(data.minOrderQuantity)
+            : 1,
+        maxOrderQuantity:
+          data.maxOrderQuantity && data.maxOrderQuantity !== ""
+            ? parseInt(data.maxOrderQuantity)
+            : null,
+        categoryId:
+          data.categoryId && data.categoryId !== "" ? data.categoryId : null,
         trackInventory: data.trackInventory,
         stock: parseInt(data.stock || "0"),
         allowBackorder: data.allowBackorder,
@@ -118,7 +134,10 @@ export async function createProduct(
         errorMessage = "Invalid category or media reference.";
       } else if (error.message.includes("not null constraint")) {
         errorMessage = "Missing required product information.";
-      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+      } else if (
+        error.message.includes("permission denied") ||
+        error.message.includes("RLS")
+      ) {
         errorMessage = "You don't have permission to create products.";
       } else {
         // Include error details in development/debugging
@@ -240,7 +259,8 @@ export async function createProductWithImages(
       return {
         success: false,
         error: {
-          message: "Failed to upload all images. Please check your internet connection and try again.",
+          message:
+            "Failed to upload all images. Please check your internet connection and try again.",
         },
       };
     }
@@ -261,7 +281,9 @@ export async function createProductWithImages(
 
     // Use database transaction for all DB operations (atomic)
     const newProduct = await db.transaction(async (tx) => {
-      console.log("📦 [createProductWithImages] Inside transaction, creating product...");
+      console.log(
+        "📦 [createProductWithImages] Inside transaction, creating product..."
+      );
 
       // Create product
       const [product] = await tx
@@ -272,11 +294,22 @@ export async function createProductWithImages(
           slug: uniqueSlug,
           description: data.description || null,
           price: data.price,
-          compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
-          costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
-          minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
-          maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
-          categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
+          compareAtPrice:
+            data.compareAtPrice && data.compareAtPrice !== ""
+              ? data.compareAtPrice
+              : null,
+          costPrice:
+            data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+          minOrderQuantity:
+            data.minOrderQuantity && data.minOrderQuantity !== ""
+              ? parseInt(data.minOrderQuantity)
+              : 1,
+          maxOrderQuantity:
+            data.maxOrderQuantity && data.maxOrderQuantity !== ""
+              ? parseInt(data.maxOrderQuantity)
+              : null,
+          categoryId:
+            data.categoryId && data.categoryId !== "" ? data.categoryId : null,
           trackInventory: data.trackInventory,
           stock: parseInt(data.stock || "0"),
           allowBackorder: data.allowBackorder,
@@ -295,7 +328,10 @@ export async function createProductWithImages(
 
       // Add product images if provided
       if (allImageIds.length > 0) {
-        console.log("🖼️ [createProductWithImages] Adding product images:", allImageIds);
+        console.log(
+          "🖼️ [createProductWithImages] Adding product images:",
+          allImageIds
+        );
         const imageValues = allImageIds.map((mediaId, index) => ({
           productId: product.id,
           mediaId,
@@ -308,7 +344,10 @@ export async function createProductWithImages(
 
       // Add product categories if provided
       if (data.categoryIds && data.categoryIds.length > 0) {
-        console.log("🏷️ [createProductWithImages] Adding product categories:", data.categoryIds);
+        console.log(
+          "🏷️ [createProductWithImages] Adding product categories:",
+          data.categoryIds
+        );
         const categoryValues = data.categoryIds.map((categoryId) => ({
           productId: product.id,
           categoryId,
@@ -318,11 +357,16 @@ export async function createProductWithImages(
         console.log("✅ [createProductWithImages] Product categories added");
       }
 
-      console.log("✅ [createProductWithImages] Transaction complete, returning product");
+      console.log(
+        "✅ [createProductWithImages] Transaction complete, returning product"
+      );
       return product;
     });
 
-    console.log("✅ [createProductWithImages] Transaction successful:", newProduct);
+    console.log(
+      "✅ [createProductWithImages] Transaction successful:",
+      newProduct
+    );
 
     revalidatePath(`/dashboard`);
 
@@ -334,18 +378,30 @@ export async function createProductWithImages(
       },
     };
   } catch (error) {
-    console.error("❌ [createProductWithImages] Error creating product with images:", error);
+    console.error(
+      "❌ [createProductWithImages] Error creating product with images:",
+      error
+    );
     console.error("❌ [createProductWithImages] Error type:", typeof error);
-    console.error("❌ [createProductWithImages] Error instanceof Error:", error instanceof Error);
+    console.error(
+      "❌ [createProductWithImages] Error instanceof Error:",
+      error instanceof Error
+    );
     if (error instanceof Error) {
-      console.error("❌ [createProductWithImages] Error message:", error.message);
+      console.error(
+        "❌ [createProductWithImages] Error message:",
+        error.message
+      );
       console.error("❌ [createProductWithImages] Error stack:", error.stack);
     }
-    console.error("❌ [createProductWithImages] Stringified error:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    console.error(
+      "❌ [createProductWithImages] Stringified error:",
+      JSON.stringify(error, Object.getOwnPropertyNames(error))
+    );
 
     // Clean up uploaded media if product creation failed
     if (uploadedMediaIds.length > 0) {
-      await cleanupOrphanedMedia(uploadedMediaIds).catch(cleanupError => {
+      await cleanupOrphanedMedia(uploadedMediaIds).catch((cleanupError) => {
         console.error("Error cleaning up orphaned media:", cleanupError);
       });
     }
@@ -355,7 +411,10 @@ export async function createProductWithImages(
 
     if (error instanceof Error) {
       // Storage/upload errors
-      if (error.message.includes("storage") || error.message.includes("upload")) {
+      if (
+        error.message.includes("storage") ||
+        error.message.includes("upload")
+      ) {
         errorMessage = "Failed to upload product images. Please try again.";
       } else if (error.message.includes("unique constraint")) {
         errorMessage = "A product with this name already exists in your store.";
@@ -363,7 +422,10 @@ export async function createProductWithImages(
         errorMessage = "Invalid category or media reference.";
       } else if (error.message.includes("not null constraint")) {
         errorMessage = "Missing required product information.";
-      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+      } else if (
+        error.message.includes("permission denied") ||
+        error.message.includes("RLS")
+      ) {
         errorMessage = "You don't have permission to create products.";
       } else {
         // Include error details in development/debugging
@@ -418,7 +480,11 @@ export async function updateProductWithImages(
     const data = result.data;
 
     // Auto-generate unique slug from product name (update case)
-    const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name, productId);
+    const uniqueSlug = await generateUniqueProductSlug(
+      tenantId,
+      data.name,
+      productId
+    );
 
     // Upload staged files first (storage operations cannot be in transaction)
     for (const file of stagedFiles) {
@@ -436,7 +502,8 @@ export async function updateProductWithImages(
       return {
         success: false,
         error: {
-          message: "Failed to upload all images. Please check your internet connection and try again.",
+          message:
+            "Failed to upload all images. Please check your internet connection and try again.",
         },
       };
     }
@@ -454,11 +521,22 @@ export async function updateProductWithImages(
           slug: uniqueSlug,
           description: data.description || null,
           price: data.price,
-          compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
-          costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
-          minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
-          maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
-          categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
+          compareAtPrice:
+            data.compareAtPrice && data.compareAtPrice !== ""
+              ? data.compareAtPrice
+              : null,
+          costPrice:
+            data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+          minOrderQuantity:
+            data.minOrderQuantity && data.minOrderQuantity !== ""
+              ? parseInt(data.minOrderQuantity)
+              : 1,
+          maxOrderQuantity:
+            data.maxOrderQuantity && data.maxOrderQuantity !== ""
+              ? parseInt(data.maxOrderQuantity)
+              : null,
+          categoryId:
+            data.categoryId && data.categoryId !== "" ? data.categoryId : null,
           trackInventory: data.trackInventory,
           stock: parseInt(data.stock || "0"),
           allowBackorder: data.allowBackorder,
@@ -529,7 +607,7 @@ export async function updateProductWithImages(
 
     // Clean up uploaded media if product update failed
     if (uploadedMediaIds.length > 0) {
-      await cleanupOrphanedMedia(uploadedMediaIds).catch(cleanupError => {
+      await cleanupOrphanedMedia(uploadedMediaIds).catch((cleanupError) => {
         console.error("Error cleaning up orphaned media:", cleanupError);
       });
     }
@@ -539,7 +617,10 @@ export async function updateProductWithImages(
 
     if (error instanceof Error) {
       // Storage/upload errors
-      if (error.message.includes("storage") || error.message.includes("upload")) {
+      if (
+        error.message.includes("storage") ||
+        error.message.includes("upload")
+      ) {
         errorMessage = "Failed to upload product images. Please try again.";
       } else if (error.message.includes("unique constraint")) {
         errorMessage = "A product with this name already exists in your store.";
@@ -547,7 +628,10 @@ export async function updateProductWithImages(
         errorMessage = "Invalid category or media reference.";
       } else if (error.message.includes("not null constraint")) {
         errorMessage = "Missing required product information.";
-      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+      } else if (
+        error.message.includes("permission denied") ||
+        error.message.includes("RLS")
+      ) {
         errorMessage = "You don't have permission to update this product.";
       } else {
         // Include error details in development/debugging
@@ -589,7 +673,11 @@ export async function updateProduct(
     const data = result.data;
 
     // Auto-generate unique slug from product name (update case)
-    const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name, productId);
+    const uniqueSlug = await generateUniqueProductSlug(
+      tenantId,
+      data.name,
+      productId
+    );
 
     // Update product
     const [updatedProduct] = await db
@@ -599,11 +687,22 @@ export async function updateProduct(
         slug: uniqueSlug,
         description: data.description || null,
         price: data.price,
-        compareAtPrice: data.compareAtPrice && data.compareAtPrice !== "" ? data.compareAtPrice : null,
-        costPrice: data.costPrice && data.costPrice !== "" ? data.costPrice : null,
-        minOrderQuantity: data.minOrderQuantity && data.minOrderQuantity !== "" ? parseInt(data.minOrderQuantity) : 1,
-        maxOrderQuantity: data.maxOrderQuantity && data.maxOrderQuantity !== "" ? parseInt(data.maxOrderQuantity) : null,
-        categoryId: data.categoryId && data.categoryId !== "" ? data.categoryId : null,
+        compareAtPrice:
+          data.compareAtPrice && data.compareAtPrice !== ""
+            ? data.compareAtPrice
+            : null,
+        costPrice:
+          data.costPrice && data.costPrice !== "" ? data.costPrice : null,
+        minOrderQuantity:
+          data.minOrderQuantity && data.minOrderQuantity !== ""
+            ? parseInt(data.minOrderQuantity)
+            : 1,
+        maxOrderQuantity:
+          data.maxOrderQuantity && data.maxOrderQuantity !== ""
+            ? parseInt(data.maxOrderQuantity)
+            : null,
+        categoryId:
+          data.categoryId && data.categoryId !== "" ? data.categoryId : null,
         trackInventory: data.trackInventory,
         stock: parseInt(data.stock || "0"),
         allowBackorder: data.allowBackorder,
@@ -669,7 +768,10 @@ export async function updateProduct(
         errorMessage = "Invalid category or media reference.";
       } else if (error.message.includes("not null constraint")) {
         errorMessage = "Missing required product information.";
-      } else if (error.message.includes("permission denied") || error.message.includes("RLS")) {
+      } else if (
+        error.message.includes("permission denied") ||
+        error.message.includes("RLS")
+      ) {
         errorMessage = "You don't have permission to update this product.";
       } else {
         // Include error details in development/debugging
@@ -828,7 +930,10 @@ export async function reorderProducts(
         .update(products)
         .set({ displayOrder: i, updatedAt: new Date().toISOString() })
         .where(
-          and(eq(products.id, data.productIds[i]), eq(products.tenantId, tenantId))
+          and(
+            eq(products.id, data.productIds[i]),
+            eq(products.tenantId, tenantId)
+          )
         );
     }
 

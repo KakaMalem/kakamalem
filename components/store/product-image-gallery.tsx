@@ -2,7 +2,12 @@
 
 import { useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence, useDragControls, PanInfo } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  useDragControls,
+  PanInfo,
+} from "framer-motion";
 import { ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,21 +33,21 @@ export function ProductImageGallery({
   const swipeThreshold = 50;
   const swipeVelocityThreshold = 500;
 
-  const goToImage = useCallback((index: number, dir?: number) => {
-    if (index < 0 || index >= images.length) return;
-    setDirection(dir ?? (index > currentIndex ? 1 : -1));
-    setCurrentIndex(index);
-  }, [currentIndex, images.length]);
+  const goToImage = useCallback(
+    (index: number, dir?: number) => {
+      if (index < 0 || index >= images.length) return;
+      setDirection(dir ?? (index > currentIndex ? 1 : -1));
+      setCurrentIndex(index);
+    },
+    [currentIndex, images.length]
+  );
 
   const handleDragEnd = useCallback(
     (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       const { offset, velocity } = info;
 
       // Determine if we should change slides
-      if (
-        offset.x < -swipeThreshold ||
-        velocity.x < -swipeVelocityThreshold
-      ) {
+      if (offset.x < -swipeThreshold || velocity.x < -swipeVelocityThreshold) {
         // Swiped left -> go to next
         if (currentIndex < images.length - 1) {
           goToImage(currentIndex + 1, 1);
@@ -129,7 +134,8 @@ export function ProductImageGallery({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (currentIndex < images.length - 1) goToImage(currentIndex + 1, 1);
+                if (currentIndex < images.length - 1)
+                  goToImage(currentIndex + 1, 1);
               }}
               disabled={currentIndex === images.length - 1}
               className={cn(
@@ -138,7 +144,8 @@ export function ProductImageGallery({
                 "opacity-0 transition-opacity hover:bg-white",
                 "hidden md:flex items-center justify-center",
                 "group-hover:opacity-100 focus:opacity-100",
-                currentIndex === images.length - 1 && "opacity-0! cursor-default"
+                currentIndex === images.length - 1 &&
+                  "opacity-0! cursor-default"
               )}
               aria-label="Next image"
             >
@@ -178,7 +185,9 @@ export function ProductImageGallery({
           >
             <Image
               src={currentImage.url}
-              alt={currentImage.altText || `${productName} - ${currentIndex + 1}`}
+              alt={
+                currentImage.altText || `${productName} - ${currentIndex + 1}`
+              }
               width={1200}
               height={1200}
               className="max-h-full max-w-full object-contain pointer-events-none select-none"
@@ -206,7 +215,10 @@ export function ProductImageGallery({
                   ? "border-primary ring-2 ring-primary/20"
                   : "border-border/40 hover:border-border"
               )}
-              style={{ width: `calc(${100 / Math.min(images.length, 5)}% - ${(Math.min(images.length, 5) - 1) * 8 / Math.min(images.length, 5)}px)`, minWidth: 60 }}
+              style={{
+                width: `calc(${100 / Math.min(images.length, 5)}% - ${((Math.min(images.length, 5) - 1) * 8) / Math.min(images.length, 5)}px)`,
+                minWidth: 60,
+              }}
             >
               <div className="absolute inset-0 flex items-center justify-center">
                 <Image

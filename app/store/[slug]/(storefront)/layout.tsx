@@ -59,8 +59,8 @@ export async function generateMetadata({
       images: seo?.ogImageUrl
         ? [{ url: seo.ogImageUrl }]
         : store.logoUrl
-        ? [{ url: store.logoUrl }]
-        : undefined,
+          ? [{ url: store.logoUrl }]
+          : undefined,
     },
     icons: store.faviconUrl ? { icon: store.faviconUrl } : undefined,
   };

@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { replaceProductPriceTiers, getProductPriceTiers } from "@/lib/db/queries/pricing";
+import {
+  replaceProductPriceTiers,
+  getProductPriceTiers,
+} from "@/lib/db/queries/pricing";
 import type { PriceTier } from "@/lib/db/schema";
 
 export type PriceTierActionResult = {
@@ -39,7 +42,10 @@ export async function savePriceTiers(
       if (tier.maxQuantity !== null && tier.maxQuantity < tier.minQuantity) {
         return {
           success: false,
-          error: { message: "Maximum quantity must be greater than or equal to minimum" },
+          error: {
+            message:
+              "Maximum quantity must be greater than or equal to minimum",
+          },
         };
       }
       const price = parseFloat(tier.price);
@@ -52,7 +58,9 @@ export async function savePriceTiers(
     }
 
     // Check for overlapping ranges
-    const sortedTiers = [...tiers].sort((a, b) => a.minQuantity - b.minQuantity);
+    const sortedTiers = [...tiers].sort(
+      (a, b) => a.minQuantity - b.minQuantity
+    );
     for (let i = 0; i < sortedTiers.length - 1; i++) {
       const current = sortedTiers[i];
       const next = sortedTiers[i + 1];
@@ -61,15 +69,22 @@ export async function savePriceTiers(
       if (current.maxQuantity === null && i < sortedTiers.length - 1) {
         return {
           success: false,
-          error: { message: "Only the last tier can have unlimited maximum quantity" },
+          error: {
+            message: "Only the last tier can have unlimited maximum quantity",
+          },
         };
       }
 
       // Check for overlap
-      if (current.maxQuantity !== null && current.maxQuantity >= next.minQuantity) {
+      if (
+        current.maxQuantity !== null &&
+        current.maxQuantity >= next.minQuantity
+      ) {
         return {
           success: false,
-          error: { message: `Tier ranges overlap: ${current.minQuantity}-${current.maxQuantity} and ${next.minQuantity}+` },
+          error: {
+            message: `Tier ranges overlap: ${current.minQuantity}-${current.maxQuantity} and ${next.minQuantity}+`,
+          },
         };
       }
     }
@@ -96,7 +111,8 @@ export async function savePriceTiers(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to save price tiers",
+        message:
+          error instanceof Error ? error.message : "Failed to save price tiers",
       },
     };
   }
@@ -119,7 +135,8 @@ export async function getPriceTiersAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to get price tiers",
+        message:
+          error instanceof Error ? error.message : "Failed to get price tiers",
       },
     };
   }

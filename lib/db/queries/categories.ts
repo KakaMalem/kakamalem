@@ -67,7 +67,10 @@ export async function getCategoryBySlug(tenantId: string, slug: string) {
 /**
  * Get category by slug with image (for storefront)
  */
-export async function getCategoryBySlugWithImage(tenantId: string, slug: string) {
+export async function getCategoryBySlugWithImage(
+  tenantId: string,
+  slug: string
+) {
   const category = await db.query.categories.findFirst({
     where: and(eq(categories.tenantId, tenantId), eq(categories.slug, slug)),
     with: {
@@ -110,7 +113,9 @@ export async function getMaxCategoryDisplayOrder(
   tenantId: string
 ): Promise<number> {
   const result = await db
-    .select({ maxOrder: sql<number>`COALESCE(MAX(${categories.displayOrder}), -1)` })
+    .select({
+      maxOrder: sql<number>`COALESCE(MAX(${categories.displayOrder}), -1)`,
+    })
     .from(categories)
     .where(eq(categories.tenantId, tenantId));
 

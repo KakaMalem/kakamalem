@@ -56,7 +56,10 @@ export async function adjustStock(
     if (adjustmentType !== "set" && quantity === 0) {
       return {
         success: false,
-        error: { message: "Quantity cannot be zero for add/remove", field: "quantity" },
+        error: {
+          message: "Quantity cannot be zero for add/remove",
+          field: "quantity",
+        },
       };
     }
 
@@ -113,10 +116,7 @@ export async function adjustStock(
     } else {
       // Adjust product stock (simple product)
       const product = await db.query.products.findFirst({
-        where: and(
-          eq(products.tenantId, tenantId),
-          eq(products.id, productId)
-        ),
+        where: and(eq(products.tenantId, tenantId), eq(products.id, productId)),
         columns: { stock: true, hasVariants: true, trackInventory: true },
       });
 
@@ -130,7 +130,10 @@ export async function adjustStock(
       if (product.hasVariants) {
         return {
           success: false,
-          error: { message: "This product has variants. Adjust stock on variants instead." },
+          error: {
+            message:
+              "This product has variants. Adjust stock on variants instead.",
+          },
         };
       }
 
@@ -182,7 +185,9 @@ export async function adjustStock(
         previousStock,
         newStock,
         userId: user.id,
-        reason: reason || `Stock ${adjustmentType === "set" ? "set to" : adjustmentType === "add" ? "increased by" : "decreased by"} ${quantity}`,
+        reason:
+          reason ||
+          `Stock ${adjustmentType === "set" ? "set to" : adjustmentType === "add" ? "increased by" : "decreased by"} ${quantity}`,
       })
       .returning({ id: inventoryMovements.id });
 
@@ -290,10 +295,7 @@ export async function recordStockMovement(
         .where(eq(productVariants.id, variantId));
     } else {
       const product = await db.query.products.findFirst({
-        where: and(
-          eq(products.tenantId, tenantId),
-          eq(products.id, productId)
-        ),
+        where: and(eq(products.tenantId, tenantId), eq(products.id, productId)),
         columns: { stock: true },
       });
 

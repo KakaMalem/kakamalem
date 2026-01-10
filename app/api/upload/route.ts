@@ -30,10 +30,7 @@ export async function POST(request: NextRequest) {
     // -------------------------------------------------------------------------
     const session = await getSession();
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // -------------------------------------------------------------------------
@@ -70,10 +67,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!tenant) {
-      return NextResponse.json(
-        { error: "Tenant not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
 
     // Check if user is owner or member
@@ -151,15 +145,17 @@ export async function POST(request: NextRequest) {
     console.error("Upload API error:", error);
 
     // Return user-friendly error messages
-    const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("too large") ? 413 :
-                   message.includes("Invalid file type") ? 415 :
-                   message.includes("No file") ? 400 : 500;
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+    const status = message.includes("too large")
+      ? 413
+      : message.includes("Invalid file type")
+        ? 415
+        : message.includes("No file")
+          ? 400
+          : 500;
 
-    return NextResponse.json(
-      { error: message },
-      { status }
-    );
+    return NextResponse.json({ error: message }, { status });
   }
 }
 

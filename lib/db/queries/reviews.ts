@@ -27,22 +27,26 @@ export async function getProductReviews(tenantId: string, productId: string) {
   return reviewsList;
 }
 
-export type ProductReview = Awaited<ReturnType<typeof getProductReviews>>[number];
+export type ProductReview = Awaited<
+  ReturnType<typeof getProductReviews>
+>[number];
 
 /**
  * Get product review statistics (average rating and count)
  */
-export async function getProductReviewStats(tenantId: string, productId: string) {
+export async function getProductReviewStats(
+  tenantId: string,
+  productId: string
+) {
   const result = await db
     .select({
       averageRating: avg(reviews.rating),
       totalReviews: count(),
     })
     .from(reviews)
-    .where(and(
-      eq(reviews.tenantId, tenantId),
-      eq(reviews.productId, productId)
-    ));
+    .where(
+      and(eq(reviews.tenantId, tenantId), eq(reviews.productId, productId))
+    );
 
   const stats = result[0];
 

@@ -77,7 +77,9 @@ export async function getStockSummary(tenantId: string): Promise<StockSummary> {
       totalStockUnits: sql<number>`COALESCE(SUM(CASE WHEN ${products.trackInventory} = true AND ${products.hasVariants} = false THEN ${products.stock} ELSE 0 END), 0)::int`,
     })
     .from(products)
-    .where(and(eq(products.tenantId, tenantId), eq(products.hasVariants, false)));
+    .where(
+      and(eq(products.tenantId, tenantId), eq(products.hasVariants, false))
+    );
 
   // Get variant products stock value
   const variantStockResult = await db
@@ -104,9 +106,11 @@ export async function getStockSummary(tenantId: string): Promise<StockSummary> {
     lowStockCount: simpleStats?.lowStockCount ?? 0,
     outOfStockCount: simpleStats?.outOfStockCount ?? 0,
     totalStockValue:
-      (simpleStats?.totalStockValue ?? 0) + (variantStats?.totalStockValue ?? 0),
+      (simpleStats?.totalStockValue ?? 0) +
+      (variantStats?.totalStockValue ?? 0),
     totalStockUnits:
-      (simpleStats?.totalStockUnits ?? 0) + (variantStats?.totalStockUnits ?? 0),
+      (simpleStats?.totalStockUnits ?? 0) +
+      (variantStats?.totalStockUnits ?? 0),
   };
 }
 
@@ -217,17 +221,19 @@ export async function getInventoryMovements(
   }
 
   if (options?.type) {
-    conditions.push(
-      sql`${inventoryMovements.type} = ${options.type}`
-    );
+    conditions.push(sql`${inventoryMovements.type} = ${options.type}`);
   }
 
   if (options?.startDate) {
-    conditions.push(gte(inventoryMovements.createdAt, options.startDate.toISOString()));
+    conditions.push(
+      gte(inventoryMovements.createdAt, options.startDate.toISOString())
+    );
   }
 
   if (options?.endDate) {
-    conditions.push(lte(inventoryMovements.createdAt, options.endDate.toISOString()));
+    conditions.push(
+      lte(inventoryMovements.createdAt, options.endDate.toISOString())
+    );
   }
 
   // Get total count
@@ -330,7 +336,9 @@ export async function getProductsForAdjustment(tenantId: string) {
       trackInventory: products.trackInventory,
     })
     .from(products)
-    .where(and(eq(products.tenantId, tenantId), eq(products.trackInventory, true)))
+    .where(
+      and(eq(products.tenantId, tenantId), eq(products.trackInventory, true))
+    )
     .orderBy(products.name);
 
   return productsList;

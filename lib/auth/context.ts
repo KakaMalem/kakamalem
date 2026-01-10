@@ -87,7 +87,8 @@ export const getUserStoreContext = cache(
     const isOwner = tenant?.ownerId === user.id;
     const staffRole = membership?.role ?? null;
     const isStaff = staffRole !== null;
-    const hasOrders = orderCount.length > 0 || (customerRecord?.totalOrders ?? 0) > 0;
+    const hasOrders =
+      orderCount.length > 0 || (customerRecord?.totalOrders ?? 0) > 0;
 
     // Determine the role
     let role: StoreRole = null;

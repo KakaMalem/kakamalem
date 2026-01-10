@@ -44,7 +44,8 @@ export function useDebouncedCartSync({
   // Track which items are currently syncing
   const syncing = useRef<Set<string>>(new Set());
 
-  const { updateItemOptimistic, removeItemOptimistic, setItems } = useCartStore.getState();
+  const { updateItemOptimistic, removeItemOptimistic, setItems } =
+    useCartStore.getState();
 
   /**
    * Refetch cart from server (used for rollback on failure)
@@ -73,7 +74,11 @@ export function useDebouncedCartSync({
       try {
         if (pending.quantity <= 0) {
           // Remove item
-          const result = await removeFromCartAction(tenantId, storeSlug, itemId);
+          const result = await removeFromCartAction(
+            tenantId,
+            storeSlug,
+            itemId
+          );
           if (!result.success) {
             throw new Error(result.error);
           }

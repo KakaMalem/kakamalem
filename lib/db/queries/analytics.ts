@@ -49,7 +49,9 @@ export type RecentOrder = {
  * Get dashboard statistics for a store
  * Optimized to use aggregate queries instead of loading all records
  */
-export async function getDashboardStats(tenantId: string): Promise<DashboardStats> {
+export async function getDashboardStats(
+  tenantId: string
+): Promise<DashboardStats> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today);
@@ -83,13 +85,17 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
     db
       .select({ count: count() })
       .from(products)
-      .where(and(eq(products.tenantId, tenantId), eq(products.status, "active"))),
+      .where(
+        and(eq(products.tenantId, tenantId), eq(products.status, "active"))
+      ),
 
     // Orders ready to ship (confirmed status)
     db
       .select({ count: count() })
       .from(orders)
-      .where(and(eq(orders.tenantId, tenantId), eq(orders.status, "confirmed"))),
+      .where(
+        and(eq(orders.tenantId, tenantId), eq(orders.status, "confirmed"))
+      ),
 
     // Low stock products (stock <= 5 and trackInventory is true)
     db
@@ -117,7 +123,9 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
         revenue: sum(orders.total),
       })
       .from(orders)
-      .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, todayStr))),
+      .where(
+        and(eq(orders.tenantId, tenantId), gte(orders.createdAt, todayStr))
+      ),
 
     // Yesterday's stats (for comparison)
     db
@@ -146,9 +154,17 @@ export async function getDashboardStats(tenantId: string): Promise<DashboardStat
   const yesterdayOrd = yesterdayData?.orders || 0;
 
   const revenueChange =
-    yesterdayRev > 0 ? ((todayRev - yesterdayRev) / yesterdayRev) * 100 : todayRev > 0 ? 100 : 0;
+    yesterdayRev > 0
+      ? ((todayRev - yesterdayRev) / yesterdayRev) * 100
+      : todayRev > 0
+        ? 100
+        : 0;
   const ordersChange =
-    yesterdayOrd > 0 ? ((todayOrd - yesterdayOrd) / yesterdayOrd) * 100 : todayOrd > 0 ? 100 : 0;
+    yesterdayOrd > 0
+      ? ((todayOrd - yesterdayOrd) / yesterdayOrd) * 100
+      : todayOrd > 0
+        ? 100
+        : 0;
 
   return {
     totalOrders: stats?.totalOrders || 0,
@@ -188,7 +204,10 @@ export async function getDailyMetrics(
     .where(
       and(
         eq(analyticsDailySnapshots.tenantId, tenantId),
-        gte(analyticsDailySnapshots.snapshotDate, startDate.toISOString().split("T")[0])
+        gte(
+          analyticsDailySnapshots.snapshotDate,
+          startDate.toISOString().split("T")[0]
+        )
       )
     )
     .orderBy(analyticsDailySnapshots.snapshotDate);
@@ -210,7 +229,9 @@ export async function getDailyMetrics(
       orders: count(),
     })
     .from(orders)
-    .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startDateStr)))
+    .where(
+      and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startDateStr))
+    )
     .groupBy(sql`date(${orders.createdAt})`)
     .orderBy(sql`date(${orders.createdAt})`);
 
@@ -259,7 +280,10 @@ export async function getTopProducts(
     .where(
       and(
         eq(analyticsProductPerformance.tenantId, tenantId),
-        gte(analyticsProductPerformance.snapshotDate, startDate.toISOString().split("T")[0])
+        gte(
+          analyticsProductPerformance.snapshotDate,
+          startDate.toISOString().split("T")[0]
+        )
       )
     )
     .groupBy(analyticsProductPerformance.productId, products.name)

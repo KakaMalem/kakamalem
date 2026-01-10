@@ -39,7 +39,8 @@ export async function getGroupPricesAction(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to get group prices",
+        message:
+          error instanceof Error ? error.message : "Failed to get group prices",
       },
     };
   }
@@ -70,7 +71,9 @@ export async function saveGroupPrices(
         if (isNaN(comparePrice) || comparePrice < 0) {
           return {
             success: false,
-            error: { message: "Compare-at price must be a valid positive number" },
+            error: {
+              message: "Compare-at price must be a valid positive number",
+            },
           };
         }
       }
@@ -111,7 +114,10 @@ export async function saveGroupPrices(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to save group prices",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to save group prices",
       },
     };
   }
@@ -141,7 +147,10 @@ export async function clearGroupPrices(
     return {
       success: false,
       error: {
-        message: error instanceof Error ? error.message : "Failed to clear group prices",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to clear group prices",
       },
     };
   }

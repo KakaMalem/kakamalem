@@ -88,7 +88,11 @@ export async function updateCategory(
 
   // Auto-generate unique slug from name
   const { generateUniqueCategorySlug } = await import("@/lib/db/queries/slugs");
-  const slug = await generateUniqueCategorySlug(tenantId, input.name, categoryId);
+  const slug = await generateUniqueCategorySlug(
+    tenantId,
+    input.name,
+    categoryId
+  );
 
   await db
     .update(categories)
@@ -186,10 +190,16 @@ async function uploadFileToStorage(
     });
 
     if (!uploadResult.success) {
-      console.error("[uploadFileToStorage] Storage upload error:", uploadResult.error);
+      console.error(
+        "[uploadFileToStorage] Storage upload error:",
+        uploadResult.error
+      );
       return null;
     }
-    console.log("[uploadFileToStorage] File uploaded to storage:", uploadResult.url);
+    console.log(
+      "[uploadFileToStorage] File uploaded to storage:",
+      uploadResult.url
+    );
 
     // Create media record
     console.log("[uploadFileToStorage] Creating media record in database...");
@@ -267,7 +277,11 @@ export async function createCategoryWithImage(
   let imageId = input.imageId || null;
   if (stagedFile) {
     console.log("📤 [createCategoryWithImage] Uploading staged file...");
-    const uploadResult = await uploadFileToStorage(tenantId, user.id, stagedFile);
+    const uploadResult = await uploadFileToStorage(
+      tenantId,
+      user.id,
+      stagedFile
+    );
     if (uploadResult) {
       imageId = uploadResult.id;
       console.log("✅ [createCategoryWithImage] File uploaded successfully:", {
@@ -293,11 +307,16 @@ export async function createCategoryWithImage(
     console.log("🔢 [createCategoryWithImage] Getting max display order...");
     const maxOrder = await getMaxCategoryDisplayOrder(tenantId);
     displayOrder = maxOrder + 1;
-    console.log("✅ [createCategoryWithImage] Display order set to:", displayOrder);
+    console.log(
+      "✅ [createCategoryWithImage] Display order set to:",
+      displayOrder
+    );
   }
 
   try {
-    console.log("💾 [createCategoryWithImage] Inserting category into database...");
+    console.log(
+      "💾 [createCategoryWithImage] Inserting category into database..."
+    );
     const [category] = await db
       .insert(categories)
       .values({
@@ -310,10 +329,16 @@ export async function createCategoryWithImage(
       })
       .returning({ id: categories.id });
 
-    console.log("✅ [createCategoryWithImage] Category created successfully:", category.id);
+    console.log(
+      "✅ [createCategoryWithImage] Category created successfully:",
+      category.id
+    );
     return { success: true, data: { id: category.id } };
   } catch (error) {
-    console.error("❌ [createCategoryWithImage] Error creating category:", error);
+    console.error(
+      "❌ [createCategoryWithImage] Error creating category:",
+      error
+    );
     return {
       success: false,
       error: {
@@ -439,7 +464,11 @@ export async function updateCategoryWithUrl(
 
   // Auto-generate unique slug from name
   const { generateUniqueCategorySlug } = await import("@/lib/db/queries/slugs");
-  const slug = await generateUniqueCategorySlug(tenantId, input.name, categoryId);
+  const slug = await generateUniqueCategorySlug(
+    tenantId,
+    input.name,
+    categoryId
+  );
 
   // If we have an uploaded image URL, create a media record for it
   let imageId = input.imageId || null;
@@ -520,12 +549,20 @@ export async function updateCategoryWithImage(
 
   // Auto-generate unique slug from name
   const { generateUniqueCategorySlug } = await import("@/lib/db/queries/slugs");
-  const slug = await generateUniqueCategorySlug(tenantId, input.name, categoryId);
+  const slug = await generateUniqueCategorySlug(
+    tenantId,
+    input.name,
+    categoryId
+  );
 
   // Upload staged file if provided
   let imageId = input.imageId || null;
   if (stagedFile) {
-    const uploadResult = await uploadFileToStorage(tenantId, user.id, stagedFile);
+    const uploadResult = await uploadFileToStorage(
+      tenantId,
+      user.id,
+      stagedFile
+    );
     if (uploadResult) {
       imageId = uploadResult.id;
     } else {

@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useTransition,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import { useState, useTransition, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -106,6 +99,16 @@ import {
   formatFileSize,
   UPLOAD_ERROR_MESSAGES,
 } from "@/lib/config/file-validation";
+import { createMediaRecord } from "@/lib/actions/media";
+
+// Upload state for tracking progress
+interface UploadingImage {
+  id: string;
+  file: File;
+  progress: number;
+  status: "uploading" | "complete" | "error";
+  error?: string;
+}
 
 interface ProductFormProps {
   tenantId: string;
@@ -331,18 +334,8 @@ export function ProductForm({
     })) || []
   );
 
-  // Clean up object URLs when component unmounts or when staged images are removed
-  useEffect(() => {
-    return () => {
-      // Revoke all object URLs for staged images on unmount
-      images.forEach((img) => {
-        if (img.isStaged && img.url.startsWith("blob:")) {
-          URL.revokeObjectURL(img.url);
-        }
-      });
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Track uploads in progress
+  const [uploadingImages, setUploadingImages] = useState<UploadingImage[]>([]);
 
   // Removed old handleNameChange - now using useSlug hook
 
@@ -469,23 +462,153 @@ export function ProductForm({
     );
   };
 
-  // Helper to get image dimensions
-  const getImageDimensions = (
-    file: File
-  ): Promise<{ width: number; height: number }> => {
-    return new Promise((resolve) => {
-      const img = document.createElement("img");
-      img.onload = () => {
-        resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        URL.revokeObjectURL(img.src);
-      };
-      img.onerror = () => {
-        resolve({ width: 0, height: 0 });
-        URL.revokeObjectURL(img.src);
-      };
-      img.src = URL.createObjectURL(file);
-    });
-  };
+  // Upload a single file with progress tracking
+  const uploadSingleFile = useCallback(
+    async (file: File, uploadId: string): Promise<ImageItem | null> => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("tenantId", tenantId);
+      formData.append("folder", "products");
+
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) {
+            const progress = Math.round((e.loaded / e.total) * 100);
+            setUploadingImages((prev) =>
+              prev.map((u) => (u.id === uploadId ? { ...u, progress } : u))
+            );
+          }
+        });
+
+        xhr.addEventListener("load", async () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText) as {
+                success: boolean;
+                file?: {
+                  url: string;
+                  filename: string;
+                  originalName: string;
+                  size: number;
+                  mimeType: string;
+                  width?: number;
+                  height?: number;
+                };
+                error?: string;
+              };
+
+              if (response.success && response.file) {
+                // Create media record in database
+                const mediaResult = await createMediaRecord(tenantId, {
+                  url: response.file.url,
+                  fileName: response.file.originalName,
+                  fileSize: response.file.size,
+                  mimeType: response.file.mimeType,
+                  width: response.file.width,
+                  height: response.file.height,
+                });
+
+                if (mediaResult.success && mediaResult.data) {
+                  setUploadingImages((prev) =>
+                    prev.map((u) =>
+                      u.id === uploadId
+                        ? { ...u, progress: 100, status: "complete" as const }
+                        : u
+                    )
+                  );
+
+                  resolve({
+                    id: mediaResult.data.id,
+                    url: mediaResult.data.url,
+                    altText: null,
+                    isStaged: false,
+                    fileSize: response.file.size,
+                    fileName: response.file.originalName,
+                    width: response.file.width,
+                    height: response.file.height,
+                  });
+                } else {
+                  setUploadingImages((prev) =>
+                    prev.map((u) =>
+                      u.id === uploadId
+                        ? {
+                            ...u,
+                            status: "error" as const,
+                            error: "Failed to save media record",
+                          }
+                        : u
+                    )
+                  );
+                  resolve(null);
+                }
+              } else {
+                setUploadingImages((prev) =>
+                  prev.map((u) =>
+                    u.id === uploadId
+                      ? {
+                          ...u,
+                          status: "error" as const,
+                          error: response.error || "Upload failed",
+                        }
+                      : u
+                  )
+                );
+                resolve(null);
+              }
+            } catch {
+              setUploadingImages((prev) =>
+                prev.map((u) =>
+                  u.id === uploadId
+                    ? { ...u, status: "error" as const, error: "Server error" }
+                    : u
+                )
+              );
+              resolve(null);
+            }
+          } else {
+            let error = "Upload failed";
+            if (xhr.status === 413) {
+              error = UPLOAD_ERROR_MESSAGES.fileTooLarge(
+                formatFileSize(MAX_SIZES.products)
+              );
+            } else if (xhr.status === 415) {
+              error = UPLOAD_ERROR_MESSAGES.invalidType;
+            }
+            setUploadingImages((prev) =>
+              prev.map((u) =>
+                u.id === uploadId
+                  ? { ...u, status: "error" as const, error }
+                  : u
+              )
+            );
+            resolve(null);
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          setUploadingImages((prev) =>
+            prev.map((u) =>
+              u.id === uploadId
+                ? {
+                    ...u,
+                    status: "error" as const,
+                    error: UPLOAD_ERROR_MESSAGES.networkError,
+                  }
+                : u
+            )
+          );
+          resolve(null);
+        });
+
+        xhr.timeout = 120000; // 2 minute timeout
+        xhr.open("POST", "/api/upload");
+        xhr.send(formData);
+      });
+    },
+    [tenantId]
+  );
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -502,14 +625,13 @@ export function ProductForm({
       return;
     }
 
-    const newImages: ImageItem[] = [];
-    let hasErrors = false;
+    // Validate files first
+    const validFiles: { file: File; uploadId: string }[] = [];
 
     for (const file of fileArray) {
       // Validate file type
       if (!file.type.startsWith("image/")) {
         toast.error(`${file.name}: ${UPLOAD_ERROR_MESSAGES.invalidType}`);
-        hasErrors = true;
         continue;
       }
       // Validate file size
@@ -519,56 +641,65 @@ export function ProductForm({
             formatFileSize(maxSize)
           )}`
         );
-        hasErrors = true;
         continue;
       }
 
-      // Create a temporary ID and object URL for preview
-      const tempId = `staged-${Date.now()}-${Math.random()
+      const uploadId = `upload-${Date.now()}-${Math.random()
         .toString(36)
         .substring(2, 11)}`;
-      const previewUrl = URL.createObjectURL(file);
+      validFiles.push({ file, uploadId });
+    }
 
-      // Get image dimensions
-      const dimensions = await getImageDimensions(file);
+    if (validFiles.length === 0) {
+      e.target.value = "";
+      return;
+    }
 
-      newImages.push({
-        id: tempId,
-        url: previewUrl,
+    // Add to uploading state
+    setUploadingImages((prev) => [
+      ...prev,
+      ...validFiles.map(({ file, uploadId }) => ({
+        id: uploadId,
         file,
-        isStaged: true,
-        fileSize: file.size,
-        fileName: file.name,
-        width: dimensions.width,
-        height: dimensions.height,
-      });
-    }
-
-    if (newImages.length > 0) {
-      setImages((prev) => [...prev, ...newImages]);
-      toast.success(
-        `${newImages.length} image${newImages.length > 1 ? "s" : ""} added`
-      );
-    } else if (hasErrors) {
-      // All files had errors, no success message needed
-    }
+        progress: 0,
+        status: "uploading" as const,
+      })),
+    ]);
 
     // Reset input
     e.target.value = "";
+
+    // Upload files (up to 3 concurrently)
+    const results: ImageItem[] = [];
+    const concurrency = 3;
+
+    for (let i = 0; i < validFiles.length; i += concurrency) {
+      const batch = validFiles.slice(i, i + concurrency);
+      const batchResults = await Promise.all(
+        batch.map(({ file, uploadId }) => uploadSingleFile(file, uploadId))
+      );
+      results.push(...batchResults.filter((r): r is ImageItem => r !== null));
+    }
+
+    // Add successfully uploaded images to the images state
+    if (results.length > 0) {
+      setImages((prev) => [...prev, ...results]);
+      toast.success(
+        `${results.length} image${results.length > 1 ? "s" : ""} uploaded`
+      );
+    }
+
+    // Clear completed uploads after a delay
+    setTimeout(() => {
+      setUploadingImages((prev) => prev.filter((u) => u.status !== "complete"));
+    }, 2000);
   };
 
   const removeImage = (imageId: string) => {
-    setImages((prev) => {
-      const imageToRemove = prev.find((img) => img.id === imageId);
-      // Revoke object URL if it's a staged image
-      if (imageToRemove?.isStaged && imageToRemove.url.startsWith("blob:")) {
-        URL.revokeObjectURL(imageToRemove.url);
-      }
-      return prev.filter((img) => img.id !== imageId);
-    });
+    setImages((prev) => prev.filter((img) => img.id !== imageId));
   };
 
-  const handleMediaSelect = (media: { id: string; url: string }[]) => {
+  const handleMediaSelect = (media: MediaSelection[]) => {
     // Filter out images that already exist
     const newImages = media.filter(
       (m) => !images.some((img) => img.id === m.id)
@@ -592,7 +723,12 @@ export function ProductForm({
       ...newImages.map((m) => ({
         id: m.id,
         url: m.url,
+        altText: m.altText,
         isStaged: false, // Existing media, not staged
+        fileSize: m.fileSize ?? undefined,
+        fileName: m.fileName ?? undefined,
+        width: m.width ?? undefined,
+        height: m.height ?? undefined,
       })),
     ]);
 
@@ -717,13 +853,11 @@ export function ProductForm({
     setShowDisableVariantsDialog(false);
   }, []);
 
+  // Check if uploads are in progress
+  const isUploading = uploadingImages.some((u) => u.status === "uploading");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("🚀 [handleSubmit] Form submission started");
-    console.log(
-      "📋 [handleSubmit] Selected categories:",
-      Array.from(selectedCategories)
-    );
     setErrors({});
     setVariantError(null);
     setUploadProgress({
@@ -765,13 +899,8 @@ export function ProductForm({
       }
     }
 
-    // Separate existing media IDs and staged files
-    const existingImageIds = images
-      .filter((img) => !img.isStaged)
-      .map((img) => img.id);
-    const stagedFiles = images
-      .filter((img) => img.isStaged && img.file)
-      .map((img) => img.file!);
+    // Get all image IDs (images are now uploaded immediately, no staged files)
+    const imageIds = images.map((img) => img.id);
 
     // Separate existing category IDs (UUIDs) from new category temp IDs
     // New categories will be created before product submission
@@ -781,11 +910,6 @@ export function ProductForm({
     const newCategoryTempIds = Array.from(selectedCategories).filter((id) =>
       id.startsWith("temp-")
     );
-    console.log(
-      "📂 [handleSubmit] Existing category IDs:",
-      existingCategoryIds
-    );
-    console.log("🆕 [handleSubmit] New category temp IDs:", newCategoryTempIds);
 
     const formData: ProductInput = {
       name,
@@ -810,14 +934,12 @@ export function ProductForm({
       height,
       status,
       displayOrder: String(product?.displayOrder ?? 0),
-      imageIds: existingImageIds, // Only existing media IDs
+      imageIds, // All images are already uploaded
     };
 
     // Validate
-    console.log("🔍 [handleSubmit] Validating formData:", formData);
     const result = productSchema.safeParse(formData);
     if (!result.success) {
-      console.log("❌ [handleSubmit] Validation failed:", result.error.issues);
       const fieldErrors: FormErrors = {};
       const firstError = result.error.issues[0];
       result.error.issues.forEach((issue) => {
@@ -830,20 +952,13 @@ export function ProductForm({
       toast.error(firstError.message);
       return;
     }
-    console.log("✅ [handleSubmit] Validation passed");
 
-    console.log("🔄 [handleSubmit] Starting transition...");
     startTransition(async () => {
-      console.log("📦 [handleSubmit] Inside startTransition");
       try {
         // Step 1: Create any new categories first
         const createdCategoryMap = new Map<string, string>(); // tempId -> realId
 
         if (newCategoryTempIds.length > 0) {
-          console.log(
-            "🏷️ [handleSubmit] Creating new categories:",
-            newCategoryTempIds
-          );
           setUploadProgress({
             stage: "saving",
             message: `Creating ${newCategoryTempIds.length} new categor${
@@ -882,81 +997,42 @@ export function ProductForm({
         // Build final category IDs: existing UUIDs + newly created category IDs
         const newlyCreatedIds = Array.from(createdCategoryMap.values());
         const finalCategoryIds = [...existingCategoryIds, ...newlyCreatedIds];
-        console.log("✅ [handleSubmit] Final category IDs:", finalCategoryIds);
 
         // Update formData with all category IDs
         formData.categoryIds = finalCategoryIds;
 
-        // Step 2: Upload images and create/update product
-        if (stagedFiles.length > 0) {
-          setUploadProgress({
-            stage: "uploading",
-            message: `Uploading ${stagedFiles.length} image${
-              stagedFiles.length > 1 ? "s" : ""
-            }...`,
-          });
-        } else {
-          setUploadProgress({
-            stage: "saving",
-            message: product ? "Saving changes..." : "Creating product...",
-          });
-        }
+        // Step 2: Create/update product (images are already uploaded)
+        setUploadProgress({
+          stage: "saving",
+          message: product ? "Saving changes..." : "Creating product...",
+        });
 
         let actionResult;
 
-        console.log("📤 [handleSubmit] Sending to server:", {
-          tenantId,
-          formData,
-          stagedFilesCount: stagedFiles.length,
-          isUpdate: !!product,
-        });
-
         if (product) {
           // Update existing product
-          console.log("🔄 [handleSubmit] Updating product:", product.id);
           actionResult = await updateProductWithImages(
             tenantId,
             product.id,
             formData,
-            stagedFiles
+            [] // No staged files - images are uploaded immediately
           );
         } else {
           // Create new product
-          console.log("➕ [handleSubmit] Creating new product");
           actionResult = await createProductWithImages(
             tenantId,
             formData,
-            stagedFiles
+            [] // No staged files - images are uploaded immediately
           );
         }
 
-        console.log("📥 [handleSubmit] Server response:", actionResult);
-
         if (!actionResult.success) {
-          console.error("❌ [handleSubmit] Product creation failed");
-          console.error(
-            "❌ [handleSubmit] Full actionResult:",
-            JSON.stringify(actionResult, null, 2)
-          );
-          console.error("❌ [handleSubmit] Error:", actionResult.error);
-          console.error(
-            "❌ [handleSubmit] Error message:",
-            actionResult.error?.message
-          );
-          console.error(
-            "❌ [handleSubmit] Error field:",
-            actionResult.error?.field
-          );
-
           // Rollback: Delete newly created categories if product creation failed
           if (newlyCreatedIds.length > 0) {
-            console.warn(
-              "⚠️ Product creation failed. Rolling back created categories..."
-            );
             const { deleteCategory } = await import("@/lib/actions/categories");
             for (const categoryId of newlyCreatedIds) {
-              await deleteCategory(tenantId, categoryId).catch((err) => {
-                console.error("Failed to rollback category:", err);
+              await deleteCategory(tenantId, categoryId).catch(() => {
+                // Silently handle rollback failures
               });
             }
           }
@@ -1077,40 +1153,19 @@ export function ProductForm({
           }
         }
 
-        // Clean up object URLs for staged images on success
-        images.forEach((img) => {
-          if (img.isStaged && img.url.startsWith("blob:")) {
-            URL.revokeObjectURL(img.url);
-          }
-        });
-
         setUploadProgress({ stage: "complete", message: "Success!" });
         toast.success(product ? "Product updated" : "Product created");
-        console.log(
-          "✅ [handleSubmit] Product saved successfully, navigating..."
-        );
 
         // Small delay to show complete state, then navigate
         setTimeout(() => {
           setUploadProgress(null);
-          const targetUrl = `/dashboard/${storeSlug}/products`;
-          console.log(`🔄 [handleSubmit] Navigating to: ${targetUrl}`);
-          try {
-            router.replace(targetUrl);
-          } catch (navError) {
-            console.error("❌ [handleSubmit] Navigation failed:", navError);
-            toast.error(
-              "Navigation failed. Please manually return to products page."
-            );
-          }
+          router.replace(`/dashboard/${storeSlug}/products`);
         }, 500);
       } catch (error) {
-        console.error("❌ [handleSubmit] Product save error:", error);
         const errorMessage =
           error instanceof Error
             ? error.message
             : "An unexpected error occurred";
-        console.error("❌ [handleSubmit] Error details:", errorMessage);
         toast.error(`Error: ${errorMessage}`);
         setUploadProgress(null);
       }
@@ -1229,6 +1284,59 @@ export function ProductForm({
                 <p className="text-sm text-muted-foreground">
                   The first image will be used as the main product image.
                 </p>
+
+                {/* Upload Progress */}
+                {uploadingImages.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    {uploadingImages.map((upload) => (
+                      <div
+                        key={upload.id}
+                        className={cn(
+                          "flex items-center gap-3 p-2 rounded-lg border bg-muted",
+                          upload.status === "error" &&
+                            "border-destructive/50 bg-destructive/5",
+                          upload.status === "complete" &&
+                            "border-green-500/50 bg-green-50"
+                        )}
+                      >
+                        <div className="shrink-0">
+                          {upload.status === "uploading" && (
+                            <Loader2 className="size-5 text-primary animate-spin" />
+                          )}
+                          {upload.status === "complete" && (
+                            <Check className="size-5 text-green-600" />
+                          )}
+                          {upload.status === "error" && (
+                            <X className="size-5 text-destructive" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {upload.file.name}
+                          </p>
+                          {upload.status === "uploading" && (
+                            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                              <div
+                                className="h-full bg-primary transition-all duration-200"
+                                style={{ width: `${upload.progress}%` }}
+                              />
+                            </div>
+                          )}
+                          {upload.status === "error" && upload.error && (
+                            <p className="text-xs text-destructive truncate">
+                              {upload.error}
+                            </p>
+                          )}
+                        </div>
+                        <div className="shrink-0 text-xs text-muted-foreground">
+                          {upload.status === "uploading" &&
+                            `${upload.progress}%`}
+                          {upload.status === "complete" && "Done"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1791,7 +1899,7 @@ export function ProductForm({
           type="button"
           variant="outline"
           onClick={() => router.push(`/dashboard/${storeSlug}/products`)}
-          disabled={isPending || uploadProgress !== null}
+          disabled={isPending || uploadProgress !== null || isUploading}
         >
           Cancel
         </Button>
@@ -1799,13 +1907,11 @@ export function ProductForm({
           <Button
             type="submit"
             variant="outline"
-            disabled={isPending || uploadProgress !== null}
+            disabled={isPending || uploadProgress !== null || isUploading}
             onClick={(e) => {
               e.preventDefault();
-              // Capture form reference before async operation
               const form = e.currentTarget.closest("form");
               setStatus("draft");
-              // Trigger form submission after state update
               setTimeout(() => {
                 form?.requestSubmit();
               }, 0);
@@ -1822,17 +1928,12 @@ export function ProductForm({
           </Button>
           <Button
             type="submit"
-            disabled={isPending || uploadProgress !== null}
+            disabled={isPending || uploadProgress !== null || isUploading}
             onClick={(e) => {
-              console.log("🖱️ [Publish Button] Clicked");
               e.preventDefault();
-              // Capture form reference before async operation
               const form = e.currentTarget.closest("form");
-              console.log("📝 [Publish Button] Form element:", form);
               setStatus("active");
-              // Trigger form submission after state update
               setTimeout(() => {
-                console.log("⏰ [Publish Button] Calling requestSubmit");
                 form?.requestSubmit();
               }, 0);
             }}
@@ -1854,9 +1955,9 @@ export function ProductForm({
         tenantId={tenantId}
         open={mediaSelectorOpen}
         onOpenChange={setMediaSelectorOpen}
-        onSelect={(media) => handleMediaSelect(media as MediaSelection[])}
+        onSelect={handleMediaSelect}
         multiple
-        selectedIds={images.filter((img) => !img.isStaged).map((img) => img.id)}
+        selectedIds={images.map((img) => img.id)}
         title="Select Product Images"
       />
 

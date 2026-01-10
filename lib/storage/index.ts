@@ -111,10 +111,7 @@ function getPublicUrl(relativePath: string): string {
 /**
  * Validate file type
  */
-function isValidFileType(
-  filename: string,
-  allowedTypes: string[]
-): boolean {
+function isValidFileType(filename: string, allowedTypes: string[]): boolean {
   const ext = extname(filename).toLowerCase();
   return allowedTypes.includes(ext);
 }
@@ -306,7 +303,9 @@ export async function uploadFile(
     let width: number | undefined;
     let height: number | undefined;
     let finalMimeType = mimeType;
-    let thumbnails: { small?: string; medium?: string; large?: string } | undefined;
+    let thumbnails:
+      | { small?: string; medium?: string; large?: string }
+      | undefined;
 
     // Process images with Sharp (skip SVGs)
     if (isImage && !isSvg && options.processImage !== false) {
@@ -332,9 +331,10 @@ export async function uploadFile(
     }
 
     // Generate filename (use .webp extension if converted)
-    let filename = options.generateUniqueName !== false
-      ? generateUniqueFilename(originalName)
-      : originalName;
+    let filename =
+      options.generateUniqueName !== false
+        ? generateUniqueFilename(originalName)
+        : originalName;
 
     if (options.convertToWebp && isImage && !isSvg) {
       const ext = extname(filename);
@@ -390,9 +390,10 @@ export async function uploadStream(
   options: StorageOptions
 ): Promise<UploadResult> {
   try {
-    const filename = options.generateUniqueName !== false
-      ? generateUniqueFilename(originalName)
-      : originalName;
+    const filename =
+      options.generateUniqueName !== false
+        ? generateUniqueFilename(originalName)
+        : originalName;
 
     const tenantPath = getTenantPath(options.tenantId, options.folder);
     const filePath = join(tenantPath, filename);
@@ -662,12 +663,15 @@ export async function uploadFromTempFile(
     let width: number | undefined;
     let height: number | undefined;
     let finalMimeType = mimeType;
-    let thumbnails: { small?: string; medium?: string; large?: string } | undefined;
+    let thumbnails:
+      | { small?: string; medium?: string; large?: string }
+      | undefined;
 
     // Generate unique filename
-    let filename = options.generateUniqueName !== false
-      ? generateUniqueFilename(originalName)
-      : originalName;
+    let filename =
+      options.generateUniqueName !== false
+        ? generateUniqueFilename(originalName)
+        : originalName;
 
     // Update extension if converting to WebP
     if (options.convertToWebp && isImage && !isSvg) {

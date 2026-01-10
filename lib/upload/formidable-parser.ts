@@ -96,9 +96,7 @@ export async function parseUploadRequest(
         // First-pass filter based on Content-Type header
         // Real validation happens after upload via magic bytes
         if (!mimetype) return false;
-        return (
-          mimetype.startsWith("image/") || mimetype === "application/pdf"
-        );
+        return mimetype.startsWith("image/") || mimetype === "application/pdf";
       },
     });
 
@@ -106,7 +104,11 @@ export async function parseUploadRequest(
       if (err) {
         // Handle specific formidable errors
         if (err.code === 1009) {
-          reject(new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`));
+          reject(
+            new Error(
+              `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`
+            )
+          );
         } else if (err.code === 1015) {
           reject(new Error("Too many files. Maximum is 1 file per request"));
         } else {
@@ -127,13 +129,19 @@ export async function parseUploadRequest(
       // Validate MIME type via magic bytes (security!)
       try {
         const detectedMime = await detectMimeType(file.filepath);
-        const allowedTypes = imageOnly ? ALLOWED_IMAGE_TYPES : ALLOWED_MIME_TYPES;
+        const allowedTypes = imageOnly
+          ? ALLOWED_IMAGE_TYPES
+          : ALLOWED_MIME_TYPES;
 
         if (!allowedTypes.has(detectedMime)) {
           // Clean up the temp file since we're rejecting it
           const { cleanupTempFile } = await import("@/lib/storage");
           await cleanupTempFile(file.filepath);
-          reject(new Error(`Invalid file type: ${detectedMime}. Only ${imageOnly ? "images" : "images and PDFs"} are allowed.`));
+          reject(
+            new Error(
+              `Invalid file type: ${detectedMime}. Only ${imageOnly ? "images" : "images and PDFs"} are allowed.`
+            )
+          );
           return;
         }
 
@@ -148,7 +156,8 @@ export async function parseUploadRequest(
             tenantId: getFieldValue(fields.tenantId) || "",
             folder: getFieldValue(fields.folder) || "media",
             convertToWebp: getFieldValue(fields.convertToWebp) === "true",
-            generateThumbnails: getFieldValue(fields.generateThumbnails) === "true",
+            generateThumbnails:
+              getFieldValue(fields.generateThumbnails) === "true",
           },
         });
       } catch (mimeError) {
@@ -200,7 +209,9 @@ async function webRequestToNode(request: Request): Promise<IncomingMessage> {
   }
 
   // Convert Web ReadableStream to Node.js Readable
-  const readable = Readable.fromWeb(body as Parameters<typeof Readable.fromWeb>[0]);
+  const readable = Readable.fromWeb(
+    body as Parameters<typeof Readable.fromWeb>[0]
+  );
 
   // Copy headers to the stream object (formidable expects this)
   const headers: Record<string, string> = {};
@@ -223,7 +234,9 @@ async function webRequestToNode(request: Request): Promise<IncomingMessage> {
  * @param field - Field value (string, array, or undefined)
  * @returns First string value or undefined
  */
-function getFieldValue(field: string | string[] | undefined): string | undefined {
+function getFieldValue(
+  field: string | string[] | undefined
+): string | undefined {
   if (Array.isArray(field)) return field[0];
   return field;
 }

@@ -15,7 +15,11 @@ const reservedPaths = new Set(["new", "account"]);
 function getStoreSlugFromPath(pathname: string): string | null {
   const segments = pathname.split("/").filter(Boolean);
   // Store slug is the second segment (index 1) after "dashboard"
-  if (segments[0] === "dashboard" && segments[1] && !reservedPaths.has(segments[1])) {
+  if (
+    segments[0] === "dashboard" &&
+    segments[1] &&
+    !reservedPaths.has(segments[1])
+  ) {
     return segments[1];
   }
   return null;

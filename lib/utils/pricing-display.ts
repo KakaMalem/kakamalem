@@ -3,7 +3,10 @@ import type { PriceTier } from "@/lib/db/schema";
 /**
  * Calculate discount percentage
  */
-function calculateDiscountPercent(price: number, compareAtPrice: number | null): number | null {
+function calculateDiscountPercent(
+  price: number,
+  compareAtPrice: number | null
+): number | null {
   if (!compareAtPrice || compareAtPrice <= price) return null;
   return Math.round(((compareAtPrice - price) / compareAtPrice) * 100);
 }
@@ -46,7 +49,10 @@ export function getDisplayPrices(
  *
  * This is a pure function safe for use in client components.
  */
-export function formatPriceTier(tier: PriceTier, currency: string = "AFN"): string {
+export function formatPriceTier(
+  tier: PriceTier,
+  currency: string = "AFN"
+): string {
   const price = parseFloat(tier.price);
   const formattedPrice = new Intl.NumberFormat("en-US", {
     style: "currency",
