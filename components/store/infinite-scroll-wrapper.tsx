@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import type { ProductFilters } from "@/lib/db/queries/products";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ProductGridSkeleton } from "./product-card-skeleton";
 
 // Dynamic import to prevent hydration mismatch with Radix Select
 const InfiniteScrollProductsWithSort = dynamic(
@@ -12,22 +14,14 @@ const InfiniteScrollProductsWithSort = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div>
+      <div className="flex flex-col">
         {/* Sort Controls Skeleton */}
         <div className="mb-6 flex items-center justify-between">
-          <div className="h-5 w-32 animate-pulse rounded bg-muted" />
-          <div className="h-10 w-44 animate-pulse rounded-md bg-muted" />
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-10 w-44" />
         </div>
         {/* Products Grid Skeleton */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="space-y-3">
-              <div className="aspect-4/5 animate-pulse rounded-lg bg-muted" />
-              <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
-            </div>
-          ))}
-        </div>
+        <ProductGridSkeleton count={12} />
       </div>
     ),
   }

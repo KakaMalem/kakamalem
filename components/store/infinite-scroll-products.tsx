@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Package } from "lucide-react";
+import { Package } from "lucide-react";
 import { toast } from "sonner";
 
 import { ProductCard } from "./product-card";
+import { ProductCardSkeleton } from "./product-card-skeleton";
 import { addToCartAction } from "@/lib/cart/actions";
 import { cartActions } from "@/lib/stores/use-cart-store";
 import {
@@ -196,16 +197,19 @@ export function InfiniteScrollProducts({
         ))}
       </div>
 
+      {/* Loading Skeletons */}
+      {isLoading && (
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5 mt-4">
+          {Array.from({ length: initialPagination.limit }).map((_, i) => (
+            <ProductCardSkeleton key={`skeleton-${i}`} />
+          ))}
+        </div>
+      )}
+
       {/* Sentinel element for infinite scroll */}
-      <div ref={sentinelRef} className="flex justify-center py-8">
-        {isLoading && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
-            <span>Loading more products...</span>
-          </div>
-        )}
+      <div ref={sentinelRef} className="py-4">
         {!hasMore && products.length > 0 && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground text-center">
             You&apos;ve seen all {initialPagination.total} products
           </p>
         )}
