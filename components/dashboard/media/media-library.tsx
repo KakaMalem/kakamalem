@@ -19,6 +19,7 @@ import {
   X,
   LayoutGrid,
   LayoutList,
+  Eye,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Dropzone, type UploadedFile } from "@/components/ui/dropzone";
+import { useImagePreview } from "@/components/ui/image-preview";
 
 import {
   type MediaItem,
@@ -114,6 +116,7 @@ export function MediaLibrary({
 }: MediaLibraryProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const { openPreview } = useImagePreview();
   const [items, setItems] = useState(initialItems);
   const [pagination, setPagination] = useState(initialPagination);
   const [search, setSearch] = useState(initialSearch);
@@ -467,8 +470,17 @@ export function MediaLibrary({
                   : "space-y-2"
               }
             >
-              {items.map((item) => {
+              {items.map((item, index) => {
                 const isSelected = selectedIds.has(item.id);
+
+                // Helper to open preview at this index
+                const handlePreview = () => {
+                  const previewImages = items.map((m) => ({
+                    src: m.url,
+                    alt: m.altText || m.fileName || "Image",
+                  }));
+                  openPreview(previewImages, index);
+                };
 
                 // Grid view item
                 if (viewMode === "grid") {
@@ -517,6 +529,21 @@ export function MediaLibrary({
                           </button>
                         )}
 
+                        {/* Preview button - bottom left */}
+                        {!selectionMode && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePreview();
+                            }}
+                            className="absolute bottom-2 left-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                            title="Preview image"
+                          >
+                            <Eye className="size-4 text-white" />
+                          </button>
+                        )}
+
                         {/* Actions Menu - overlay on image */}
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <DropdownMenu>
@@ -530,6 +557,10 @@ export function MediaLibrary({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={handlePreview}>
+                                <Eye className="mr-2 size-4" />
+                                Preview
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleCopyUrl(item)}
                               >
@@ -608,7 +639,15 @@ export function MediaLibrary({
                       </button>
                     )}
 
-                    <div className="relative size-16 rounded overflow-hidden shrink-0 border">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePreview();
+                      }}
+                      className="relative size-16 rounded overflow-hidden shrink-0 border cursor-zoom-in group/thumb"
+                      title="Preview image"
+                    >
                       <Image
                         src={item.url}
                         alt={item.altText || item.fileName || "Image"}
@@ -616,7 +655,10 @@ export function MediaLibrary({
                         className="object-cover"
                         sizes="64px"
                       />
-                    </div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/thumb:bg-black/30 transition-colors">
+                        <Eye className="size-5 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity" />
+                      </div>
+                    </button>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">
                         {item.fileName || "Untitled"}
@@ -640,6 +682,10 @@ export function MediaLibrary({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handlePreview}>
+                          <Eye className="mr-2 size-4" />
+                          Preview
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyUrl(item)}>
                           {copiedId === item.id ? (
                             <Check className="mr-2 size-4" />

@@ -191,6 +191,7 @@ function VariantFormFields({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, price: e.target.value }))
             }
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder={`Base: ${basePrice}`}
           />
           <p className="text-xs text-muted-foreground">
@@ -207,6 +208,7 @@ function VariantFormFields({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, stock: e.target.value }))
             }
+            onWheel={(e) => e.currentTarget.blur()}
           />
         </div>
       </div>
@@ -223,6 +225,7 @@ function VariantFormFields({
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, weight: e.target.value }))
           }
+          onWheel={(e) => e.currentTarget.blur()}
           placeholder="Leave empty for base weight"
         />
       </div>

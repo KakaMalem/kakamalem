@@ -326,6 +326,7 @@ export function StockAdjustmentForm({
                 min="0"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder="Enter quantity"
               />
             </div>

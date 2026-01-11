@@ -9,6 +9,7 @@ import { getUserStores } from "@/lib/db/queries/tenants";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { ImagePreviewProvider } from "@/components/ui/image-preview";
 import type { StoreInfo } from "@/components/dashboard/store-switcher";
 
 // Extract store slug from pathname like /dashboard/my-store/...
@@ -68,21 +69,23 @@ export default async function DashboardLayout({
   const defaultOpen = sidebarState !== "false";
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen}>
-      <AppSidebar
-        user={{
-          email: user.email || "",
-          fullName: user.name,
-          avatarUrl: user.image || undefined,
-        }}
-        stores={stores}
-        currentStore={currentStore}
-        storeSlug={storeSlug}
-      />
-      <SidebarInset>
-        <DashboardHeader />
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+    <ImagePreviewProvider>
+      <SidebarProvider defaultOpen={defaultOpen}>
+        <AppSidebar
+          user={{
+            email: user.email || "",
+            fullName: user.name,
+            avatarUrl: user.image || undefined,
+          }}
+          stores={stores}
+          currentStore={currentStore}
+          storeSlug={storeSlug}
+        />
+        <SidebarInset>
+          <DashboardHeader />
+          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        </SidebarInset>
+      </SidebarProvider>
+    </ImagePreviewProvider>
   );
 }

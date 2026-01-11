@@ -311,6 +311,7 @@ export function VariantMatrixTable({
                   onChange={(e) => setBulkPrice(e.target.value)}
                   placeholder="0.00"
                   disabled={disabled}
+                  onWheel={(e) => e.currentTarget.blur()}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -345,6 +346,7 @@ export function VariantMatrixTable({
                     onChange={(e) => setBulkStock(e.target.value)}
                     placeholder="0"
                     disabled={disabled}
+                    onWheel={(e) => e.currentTarget.blur()}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -613,6 +615,7 @@ function VariantRow({
             onChange={(e) => onUpdate(variant.tempId, "price", e.target.value)}
             placeholder="Base"
             disabled={disabled || isExcluded}
+            onWheel={(e) => e.currentTarget.blur()}
             className={cn(
               "h-8",
               errors?.price && "border-destructive",
@@ -633,6 +636,7 @@ function VariantRow({
               }
               placeholder="0"
               disabled={disabled || isExcluded}
+              onWheel={(e) => e.currentTarget.blur()}
               className={cn(
                 "h-8",
                 errors?.stock && "border-destructive",
@@ -803,6 +807,7 @@ function VariantRow({
                       }
                       placeholder="Base"
                       disabled={disabled}
+                      onWheel={(e) => e.currentTarget.blur()}
                       className="h-8"
                     />
                   </div>
@@ -824,6 +829,7 @@ function VariantRow({
                       }
                       placeholder="Base"
                       disabled={disabled}
+                      onWheel={(e) => e.currentTarget.blur()}
                       className="h-8"
                     />
                   </div>
@@ -845,6 +851,7 @@ function VariantRow({
                       }
                       placeholder="Base"
                       disabled={disabled}
+                      onWheel={(e) => e.currentTarget.blur()}
                       className="h-8"
                     />
                   </div>
@@ -866,6 +873,7 @@ function VariantRow({
                       }
                       placeholder="Base"
                       disabled={disabled}
+                      onWheel={(e) => e.currentTarget.blur()}
                       className="h-8"
                     />
                   </div>

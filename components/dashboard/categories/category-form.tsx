@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
-import { X, Loader2, ImageIcon } from "lucide-react";
+import { X, Loader2, ImageIcon, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
   UnifiedMediaSelector,
   type MediaSelection,
 } from "@/components/dashboard/media/unified-media-selector";
+import { useImagePreview } from "@/components/ui/image-preview";
 
 import type { Category, Media } from "@/lib/db/schema";
 import {
@@ -49,6 +50,7 @@ export function CategoryForm({
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<FormErrors>({});
   const [mediaSelectorOpen, setMediaSelectorOpen] = useState(false);
+  const { openPreview } = useImagePreview();
 
   // Form state
   const [name, setName] = useState(category?.name || "");
@@ -222,17 +224,31 @@ export function CategoryForm({
             <CardContent>
               <div className="space-y-4">
                 {image ? (
-                  <div className="relative aspect-video overflow-hidden rounded-lg border bg-muted">
-                    <Image
-                      src={image.url}
-                      alt={name || "Category image"}
-                      fill
-                      className="object-cover"
-                    />
+                  <div className="group relative aspect-video overflow-hidden rounded-lg border bg-muted">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openPreview(
+                          [{ src: image.url, alt: name || "Category image" }],
+                          0
+                        )
+                      }
+                      className="absolute inset-0 w-full h-full cursor-zoom-in"
+                    >
+                      <Image
+                        src={image.url}
+                        alt={name || "Category image"}
+                        fill
+                        className="object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                        <Eye className="size-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </button>
                     <button
                       type="button"
                       onClick={removeImage}
-                      className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
+                      className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm z-10"
                     >
                       <X className="size-4" />
                     </button>

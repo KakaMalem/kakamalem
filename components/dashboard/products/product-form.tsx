@@ -14,6 +14,7 @@ import {
   GripVertical,
   Plus,
   Check,
+  Eye,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ import {
   UnifiedMediaSelector,
   type MediaSelection,
 } from "@/components/dashboard/media/unified-media-selector";
+import { useImagePreview } from "@/components/ui/image-preview";
 import {
   VariantOptionsBuilder,
   type ExistingOption,
@@ -154,10 +156,12 @@ function DraggableImageItem({
   image,
   index,
   onRemove,
+  onPreview,
 }: {
   image: ImageItem;
   index: number;
   onRemove: (id: string) => void;
+  onPreview: () => void;
 }) {
   const dragControls = useDragControls();
 
@@ -177,7 +181,12 @@ function DraggableImageItem({
       >
         <GripVertical className="size-5 text-muted-foreground" />
       </div>
-      <div className="relative size-16 rounded overflow-hidden shrink-0 border">
+      <button
+        type="button"
+        onClick={onPreview}
+        className="relative size-16 rounded overflow-hidden shrink-0 border cursor-zoom-in"
+        title="Preview image"
+      >
         <Image
           src={image.url}
           alt={image.altText || image.fileName || `Product image ${index + 1}`}
@@ -185,7 +194,10 @@ function DraggableImageItem({
           className="object-cover pointer-events-none"
           unoptimized={image.isStaged}
         />
-      </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors">
+          <Eye className="size-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-medium truncate">
@@ -235,6 +247,7 @@ export function ProductForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<FormErrors>({});
+  const { openPreview } = useImagePreview();
   const [mediaSelectorOpen, setMediaSelectorOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     stage: "validating" | "uploading" | "saving" | "complete";
@@ -1244,6 +1257,13 @@ export function ProductForm({
                         image={image}
                         index={index}
                         onRemove={removeImage}
+                        onPreview={() => {
+                          const previewImages = images.map((img) => ({
+                            src: img.url,
+                            alt: img.altText || img.fileName || "Product image",
+                          }));
+                          openPreview(previewImages, index);
+                        }}
                       />
                     ))}
                   </Reorder.Group>
@@ -1404,142 +1424,6 @@ export function ProductForm({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="price">
-                  Price ({currency}) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  placeholder="0.00"
-                  aria-invalid={!!errors.price}
-                />
-                {hasVariants && (
-                  <p className="text-sm text-muted-foreground">
-                    Base price (variants can override)
-                  </p>
-                )}
-                {errors.price && (
-                  <p className="text-sm text-destructive">{errors.price}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="compareAtPrice">
-                  Compare-at Price ({currency})
-                </Label>
-                <Input
-                  id="compareAtPrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={compareAtPrice}
-                  onChange={(e) => setCompareAtPrice(e.target.value)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  placeholder="0.00"
-                  aria-invalid={!!errors.compareAtPrice}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Original price shown with strikethrough
-                </p>
-                {errors.compareAtPrice && (
-                  <p className="text-sm text-destructive">
-                    {errors.compareAtPrice}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="costPrice">Cost Price ({currency})</Label>
-                <Input
-                  id="costPrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={costPrice}
-                  onChange={(e) => setCostPrice(e.target.value)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  placeholder="0.00"
-                  aria-invalid={!!errors.costPrice}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Your cost for profit tracking (not shown to customers)
-                </p>
-                {errors.costPrice && (
-                  <p className="text-sm text-destructive">{errors.costPrice}</p>
-                )}
-              </div>
-
-              {/* Profit Margin Display */}
-              {price &&
-                costPrice &&
-                parseFloat(price) > 0 &&
-                parseFloat(costPrice) > 0 && (
-                  <div className="rounded-md bg-muted/50 p-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        Profit Margin
-                      </span>
-                      <span className="font-medium">
-                        {Math.round(
-                          ((parseFloat(price) - parseFloat(costPrice)) /
-                            parseFloat(price)) *
-                            100
-                        )}
-                        %
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-muted-foreground">
-                        Profit per Unit
-                      </span>
-                      <span className="font-medium">
-                        {currency}{" "}
-                        {(parseFloat(price) - parseFloat(costPrice)).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="minOrderQuantity">Min Qty</Label>
-                  <Input
-                    id="minOrderQuantity"
-                    type="number"
-                    min="1"
-                    value={minOrderQuantity}
-                    onChange={(e) => setMinOrderQuantity(e.target.value)}
-                    onWheel={(e) => e.currentTarget.blur()}
-                    placeholder="1"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxOrderQuantity">Max Qty</Label>
-                  <Input
-                    id="maxOrderQuantity"
-                    type="number"
-                    min="1"
-                    value={maxOrderQuantity}
-                    onChange={(e) => setMaxOrderQuantity(e.target.value)}
-                    onWheel={(e) => e.currentTarget.blur()}
-                    placeholder="No limit"
-                  />
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Order quantity limits per customer
-              </p>
-
-              <Separator />
-
-              <div className="space-y-2">
                 <Label htmlFor="categories">Categories</Label>
                 <Popover
                   open={showCategoryDropdown}
@@ -1688,6 +1572,142 @@ export function ProductForm({
                   Press Backspace to remove.
                 </p>
               </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="price">
+                  Price ({currency}) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0.00"
+                  aria-invalid={!!errors.price}
+                />
+                {hasVariants && (
+                  <p className="text-sm text-muted-foreground">
+                    Base price (variants can override)
+                  </p>
+                )}
+                {errors.price && (
+                  <p className="text-sm text-destructive">{errors.price}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="compareAtPrice">
+                  Compare-at Price ({currency})
+                </Label>
+                <Input
+                  id="compareAtPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={compareAtPrice}
+                  onChange={(e) => setCompareAtPrice(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0.00"
+                  aria-invalid={!!errors.compareAtPrice}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Original price shown with strikethrough
+                </p>
+                {errors.compareAtPrice && (
+                  <p className="text-sm text-destructive">
+                    {errors.compareAtPrice}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="costPrice">Cost Price ({currency})</Label>
+                <Input
+                  id="costPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0.00"
+                  aria-invalid={!!errors.costPrice}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Your cost for profit tracking (not shown to customers)
+                </p>
+                {errors.costPrice && (
+                  <p className="text-sm text-destructive">{errors.costPrice}</p>
+                )}
+              </div>
+
+              {/* Profit Margin Display */}
+              {price &&
+                costPrice &&
+                parseFloat(price) > 0 &&
+                parseFloat(costPrice) > 0 && (
+                  <div className="rounded-md bg-muted/50 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Profit Margin
+                      </span>
+                      <span className="font-medium">
+                        {Math.round(
+                          ((parseFloat(price) - parseFloat(costPrice)) /
+                            parseFloat(price)) *
+                            100
+                        )}
+                        %
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span className="text-muted-foreground">
+                        Profit per Unit
+                      </span>
+                      <span className="font-medium">
+                        {currency}{" "}
+                        {(parseFloat(price) - parseFloat(costPrice)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="minOrderQuantity">Min Qty</Label>
+                  <Input
+                    id="minOrderQuantity"
+                    type="number"
+                    min="1"
+                    value={minOrderQuantity}
+                    onChange={(e) => setMinOrderQuantity(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxOrderQuantity">Max Qty</Label>
+                  <Input
+                    id="maxOrderQuantity"
+                    type="number"
+                    min="1"
+                    value={maxOrderQuantity}
+                    onChange={(e) => setMaxOrderQuantity(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="No limit"
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Order quantity limits per customer
+              </p>
             </CardContent>
           </Card>
 

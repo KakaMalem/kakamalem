@@ -13,6 +13,7 @@ import {
   X,
   LayoutGrid,
   LayoutList,
+  Eye,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Dropzone, type UploadedFile } from "@/components/ui/dropzone";
+import { useImagePreview } from "@/components/ui/image-preview";
 
 import {
   type MediaItem,
@@ -116,15 +118,6 @@ const itemVariants = {
   },
 };
 
-const checkVariants = {
-  hidden: { scale: 0, opacity: 0 },
-  visible: {
-    scale: 1,
-    opacity: 1,
-    transition: { type: "spring" as const, stiffness: 500, damping: 25 },
-  },
-};
-
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -145,6 +138,9 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
     : props.selectedId
       ? [props.selectedId]
       : [];
+
+  // Image preview hook
+  const { openPreview } = useImagePreview();
 
   // State
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -351,8 +347,17 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
     }
   };
 
+  // Handle dialog close - prevent closing if image preview is open
+  const handleOpenChange = (newOpen: boolean) => {
+    // If trying to close, check if LightGallery is open
+    if (!newOpen && document.body.classList.contains("lightgallery-open")) {
+      return; // Don't close the dialog while image preview is open
+    }
+    onOpenChange(newOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn("max-w-4xl max-h-[90vh] flex flex-col gap-4", className)}
       >
@@ -484,70 +489,107 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                       : "space-y-2 p-0.5"
                   }
                 >
-                  {mediaItems.map((item) => {
+                  {mediaItems.map((item, index) => {
                     const isSelected = selectedMediaIds.includes(item.id);
+
+                    // Helper to open preview at this index
+                    const handlePreview = () => {
+                      const previewImages = mediaItems
+                        .filter((m) => m.url)
+                        .map((m) => ({
+                          src: m.url,
+                          alt: m.altText || m.fileName || "Image",
+                        }));
+                      openPreview(previewImages, index);
+                    };
 
                     // Grid view item
                     if (viewMode === "grid") {
                       return (
-                        <motion.button
+                        <motion.div
                           key={item.id}
                           variants={itemVariants}
                           initial="hidden"
                           animate="visible"
-                          type="button"
-                          onClick={() => handleToggleSelection(item.id)}
                           className={cn(
-                            "relative aspect-square rounded-lg border overflow-hidden transition-all hover:ring-2 hover:ring-primary/50",
+                            "group relative aspect-square rounded-lg border overflow-hidden transition-all",
                             isSelected && "ring-2 ring-primary"
                           )}
                         >
-                          {item.url ? (
-                            <Image
-                              src={item.url}
-                              alt={item.altText || item.fileName || "Image"}
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw"
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                              <ImageIcon className="size-8 text-muted-foreground" />
-                            </div>
-                          )}
-                          <AnimatePresence>
-                            {isSelected && (
-                              <motion.div
-                                variants={checkVariants}
-                                initial="hidden"
-                                animate="visible"
-                                exit="hidden"
-                                className="absolute top-1 right-1 bg-primary rounded-full p-0.5"
-                              >
-                                <Check className="size-4 text-primary-foreground" />
-                              </motion.div>
+                          {/* Image as preview button */}
+                          <button
+                            type="button"
+                            onClick={handlePreview}
+                            className="absolute inset-0 w-full h-full cursor-zoom-in"
+                            title="Preview image"
+                          >
+                            {item.url ? (
+                              <Image
+                                src={item.url}
+                                alt={item.altText || item.fileName || "Image"}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw"
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                                <ImageIcon className="size-8 text-muted-foreground" />
+                              </div>
                             )}
-                          </AnimatePresence>
-                        </motion.button>
+                            {/* Eye icon overlay on hover */}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                              <Eye className="size-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </button>
+
+                          {/* Selection checkbox */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSelection(item.id);
+                            }}
+                            className={cn(
+                              "absolute top-1 right-1 p-0.5 rounded-full transition-all z-10",
+                              isSelected
+                                ? "bg-primary"
+                                : "bg-white/80 hover:bg-white border border-gray-300"
+                            )}
+                            title={isSelected ? "Deselect" : "Select"}
+                          >
+                            <Check
+                              className={cn(
+                                "size-4 transition-colors",
+                                isSelected
+                                  ? "text-primary-foreground"
+                                  : "text-gray-400"
+                              )}
+                            />
+                          </button>
+                        </motion.div>
                       );
                     }
 
                     // List view item
                     return (
-                      <motion.button
+                      <motion.div
                         key={item.id}
                         variants={itemVariants}
                         initial="hidden"
                         animate="visible"
-                        type="button"
-                        onClick={() => handleToggleSelection(item.id)}
                         className={cn(
-                          "w-full flex items-center gap-3 p-2 rounded-lg border transition-all hover:bg-accent",
+                          "group w-full flex items-center gap-3 p-2 rounded-lg border transition-all hover:bg-accent",
                           isSelected && "bg-primary/5 border-primary"
                         )}
                       >
-                        <div className="relative size-16 rounded overflow-hidden shrink-0 border">
+                        {/* Image thumbnail as preview button */}
+                        <button
+                          type="button"
+                          onClick={handlePreview}
+                          className="relative size-16 rounded overflow-hidden shrink-0 border cursor-zoom-in group/thumb"
+                          title="Preview image"
+                        >
                           {item.url ? (
                             <Image
                               src={item.url}
@@ -562,8 +604,17 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                               <ImageIcon className="size-6 text-muted-foreground" />
                             </div>
                           )}
-                        </div>
-                        <div className="flex-1 text-left min-w-0">
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/thumb:bg-black/30 transition-colors">
+                            <Eye className="size-5 text-white opacity-0 group-hover/thumb:opacity-100 transition-opacity" />
+                          </div>
+                        </button>
+
+                        {/* Info section - clicking selects */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelection(item.id)}
+                          className="flex-1 min-w-0 text-left"
+                        >
                           <p className="font-medium truncate">
                             {item.fileName}
                           </p>
@@ -575,21 +626,30 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                             {" • "}
                             {new Date(item.createdAt).toLocaleDateString()}
                           </p>
-                        </div>
-                        <AnimatePresence>
-                          {isSelected && (
-                            <motion.div
-                              variants={checkVariants}
-                              initial="hidden"
-                              animate="visible"
-                              exit="hidden"
-                              className="bg-primary rounded-full p-1 shrink-0"
-                            >
-                              <Check className="size-5 text-primary-foreground" />
-                            </motion.div>
+                        </button>
+
+                        {/* Selection checkbox */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelection(item.id)}
+                          className={cn(
+                            "p-0.5 rounded-full transition-all shrink-0",
+                            isSelected
+                              ? "bg-primary"
+                              : "bg-muted hover:bg-muted/80 border border-gray-300"
                           )}
-                        </AnimatePresence>
-                      </motion.button>
+                          title={isSelected ? "Deselect" : "Select"}
+                        >
+                          <Check
+                            className={cn(
+                              "size-5 transition-colors",
+                              isSelected
+                                ? "text-primary-foreground"
+                                : "text-gray-400"
+                            )}
+                          />
+                        </button>
+                      </motion.div>
                     );
                   })}
                 </motion.div>

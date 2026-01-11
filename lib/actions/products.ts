@@ -11,6 +11,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
 import { generateUniqueProductSlug } from "@/lib/db/queries/slugs";
+import { getMaxProductDisplayOrder } from "@/lib/db/queries/products";
 import { getUser } from "@/lib/auth/server";
 
 export type ProductActionResult = {
@@ -51,6 +52,10 @@ export async function createProduct(
     // Auto-generate unique slug from product name (industry standard approach)
     const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name);
 
+    // Get max displayOrder for new products (place at end)
+    const maxDisplayOrder = await getMaxProductDisplayOrder(tenantId);
+    const nextDisplayOrder = maxDisplayOrder + 1;
+
     // Create product
     const [newProduct] = await db
       .insert(products)
@@ -86,7 +91,7 @@ export async function createProduct(
         width: data.width && data.width !== "" ? data.width : null,
         height: data.height && data.height !== "" ? data.height : null,
         status: data.status,
-        displayOrder: parseInt(data.displayOrder || "0"),
+        displayOrder: nextDisplayOrder,
       })
       .returning({ id: products.id, slug: products.slug });
 
@@ -243,6 +248,10 @@ export async function createProductWithImages(
     // Auto-generate unique slug from product name
     const uniqueSlug = await generateUniqueProductSlug(tenantId, data.name);
 
+    // Get max displayOrder for new products (place at end)
+    const maxDisplayOrder = await getMaxProductDisplayOrder(tenantId);
+    const nextDisplayOrder = maxDisplayOrder + 1;
+
     // Upload staged files first (storage operations cannot be in transaction)
     for (const file of stagedFiles) {
       const uploaded = await uploadFileToStorage(tenantId, user.id, file);
@@ -320,7 +329,7 @@ export async function createProductWithImages(
           width: data.width && data.width !== "" ? data.width : null,
           height: data.height && data.height !== "" ? data.height : null,
           status: data.status,
-          displayOrder: parseInt(data.displayOrder || "0"),
+          displayOrder: nextDisplayOrder,
         })
         .returning({ id: products.id, slug: products.slug });
 
@@ -547,7 +556,7 @@ export async function updateProductWithImages(
           width: data.width && data.width !== "" ? data.width : null,
           height: data.height && data.height !== "" ? data.height : null,
           status: data.status,
-          displayOrder: parseInt(data.displayOrder || "0"),
+          // Note: displayOrder is NOT updated here - it's only changed via drag-and-drop reordering
           updatedAt: new Date().toISOString(),
         })
         .where(and(eq(products.id, productId), eq(products.tenantId, tenantId)))
@@ -713,7 +722,7 @@ export async function updateProduct(
         width: data.width && data.width !== "" ? data.width : null,
         height: data.height && data.height !== "" ? data.height : null,
         status: data.status,
-        displayOrder: parseInt(data.displayOrder || "0"),
+        // Note: displayOrder is NOT updated here - it's only changed via drag-and-drop reordering
         updatedAt: new Date().toISOString(),
       })
       .where(and(eq(products.id, productId), eq(products.tenantId, tenantId)))

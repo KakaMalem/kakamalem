@@ -6,11 +6,11 @@ import { ChevronRight } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getCategoryBySlugWithImage } from "@/lib/db/queries/categories";
 import { getProducts } from "@/lib/db/queries/products";
-import { ProductGridWrapper } from "@/components/store/product-grid-wrapper";
+import { InfiniteScrollWrapper } from "@/components/store/infinite-scroll-wrapper";
 
 interface CategoryPageProps {
   params: Promise<{ slug: string; categorySlug: string }>;
-  searchParams: Promise<{ page?: string; sort?: string }>;
+  searchParams: Promise<{ sort?: string }>;
 }
 
 export async function generateMetadata({
@@ -42,7 +42,7 @@ export default async function CategoryPage({
   searchParams,
 }: CategoryPageProps) {
   const { slug, categorySlug } = await params;
-  const { page, sort } = await searchParams;
+  const { sort } = await searchParams;
   // Decode URL-encoded slugs (handles Persian/Unicode characters)
   const decodedCategorySlug = decodeURIComponent(categorySlug);
 
@@ -57,14 +57,13 @@ export default async function CategoryPage({
     notFound();
   }
 
-  // Parse pagination and sorting
-  const currentPage = parseInt(page || "1", 10);
+  // Parse sorting
   const sortField =
     (sort?.split("-")[0] as "name" | "price" | "createdAt") || "createdAt";
   const sortDirection = (sort?.split("-")[1] as "asc" | "desc") || "desc";
 
   const productsResult = await getProducts(store.id, {
-    page: currentPage,
+    page: 1,
     limit: 12,
     filters: {
       categoryId: category.id,
@@ -88,15 +87,19 @@ export default async function CategoryPage({
           <span className="text-foreground">{category.name}</span>
         </nav>
 
-        {/* Products Grid */}
-        <ProductGridWrapper
-          products={productsResult.products}
-          pagination={productsResult.pagination}
+        {/* Products Grid with Infinite Scroll */}
+        <InfiniteScrollWrapper
+          initialProducts={productsResult.products}
+          initialPagination={productsResult.pagination}
           tenantId={store.id}
           storeSlug={slug}
           currency={store.currency}
           basePath={`/store/${slug}/category/${categorySlug}`}
-          currentSort={sort}
+          filters={{
+            categoryId: category.id,
+            isActive: true,
+          }}
+          currentSort={sort || "createdAt-desc"}
         />
       </div>
     </div>

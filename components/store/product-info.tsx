@@ -499,6 +499,7 @@ export function ProductInfo({
               )}
               value={quantity}
               onChange={(e) => handleQuantityChange(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               className="h-10 w-16 text-center border-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               disabled={isAddingToCart}
             />

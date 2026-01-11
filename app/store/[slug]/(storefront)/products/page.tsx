@@ -1,10 +1,10 @@
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProducts } from "@/lib/db/queries/products";
-import { ProductGridWrapper } from "@/components/store/product-grid-wrapper";
+import { InfiniteScrollWrapper } from "@/components/store/infinite-scroll-wrapper";
 
 interface ProductsPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string; sort?: string; search?: string }>;
+  searchParams: Promise<{ sort?: string; search?: string }>;
 }
 
 export default async function ProductsPage({
@@ -12,19 +12,18 @@ export default async function ProductsPage({
   searchParams,
 }: ProductsPageProps) {
   const { slug } = await params;
-  const { page, sort, search } = await searchParams;
+  const { sort, search } = await searchParams;
 
   const store = await getTenantBySlug(slug);
   if (!store) return null;
 
-  // Parse pagination and sorting
-  const currentPage = parseInt(page || "1", 10);
+  // Parse sorting
   const sortField =
     (sort?.split("-")[0] as "name" | "price" | "createdAt") || "createdAt";
   const sortDirection = (sort?.split("-")[1] as "asc" | "desc") || "desc";
 
   const productsResult = await getProducts(store.id, {
-    page: currentPage,
+    page: 1,
     limit: 12,
     filters: {
       isActive: true,
@@ -46,15 +45,19 @@ export default async function ProductsPage({
         </p>
       </div>
 
-      {/* Products Grid with Sorting and Pagination */}
-      <ProductGridWrapper
-        products={productsResult.products}
-        pagination={productsResult.pagination}
+      {/* Products Grid with Infinite Scroll */}
+      <InfiniteScrollWrapper
+        initialProducts={productsResult.products}
+        initialPagination={productsResult.pagination}
         tenantId={store.id}
         storeSlug={slug}
         currency={store.currency}
         basePath={`/store/${slug}/products`}
-        currentSort={sort}
+        filters={{
+          isActive: true,
+          search: search || undefined,
+        }}
+        currentSort={sort || "createdAt-desc"}
       />
     </div>
   );

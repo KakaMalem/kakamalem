@@ -102,8 +102,8 @@ export async function getProducts(
     }
   }
 
-  // Build order by
-  let orderBy;
+  // Build order by (with secondary sort by createdAt for stability)
+  let orderByColumns;
   if (sort) {
     const column =
       sort.field === "name"
@@ -116,10 +116,13 @@ export async function getProducts(
               ? products.displayOrder
               : products.createdAt;
 
-    orderBy = sort.direction === "asc" ? asc(column) : desc(column);
+    const primarySort = sort.direction === "asc" ? asc(column) : desc(column);
+    // Add secondary sort by createdAt desc for stability when primary values are equal
+    orderByColumns = [primarySort, desc(products.createdAt)];
   } else {
     // Default sort by displayOrder (for drag-and-drop reordering)
-    orderBy = asc(products.displayOrder);
+    // Secondary sort by createdAt desc ensures newest products appear first when displayOrder is equal
+    orderByColumns = [asc(products.displayOrder), desc(products.createdAt)];
   }
 
   // Get products with category and first image
@@ -148,7 +151,7 @@ export async function getProducts(
     .from(products)
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .where(and(...conditions))
-    .orderBy(orderBy)
+    .orderBy(...orderByColumns)
     .limit(limit)
     .offset(offset);
 
@@ -464,4 +467,20 @@ export async function getProductCounts(tenantId: string) {
     lowStock: lowStockResult.count,
     outOfStock: outOfStockResult.count,
   };
+}
+
+/**
+ * Get the maximum display order for products in a tenant
+ */
+export async function getMaxProductDisplayOrder(
+  tenantId: string
+): Promise<number> {
+  const result = await db
+    .select({
+      maxOrder: sql<number>`COALESCE(MAX(${products.displayOrder}), -1)`,
+    })
+    .from(products)
+    .where(eq(products.tenantId, tenantId));
+
+  return result[0]?.maxOrder ?? -1;
 }

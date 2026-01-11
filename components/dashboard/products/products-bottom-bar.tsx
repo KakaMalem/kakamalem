@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Archive, Trash2, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const STORAGE_KEY = "dashboard-products-limit";
 
 interface ProductsBottomBarProps {
   storeSlug: string;
@@ -47,6 +50,8 @@ export function ProductsBottomBar({
   isArchiveView,
 }: ProductsBottomBarProps) {
   const router = useRouter();
+  const urlSearchParams = useSearchParams();
+  const hasAppliedStoredLimit = useRef(false);
 
   // Build URL with params
   const buildUrl = (updates: { page?: number; limit?: number }) => {
@@ -61,7 +66,30 @@ export function ProductsBottomBar({
     return `/dashboard/${storeSlug}/products?${params.toString()}`;
   };
 
+  // On mount, apply stored limit if no limit in URL
+  useEffect(() => {
+    if (hasAppliedStoredLimit.current) return;
+    hasAppliedStoredLimit.current = true;
+
+    const urlHasLimit = urlSearchParams.has("limit");
+    if (urlHasLimit) return;
+
+    const storedLimit = localStorage.getItem(STORAGE_KEY);
+    if (storedLimit) {
+      const parsedLimit = parseInt(storedLimit, 10);
+      if (
+        LIMIT_OPTIONS.includes(parsedLimit as (typeof LIMIT_OPTIONS)[number]) &&
+        parsedLimit !== 25
+      ) {
+        router.replace(buildUrl({ page: 1, limit: parsedLimit }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLimitChange = (newLimit: number) => {
+    // Save preference to localStorage
+    localStorage.setItem(STORAGE_KEY, newLimit.toString());
     // Reset to page 1 when limit changes
     router.push(buildUrl({ page: 1, limit: newLimit }));
   };

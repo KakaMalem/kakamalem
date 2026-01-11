@@ -816,6 +816,7 @@ export function ShippingManager({
                       priority: parseInt(e.target.value) || 0,
                     }))
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                 />
                 <p className="text-xs text-muted-foreground">
                   Higher priority zones are checked first
@@ -924,6 +925,7 @@ export function ShippingManager({
                         : null,
                     }))
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="e.g., 1"
                 />
               </div>
@@ -942,6 +944,7 @@ export function ShippingManager({
                         : null,
                     }))
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="e.g., 3"
                 />
               </div>
@@ -987,6 +990,7 @@ export function ShippingManager({
                     baseRate: e.target.value,
                   }))
                 }
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder="0.00"
               />
             </div>
@@ -1006,6 +1010,7 @@ export function ShippingManager({
                       perItemRate: e.target.value || null,
                     }))
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="0.00"
                 />
               </div>
@@ -1026,6 +1031,7 @@ export function ShippingManager({
                       perKgRate: e.target.value || null,
                     }))
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="0.00"
                 />
               </div>
@@ -1048,6 +1054,7 @@ export function ShippingManager({
                       freeShippingThreshold: e.target.value || null,
                     }))
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="e.g., 1000"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -1070,6 +1077,7 @@ export function ShippingManager({
                     handlingFee: e.target.value || null,
                   }))
                 }
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder="0.00"
               />
               <p className="text-xs text-muted-foreground">
