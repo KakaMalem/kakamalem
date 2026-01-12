@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { authClient } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,14 @@ import Link from "next/link";
 import { signupSchema, type SignupInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
 
+// Map field names to DOM element IDs for scroll-to-error
+const FIELD_ID_MAP: Record<string, string> = {
+  fullName: "fullName",
+  email: "email",
+  password: "password",
+  confirmPassword: "confirmPassword",
+};
+
 export function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
@@ -27,6 +36,23 @@ export function SignupForm() {
   >({});
   const [success, setSuccess] = useState(false);
   const [isPending, setIsPending] = useState(false);
+
+  // Scroll to first error field when fieldErrors change
+  useEffect(() => {
+    const errorFields = Object.keys(fieldErrors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const elementId = FIELD_ID_MAP[firstErrorField];
+
+    if (elementId) {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => element.focus(), 300);
+      }
+    }
+  }, [fieldErrors]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,6 +81,7 @@ export function SignupForm() {
           }
         });
         setFieldErrors(errors);
+        toast.error(err.issues[0].message);
         setIsPending(false);
         return;
       }
@@ -69,7 +96,9 @@ export function SignupForm() {
       });
 
       if (result.error) {
-        setError(result.error.message || "Failed to create account");
+        const errorMessage = result.error.message || "Failed to create account";
+        setError(errorMessage);
+        toast.error(errorMessage);
         setIsPending(false);
         return;
       }
@@ -86,6 +115,7 @@ export function SignupForm() {
     } catch (err) {
       console.error("Signup error:", err);
       setError("An unexpected error occurred");
+      toast.error("An unexpected error occurred");
       setIsPending(false);
     }
   }

@@ -6,33 +6,14 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getDashboardOrderById } from "@/lib/db/queries/orders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { OrderStatusSelect } from "@/components/dashboard/orders/order-status-select";
 import { OrderNotesSection } from "@/components/dashboard/orders/order-notes-section";
 import { OrderPrintButton } from "@/components/dashboard/orders/order-print-button";
-import type { OrderStatus } from "@/lib/db/queries/orders";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
 }
-
-const STATUS_STYLES: Record<
-  OrderStatus,
-  {
-    label: string;
-    variant: "default" | "secondary" | "destructive" | "outline";
-  }
-> = {
-  pending: { label: "Pending", variant: "secondary" },
-  confirmed: { label: "Confirmed", variant: "default" },
-  processing: { label: "Processing", variant: "default" },
-  shipped: { label: "Shipped", variant: "default" },
-  delivered: { label: "Delivered", variant: "default" },
-  cancelled: { label: "Cancelled", variant: "destructive" },
-  refunded: { label: "Refunded", variant: "destructive" },
-  partially_refunded: { label: "Partial Refund", variant: "outline" },
-};
 
 export default async function OrderDetailPage({
   params,
@@ -71,8 +52,6 @@ export default async function OrderDetailPage({
     });
   };
 
-  const statusStyle = STATUS_STYLES[order.status];
-
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -92,9 +71,6 @@ export default async function OrderDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={statusStyle.variant} className="text-sm">
-            {statusStyle.label}
-          </Badge>
           <OrderStatusSelect
             orderId={order.id}
             tenantId={store.id}

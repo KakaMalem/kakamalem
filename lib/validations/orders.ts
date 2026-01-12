@@ -17,6 +17,34 @@ export const orderStatusSchema = z.enum([
 
 export type OrderStatusType = z.infer<typeof orderStatusSchema>;
 
+export const STATUS_LABELS: Record<OrderStatusType, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  processing: "Processing",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+  partially_refunded: "Partial Refund",
+};
+
+export const DESTRUCTIVE_STATUSES: OrderStatusType[] = [
+  "cancelled",
+  "refunded",
+  "partially_refunded",
+];
+
+export const ALL_STATUSES: OrderStatusType[] = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "refunded",
+  "partially_refunded",
+];
+
 // Valid status transitions for basic workflow
 export const STATUS_TRANSITIONS: Record<OrderStatusType, OrderStatusType[]> = {
   pending: ["confirmed", "cancelled"],

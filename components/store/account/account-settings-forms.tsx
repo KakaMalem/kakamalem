@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,9 @@ export function UpdateNameForm({ currentName }: UpdateNameFormProps) {
 
     const validation = updateNameSchema.safeParse({ name });
     if (!validation.success) {
-      setError(validation.error.issues[0].message);
+      const errorMsg = validation.error.issues[0].message;
+      setError(errorMsg);
+      toast.error(errorMsg);
       setIsPending(false);
       return;
     }
@@ -61,6 +63,7 @@ export function UpdateNameForm({ currentName }: UpdateNameFormProps) {
 
       if (result.error) {
         setError(result.error.message);
+        toast.error(result.error.message);
         setIsPending(false);
         return;
       }
@@ -69,6 +72,7 @@ export function UpdateNameForm({ currentName }: UpdateNameFormProps) {
       setIsPending(false);
     } catch {
       setError("An unexpected error occurred");
+      toast.error("An unexpected error occurred");
       setIsPending(false);
     }
   }
@@ -98,12 +102,36 @@ export function UpdateNameForm({ currentName }: UpdateNameFormProps) {
 // CHANGE PASSWORD FORM
 // =============================================================================
 
+// Map field names to DOM element IDs for scroll-to-error
+const PASSWORD_FIELD_ID_MAP: Record<string, string> = {
+  currentPassword: "currentPassword",
+  newPassword: "newPassword",
+  confirmPassword: "confirmPassword",
+};
+
 export function ChangePasswordForm() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, setIsPending] = useState(false);
+
+  // Scroll to first error field when errors change
+  useEffect(() => {
+    const errorFields = Object.keys(errors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const elementId = PASSWORD_FIELD_ID_MAP[firstErrorField];
+
+    if (elementId) {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => element.focus(), 300);
+      }
+    }
+  }, [errors]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -123,6 +151,7 @@ export function ChangePasswordForm() {
         fieldErrors[field] = issue.message;
       });
       setErrors(fieldErrors);
+      toast.error(validation.error.issues[0].message);
       setIsPending(false);
       return;
     }
@@ -136,6 +165,7 @@ export function ChangePasswordForm() {
 
       if (result.error) {
         setErrors({ currentPassword: result.error.message });
+        toast.error(result.error.message);
         setIsPending(false);
         return;
       }
@@ -146,7 +176,9 @@ export function ChangePasswordForm() {
       setConfirmPassword("");
       setIsPending(false);
     } catch {
-      setErrors({ currentPassword: "An unexpected error occurred" });
+      const errorMsg = "An unexpected error occurred";
+      setErrors({ currentPassword: errorMsg });
+      toast.error(errorMsg);
       setIsPending(false);
     }
   }

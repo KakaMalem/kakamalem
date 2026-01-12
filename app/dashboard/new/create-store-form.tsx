@@ -192,6 +192,19 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
     }
   };
 
+  // Scroll to first error field when fieldErrors change
+  useEffect(() => {
+    const errorFields = Object.keys(fieldErrors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const element = document.getElementById(firstErrorField);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => element.focus(), 300);
+    }
+  }, [fieldErrors]);
+
   const validateStep = (step: number): boolean => {
     const errors: Partial<Record<keyof CreateStoreInput, string>> = {};
 
@@ -219,7 +232,14 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
     }
 
     setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+
+    // Show toast for first error
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      toast.error(errors[errorKeys[0] as keyof typeof errors]);
+    }
+
+    return errorKeys.length === 0;
   };
 
   const nextStep = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -257,6 +277,7 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
             }
           });
           setFieldErrors(errors);
+          toast.error(err.issues[0].message);
           return;
         }
       }
@@ -276,8 +297,10 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
           setError(UPLOAD_ERROR_MESSAGES.networkError);
         } else if (result.error.field) {
           setFieldErrors({ [result.error.field]: result.error.message });
+          toast.error(result.error.message);
         } else {
           setError(result.error.message);
+          toast.error(result.error.message);
         }
         return;
       }

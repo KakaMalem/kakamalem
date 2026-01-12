@@ -82,7 +82,9 @@ export function CustomerGroupForm({
 
     // Validate
     if (!name.trim() || name.trim().length < 2) {
-      setErrors({ name: "Group name must be at least 2 characters" });
+      const errorMsg = "Group name must be at least 2 characters";
+      setErrors({ name: errorMsg });
+      toast.error(errorMsg);
       return;
     }
 
@@ -101,6 +103,7 @@ export function CustomerGroupForm({
       if (!result.success) {
         if (result.error?.field) {
           setErrors({ [result.error.field]: result.error.message });
+          toast.error(result.error.message);
         } else {
           toast.error(result.error?.message || "Something went wrong");
         }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { ChevronRight, Plus, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -108,6 +109,23 @@ export function StepContactShipping({
     Partial<Record<keyof ShippingAddressInput, string>>
   >({});
 
+  // Scroll to first error field when guestErrors or addressErrors change
+  useEffect(() => {
+    const allErrors = { ...guestErrors, ...addressErrors };
+    const errorFields = Object.keys(allErrors);
+    if (errorFields.length === 0) return;
+
+    // Small delay to ensure DOM is updated
+    setTimeout(() => {
+      const firstErrorField = errorFields[0];
+      const element = document.getElementById(firstErrorField);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => element.focus(), 300);
+      }
+    }, 100);
+  }, [guestErrors, addressErrors]);
+
   // Track if location has been set
   const hasLocation = addressForm.latitude !== 0 || addressForm.longitude !== 0;
 
@@ -176,6 +194,7 @@ export function StepContactShipping({
   // Validate and proceed
   const handleContinue = () => {
     let hasErrors = false;
+    let firstErrorMessage: string | null = null;
 
     // Validate guest info (if not logged in)
     if (!user) {
@@ -187,6 +206,9 @@ export function StepContactShipping({
           errors[field] = issue.message;
         });
         setGuestErrors(errors);
+        if (!firstErrorMessage) {
+          firstErrorMessage = guestValidation.error.issues[0].message;
+        }
         hasErrors = true;
       } else {
         setCustomerInfo(guestValidation.data);
@@ -197,7 +219,11 @@ export function StepContactShipping({
     if (showNewAddressForm || savedAddresses.length === 0) {
       // Check if location is set
       if (!hasLocation) {
-        setAddressErrors({ latitude: "Please select a location on the map" });
+        const errorMsg = "Please select a location on the map";
+        setAddressErrors({ latitude: errorMsg });
+        if (!firstErrorMessage) {
+          firstErrorMessage = errorMsg;
+        }
         hasErrors = true;
       } else {
         const addressValidation = shippingAddressSchema.safeParse(addressForm);
@@ -209,6 +235,9 @@ export function StepContactShipping({
             errors[field] = issue.message;
           });
           setAddressErrors(errors);
+          if (!firstErrorMessage) {
+            firstErrorMessage = addressValidation.error.issues[0].message;
+          }
           hasErrors = true;
         } else {
           const address: Address = {
@@ -230,7 +259,13 @@ export function StepContactShipping({
       }
     } else if (!shippingAddress) {
       // No address selected from saved addresses
+      const errorMsg = "Please select a delivery location";
+      toast.error(errorMsg);
       hasErrors = true;
+    }
+
+    if (hasErrors && firstErrorMessage) {
+      toast.error(firstErrorMessage);
     }
 
     if (!hasErrors) {

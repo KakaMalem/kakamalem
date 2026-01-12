@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,6 +93,19 @@ export function AddressForm({
     }
   };
 
+  // Scroll to first error field when fieldErrors change
+  useEffect(() => {
+    const errorFields = Object.keys(fieldErrors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const element = document.getElementById(firstErrorField);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => element.focus(), 300);
+    }
+  }, [fieldErrors]);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFieldErrors({});
@@ -100,7 +113,9 @@ export function AddressForm({
 
     // Check if location is set
     if (!hasLocation) {
-      setFieldErrors({ latitude: "Please select a location on the map" });
+      const errorMsg = "Please select a location on the map";
+      setFieldErrors({ latitude: errorMsg });
+      toast.error(errorMsg);
       setIsPending(false);
       return;
     }
@@ -114,6 +129,7 @@ export function AddressForm({
         errors[field] = issue.message;
       });
       setFieldErrors(errors);
+      toast.error(validation.error.issues[0].message);
       setIsPending(false);
       return;
     }

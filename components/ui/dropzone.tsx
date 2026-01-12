@@ -8,11 +8,15 @@ import {
   CheckCircle2,
   XCircle,
   FileImage,
+  RotateCcw,
+  X,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import {
   validateFiles,
   formatFileSize,
@@ -369,6 +373,57 @@ export function Dropzone({
     ]
   );
 
+  // Retry a failed upload
+  const retryUpload = useCallback(
+    async (uploadId: string) => {
+      const upload = uploads.find((u) => u.id === uploadId);
+      if (!upload || upload.status !== "error") return;
+
+      // Reset the upload state
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.id === uploadId
+            ? {
+                ...u,
+                status: "pending" as const,
+                error: undefined,
+                progress: 0,
+              }
+            : u
+        )
+      );
+
+      // Retry the upload
+      const result = await uploadFile({
+        ...upload,
+        status: "pending",
+        progress: 0,
+      });
+      if (result) {
+        onUploadComplete?.([result]);
+        toast.success("Image uploaded");
+        // Clear after success
+        setTimeout(() => {
+          setUploads((prev) => prev.filter((u) => u.id !== uploadId));
+        }, 2000);
+      }
+    },
+    [uploads, uploadFile, onUploadComplete]
+  );
+
+  // Dismiss a failed upload
+  const dismissUpload = useCallback((uploadId: string) => {
+    setUploads((prev) => prev.filter((u) => u.id !== uploadId));
+  }, []);
+
+  // Clear all failed uploads
+  const clearFailedUploads = useCallback(() => {
+    setUploads((prev) => prev.filter((u) => u.status !== "error"));
+  }, []);
+
+  // Count failed uploads
+  const failedCount = uploads.filter((u) => u.status === "error").length;
+
   // Drag handlers
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
@@ -551,11 +606,39 @@ export function Dropzone({
             exit={{ opacity: 0, height: 0 }}
             className="mt-3 space-y-2 overflow-hidden"
           >
+            {/* Clear all failed button */}
+            {failedCount > 1 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex justify-end"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFailedUploads}
+                  className="text-xs text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="size-3 mr-1" />
+                  Clear {failedCount} failed
+                </Button>
+              </motion.div>
+            )}
+
             {uploads.map((upload) => (
               <motion.div
                 key={upload.id}
                 initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
+                animate={
+                  upload.status === "error"
+                    ? {
+                        opacity: 1,
+                        x: [0, -8, 8, -8, 8, 0],
+                        transition: { x: { duration: 0.4, ease: "easeInOut" } },
+                      }
+                    : { opacity: 1, x: 0 }
+                }
                 exit={{ opacity: 0, x: 20 }}
                 className={cn(
                   "flex items-center gap-3 p-2 rounded-lg border bg-background",
@@ -594,10 +677,44 @@ export function Dropzone({
                   )}
                 </div>
 
-                <div className="shrink-0 text-xs text-muted-foreground">
-                  {upload.status === "uploading" && `${upload.progress}%`}
-                  {upload.status === "complete" && "Done"}
-                  {upload.status === "pending" && "Waiting..."}
+                <div className="shrink-0 flex items-center gap-1">
+                  {upload.status === "uploading" && (
+                    <span className="text-xs text-muted-foreground">
+                      {upload.progress}%
+                    </span>
+                  )}
+                  {upload.status === "complete" && (
+                    <span className="text-xs text-muted-foreground">Done</span>
+                  )}
+                  {upload.status === "pending" && (
+                    <span className="text-xs text-muted-foreground">
+                      Waiting...
+                    </span>
+                  )}
+                  {upload.status === "error" && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 hover:bg-primary/10"
+                        onClick={() => retryUpload(upload.id)}
+                        title="Retry upload"
+                      >
+                        <RotateCcw className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => dismissUpload(upload.id)}
+                        title="Dismiss"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </motion.div>
             ))}

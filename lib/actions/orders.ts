@@ -8,7 +8,6 @@ import {
   updateOrderStatusSchema,
   bulkUpdateOrderStatusSchema,
   updateStaffNotesSchema,
-  isValidStatusTransition,
   type OrderStatusType,
 } from "@/lib/validations/orders";
 
@@ -62,17 +61,6 @@ export async function updateOrderStatus(
       return {
         success: false,
         error: { message: "Order not found" },
-      };
-    }
-
-    // Validate status transition
-    const currentStatus = order.status as OrderStatusType;
-    if (!isValidStatusTransition(currentStatus, newStatus)) {
-      return {
-        success: false,
-        error: {
-          message: `Cannot transition from "${currentStatus}" to "${newStatus}"`,
-        },
       };
     }
 
@@ -159,21 +147,6 @@ export async function bulkUpdateOrderStatus(
       return {
         success: false,
         error: { message: "No orders found" },
-      };
-    }
-
-    // Check all orders can transition to new status
-    const invalidOrders = currentOrders.filter(
-      (order) =>
-        !isValidStatusTransition(order.status as OrderStatusType, newStatus)
-    );
-
-    if (invalidOrders.length > 0) {
-      return {
-        success: false,
-        error: {
-          message: `${invalidOrders.length} order(s) cannot transition to "${newStatus}"`,
-        },
       };
     }
 

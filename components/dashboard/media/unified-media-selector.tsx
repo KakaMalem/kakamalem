@@ -14,6 +14,9 @@ import {
   LayoutGrid,
   LayoutList,
   Eye,
+  AlertCircle,
+  RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -42,11 +45,7 @@ import {
   getMediaLibrary,
   createMediaRecord,
 } from "@/lib/actions/media";
-import {
-  formatFileSize,
-  MAX_FILES,
-  UPLOAD_ERROR_MESSAGES,
-} from "@/lib/config/file-validation";
+import { formatFileSize, MAX_FILES } from "@/lib/config/file-validation";
 
 // =============================================================================
 // TYPES
@@ -145,6 +144,9 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
   // State
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [failedSaves, setFailedSaves] = useState<UploadedFile[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -175,6 +177,7 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
   const loadMedia = useCallback(
     async (pageNum: number, searchTerm: string, append = false) => {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const result = await getMediaLibrary(tenantId, {
           search: searchTerm || undefined,
@@ -204,13 +207,21 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
         }
         setHasMore(result.pagination.hasNextPage);
       } catch {
-        toast.error(UPLOAD_ERROR_MESSAGES.networkError);
+        const errorMsg = "Failed to load media library. Please try again.";
+        setLoadError(errorMsg);
+        toast.error(errorMsg);
       } finally {
         setIsLoading(false);
       }
     },
     [tenantId, sortMode]
   );
+
+  // Retry loading media
+  const handleRetryLoad = () => {
+    setLoadError(null);
+    loadMedia(page, search);
+  };
 
   // Load on open
   useEffect(() => {
@@ -236,8 +247,12 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
   };
 
   const handleUploadComplete = async (files: UploadedFile[]) => {
+    setIsSaving(true);
+
     // Create media records in database
     const newItems: MediaItem[] = [];
+    const failed: UploadedFile[] = [];
+
     for (const file of files) {
       try {
         const result = await createMediaRecord(tenantId, {
@@ -263,10 +278,24 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
             height: file.height ?? null,
             createdAt: new Date().toISOString(),
           });
+        } else {
+          failed.push(file);
         }
       } catch {
-        toast.error(`Failed to save ${file.originalName}`);
+        failed.push(file);
       }
+    }
+
+    setIsSaving(false);
+
+    // Track failed files for retry
+    if (failed.length > 0) {
+      setFailedSaves((prev) => [...prev, ...failed]);
+      toast.error(
+        failed.length === 1
+          ? `Failed to save "${failed[0].originalName}" to library`
+          : `Failed to save ${failed.length} files to library`
+      );
     }
 
     if (newItems.length > 0) {
@@ -286,7 +315,89 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
       } else {
         setSelectedMediaIds([newItems[0].id]);
       }
+
+      // Show success message
+      toast.success(
+        newItems.length === 1
+          ? "Image added to library"
+          : `${newItems.length} images added to library`
+      );
     }
+  };
+
+  // Retry saving a single failed file
+  const handleRetrySave = async (file: UploadedFile) => {
+    setIsSaving(true);
+
+    try {
+      const result = await createMediaRecord(tenantId, {
+        url: file.url,
+        fileName: file.filename,
+        fileSize: file.size,
+        mimeType: file.mimeType,
+        width: file.width,
+        height: file.height,
+      });
+
+      if (result.success && result.data) {
+        // Remove from failed list
+        setFailedSaves((prev) => prev.filter((f) => f.path !== file.path));
+
+        // Add to items
+        const newItem: MediaItem = {
+          id: result.data.id,
+          tenantId,
+          uploadedById: "",
+          url: result.data.url || file.url,
+          fileName: result.data.fileName || file.filename,
+          altText: null,
+          fileSize: file.size,
+          mimeType: file.mimeType,
+          width: file.width ?? null,
+          height: file.height ?? null,
+          createdAt: new Date().toISOString(),
+        };
+        setMediaItems((prev) => [newItem, ...prev]);
+
+        // Auto-select the retried file
+        if (multiple) {
+          setSelectedMediaIds((prev) => {
+            const newSelection = [...prev, newItem.id];
+            if (maxSelection && newSelection.length > maxSelection) {
+              return newSelection.slice(0, maxSelection);
+            }
+            return newSelection;
+          });
+        } else {
+          setSelectedMediaIds([newItem.id]);
+        }
+
+        toast.success(`"${file.originalName}" added to library`);
+      } else {
+        toast.error(`Failed to save "${file.originalName}"`);
+      }
+    } catch {
+      toast.error(`Failed to save "${file.originalName}"`);
+    }
+
+    setIsSaving(false);
+  };
+
+  // Retry all failed saves
+  const handleRetryAllSaves = async () => {
+    const filesToRetry = [...failedSaves];
+    setFailedSaves([]);
+    await handleUploadComplete(filesToRetry);
+  };
+
+  // Dismiss a single failed save
+  const handleDismissSave = (file: UploadedFile) => {
+    setFailedSaves((prev) => prev.filter((f) => f.path !== file.path));
+  };
+
+  // Dismiss all failed saves
+  const handleDismissAllSaves = () => {
+    setFailedSaves([]);
   };
 
   const handleSelect = () => {
@@ -456,9 +567,135 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
           maxFiles={multiple ? MAX_FILES.mediaSelector : 1}
         />
 
+        {/* Saving overlay */}
+        {isSaving && (
+          <div className="flex items-center gap-2 py-2 px-3 bg-primary/10 border border-primary/20 rounded-lg">
+            <Loader2 className="size-4 animate-spin text-primary" />
+            <span className="text-sm text-primary">Saving to library...</span>
+          </div>
+        )}
+
+        {/* Failed saves with retry/dismiss */}
+        <AnimatePresence>
+          {failedSaves.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-2 overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-destructive">
+                  {failedSaves.length} file{failedSaves.length > 1 ? "s" : ""}{" "}
+                  failed to save
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRetryAllSaves}
+                    disabled={isSaving}
+                    className="text-xs"
+                  >
+                    <RotateCcw className="size-3 mr-1" />
+                    Retry All
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDismissAllSaves}
+                    disabled={isSaving}
+                    className="text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="size-3 mr-1" />
+                    Dismiss All
+                  </Button>
+                </div>
+              </div>
+              {failedSaves.map((file) => (
+                <motion.div
+                  key={file.path}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{
+                    opacity: 1,
+                    x: [0, -8, 8, -8, 8, 0],
+                    transition: { x: { duration: 0.4, ease: "easeInOut" } },
+                  }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="flex items-center gap-3 p-2 rounded-lg border border-destructive/50 bg-destructive/5"
+                >
+                  <AlertCircle className="size-5 text-destructive shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {file.originalName}
+                    </p>
+                    <p className="text-xs text-destructive">
+                      Failed to save to library
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 hover:bg-primary/10"
+                      onClick={() => handleRetrySave(file)}
+                      disabled={isSaving}
+                      title="Retry save"
+                    >
+                      <RotateCcw className="size-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => handleDismissSave(file)}
+                      disabled={isSaving}
+                      title="Dismiss"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Media Grid/List */}
         <div className="flex-1 overflow-y-auto min-h-0 -mx-1 px-1">
-          {(isLoading && mediaItems.length === 0) || viewMode === null ? (
+          {/* Error state with retry and dismiss */}
+          {loadError && mediaItems.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center justify-center h-full min-h-64 text-center"
+            >
+              <div className="rounded-full p-4 bg-destructive/10 mb-4">
+                <AlertCircle className="size-10 text-destructive" />
+              </div>
+              <p className="text-lg font-medium text-destructive">
+                Failed to load images
+              </p>
+              <p className="text-sm text-muted-foreground mt-1 mb-4">
+                {loadError}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleRetryLoad}>
+                  <RefreshCw className="mr-2 size-4" />
+                  Try Again
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setLoadError(null)}
+                  className="text-muted-foreground"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </motion.div>
+          ) : (isLoading && mediaItems.length === 0) || viewMode === null ? (
             <div className="flex items-center justify-center h-full min-h-64">
               <Loader2 className="size-8 animate-spin text-muted-foreground" />
             </div>

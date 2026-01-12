@@ -3,14 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,11 +21,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { updateOrderStatus } from "@/lib/actions/orders";
 import {
-  getValidNextStatuses,
+  ALL_STATUSES,
+  STATUS_LABELS,
+  DESTRUCTIVE_STATUSES,
   type OrderStatusType,
 } from "@/lib/validations/orders";
 
@@ -34,23 +34,6 @@ interface OrderStatusSelectProps {
   tenantId: string;
   currentStatus: OrderStatusType;
 }
-
-const STATUS_LABELS: Record<OrderStatusType, string> = {
-  pending: "Pending",
-  confirmed: "Confirmed",
-  processing: "Processing",
-  shipped: "Shipped",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  refunded: "Refunded",
-  partially_refunded: "Partially Refunded",
-};
-
-const DESTRUCTIVE_STATUSES: OrderStatusType[] = [
-  "cancelled",
-  "refunded",
-  "partially_refunded",
-];
 
 export function OrderStatusSelect({
   orderId,
@@ -61,83 +44,71 @@ export function OrderStatusSelect({
   const [isPending, startTransition] = useTransition();
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Confirmation dialog state
+  // Confirmation dialog state for destructive actions
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<OrderStatusType | null>(
     null
   );
-  const [staffNote, setStaffNote] = useState("");
 
-  const validNextStatuses = getValidNextStatuses(currentStatus);
+  const handleStatusChange = (newStatus: string) => {
+    const status = newStatus as OrderStatusType;
+    if (status === currentStatus) return;
 
-  const handleStatusSelect = (newStatus: OrderStatusType) => {
     // Show confirmation for destructive actions
-    if (DESTRUCTIVE_STATUSES.includes(newStatus)) {
-      setPendingStatus(newStatus);
-      setStaffNote("");
+    if (DESTRUCTIVE_STATUSES.includes(status)) {
+      setPendingStatus(status);
       setConfirmDialogOpen(true);
     } else {
-      performStatusUpdate(newStatus);
+      performStatusUpdate(status);
     }
   };
 
-  const performStatusUpdate = async (
-    newStatus: OrderStatusType,
-    note?: string
-  ) => {
+  const performStatusUpdate = async (newStatus: OrderStatusType) => {
     setIsUpdating(true);
 
-    const result = await updateOrderStatus(tenantId, orderId, newStatus, note);
+    const result = await updateOrderStatus(tenantId, orderId, newStatus);
 
     if (result.success) {
-      toast.success(`Order updated to ${STATUS_LABELS[newStatus]}`);
+      toast.success(`Status updated to ${STATUS_LABELS[newStatus]}`);
       startTransition(() => {
         router.refresh();
       });
     } else {
-      toast.error(result.error?.message || "Failed to update order");
+      toast.error(result.error?.message || "Failed to update status");
     }
 
     setIsUpdating(false);
     setConfirmDialogOpen(false);
     setPendingStatus(null);
-    setStaffNote("");
   };
 
   const handleConfirmUpdate = () => {
     if (pendingStatus) {
-      performStatusUpdate(pendingStatus, staffNote || undefined);
+      performStatusUpdate(pendingStatus);
     }
   };
 
-  if (validNextStatuses.length === 0) {
-    return null;
-  }
+  const isDisabled = isPending || isUpdating;
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={isPending || isUpdating}
-          >
-            {isPending || isUpdating ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <>
-                Update Status
-                <ChevronDown className="size-4" />
-              </>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {validNextStatuses.map((status) => (
-            <DropdownMenuItem
+      <Select
+        value={currentStatus}
+        onValueChange={handleStatusChange}
+        disabled={isDisabled}
+      >
+        <SelectTrigger className="w-44">
+          {isDisabled ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <SelectValue />
+          )}
+        </SelectTrigger>
+        <SelectContent>
+          {ALL_STATUSES.map((status) => (
+            <SelectItem
               key={status}
-              onClick={() => handleStatusSelect(status)}
+              value={status}
               className={
                 DESTRUCTIVE_STATUSES.includes(status)
                   ? "text-destructive focus:text-destructive"
@@ -145,10 +116,10 @@ export function OrderStatusSelect({
               }
             >
               {STATUS_LABELS[status]}
-            </DropdownMenuItem>
+            </SelectItem>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </SelectContent>
+      </Select>
 
       {/* Confirmation Dialog for Destructive Actions */}
       <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
@@ -159,39 +130,23 @@ export function OrderStatusSelect({
                 ? "Cancel Order"
                 : pendingStatus === "refunded"
                   ? "Refund Order"
-                  : "Update Status"}
+                  : "Partial Refund"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingStatus === "cancelled"
                 ? "Are you sure you want to cancel this order? This action cannot be undone."
                 : pendingStatus === "refunded"
-                  ? "Are you sure you want to mark this order as refunded?"
-                  : `Are you sure you want to change the status to ${pendingStatus ? STATUS_LABELS[pendingStatus] : ""}?`}
+                  ? "Are you sure you want to mark this order as fully refunded?"
+                  : "Are you sure you want to mark this order as partially refunded?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
-
-          <div className="py-4">
-            <Label htmlFor="staff-note">Note (optional)</Label>
-            <Textarea
-              id="staff-note"
-              placeholder="Add a note about this status change..."
-              value={staffNote}
-              onChange={(e) => setStaffNote(e.target.value)}
-              className="mt-1.5"
-              rows={3}
-            />
-          </div>
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isUpdating}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmUpdate}
               disabled={isUpdating}
-              variant={
-                pendingStatus && DESTRUCTIVE_STATUSES.includes(pendingStatus)
-                  ? "destructive"
-                  : "default"
-              }
+              variant="destructive"
             >
               {isUpdating ? "Updating..." : "Confirm"}
             </AlertDialogAction>

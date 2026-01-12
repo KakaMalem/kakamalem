@@ -105,22 +105,30 @@ export function ScheduledSaleForm({
 
     // Validate
     if (!selectedProductId) {
-      setErrors({ productId: "Please select a product" });
+      const errorMsg = "Please select a product";
+      setErrors({ productId: errorMsg });
+      toast.error(errorMsg);
       return;
     }
 
     if (!salePrice || parseFloat(salePrice) < 0) {
-      setErrors({ salePrice: "Please enter a valid sale price" });
+      const errorMsg = "Please enter a valid sale price";
+      setErrors({ salePrice: errorMsg });
+      toast.error(errorMsg);
       return;
     }
 
     if (!startsAt) {
-      setErrors({ startsAt: "Please select a start date" });
+      const errorMsg = "Please select a start date";
+      setErrors({ startsAt: errorMsg });
+      toast.error(errorMsg);
       return;
     }
 
     if (!endsAt) {
-      setErrors({ endsAt: "Please select an end date" });
+      const errorMsg = "Please select an end date";
+      setErrors({ endsAt: errorMsg });
+      toast.error(errorMsg);
       return;
     }
 
@@ -142,6 +150,7 @@ export function ScheduledSaleForm({
       if (!result.success) {
         if (result.error?.field) {
           setErrors({ [result.error.field]: result.error.message });
+          toast.error(result.error.message);
         } else {
           toast.error(result.error?.message || "Something went wrong");
         }

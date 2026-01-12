@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,6 +74,19 @@ export function SeoSettingsForm({
     setSuccess(false);
   };
 
+  // Scroll to first error field when fieldErrors change
+  useEffect(() => {
+    const errorFields = Object.keys(fieldErrors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const element = document.getElementById(firstErrorField);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => element.focus(), 300);
+    }
+  }, [fieldErrors]);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -98,6 +111,7 @@ export function SeoSettingsForm({
           }
         });
         setFieldErrors(errors);
+        toast.error(validation.error.issues[0].message);
         return;
       }
 
@@ -112,8 +126,10 @@ export function SeoSettingsForm({
       if (result.error) {
         if (result.error.field) {
           setFieldErrors({ [result.error.field]: result.error.message });
+          toast.error(result.error.message);
         } else {
           setError(result.error.message);
+          toast.error(result.error.message);
         }
         return;
       }

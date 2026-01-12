@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useTransition, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useTransition,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+} from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -138,6 +145,23 @@ interface ProductFormProps {
 
 type FormErrors = Partial<Record<keyof ProductInput, string>>;
 
+// Map field names to their DOM element IDs for scroll-to-error
+const FIELD_ID_MAP: Record<string, string> = {
+  name: "name",
+  price: "price",
+  compareAtPrice: "compareAtPrice",
+  costPrice: "costPrice",
+  description: "description",
+  stock: "stock",
+  lowStockThreshold: "lowStockThreshold",
+  weight: "weight",
+  length: "length",
+  width: "width",
+  height: "height",
+  minOrderQuantity: "minOrderQuantity",
+  maxOrderQuantity: "maxOrderQuantity",
+};
+
 // Image can be either an existing media item or a staged file
 type ImageItem = {
   id: string; // For existing: media ID. For staged: temp ID
@@ -248,6 +272,39 @@ export function ProductForm({
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<FormErrors>({});
   const { openPreview } = useImagePreview();
+
+  // Scroll to first error field when errors change
+  useEffect(() => {
+    const errorFields = Object.keys(errors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const elementId = FIELD_ID_MAP[firstErrorField];
+
+    if (elementId) {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Focus the element after scrolling
+        setTimeout(() => {
+          element.focus();
+        }, 300);
+      }
+    }
+  }, [errors]);
+
+  // Ref for variant section to scroll to on variant errors
+  const variantSectionRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to variant section helper
+  const scrollToVariantSection = useCallback(() => {
+    if (variantSectionRef.current) {
+      variantSectionRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, []);
   const [mediaSelectorOpen, setMediaSelectorOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     stage: "validating" | "uploading" | "saving" | "complete";
@@ -889,6 +946,7 @@ export function ProductForm({
         const errorMsg = "Please add at least one variant option with values";
         setVariantError(errorMsg);
         toast.error(errorMsg);
+        scrollToVariantSection();
         setUploadProgress(null);
         return;
       }
@@ -899,6 +957,7 @@ export function ProductForm({
         const errorMsg = "Please include at least one variant";
         setVariantError(errorMsg);
         toast.error(errorMsg);
+        scrollToVariantSection();
         setUploadProgress(null);
         return;
       }
@@ -908,6 +967,7 @@ export function ProductForm({
       if (validation.status === "error") {
         setVariantError(validation.message);
         toast.error(validation.message);
+        scrollToVariantSection();
         setUploadProgress(null);
         return;
       }
@@ -1361,7 +1421,7 @@ export function ProductForm({
           </Card>
 
           {/* Variants */}
-          <Card className="overflow-hidden">
+          <Card ref={variantSectionRef} className="overflow-hidden">
             <CardHeader>
               <CardTitle>Variants</CardTitle>
             </CardHeader>

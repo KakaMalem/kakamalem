@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -54,6 +55,19 @@ export function SocialLinksForm({
 
   const [formData, setFormData] = useState(initialData);
 
+  // Scroll to first error field when fieldErrors change
+  useEffect(() => {
+    const errorFields = Object.keys(fieldErrors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const element = document.getElementById(firstErrorField);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => element.focus(), 300);
+    }
+  }, [fieldErrors]);
+
   const updateField = (field: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setSuccess(false);
@@ -82,6 +96,7 @@ export function SocialLinksForm({
             }
           });
           setFieldErrors(errors);
+          toast.error(err.issues[0].message);
           return;
         }
       }
@@ -97,13 +112,16 @@ export function SocialLinksForm({
       if (result.error) {
         if (result.error.field) {
           setFieldErrors({ [result.error.field]: result.error.message });
+          toast.error(result.error.message);
         } else {
           setError(result.error.message);
+          toast.error(result.error.message);
         }
         return;
       }
 
       setSuccess(true);
+      toast.success("Social links saved successfully!");
     });
   }
 

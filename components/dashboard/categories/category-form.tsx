@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -91,6 +91,19 @@ export function CategoryForm({
     setImage(null);
   };
 
+  // Scroll to first error field when errors change
+  useEffect(() => {
+    const errorFields = Object.keys(errors);
+    if (errorFields.length === 0) return;
+
+    const firstErrorField = errorFields[0];
+    const element = document.getElementById(firstErrorField);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => element.focus(), 300);
+    }
+  }, [errors]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -112,6 +125,7 @@ export function CategoryForm({
         fieldErrors[field] = issue.message;
       });
       setErrors(fieldErrors);
+      toast.error(result.error.issues[0].message);
       return;
     }
 
@@ -140,6 +154,7 @@ export function CategoryForm({
             setErrors({
               [actionResult.error.field]: actionResult.error.message,
             });
+            toast.error(actionResult.error.message);
           } else {
             toast.error(actionResult.error?.message || "Something went wrong");
           }
