@@ -15,6 +15,7 @@ export type LocationErrorType =
   | "permission_denied"
   | "position_unavailable"
   | "timeout"
+  | "android_silent_deny"
   | "unknown";
 
 export interface LocationResult {
@@ -172,6 +173,13 @@ export function useLocationPermission(): UseLocationPermissionReturn {
    * Returns both position and error type for better error handling
    */
   const requestLocation = useCallback(async (): Promise<LocationResult> => {
+    // Detect Android for special handling
+    const isAndroid =
+      typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+
+    // Store current permission state before request
+    const prevPermissionState = permissionState;
+
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
         setLastError("unknown");
@@ -192,8 +200,13 @@ export function useLocationPermission(): UseLocationPermissionReturn {
 
           switch (error.code) {
             case error.PERMISSION_DENIED:
-              // User denied browser permission
-              errorType = "permission_denied";
+              // On Android, if permission was "prompt" and we got denied without
+              // user interaction, it's the Android silent deny issue
+              if (isAndroid && prevPermissionState === "prompt") {
+                errorType = "android_silent_deny";
+              } else {
+                errorType = "permission_denied";
+              }
               setPermissionState("denied");
               break;
             case error.POSITION_UNAVAILABLE:
@@ -218,7 +231,7 @@ export function useLocationPermission(): UseLocationPermissionReturn {
         }
       );
     });
-  }, []);
+  }, [permissionState]);
 
   /**
    * Dismiss the location prompt for 7 days

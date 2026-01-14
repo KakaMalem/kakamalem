@@ -387,6 +387,8 @@ function getErrorMessage(errorType: LocationErrorType): string {
   switch (errorType) {
     case "permission_denied":
       return "Location access denied. Please enable location permissions in your browser settings.";
+    case "android_silent_deny":
+      return "Location permission needed. On Android: tap the lock icon (🔒) in the address bar → Site settings → Location → Allow, then try again.";
     case "position_unavailable":
       return "Unable to determine location. Please check that location services are enabled on your device.";
     case "timeout":
