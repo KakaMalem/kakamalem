@@ -187,18 +187,16 @@ export function InfiniteScrollProductsWithSort({
 
       if (result.success) {
         cartActions.setCart(result.cart, storeSlug);
-        toast.success("Added to cart", {
-          description: product.name,
-        });
         cartActions.setIsOpen(true);
       } else {
-        toast.error("Failed to add to cart", {
+        toast.error("Couldn't add to cart", {
           description: result.error,
         });
       }
     } catch (error) {
-      toast.error("Failed to add to cart", {
-        description: error instanceof Error ? error.message : "Unknown error",
+      toast.error("Couldn't add to cart", {
+        description:
+          error instanceof Error ? error.message : "Please try again",
       });
     } finally {
       setAddingToCart(null);

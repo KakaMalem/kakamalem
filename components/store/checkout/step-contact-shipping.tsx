@@ -226,7 +226,21 @@ export function StepContactShipping({
         }
         hasErrors = true;
       } else {
-        const addressValidation = shippingAddressSchema.safeParse(addressForm);
+        // For guests, merge name and phone from guestForm into addressForm
+        // For logged-in users, use user's name and addressForm phone
+        const addressToValidate: ShippingAddressInput = {
+          ...addressForm,
+          firstName: user
+            ? user.name?.split(" ")[0] || ""
+            : guestForm.firstName,
+          lastName: user
+            ? user.name?.split(" ").slice(1).join(" ") || ""
+            : guestForm.lastName,
+          phone: user ? addressForm.phone : guestForm.phone,
+        };
+
+        const addressValidation =
+          shippingAddressSchema.safeParse(addressToValidate);
         if (!addressValidation.success) {
           const errors: Partial<Record<keyof ShippingAddressInput, string>> =
             {};
@@ -467,49 +481,24 @@ export function StepContactShipping({
                 </Button>
               )}
 
-              {/* Name fields only for guests - logged-in users use their account name */}
-              {!user && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel>First Name</FieldLabel>
-                    <Input
-                      value={addressForm.firstName}
-                      onChange={(e) =>
-                        handleAddressChange("firstName", e.target.value)
-                      }
-                      aria-invalid={!!addressErrors.firstName}
-                    />
-                    <FieldError>{addressErrors.firstName}</FieldError>
-                  </Field>
-                  <Field>
-                    <FieldLabel>Last Name</FieldLabel>
-                    <Input
-                      value={addressForm.lastName}
-                      onChange={(e) =>
-                        handleAddressChange("lastName", e.target.value)
-                      }
-                      aria-invalid={!!addressErrors.lastName}
-                    />
-                    <FieldError>{addressErrors.lastName}</FieldError>
-                  </Field>
-                </div>
+              {/* Phone field only for logged-in users - guests use phone from Contact Info */}
+              {user && (
+                <Field>
+                  <FieldLabel>Phone</FieldLabel>
+                  <PhoneInput
+                    value={addressForm.phone}
+                    onChange={(value) =>
+                      handleAddressChange("phone", value || "")
+                    }
+                    defaultCountry="AF"
+                    aria-invalid={!!addressErrors.phone}
+                  />
+                  <FieldDescription>
+                    Required for delivery coordination
+                  </FieldDescription>
+                  <FieldError>{addressErrors.phone}</FieldError>
+                </Field>
               )}
-
-              <Field>
-                <FieldLabel>Phone</FieldLabel>
-                <PhoneInput
-                  value={addressForm.phone}
-                  onChange={(value) =>
-                    handleAddressChange("phone", value || "")
-                  }
-                  defaultCountry="AF"
-                  aria-invalid={!!addressErrors.phone}
-                />
-                <FieldDescription>
-                  Required for delivery coordination
-                </FieldDescription>
-                <FieldError>{addressErrors.phone}</FieldError>
-              </Field>
 
               {/* Location Picker */}
               <Field>

@@ -27,6 +27,7 @@ import {
   createCategoryWithUrl,
   updateCategoryWithUrl,
 } from "@/lib/actions/categories";
+import { handleFormErrors } from "@/lib/utils/form-errors";
 
 type ImageState = {
   id: string;
@@ -125,7 +126,7 @@ export function CategoryForm({
         fieldErrors[field] = issue.message;
       });
       setErrors(fieldErrors);
-      toast.error(result.error.issues[0].message);
+      handleFormErrors(fieldErrors);
       return;
     }
 

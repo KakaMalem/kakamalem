@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, MapPin, Navigation, X } from "lucide-react";
+import { Loader2, MapPin, Navigation, X, MapPinOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { computePlusCode } from "@/lib/geo";
+import {
+  useLocationPermission,
+  type LocationErrorType,
+} from "@/lib/hooks/use-location-permission";
 
 export interface LocationData {
   latitude: number;
@@ -379,6 +383,19 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
   );
 }
 
+function getErrorMessage(errorType: LocationErrorType): string {
+  switch (errorType) {
+    case "permission_denied":
+      return "Location access denied. Please enable location permissions in your browser settings.";
+    case "position_unavailable":
+      return "Unable to determine location. Please check that location services are enabled on your device.";
+    case "timeout":
+      return "Location request timed out. Please try again.";
+    default:
+      return "Failed to get location. Please try again or select manually on the map.";
+  }
+}
+
 export function LocationPicker({
   value,
   onChange,
@@ -393,17 +410,18 @@ export function LocationPicker({
   const markerRef = useRef<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  const [leafletLoaded, setLeafletLoaded] = useState(false);
+  // Initialize with true if Leaflet is already loaded (e.g., from a previous render)
+  const [leafletLoaded, setLeafletLoaded] = useState(
+    () => typeof window !== "undefined" && !!window.L
+  );
+
+  const { permissionState, isCheckingPermission, requestLocation } =
+    useLocationPermission();
 
   const showMap = !!value;
 
   useEffect(() => {
-    if (typeof window === "undefined" || !showMap) return;
-
-    if (window.L) {
-      setLeafletLoaded(true);
-      return;
-    }
+    if (typeof window === "undefined" || !showMap || leafletLoaded) return;
 
     const link = document.createElement("link");
     link.rel = "stylesheet";
@@ -418,7 +436,7 @@ export function LocationPicker({
     script.crossOrigin = "";
     script.onload = () => setLeafletLoaded(true);
     document.head.appendChild(script);
-  }, [showMap]);
+  }, [showMap, leafletLoaded]);
 
   useEffect(() => {
     if (!leafletLoaded || !mapRef.current || mapInstanceRef.current || !value)
@@ -473,47 +491,32 @@ export function LocationPicker({
     map.setView([value.latitude, value.longitude], map.getZoom());
   }, [value, leafletLoaded]);
 
-  const handleGetCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setGpsError("Geolocation is not supported by your browser");
-      return;
-    }
-
+  const handleGetCurrentLocation = useCallback(async () => {
     setIsLoading(true);
     setGpsError(null);
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-        const plusCode = computePlusCode(latitude, longitude);
-        onChange({
-          latitude,
-          longitude,
-          accuracy: accuracy || undefined,
-          source: "gps",
-          plusCode,
-        });
-        setIsLoading(false);
-      },
-      (err) => {
-        setIsLoading(false);
-        switch (err.code) {
-          case err.PERMISSION_DENIED:
-            setGpsError("Location access denied. Please enable permissions.");
-            break;
-          case err.POSITION_UNAVAILABLE:
-            setGpsError("Unable to determine location. Please try again.");
-            break;
-          case err.TIMEOUT:
-            setGpsError("Location request timed out. Please try again.");
-            break;
-          default:
-            setGpsError("Failed to get location. Please try again.");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  }, [onChange]);
+    const result = await requestLocation();
+
+    if (result.error) {
+      setGpsError(getErrorMessage(result.error));
+      setIsLoading(false);
+      return;
+    }
+
+    if (result.position) {
+      const { latitude, longitude, accuracy } = result.position.coords;
+      const plusCode = computePlusCode(latitude, longitude);
+      onChange({
+        latitude,
+        longitude,
+        accuracy: accuracy || undefined,
+        source: "gps",
+        plusCode,
+      });
+    }
+
+    setIsLoading(false);
+  }, [onChange, requestLocation]);
 
   const handleButtonClick = useCallback(() => {
     if (isLoading) {
@@ -563,15 +566,28 @@ export function LocationPicker({
               <div
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-xl py-3 px-4 transition-all duration-200 mx-auto max-w-xs",
-                  isLoading
+                  isLoading || isCheckingPermission
                     ? "bg-gray-100 text-gray-600"
-                    : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white"
+                    : permissionState === "denied"
+                      ? "bg-red-50 text-red-600"
+                      : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white"
                 )}
               >
-                {isLoading ? (
+                {isLoading || isCheckingPermission ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
-                    <span className="text-sm font-medium">Tap to cancel</span>
+                    <span className="text-sm font-medium">
+                      {isCheckingPermission
+                        ? "Checking permissions..."
+                        : "Tap to cancel"}
+                    </span>
+                  </>
+                ) : permissionState === "denied" ? (
+                  <>
+                    <MapPinOff className="size-4" />
+                    <span className="text-sm font-medium">
+                      Location blocked - tap to retry
+                    </span>
                   </>
                 ) : (
                   <>

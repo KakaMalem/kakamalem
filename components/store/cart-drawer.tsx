@@ -243,7 +243,12 @@ function CartDrawerItem({
     if (newQuantity < 1) return;
 
     if (trackInventory && !allowBackorder && newQuantity > availableStock) {
-      toast.error(`Only ${availableStock} items available`);
+      toast.error("Can't add more", {
+        description:
+          availableStock === 0
+            ? "This item is out of stock"
+            : `Only ${availableStock} item${availableStock === 1 ? "" : "s"} available`,
+      });
       return;
     }
 

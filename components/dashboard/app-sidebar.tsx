@@ -16,6 +16,8 @@ import {
   CreditCard,
   Layers,
   Warehouse,
+  Tag,
+  Users,
 } from "lucide-react";
 
 import {
@@ -127,6 +129,11 @@ export function AppSidebar({
       href: `${baseUrl}/shipping`,
       icon: Truck,
     },
+    {
+      title: "Sales",
+      href: `${baseUrl}/sales`,
+      icon: Tag,
+    },
   ];
 
   const insightsNavItems = [
@@ -147,6 +154,11 @@ export function AppSidebar({
       title: "Store Settings",
       href: `${baseUrl}/settings`,
       icon: Store,
+    },
+    {
+      title: "Customers",
+      href: `${baseUrl}/customers/groups`,
+      icon: Users,
     },
     {
       title: "Account",

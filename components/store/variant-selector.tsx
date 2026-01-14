@@ -23,12 +23,12 @@ export function VariantSelector({
   onValueChange,
 }: VariantSelectorProps) {
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
       <h4 className="text-lg font-semibold">{label}:</h4>
       <RadioGroup
         value={selectedValue}
         onValueChange={onValueChange}
-        className="flex gap-3"
+        className="flex flex-wrap gap-3"
       >
         {options.map((option) => (
           <label

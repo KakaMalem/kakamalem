@@ -96,9 +96,11 @@ export function useDebouncedCartSync({
         }
       } catch (error) {
         // Rollback: refetch entire cart from server
-        toast.error(
-          error instanceof Error ? error.message : "Failed to update cart"
-        );
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to update cart";
+        toast.error("Couldn't update cart", {
+          description: errorMessage,
+        });
         await refetchCart();
       } finally {
         syncing.current.delete(itemId);

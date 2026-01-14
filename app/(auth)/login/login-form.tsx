@@ -16,6 +16,7 @@ import { OAuthButton } from "@/components/auth/oauth-button";
 import { AuthStatusCard } from "@/components/auth/auth-status-card";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
+import { handleFormErrors } from "@/lib/utils/form-errors";
 
 // Map field names to DOM element IDs for scroll-to-error
 const FIELD_ID_MAP: Record<string, string> = {
@@ -76,7 +77,7 @@ export function LoginForm() {
           }
         });
         setFieldErrors(errors);
-        toast.error(err.issues[0].message);
+        handleFormErrors(errors, FIELD_ID_MAP);
         setIsPending(false);
         return;
       }

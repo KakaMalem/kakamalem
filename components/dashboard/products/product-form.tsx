@@ -98,6 +98,7 @@ import {
 import { savePriceTiers } from "@/lib/actions/price-tiers";
 import { saveGroupPrices } from "@/lib/actions/group-pricing";
 import { cn } from "@/lib/utils";
+import { handleFormErrors } from "@/lib/utils/form-errors";
 import {
   generateVariantCombinations,
   generateSku,
@@ -1015,15 +1016,14 @@ export function ProductForm({
     const result = productSchema.safeParse(formData);
     if (!result.success) {
       const fieldErrors: FormErrors = {};
-      const firstError = result.error.issues[0];
       result.error.issues.forEach((issue) => {
         const field = issue.path[0] as keyof ProductInput;
         fieldErrors[field] = issue.message;
       });
       setErrors(fieldErrors);
       setUploadProgress(null);
-      // Show toast with first validation error
-      toast.error(firstError.message);
+      // Show smart toast with all validation errors and scroll to first
+      handleFormErrors(fieldErrors, FIELD_ID_MAP);
       return;
     }
 
@@ -1257,7 +1257,7 @@ export function ProductForm({
       className="w-full max-w-full space-y-8"
     >
       <div className="grid w-full max-w-full gap-8 lg:grid-cols-3">
-        {/* Main Content - 2 columns */}
+        {/* Main Content - 2 columns on desktop */}
         <div className="space-y-8 lg:col-span-2 min-w-0">
           {/* Basic Info */}
           <Card className="overflow-hidden">
@@ -1420,67 +1420,123 @@ export function ProductForm({
             </CardContent>
           </Card>
 
-          {/* Variants */}
-          <Card ref={variantSectionRef} className="overflow-hidden">
-            <CardHeader>
-              <CardTitle>Variants</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6 overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>This product has variants</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable if this product comes in different options like size
-                    or color
-                  </p>
-                </div>
-                <Switch
-                  checked={hasVariants}
-                  onCheckedChange={handleHasVariantsChange}
-                  disabled={isPending}
-                />
-              </div>
-
-              {hasVariants && (
-                <>
-                  <Separator />
-
-                  {/* Variant Options Builder */}
-                  <VariantOptionsBuilder
-                    options={variantOptions}
-                    onChange={handleVariantOptionsChange}
-                    existingOptions={existingVariantOptions}
-                    error={variantError || undefined}
-                    disabled={isPending}
-                  />
-
-                  {/* Variant Matrix Table */}
-                  {variants.length > 0 && (
-                    <>
-                      <Separator />
-                      <VariantMatrixTable
-                        variants={variants}
-                        onChange={setVariants}
-                        currency={currency}
-                        productSlug={name || "product"}
-                        disabled={isPending}
-                        tenantId={tenantId}
-                        trackInventory={trackInventory}
-                      />
-                    </>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar - 1 column */}
-        <div className="space-y-8">
-          {/* Pricing & Category */}
+          {/* Pricing - Essential business field, high priority */}
           <Card>
             <CardHeader>
-              <CardTitle>Pricing & Category</CardTitle>
+              <CardTitle>Pricing</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="price">
+                    Price ({currency}){" "}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="0.00"
+                    aria-invalid={!!errors.price}
+                  />
+                  {hasVariants && (
+                    <p className="text-sm text-muted-foreground">
+                      Base price (variants can override)
+                    </p>
+                  )}
+                  {errors.price && (
+                    <p className="text-sm text-destructive">{errors.price}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="compareAtPrice">
+                    Compare-at Price ({currency})
+                  </Label>
+                  <Input
+                    id="compareAtPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={compareAtPrice}
+                    onChange={(e) => setCompareAtPrice(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="0.00"
+                    aria-invalid={!!errors.compareAtPrice}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Original price (strikethrough)
+                  </p>
+                  {errors.compareAtPrice && (
+                    <p className="text-sm text-destructive">
+                      {errors.compareAtPrice}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="costPrice">Cost Price ({currency})</Label>
+                <Input
+                  id="costPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0.00"
+                  aria-invalid={!!errors.costPrice}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Your cost for profit tracking (not shown to customers)
+                </p>
+                {errors.costPrice && (
+                  <p className="text-sm text-destructive">{errors.costPrice}</p>
+                )}
+              </div>
+
+              {/* Profit Margin Display */}
+              {price &&
+                costPrice &&
+                parseFloat(price) > 0 &&
+                parseFloat(costPrice) > 0 && (
+                  <div className="rounded-md bg-muted/50 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Profit Margin
+                      </span>
+                      <span className="font-medium">
+                        {Math.round(
+                          ((parseFloat(price) - parseFloat(costPrice)) /
+                            parseFloat(price)) *
+                            100
+                        )}
+                        %
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span className="text-muted-foreground">
+                        Profit per Unit
+                      </span>
+                      <span className="font-medium">
+                        {currency}{" "}
+                        {(parseFloat(price) - parseFloat(costPrice)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+            </CardContent>
+          </Card>
+
+          {/* Organization - Categories */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Organization</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -1629,193 +1685,35 @@ export function ProductForm({
                 </Popover>
                 <p className="text-sm text-muted-foreground">
                   Click to browse categories, type to search or create new ones.
-                  Press Backspace to remove.
                 </p>
               </div>
-
-              <Separator />
-
-              <div className="space-y-2">
-                <Label htmlFor="price">
-                  Price ({currency}) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  placeholder="0.00"
-                  aria-invalid={!!errors.price}
-                />
-                {hasVariants && (
-                  <p className="text-sm text-muted-foreground">
-                    Base price (variants can override)
-                  </p>
-                )}
-                {errors.price && (
-                  <p className="text-sm text-destructive">{errors.price}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="compareAtPrice">
-                  Compare-at Price ({currency})
-                </Label>
-                <Input
-                  id="compareAtPrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={compareAtPrice}
-                  onChange={(e) => setCompareAtPrice(e.target.value)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  placeholder="0.00"
-                  aria-invalid={!!errors.compareAtPrice}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Original price shown with strikethrough
-                </p>
-                {errors.compareAtPrice && (
-                  <p className="text-sm text-destructive">
-                    {errors.compareAtPrice}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="costPrice">Cost Price ({currency})</Label>
-                <Input
-                  id="costPrice"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={costPrice}
-                  onChange={(e) => setCostPrice(e.target.value)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  placeholder="0.00"
-                  aria-invalid={!!errors.costPrice}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Your cost for profit tracking (not shown to customers)
-                </p>
-                {errors.costPrice && (
-                  <p className="text-sm text-destructive">{errors.costPrice}</p>
-                )}
-              </div>
-
-              {/* Profit Margin Display */}
-              {price &&
-                costPrice &&
-                parseFloat(price) > 0 &&
-                parseFloat(costPrice) > 0 && (
-                  <div className="rounded-md bg-muted/50 p-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        Profit Margin
-                      </span>
-                      <span className="font-medium">
-                        {Math.round(
-                          ((parseFloat(price) - parseFloat(costPrice)) /
-                            parseFloat(price)) *
-                            100
-                        )}
-                        %
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-muted-foreground">
-                        Profit per Unit
-                      </span>
-                      <span className="font-medium">
-                        {currency}{" "}
-                        {(parseFloat(price) - parseFloat(costPrice)).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="minOrderQuantity">Min Qty</Label>
-                  <Input
-                    id="minOrderQuantity"
-                    type="number"
-                    min="1"
-                    value={minOrderQuantity}
-                    onChange={(e) => setMinOrderQuantity(e.target.value)}
-                    onWheel={(e) => e.currentTarget.blur()}
-                    placeholder="1"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxOrderQuantity">Max Qty</Label>
-                  <Input
-                    id="maxOrderQuantity"
-                    type="number"
-                    min="1"
-                    value={maxOrderQuantity}
-                    onChange={(e) => setMaxOrderQuantity(e.target.value)}
-                    onWheel={(e) => e.currentTarget.blur()}
-                    placeholder="No limit"
-                  />
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Order quantity limits per customer
-              </p>
             </CardContent>
           </Card>
 
-          {/* Bulk Pricing (Price Tiers) */}
-          <PriceTiersEditor
-            tiers={priceTiers}
-            onChange={setPriceTiers}
-            basePrice={price}
-            currency={currency}
-            disabled={isPending}
-          />
-
-          {/* Group Pricing */}
-          <GroupPricingEditor
-            customerGroups={customerGroups}
-            prices={groupPrices}
-            onChange={setGroupPrices}
-            basePrice={price}
-            currency={currency}
-            disabled={isPending}
-          />
-
-          {/* Inventory */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Inventory</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Track Inventory</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {hasVariants
-                      ? "Enable stock tracking for variants (stock is tracked per variant)"
-                      : "Enable stock tracking for this product"}
-                  </p>
+          {/* Inventory - for simple products without variants */}
+          {!hasVariants && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Inventory</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Track Inventory</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enable stock tracking for this product
+                    </p>
+                  </div>
+                  <Switch
+                    checked={trackInventory}
+                    onCheckedChange={setTrackInventory}
+                  />
                 </div>
-                <Switch
-                  checked={trackInventory}
-                  onCheckedChange={setTrackInventory}
-                />
-              </div>
 
-              {trackInventory && (
-                <>
-                  <Separator />
-                  <div className="grid gap-4">
-                    {!hasVariants && (
+                {trackInventory && (
+                  <>
+                    <Separator />
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="stock">Stock Quantity</Label>
                         <Input
@@ -1828,58 +1726,187 @@ export function ProductForm({
                           placeholder="0"
                         />
                       </div>
-                    )}
-                    <div className="space-y-2">
-                      <Label htmlFor="lowStockThreshold">
-                        Low Stock Threshold
-                      </Label>
-                      <Input
-                        id="lowStockThreshold"
-                        type="number"
-                        min="0"
-                        value={lowStockThreshold}
-                        onChange={(e) => setLowStockThreshold(e.target.value)}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="5"
-                      />
-                      <p className="text-sm text-muted-foreground">
-                        {hasVariants
-                          ? "Alert when total variant stock falls below this number"
-                          : "Alert when stock falls below this number"}
-                      </p>
+                      <div className="space-y-2">
+                        <Label htmlFor="lowStockThreshold">
+                          Low Stock Alert
+                        </Label>
+                        <Input
+                          id="lowStockThreshold"
+                          type="number"
+                          min="0"
+                          value={lowStockThreshold}
+                          onChange={(e) => setLowStockThreshold(e.target.value)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          placeholder="5"
+                        />
+                      </div>
                     </div>
+                  </>
+                )}
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Allow Backorders</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Allow orders when out of stock
+                    </p>
                   </div>
-                </>
-              )}
+                  <Switch
+                    checked={allowBackorder}
+                    onCheckedChange={setAllowBackorder}
+                  />
+                </div>
 
-              <Separator />
+                <Separator />
 
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Show Stock on Storefront</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display stock quantity to customers
+                    </p>
+                  </div>
+                  <Switch checked={showStock} onCheckedChange={setShowStock} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Variants */}
+          <Card ref={variantSectionRef} className="overflow-hidden">
+            <CardHeader>
+              <CardTitle>Variants</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6 overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>Allow Backorders</Label>
+                  <Label>This product has variants</Label>
                   <p className="text-sm text-muted-foreground">
-                    {hasVariants
-                      ? "Allow orders when variant is out of stock"
-                      : "Allow orders when out of stock"}
+                    Enable if this product comes in different options like size
+                    or color
                   </p>
                 </div>
                 <Switch
-                  checked={allowBackorder}
-                  onCheckedChange={setAllowBackorder}
+                  checked={hasVariants}
+                  onCheckedChange={handleHasVariantsChange}
+                  disabled={isPending}
                 />
               </div>
 
-              <Separator />
+              {hasVariants && (
+                <>
+                  <Separator />
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Show Stock on Storefront</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Display stock quantity to customers
-                  </p>
-                </div>
-                <Switch checked={showStock} onCheckedChange={setShowStock} />
-              </div>
+                  {/* Variant Options Builder */}
+                  <VariantOptionsBuilder
+                    options={variantOptions}
+                    onChange={handleVariantOptionsChange}
+                    existingOptions={existingVariantOptions}
+                    error={variantError || undefined}
+                    disabled={isPending}
+                  />
+
+                  {/* Global Inventory Settings for Variants */}
+                  {variants.length > 0 && (
+                    <>
+                      <Separator />
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-medium">
+                          Inventory Settings
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          These settings apply to all variants
+                        </p>
+
+                        <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label>Track Inventory</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Enable stock tracking for variants
+                              </p>
+                            </div>
+                            <Switch
+                              checked={trackInventory}
+                              onCheckedChange={setTrackInventory}
+                            />
+                          </div>
+
+                          {trackInventory && (
+                            <>
+                              <Separator />
+                              <div className="space-y-2">
+                                <Label htmlFor="lowStockThreshold-variants">
+                                  Low Stock Threshold
+                                </Label>
+                                <Input
+                                  id="lowStockThreshold-variants"
+                                  type="number"
+                                  min="0"
+                                  value={lowStockThreshold}
+                                  onChange={(e) =>
+                                    setLowStockThreshold(e.target.value)
+                                  }
+                                  onWheel={(e) => e.currentTarget.blur()}
+                                  placeholder="5"
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                  Alert when variant stock falls below this
+                                  number
+                                </p>
+                              </div>
+                            </>
+                          )}
+
+                          <Separator />
+
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label>Allow Backorders</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Allow orders when variant is out of stock
+                              </p>
+                            </div>
+                            <Switch
+                              checked={allowBackorder}
+                              onCheckedChange={setAllowBackorder}
+                            />
+                          </div>
+
+                          <Separator />
+
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label>Show Stock on Storefront</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Display stock quantity to customers
+                              </p>
+                            </div>
+                            <Switch
+                              checked={showStock}
+                              onCheckedChange={setShowStock}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Variant Matrix Table */}
+                      <Separator />
+                      <VariantMatrixTable
+                        variants={variants}
+                        onChange={setVariants}
+                        currency={currency}
+                        productSlug={name || "product"}
+                        disabled={isPending}
+                        tenantId={tenantId}
+                        trackInventory={trackInventory}
+                      />
+                    </>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -1902,7 +1929,7 @@ export function ProductForm({
                   placeholder="0.000"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Product weight for shipping
+                  Product weight for shipping calculations
                 </p>
               </div>
 
@@ -1969,6 +1996,66 @@ export function ProductForm({
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Sidebar - Advanced Options (1 column) */}
+        <div className="space-y-8">
+          {/* Order Limits */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Limits</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="minOrderQuantity">Min Qty</Label>
+                  <Input
+                    id="minOrderQuantity"
+                    type="number"
+                    min="1"
+                    value={minOrderQuantity}
+                    onChange={(e) => setMinOrderQuantity(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxOrderQuantity">Max Qty</Label>
+                  <Input
+                    id="maxOrderQuantity"
+                    type="number"
+                    min="1"
+                    value={maxOrderQuantity}
+                    onChange={(e) => setMaxOrderQuantity(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    placeholder="No limit"
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Limit how many units a customer can order
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Bulk Pricing (Price Tiers) */}
+          <PriceTiersEditor
+            tiers={priceTiers}
+            onChange={setPriceTiers}
+            basePrice={price}
+            currency={currency}
+            disabled={isPending}
+          />
+
+          {/* Group Pricing */}
+          <GroupPricingEditor
+            customerGroups={customerGroups}
+            prices={groupPrices}
+            onChange={setGroupPrices}
+            basePrice={price}
+            currency={currency}
+            disabled={isPending}
+          />
         </div>
       </div>
 

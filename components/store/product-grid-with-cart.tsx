@@ -61,19 +61,17 @@ export function ProductGridWithCart({
       if (result.success) {
         // Update local cart state
         cartActions.setCart(result.cart, storeSlug);
-        toast.success("Added to cart", {
-          description: product.name,
-        });
         // Open cart drawer
         cartActions.setIsOpen(true);
       } else {
-        toast.error("Failed to add to cart", {
+        toast.error("Couldn't add to cart", {
           description: result.error,
         });
       }
     } catch (error) {
-      toast.error("Failed to add to cart", {
-        description: error instanceof Error ? error.message : "Unknown error",
+      toast.error("Couldn't add to cart", {
+        description:
+          error instanceof Error ? error.message : "Please try again",
       });
     }
   };

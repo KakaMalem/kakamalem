@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   ShoppingCart,
   Heart,
@@ -10,6 +10,7 @@ import {
   Minus,
   Plus,
   Check,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -91,6 +92,8 @@ export function ProductInfo({
   const [isInWishlist, setIsInWishlist] = useState(initialIsInWishlist);
   const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
   const [quantity, setQuantity] = useState(product.minOrderQuantity ?? 1);
+  const [addToCartError, setAddToCartError] = useState<string | null>(null);
+  const [shakeButton, setShakeButton] = useState(false);
   const setCart = useCartStore((state) => state.setCart);
   const setCartOpen = useCartStore((state) => state.setIsOpen);
 
@@ -216,8 +219,23 @@ export function ProductInfo({
     quantity < maxQty && (!product.trackInventory || quantity < currentStock);
   const canDecrement = quantity > minQty;
 
+  // Trigger shake animation on error
+  const triggerShake = useCallback(() => {
+    setShakeButton(true);
+    setTimeout(() => setShakeButton(false), 500);
+  }, []);
+
+  // Clear error after a delay
+  useEffect(() => {
+    if (addToCartError) {
+      const timer = setTimeout(() => setAddToCartError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [addToCartError]);
+
   const handleAddToCart = async () => {
     setIsAddingToCart(true);
+    setAddToCartError(null);
 
     const result = await addToCartAction(
       tenantId,
@@ -229,11 +247,18 @@ export function ProductInfo({
 
     if (result.success) {
       setCart(result.cart, storeSlug);
-      toast.success(`${quantity} item${quantity > 1 ? "s" : ""} added to cart`);
       // Open the cart drawer to show the added item
       setCartOpen(true);
     } else {
-      toast.error(result.error);
+      // Show visual feedback
+      triggerShake();
+      setAddToCartError(result.error);
+
+      // Show toast with clear context
+      toast.error("Couldn't add to cart", {
+        description: result.error,
+        icon: <AlertCircle className="size-5" />,
+      });
     }
 
     setIsAddingToCart(false);
@@ -523,43 +548,57 @@ export function ProductInfo({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-4">
-        <Button
-          className="grow gap-2 h-12 text-base"
-          size="lg"
-          disabled={isOutOfStock || isAddingToCart}
-          onClick={handleAddToCart}
-        >
-          {isAddingToCart ? (
-            <>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-4">
+          <Button
+            className={cn(
+              "grow gap-2 h-12 text-base transition-transform",
+              shakeButton && "animate-shake",
+              addToCartError && "ring-2 ring-destructive ring-offset-2"
+            )}
+            size="lg"
+            disabled={isOutOfStock || isAddingToCart}
+            onClick={handleAddToCart}
+          >
+            {isAddingToCart ? (
+              <>
+                <Loader2 className="size-5 animate-spin" />
+                Adding...
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="size-5" />
+                Add to Cart
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className="h-12 px-4"
+            onClick={handleToggleWishlist}
+            disabled={isTogglingWishlist}
+          >
+            {isTogglingWishlist ? (
               <Loader2 className="size-5 animate-spin" />
-              Adding...
-            </>
-          ) : (
-            <>
-              <ShoppingCart className="size-5" />
-              Add to Cart
-            </>
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          size="lg"
-          className="h-12 px-4"
-          onClick={handleToggleWishlist}
-          disabled={isTogglingWishlist}
-        >
-          {isTogglingWishlist ? (
-            <Loader2 className="size-5 animate-spin" />
-          ) : (
-            <Heart
-              className={cn(
-                "size-5",
-                isInWishlist && "fill-red-500 stroke-red-500"
-              )}
-            />
-          )}
-        </Button>
+            ) : (
+              <Heart
+                className={cn(
+                  "size-5",
+                  isInWishlist && "fill-red-500 stroke-red-500"
+                )}
+              />
+            )}
+          </Button>
+        </div>
+
+        {/* Error Message */}
+        {addToCartError && (
+          <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+            <AlertCircle className="size-4 shrink-0" />
+            <span>{addToCartError}</span>
+          </div>
+        )}
       </div>
 
       {/* Stock Status */}
