@@ -21,7 +21,15 @@ const STORAGE_ROOT = process.env.STORAGE_PATH || "/var/www/kakamalem-uploads";
 const PUBLIC_URL = process.env.NEXT_PUBLIC_UPLOADS_URL || "/uploads";
 
 // Allowed file types
-const ALLOWED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"];
+const ALLOWED_IMAGE_TYPES = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".svg",
+  ".ico",
+];
 const ALLOWED_DOCUMENT_TYPES = [".pdf", ".doc", ".docx", ".xls", ".xlsx"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 

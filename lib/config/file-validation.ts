@@ -19,6 +19,8 @@ export const ALLOWED_IMAGE_MIMES = [
   "image/webp",
   "image/gif",
   "image/avif",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
   // SVG intentionally excluded - can contain embedded JavaScript (XSS risk)
 ] as const;
 
@@ -46,6 +48,7 @@ export const ALLOWED_IMAGE_EXTENSIONS = [
   ".webp",
   ".gif",
   ".avif",
+  ".ico",
   // .svg intentionally excluded - can contain embedded JavaScript (XSS risk)
 ] as const;
 
@@ -87,7 +90,7 @@ export const UPLOAD_ERROR_MESSAGES = {
   tooManyFiles: (max: number) =>
     `Too many files selected. Maximum ${max} files allowed at once`,
   invalidType:
-    "Invalid file type. Only images are allowed (JPG, JFIF, PNG, WebP, GIF, AVIF)",
+    "Invalid file type. Only images are allowed (JPG, JFIF, PNG, WebP, GIF, AVIF, ICO)",
   networkError:
     "Connection failed. Please check your internet connection and try again",
   serverError: "Upload failed due to a server error. Please try again",
