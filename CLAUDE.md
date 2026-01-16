@@ -18,10 +18,11 @@ pnpm lint         # Run ESLint
 Database commands (Drizzle):
 
 ```bash
-pnpm db:generate  # Generate migration files from schema changes
-pnpm db:migrate   # Apply migrations from drizzle/ folder
-pnpm db:studio    # Open Drizzle Studio GUI
-pnpm db:push      # Push schema directly (DEV ONLY - clears RLS!)
+pnpm db:generate       # Generate migration files from schema changes
+pnpm db:migrate        # Apply migrations from drizzle/ folder
+pnpm db:migrate:custom # Apply custom SQL (triggers, functions) from drizzle/custom/
+pnpm db:studio         # Open Drizzle Studio GUI
+pnpm db:push           # Push schema directly (DEV ONLY - clears RLS!)
 ```
 
 ## Database Migration Workflow
@@ -48,6 +49,17 @@ pnpm db:push      # Push schema directly (DEV ONLY - clears RLS!)
 - No migration history (can't rollback)
 - No team collaboration (no files to review)
 - Can accidentally drop columns/data
+
+### Custom SQL Migrations (Triggers, Functions)
+
+Drizzle-kit doesn't manage triggers, functions, or other custom SQL. Use the custom migration system:
+
+1. **Create SQL file** in `drizzle/custom/` with numbered prefix (e.g., `0001_my_trigger.sql`)
+2. **Run migrations**:
+   ```bash
+   pnpm db:migrate:custom
+   ```
+3. **Tracks applied migrations** in `custom_migrations` table (safe to re-run)
 
 Add shadcn/ui components:
 

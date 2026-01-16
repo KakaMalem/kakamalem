@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:push": "drizzle-kit push --config=drizzle.config.ts",
-    "db:studio": "drizzle-kit studio --config=drizzle.config.ts"
+    "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
+    "db:migrate:custom": "tsx scripts/migrate-custom.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
