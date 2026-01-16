@@ -31,7 +31,7 @@ export default async function StorePage({
     page: 1,
     limit: 20,
     filters: { isActive: true, search: searchQuery },
-    sort: { field: "createdAt", direction: "desc" },
+    sort: { field: "displayOrder", direction: "asc" },
   });
 
   const hasProducts = productsResult.products.length > 0;
@@ -67,7 +67,7 @@ export default async function StorePage({
               storeSlug={slug}
               currency={store.currency}
               filters={{ isActive: true, search: searchQuery }}
-              sort={{ field: "createdAt", direction: "desc" }}
+              sort={{ field: "displayOrder", direction: "asc" }}
             />
           ) : (
             <div className="py-16 text-center">

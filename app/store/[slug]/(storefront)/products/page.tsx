@@ -17,10 +17,11 @@ export default async function ProductsPage({
   const store = await getTenantBySlug(slug);
   if (!store) return null;
 
-  // Parse sorting
+  // Parse sorting - default to displayOrder for manual ordering
   const sortField =
-    (sort?.split("-")[0] as "name" | "price" | "createdAt") || "createdAt";
-  const sortDirection = (sort?.split("-")[1] as "asc" | "desc") || "desc";
+    (sort?.split("-")[0] as "name" | "price" | "createdAt" | "displayOrder") ||
+    "displayOrder";
+  const sortDirection = (sort?.split("-")[1] as "asc" | "desc") || "asc";
 
   const productsResult = await getProducts(store.id, {
     page: 1,
@@ -57,7 +58,7 @@ export default async function ProductsPage({
           isActive: true,
           search: search || undefined,
         }}
-        currentSort={sort || "createdAt-desc"}
+        currentSort={sort || "displayOrder-asc"}
       />
     </div>
   );
