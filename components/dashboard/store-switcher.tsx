@@ -51,7 +51,7 @@ export function StoreSwitcher({
 }: StoreSwitcherProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [isMounted, setIsMounted] = React.useState(false);
 
   // Wait for client-side mount to avoid hydration mismatch
@@ -81,11 +81,19 @@ export function StoreSwitcher({
   useLastStore(urlSlug ? currentStore?.slug : undefined);
 
   const handleStoreSelect = (store: StoreInfo) => {
+    // Close mobile sidebar on navigation
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     // Navigate to the selected store's dashboard
     router.push(`/dashboard/${store.slug}`);
   };
 
   const handleCreateStore = () => {
+    // Close mobile sidebar on navigation
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     router.push("/dashboard/new");
   };
 

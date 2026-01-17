@@ -32,7 +32,7 @@ interface UserNavProps {
 
 export function UserNav({ user }: UserNavProps) {
   const router = useRouter();
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [isMounted, setIsMounted] = React.useState(false);
 
   // Wait for client-side mount to avoid hydration mismatch with Radix IDs
@@ -49,7 +49,19 @@ export function UserNav({ user }: UserNavProps) {
         .slice(0, 2)
     : user.email[0].toUpperCase();
 
+  const closeSidebarOnMobile = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  const handleNavigate = (path: string) => {
+    closeSidebarOnMobile();
+    router.push(path);
+  };
+
   const handleSignOut = async () => {
+    closeSidebarOnMobile();
     await signOut();
     router.push("/login");
   };
@@ -130,13 +142,13 @@ export function UserNav({ user }: UserNavProps) {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem
-                onClick={() => router.push("/dashboard/account")}
+                onClick={() => handleNavigate("/dashboard/account")}
               >
                 <User className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => router.push("/dashboard/settings")}
+                onClick={() => handleNavigate("/dashboard/settings")}
               >
                 <Settings className="mr-2 h-4 w-4" />
                 Store Settings

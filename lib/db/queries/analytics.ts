@@ -7,7 +7,24 @@ import {
   products,
   reviews,
 } from "@/lib/db/schema";
-import { eq, and, gte, lte, desc, sql, count, sum, isNull } from "drizzle-orm";
+import {
+  eq,
+  and,
+  gte,
+  lte,
+  desc,
+  sql,
+  count,
+  sum,
+  isNull,
+  notInArray,
+} from "drizzle-orm";
+
+// Order statuses that should be excluded from revenue calculations
+const EXCLUDED_REVENUE_STATUSES: (
+  | "cancelled"
+  | "refunded"
+)[] = ["cancelled", "refunded"];
 
 // ============================================================================
 // Analytics Page Types
@@ -126,7 +143,7 @@ export async function getDashboardStats(
     todayStats,
     yesterdayStats,
   ] = await Promise.all([
-    // Total orders and revenue
+    // Total orders and revenue (excluding cancelled/refunded)
     db
       .select({
         totalOrders: count(),
@@ -134,7 +151,12 @@ export async function getDashboardStats(
         pendingOrders: sql<number>`count(*) filter (where ${orders.status} = 'pending')`,
       })
       .from(orders)
-      .where(eq(orders.tenantId, tenantId)),
+      .where(
+        and(
+          eq(orders.tenantId, tenantId),
+          notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+        )
+      ),
 
     // Product count
     db
@@ -171,7 +193,7 @@ export async function getDashboardStats(
       .from(reviews)
       .where(and(eq(reviews.tenantId, tenantId), isNull(reviews.replyContent))),
 
-    // Today's stats
+    // Today's stats (excluding cancelled/refunded)
     db
       .select({
         orders: count(),
@@ -179,10 +201,14 @@ export async function getDashboardStats(
       })
       .from(orders)
       .where(
-        and(eq(orders.tenantId, tenantId), gte(orders.createdAt, todayStr))
+        and(
+          eq(orders.tenantId, tenantId),
+          gte(orders.createdAt, todayStr),
+          notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+        )
       ),
 
-    // Yesterday's stats (for comparison)
+    // Yesterday's stats (for comparison, excluding cancelled/refunded)
     db
       .select({
         orders: count(),
@@ -193,7 +219,8 @@ export async function getDashboardStats(
         and(
           eq(orders.tenantId, tenantId),
           gte(orders.createdAt, yesterdayStr),
-          lte(orders.createdAt, todayStr)
+          lte(orders.createdAt, todayStr),
+          notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
         )
       ),
   ]);
@@ -275,7 +302,7 @@ export async function getDailyMetrics(
     }));
   }
 
-  // Fall back to aggregating from orders table
+  // Fall back to aggregating from orders table (excluding cancelled/refunded)
   const startDateStr = startDate.toISOString();
   const result = await db
     .select({
@@ -285,7 +312,11 @@ export async function getDailyMetrics(
     })
     .from(orders)
     .where(
-      and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startDateStr))
+      and(
+        eq(orders.tenantId, tenantId),
+        gte(orders.createdAt, startDateStr),
+        notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+      )
     )
     .groupBy(sql`date(${orders.createdAt})`)
     .orderBy(sql`date(${orders.createdAt})`);
@@ -588,7 +619,7 @@ export async function getAnalyticsData(
   const previousStartStr = previous.start.toISOString();
   const previousEndStr = previous.end.toISOString();
 
-  // Run all queries in parallel
+  // Run all queries in parallel (excluding cancelled/refunded orders)
   const [currentPeriodStats, previousPeriodStats, dailyData, topProductsData] =
     await Promise.all([
       // Current period aggregate stats
@@ -604,7 +635,8 @@ export async function getAnalyticsData(
           and(
             eq(orders.tenantId, tenantId),
             gte(orders.createdAt, currentStartStr),
-            lte(orders.createdAt, currentEndStr)
+            lte(orders.createdAt, currentEndStr),
+            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
           )
         ),
 
@@ -620,7 +652,8 @@ export async function getAnalyticsData(
           and(
             eq(orders.tenantId, tenantId),
             gte(orders.createdAt, previousStartStr),
-            lte(orders.createdAt, previousEndStr)
+            lte(orders.createdAt, previousEndStr),
+            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
           )
         ),
 
@@ -637,7 +670,8 @@ export async function getAnalyticsData(
           and(
             eq(orders.tenantId, tenantId),
             gte(orders.createdAt, currentStartStr),
-            lte(orders.createdAt, currentEndStr)
+            lte(orders.createdAt, currentEndStr),
+            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
           )
         )
         .groupBy(sql`date(${orders.createdAt})`)
@@ -659,7 +693,8 @@ export async function getAnalyticsData(
           and(
             eq(orders.tenantId, tenantId),
             gte(orders.createdAt, currentStartStr),
-            lte(orders.createdAt, currentEndStr)
+            lte(orders.createdAt, currentEndStr),
+            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
           )
         )
         .groupBy(products.id, products.name)

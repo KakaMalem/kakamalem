@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { forwardRef, useMemo } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -33,9 +33,33 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
+
+// NavLink component that closes mobile sidebar on navigation
+// Uses forwardRef to properly work with SidebarMenuButton's asChild prop
+const NavLink = forwardRef<
+  HTMLAnchorElement,
+  React.ComponentPropsWithoutRef<typeof Link>
+>(({ onClick, ...props }, ref) => {
+  const { setOpenMobile, isMobile } = useSidebar();
+
+  return (
+    <Link
+      ref={ref}
+      onClick={(e) => {
+        if (isMobile) {
+          setOpenMobile(false);
+        }
+        onClick?.(e);
+      }}
+      {...props}
+    />
+  );
+});
+NavLink.displayName = "NavLink";
 
 interface AppSidebarProps {
   user: {
@@ -125,6 +149,11 @@ export function AppSidebar({
       icon: ShoppingCart,
     },
     {
+      title: "Customers",
+      href: `${baseUrl}/customers/groups`,
+      icon: Users,
+    },
+    {
       title: "Shipping",
       href: `${baseUrl}/shipping`,
       icon: Truck,
@@ -156,11 +185,6 @@ export function AppSidebar({
       icon: Store,
     },
     {
-      title: "Customers",
-      href: `${baseUrl}/customers/groups`,
-      icon: Users,
-    },
-    {
       title: "Account",
       href: "/dashboard/account",
       icon: Settings,
@@ -187,10 +211,10 @@ export function AppSidebar({
                     isActive={isActive(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <NavLink href={item.href}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </Link>
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -209,10 +233,10 @@ export function AppSidebar({
                     isActive={isActive(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <NavLink href={item.href}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </Link>
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -231,10 +255,10 @@ export function AppSidebar({
                     isActive={isActive(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <NavLink href={item.href}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </Link>
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -253,10 +277,10 @@ export function AppSidebar({
                     isActive={isActive(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <NavLink href={item.href}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </Link>
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

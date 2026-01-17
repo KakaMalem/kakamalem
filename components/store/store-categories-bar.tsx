@@ -136,7 +136,9 @@ export function StoreCategoriesBar({
           >
             {categories.map((category) => {
               const categoryUrl = `${storeUrl}/category/${category.slug}`;
-              const isActive = pathname === categoryUrl;
+              // Decode both pathname and categoryUrl to handle non-English characters
+              const isActive =
+                decodeURIComponent(pathname) === decodeURIComponent(categoryUrl);
 
               return (
                 <Link
@@ -261,7 +263,9 @@ export function StoreCategoriesBar({
           {/* Category items */}
           {categories.map((category) => {
             const categoryUrl = `${storeUrl}/category/${category.slug}`;
-            const isActive = pathname === categoryUrl;
+            // Decode both pathname and categoryUrl to handle non-English characters
+            const isActive =
+              decodeURIComponent(pathname) === decodeURIComponent(categoryUrl);
 
             return (
               <Link
