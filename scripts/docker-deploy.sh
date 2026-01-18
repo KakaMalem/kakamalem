@@ -206,6 +206,14 @@ deploy() {
 
     preflight_checks
 
+    # Run database migrations before deploying
+    log "Running database migrations..."
+    if pnpm db:migrate 2>&1 | tee -a "$LOG_FILE"; then
+        log "Migrations completed successfully"
+    else
+        error "Migration failed! Aborting deployment."
+    fi
+
     # Determine current and target slots
     local current=$(get_current_active)
     local target
