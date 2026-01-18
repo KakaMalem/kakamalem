@@ -63,11 +63,26 @@ export const checkoutSubmitSchema = z.object({
   shippingAddress: shippingAddressSchema,
   billingAddress: shippingAddressSchema.nullable(),
 
-  // Shipping selection
-  shippingMethodId: z.string().uuid("Invalid shipping method"),
+  // Shipping selection (accepts UUID, zone-prefixed UUID, or special values)
+  shippingMethodId: z.string().refine(
+    (val) => {
+      // Accept "free-shipping" for stores with no shipping rates configured
+      if (val === "free-shipping") return true;
+      // Accept regular UUID
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(val)) return true;
+      // Accept zone-prefixed UUID (for GPS delivery zones)
+      if (val.startsWith("zone-")) {
+        return uuidRegex.test(val.slice(5));
+      }
+      return false;
+    },
+    { message: "Invalid shipping method" }
+  ),
 
   // Optional notes
-  customerNotes: z.string().max(1000).optional(),
+  customerNotes: z.string().max(1000).optional().nullable(),
 });
 
 export type CheckoutSubmitInput = z.infer<typeof checkoutSubmitSchema>;

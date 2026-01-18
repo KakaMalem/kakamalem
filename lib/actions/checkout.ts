@@ -12,6 +12,7 @@ import {
   storeCustomers,
   cartItems,
   shippingMethods,
+  tenants,
 } from "@/lib/db/schema";
 import type { Address, CustomerSnapshot } from "@/lib/db/schema";
 import { getUser } from "@/lib/auth/server";
@@ -31,6 +32,29 @@ import {
   type CheckoutSubmitInput,
 } from "@/lib/validations/checkout";
 import type { CartPriceTier } from "@/lib/db/queries/carts";
+import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
+import { checkDeliveryZone } from "@/lib/geo/delivery-zone-check";
+
+// =============================================================================
+// DELIVERY SETTINGS HELPER
+// =============================================================================
+
+/**
+ * Get the tenant's delivery zone settings
+ * Uses direct SQL query to bypass any potential caching
+ */
+async function getTenantDeliverySettings(
+  tenantId: string
+): Promise<{ enableDeliveryZones: boolean }> {
+  // Use direct query to ensure fresh data (no Next.js data cache)
+  const result = await db
+    .select({ enableDeliveryZones: tenants.enableDeliveryZones })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  return { enableDeliveryZones: result[0]?.enableDeliveryZones ?? false };
+}
 
 // =============================================================================
 // TIER PRICING HELPER
@@ -86,16 +110,101 @@ export type ShippingCalculationResult = {
       id: string;
       name: string;
     } | null;
+    deliveryZoneFee?: number; // Base delivery fee from GPS-based delivery zone
+    deliveryZonesEnabled: boolean; // Whether GPS delivery zones are enabled for this store
     methods: Array<{
       id: string;
       name: string;
       description: string | null;
-      price: number;
+      price: number; // Total price (delivery zone fee + method rate)
+      basePrice?: number; // Method-only rate (without delivery zone fee)
       minDeliveryDays: number | null;
       maxDeliveryDays: number | null;
     }>;
   };
 };
+
+export type DeliveryZoneValidationResult = {
+  success: boolean;
+  error?: { message: string; code?: string };
+  data?: {
+    isWithinZone: boolean;
+    zone: {
+      id: string;
+      name: string;
+      deliveryFee: number;
+      minOrderAmount: number | null;
+      freeShippingThreshold: number | null;
+      estimatedDeliveryTime: string | null;
+    } | null;
+  };
+};
+
+// =============================================================================
+// DELIVERY ZONE VALIDATION
+// =============================================================================
+
+/**
+ * Check if an address is within any delivery zone for the store
+ * This should be called before showing shipping options
+ */
+export async function validateDeliveryZoneAction(
+  tenantId: string,
+  latitude: number,
+  longitude: number
+): Promise<DeliveryZoneValidationResult> {
+  try {
+    // Get active delivery zones for this store
+    const zones = await getActiveDeliveryZones(tenantId);
+
+    // If no zones are configured, delivery is allowed everywhere
+    if (zones.length === 0) {
+      return {
+        success: true,
+        data: {
+          isWithinZone: true,
+          zone: null, // No zone restrictions
+        },
+      };
+    }
+
+    // Check if the coordinates are within any zone
+    const result = checkDeliveryZone(latitude, longitude, zones);
+
+    if (!result.isWithinZone) {
+      return {
+        success: true,
+        data: {
+          isWithinZone: false,
+          zone: null,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        isWithinZone: true,
+        zone: result.matchingZone
+          ? {
+              id: result.matchingZone.id,
+              name: result.matchingZone.name,
+              deliveryFee: result.deliveryFee,
+              minOrderAmount: result.minOrderAmount,
+              freeShippingThreshold: result.freeShippingThreshold,
+              estimatedDeliveryTime: result.estimatedDeliveryTime,
+            }
+          : null,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to validate delivery zone:", error);
+    return {
+      success: false,
+      error: { message: "Failed to validate delivery location" },
+    };
+  }
+}
 
 // =============================================================================
 // SHIPPING CALCULATION
@@ -103,6 +212,7 @@ export type ShippingCalculationResult = {
 
 /**
  * Calculate available shipping methods for an address
+ * Returns shipping methods with prices that include delivery zone base fee
  */
 export async function calculateShippingAction(
   tenantId: string,
@@ -127,6 +237,89 @@ export async function calculateShippingAction(
       };
     }
 
+    // Get the tenant's delivery settings
+    const { enableDeliveryZones } = await getTenantDeliverySettings(tenantId);
+
+    // When delivery zones are enabled: Use GPS-based delivery zones
+    if (enableDeliveryZones) {
+      if (!address.latitude || !address.longitude) {
+        return {
+          success: false,
+          error: { message: "Location coordinates are required for delivery" },
+        };
+      }
+
+      const zones = await getActiveDeliveryZones(tenantId);
+
+      if (zones.length === 0) {
+        return {
+          success: false,
+          error: {
+            message: "No delivery zones configured. Please contact the store.",
+          },
+        };
+      }
+
+      const zoneResult = checkDeliveryZone(
+        address.latitude,
+        address.longitude,
+        zones
+      );
+
+      if (!zoneResult.isWithinZone || !zoneResult.matchingZone) {
+        return {
+          success: true,
+          data: {
+            zone: null,
+            deliveryZoneFee: 0,
+            deliveryZonesEnabled: true,
+            methods: [],
+          },
+        };
+      }
+
+      const matchingZone = zoneResult.matchingZone;
+
+      // Apply free shipping threshold if configured
+      let effectiveDeliveryFee = zoneResult.deliveryFee;
+      const threshold = zoneResult.freeShippingThreshold;
+      if (threshold !== null && subtotal >= threshold) {
+        effectiveDeliveryFee = 0;
+      }
+
+      // Build description with free shipping info
+      let description = matchingZone.estimatedDeliveryTime
+        ? `Estimated: ${matchingZone.estimatedDeliveryTime}`
+        : "Standard delivery to your area";
+      if (threshold !== null && effectiveDeliveryFee === 0) {
+        description = "Free delivery (order qualifies)";
+      } else if (threshold !== null) {
+        description += ` (free over ${threshold.toLocaleString()} AFN)`;
+      }
+
+      // Create a synthetic delivery method from the zone
+      return {
+        success: true,
+        data: {
+          zone: { id: matchingZone.id, name: matchingZone.name },
+          deliveryZoneFee: effectiveDeliveryFee,
+          deliveryZonesEnabled: true,
+          methods: [
+            {
+              id: `zone-${matchingZone.id}`,
+              name: matchingZone.name,
+              description,
+              price: effectiveDeliveryFee,
+              basePrice: zoneResult.deliveryFee,
+              minDeliveryDays: null,
+              maxDeliveryDays: null,
+            },
+          ],
+        },
+      };
+    }
+
+    // When delivery zones are disabled: Use shipping methods (if configured)
     // Convert cart items for shipping calculation
     const cartItemsForShipping: CartItemForShipping[] =
       cartValidation.cart.items.map((item) => ({
@@ -148,11 +341,14 @@ export async function calculateShippingAction(
       success: true,
       data: {
         zone: zone ? { id: zone.id, name: zone.name } : null,
+        deliveryZoneFee: 0,
+        deliveryZonesEnabled: false,
         methods: methods.map((m) => ({
           id: m.id,
           name: m.name,
           description: m.description,
           price: m.calculatedRate,
+          basePrice: m.calculatedRate,
           minDeliveryDays: m.minDeliveryDays,
           maxDeliveryDays: m.maxDeliveryDays,
         })),
@@ -258,10 +454,15 @@ export async function createOrderAction(
     // Validate input
     const validation = checkoutSubmitSchema.safeParse(input);
     if (!validation.success) {
+      // Get the first validation error for a helpful message
+      const firstError = validation.error.issues[0];
+      const fieldPath = firstError?.path.join(".") || "unknown";
+      const errorMessage = firstError?.message || "Invalid data";
+      console.error("Checkout validation failed:", validation.error.issues);
       return {
         success: false,
         error: {
-          message: "Invalid checkout data",
+          message: `${errorMessage} (${fieldPath})`,
           code: "VALIDATION_ERROR",
         },
       };
@@ -384,55 +585,124 @@ export async function createOrderAction(
       };
     }
 
-    // Get shipping method and calculate shipping cost server-side
-    // This prevents price manipulation from the frontend
+    // Get the tenant's delivery settings
+    const { enableDeliveryZones } = await getTenantDeliverySettings(tenantId);
+
     let shippingTotal = 0;
-    const selectedMethod = await db.query.shippingMethods.findFirst({
-      where: and(
-        eq(shippingMethods.id, input.shippingMethodId),
-        eq(shippingMethods.tenantId, tenantId),
-        eq(shippingMethods.isActive, true)
-      ),
-    });
+    let deliveryZoneFee = 0;
 
-    if (!selectedMethod) {
-      return {
-        success: false,
-        error: {
-          message: "Selected shipping method is not available",
-          code: "INVALID_SHIPPING_METHOD",
-        },
-      };
+    // When delivery zones are enabled: Validate GPS-based delivery zones
+    if (enableDeliveryZones) {
+      const deliveryZoneResult = await validateDeliveryZoneAction(
+        tenantId,
+        shippingAddress.latitude,
+        shippingAddress.longitude
+      );
+
+      if (!deliveryZoneResult.success) {
+        return {
+          success: false,
+          error: {
+            message:
+              deliveryZoneResult.error?.message ||
+              "Failed to validate delivery location",
+            code: "DELIVERY_ZONE_ERROR",
+          },
+        };
+      }
+
+      if (deliveryZoneResult.data && !deliveryZoneResult.data.isWithinZone) {
+        return {
+          success: false,
+          error: {
+            message:
+              "Sorry, we don't deliver to this location. Please check our delivery zones.",
+            code: "OUTSIDE_DELIVERY_ZONE",
+          },
+        };
+      }
+
+      // Check minimum order requirement for the delivery zone
+      const deliveryZone = deliveryZoneResult.data?.zone;
+      if (
+        deliveryZone?.minOrderAmount &&
+        subtotal < deliveryZone.minOrderAmount
+      ) {
+        return {
+          success: false,
+          error: {
+            message: `Minimum order for delivery to this area is ${deliveryZone.minOrderAmount.toLocaleString()} AFN. Your order total is ${subtotal.toLocaleString()} AFN.`,
+            code: "MIN_ORDER_NOT_MET",
+          },
+        };
+      }
+
+      // Use delivery zone fee as shipping total, applying free shipping threshold if applicable
+      deliveryZoneFee = deliveryZone?.deliveryFee ?? 0;
+      const freeThreshold = deliveryZone?.freeShippingThreshold;
+      if (
+        freeThreshold !== null &&
+        freeThreshold !== undefined &&
+        subtotal >= freeThreshold
+      ) {
+        deliveryZoneFee = 0;
+      }
+      shippingTotal = deliveryZoneFee;
+    } else if (input.shippingMethodId) {
+      // When delivery zones are disabled: Use the selected shipping method
+      const selectedMethod = await db.query.shippingMethods.findFirst({
+        where: and(
+          eq(shippingMethods.id, input.shippingMethodId),
+          eq(shippingMethods.tenantId, tenantId),
+          eq(shippingMethods.isActive, true)
+        ),
+      });
+
+      if (selectedMethod) {
+        // Convert cart items for shipping calculation
+        const cartItemsForShipping: CartItemForShipping[] = cart.items.map(
+          (item) => ({
+            quantity: item.quantity,
+            product: {
+              weight: item.product.weight || null,
+            },
+          })
+        );
+
+        // Calculate shipping method rate
+        const methodRate = calculateShippingRate(
+          selectedMethod,
+          cartItemsForShipping,
+          subtotal
+        );
+
+        if (methodRate >= 0) {
+          shippingTotal = methodRate;
+        }
+      }
+    } else if (!enableDeliveryZones) {
+      // When delivery zones are disabled, a shipping method is required (unless none configured)
+      // Check if any shipping methods are configured
+      const hasShippingMethods = await db.query.shippingMethods.findFirst({
+        where: and(
+          eq(shippingMethods.tenantId, tenantId),
+          eq(shippingMethods.isActive, true)
+        ),
+        columns: { id: true },
+      });
+
+      if (hasShippingMethods) {
+        return {
+          success: false,
+          error: {
+            message: "Please select a shipping method",
+            code: "SHIPPING_METHOD_REQUIRED",
+          },
+        };
+      }
+      // If no shipping methods configured, allow free shipping
+      shippingTotal = 0;
     }
-
-    // Convert cart items for shipping calculation
-    const cartItemsForShipping: CartItemForShipping[] = cart.items.map(
-      (item) => ({
-        quantity: item.quantity,
-        product: {
-          weight: item.product.weight || null,
-        },
-      })
-    );
-
-    // Calculate shipping rate server-side
-    const calculatedRate = calculateShippingRate(
-      selectedMethod,
-      cartItemsForShipping,
-      subtotal
-    );
-
-    if (calculatedRate < 0) {
-      return {
-        success: false,
-        error: {
-          message: "This shipping method is not available for your order",
-          code: "SHIPPING_UNAVAILABLE",
-        },
-      };
-    }
-
-    shippingTotal = calculatedRate;
 
     try {
       const order = await withTransaction(async (tx) => {

@@ -121,6 +121,8 @@ export async function updateTenant(
     contactEmail: string | null;
     contactPhone: string | null;
     currency: string;
+    deliveryMode: "distance_based" | "service_level" | "weight_price_based";
+    enableDeliveryZones: boolean;
     socialLinks: Record<string, string | undefined>;
     seo: Record<string, string | undefined>;
     status: "pending_review" | "active" | "suspended" | "inactive";

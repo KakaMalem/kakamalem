@@ -138,7 +138,8 @@ export function StoreCategoriesBar({
               const categoryUrl = `${storeUrl}/category/${category.slug}`;
               // Decode both pathname and categoryUrl to handle non-English characters
               const isActive =
-                decodeURIComponent(pathname) === decodeURIComponent(categoryUrl);
+                decodeURIComponent(pathname) ===
+                decodeURIComponent(categoryUrl);
 
               return (
                 <Link

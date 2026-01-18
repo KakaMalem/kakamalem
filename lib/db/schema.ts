@@ -196,6 +196,13 @@ export const analyticsEventTypeEnum = pgEnum("analytics_event_type", [
   "review_submitted",
 ]);
 
+// Delivery Mode - how the store calculates shipping/delivery fees
+export const deliveryModeEnum = pgEnum("delivery_mode", [
+  "distance_based", // GPS-based zones with distance-tiered pricing (like DoorDash/Talabat)
+  "service_level", // Service tiers: Standard, Express, Same-Day (like Amazon)
+  "weight_price_based", // Traditional shipping: weight/price-based rates (like Shopify)
+]);
+
 // ============================================================================
 // FINANCE & PAYOUT ENUMS
 // ============================================================================
@@ -488,6 +495,19 @@ export const tenants = pgTable(
 
     // Settings
     currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+
+    // Delivery mode - how the store calculates shipping/delivery fees
+    // DEPRECATED: Use enableDeliveryZones instead. Kept for backward compatibility.
+    deliveryMode: deliveryModeEnum("delivery_mode")
+      .default("distance_based")
+      .notNull(),
+
+    // Enable GPS-based delivery zone restrictions
+    // When true, customers must be within a delivery zone to place orders
+    // The delivery fee comes from the matching zone
+    enableDeliveryZones: boolean("enable_delivery_zones")
+      .default(false)
+      .notNull(),
 
     // Status (replaces simple isActive)
     status: tenantStatusEnum("status").default("pending_review").notNull(),
@@ -1693,6 +1713,68 @@ export const shippingZones = pgTable(
       table.tenantId,
       table.name
     ),
+  ]
+);
+
+// ============================================================================
+// DELIVERY ZONES (GPS-based circular delivery areas)
+// ============================================================================
+// Store owners define circular delivery zones around their location.
+// Customers outside all zones cannot place orders.
+// Multiple zones allow tiered pricing (e.g., 0-3km free, 3-7km 50 AFN, 7-15km 100 AFN).
+// Zone matching uses smallest containing zone for best customer rate.
+export const deliveryZoneTypeEnum = pgEnum("delivery_zone_type", [
+  "circle", // Simple radius from center point
+  "polygon", // Custom polygon shape (future)
+]);
+
+export const deliveryZones = pgTable(
+  "delivery_zones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(), // "Free Delivery", "Standard", "Extended"
+
+    // Zone geometry
+    zoneType: deliveryZoneTypeEnum("zone_type").default("circle").notNull(),
+
+    // Circle parameters (when zoneType = 'circle')
+    centerLat: decimal("center_lat", { precision: 10, scale: 8 }), // Latitude of center
+    centerLng: decimal("center_lng", { precision: 11, scale: 8 }), // Longitude of center
+    radiusMeters: integer("radius_meters"), // Radius in meters
+
+    // Polygon parameters (when zoneType = 'polygon', for future use)
+    // GeoJSON polygon coordinates: [[lng, lat], [lng, lat], ...]
+    polygonCoordinates: jsonb("polygon_coordinates").$type<number[][]>(),
+
+    // Delivery settings
+    deliveryFee: decimal("delivery_fee", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
+    minOrderAmount: decimal("min_order_amount", { precision: 12, scale: 2 }), // Minimum order to deliver here
+    freeShippingThreshold: decimal("free_shipping_threshold", {
+      precision: 12,
+      scale: 2,
+    }), // Order amount above which delivery is free
+    estimatedDeliveryTime: varchar("estimated_delivery_time", { length: 50 }), // "30-45 minutes"
+
+    // Display & status
+    displayOrder: integer("display_order").default(0).notNull(), // Lower = checked first (smaller zones first)
+    isActive: boolean("is_active").default(true).notNull(),
+    color: varchar("color", { length: 7 }).default("#3b82f6"), // Hex color for map display
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("delivery_zones_tenant_id_idx").on(table.tenantId),
+    index("delivery_zones_active_idx").on(table.tenantId, table.isActive),
   ]
 );
 
@@ -3958,6 +4040,7 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   // Shipping
   shippingZones: many(shippingZones),
   shippingMethods: many(shippingMethods),
+  deliveryZones: many(deliveryZones),
   shippingWeightTiers: many(shippingWeightTiers),
   shipments: many(shipments),
   // Commission & Finance
@@ -4415,6 +4498,13 @@ export const shippingZonesRelations = relations(
     methods: many(shippingMethods),
   })
 );
+
+export const deliveryZonesRelations = relations(deliveryZones, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [deliveryZones.tenantId],
+    references: [tenants.id],
+  }),
+}));
 
 export const shippingMethodsRelations = relations(
   shippingMethods,
@@ -5269,6 +5359,11 @@ export type ShipmentStatus = (typeof shipmentStatusEnum.enumValues)[number];
 export type ShipmentTrackingEvent = typeof shipmentTrackingEvents.$inferSelect;
 export type NewShipmentTrackingEvent =
   typeof shipmentTrackingEvents.$inferInsert;
+
+// Delivery zone types
+export type DeliveryZone = typeof deliveryZones.$inferSelect;
+export type NewDeliveryZone = typeof deliveryZones.$inferInsert;
+export type DeliveryZoneType = (typeof deliveryZoneTypeEnum.enumValues)[number];
 
 // Review types
 export type Review = typeof reviews.$inferSelect;

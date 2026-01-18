@@ -758,3 +758,78 @@ export async function deleteStoreAction(
 
 // Keep old name for backwards compatibility
 export const deleteStore = deleteStoreAction;
+
+/**
+ * Update delivery mode setting
+ */
+export async function updateDeliveryMode(
+  storeId: string,
+  deliveryMode: "distance_based" | "service_level" | "weight_price_based"
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  const validModes = ["distance_based", "service_level", "weight_price_based"];
+  if (!validModes.includes(deliveryMode)) {
+    return { error: { message: "Invalid delivery mode" } };
+  }
+
+  try {
+    await updateTenant(storeId, { deliveryMode });
+
+    revalidatePath("/dashboard/settings/delivery", "page");
+    return { success: true };
+  } catch {
+    return {
+      error: { message: "Failed to update delivery mode. Please try again." },
+    };
+  }
+}
+
+/**
+ * Update delivery zones enabled setting
+ * When enabled, customers must be within a configured delivery zone to place orders
+ */
+export async function updateDeliveryZonesEnabled(
+  storeId: string,
+  storeSlug: string,
+  enabled: boolean
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  try {
+    await updateTenant(storeId, { enableDeliveryZones: enabled });
+
+    // Revalidate the delivery settings page and store pages
+    revalidatePath(`/dashboard/${storeSlug}/settings/delivery`, "page");
+    revalidatePath(`/store/${storeSlug}`, "layout");
+    return { success: true };
+  } catch {
+    return {
+      error: {
+        message: "Failed to update delivery zone settings. Please try again.",
+      },
+    };
+  }
+}

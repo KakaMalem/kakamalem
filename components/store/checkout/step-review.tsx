@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -10,6 +10,7 @@ import {
   Truck,
   AlertCircle,
   Loader2,
+  Tag,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,10 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { formatPrice } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
-import { cartActions } from "@/lib/stores/use-cart-store";
+import {
+  cartActions,
+  getApplicableTierPrice,
+} from "@/lib/stores/use-cart-store";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import type { Cart } from "@/lib/db/queries/carts";
 import { toast } from "sonner";
@@ -64,6 +68,21 @@ export function StepReview({
     Array<{ itemId: string; productName: string; error: string }>
   >([]);
 
+  // Calculate total bulk savings from tier pricing
+  const totalBulkSavings = useMemo(() => {
+    return cart.items.reduce((savings, item) => {
+      const basePrice = item.variant?.price
+        ? parseFloat(item.variant.price)
+        : parseFloat(item.product.price);
+      const effectivePrice = getApplicableTierPrice(
+        basePrice,
+        item.quantity,
+        item.product.priceTiers || []
+      );
+      return savings + (basePrice - effectivePrice) * item.quantity;
+    }, 0);
+  }, [cart.items]);
+
   // Navigate to previous step
   const handleBack = () => {
     setStep(2);
@@ -102,7 +121,7 @@ export function StepReview({
         shippingAddress,
         billingAddress: null, // Same as shipping for now
         shippingMethodId: selectedMethod.id,
-        customerNotes: customerNotes || undefined,
+        customerNotes: customerNotes || null,
       });
 
       if (!result.success) {
@@ -181,9 +200,18 @@ export function StepReview({
         <CardContent>
           <div className="space-y-4">
             {cart.items.map((item) => {
-              const price = item.variant?.price
+              const basePrice = item.variant?.price
                 ? parseFloat(item.variant.price)
                 : parseFloat(item.product.price);
+
+              // Apply tier pricing
+              const effectivePrice = getApplicableTierPrice(
+                basePrice,
+                item.quantity,
+                item.product.priceTiers || []
+              );
+
+              const hasTierDiscount = effectivePrice < basePrice;
 
               return (
                 <div key={item.id} className="flex gap-4">
@@ -217,16 +245,33 @@ export function StepReview({
                     <p className="text-sm text-muted-foreground">
                       Qty: {item.quantity}
                     </p>
+                    {hasTierDiscount && (
+                      <div className="flex items-center gap-1 text-xs text-green-600 mt-0.5">
+                        <Tag className="size-3" />
+                        <span>Bulk discount</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Price */}
                   <div className="shrink-0 text-right">
                     <p className="font-medium">
-                      {formatPrice(price * item.quantity, currency)}
+                      {formatPrice(effectivePrice * item.quantity, currency)}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatPrice(price, currency)} each
-                    </p>
+                    {hasTierDiscount ? (
+                      <>
+                        <p className="text-sm text-green-600">
+                          {formatPrice(effectivePrice, currency)} each
+                        </p>
+                        <p className="text-xs text-muted-foreground line-through">
+                          {formatPrice(basePrice, currency)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {formatPrice(basePrice, currency)} each
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -369,6 +414,15 @@ export function StepReview({
               <span className="text-muted-foreground">Subtotal</span>
               <span>{formatPrice(subtotal, currency)}</span>
             </div>
+            {totalBulkSavings > 0 && (
+              <div className="flex items-center justify-between text-green-600">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="size-3.5" />
+                  Bulk discounts
+                </span>
+                <span>-{formatPrice(totalBulkSavings, currency)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Shipping</span>
               <span>

@@ -8,6 +8,13 @@
       "when": 1768055405932,
       "tag": "0000_groovy_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1768752429756,
+      "tag": "0001_clammy_viper",
+      "breakpoints": true
     }
   ]
 }

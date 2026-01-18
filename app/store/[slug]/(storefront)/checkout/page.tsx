@@ -7,6 +7,7 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import { getShippingZones } from "@/lib/db/queries/shipping";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
+import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
 import { getUser } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,11 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   // Get user's saved addresses if logged in
   const savedAddresses = user ? await getUserAddresses(user.id) : [];
 
+  // Get active delivery zones if the store has delivery zones enabled
+  const deliveryZones = store.enableDeliveryZones
+    ? await getActiveDeliveryZones(store.id)
+    : [];
+
   // Calculate cart subtotal with tier pricing
   const subtotal = cartValidation.cart.items.reduce((sum, item) => {
     const basePrice = item.variant?.price
@@ -125,6 +131,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       savedAddresses={savedAddresses}
       user={user}
       subtotal={subtotal}
+      deliveryZones={deliveryZones}
     />
   );
 }

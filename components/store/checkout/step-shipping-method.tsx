@@ -92,36 +92,67 @@ export function StepShippingMethod({
         return;
       }
 
-      if (!result.data?.zone) {
+      // Check if delivery zones are enabled and address is outside all zones
+      if (
+        result.data?.deliveryZonesEnabled &&
+        result.data.methods.length === 0
+      ) {
         setFetchState((prev) => ({
           ...prev,
           isLoading: false,
           error:
-            "Sorry, we don't currently ship to this address. Please go back and try a different address.",
+            "Sorry, we don't currently deliver to this address. Please go back and try a different address.",
         }));
         return;
       }
 
-      if (result.data.methods.length === 0) {
-        setFetchState((prev) => ({
-          ...prev,
+      // If zones are disabled and no shipping methods configured, offer free shipping
+      if (
+        !result.data?.deliveryZonesEnabled &&
+        result.data?.methods.length === 0
+      ) {
+        setFetchState({
           isLoading: false,
-          error:
-            "No shipping methods available for your address. Please contact the store.",
-        }));
+          error: null,
+          zoneName: null,
+          methods: [
+            {
+              id: "free-shipping",
+              name: "Free Shipping",
+              description: "Standard delivery",
+              price: 0,
+              minDeliveryDays: null,
+              maxDeliveryDays: null,
+            },
+          ],
+        });
+
+        // Auto-select free shipping
+        if (!selectedMethodId) {
+          setSelectedMethodId("free-shipping");
+          setShippingMethod({
+            id: "free-shipping",
+            name: "Free Shipping",
+            description: "Standard delivery",
+            price: 0,
+            minDeliveryDays: null,
+            maxDeliveryDays: null,
+          });
+        }
         return;
       }
 
+      const methods = result.data?.methods || [];
       setFetchState({
         isLoading: false,
         error: null,
-        zoneName: result.data.zone.name,
-        methods: result.data.methods,
+        zoneName: result.data?.zone?.name || null,
+        methods,
       });
 
       // Auto-select first method if none selected
-      if (!selectedMethodId && result.data.methods.length > 0) {
-        const firstMethod = result.data.methods[0];
+      if (!selectedMethodId && methods.length > 0) {
+        const firstMethod = methods[0];
         setSelectedMethodId(firstMethod.id);
         setShippingMethod({
           id: firstMethod.id,

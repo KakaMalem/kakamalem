@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { ChevronRight, Plus, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
   FieldLabel,
@@ -23,7 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
-import type { Address } from "@/lib/db/schema";
+import { createAddressAction } from "@/lib/actions/addresses";
+import type { Address, DeliveryZone } from "@/lib/db/schema";
 import {
   guestCheckoutSchema,
   shippingAddressSchema,
@@ -55,6 +57,7 @@ interface StepContactShippingProps {
   }>;
   tenantId: string;
   storeSlug: string;
+  deliveryZones: DeliveryZone[];
 }
 
 export function StepContactShipping({
@@ -62,10 +65,12 @@ export function StepContactShipping({
   savedAddresses,
   tenantId: _tenantId,
   storeSlug: _storeSlug,
+  deliveryZones,
 }: StepContactShippingProps) {
-  // tenantId and storeSlug are passed for future use (e.g., saving addresses)
+  // tenantId and storeSlug are available for future use if needed
   void _tenantId;
   void _storeSlug;
+
   const {
     customerInfo,
     shippingAddress,
@@ -88,26 +93,64 @@ export function StepContactShipping({
     Partial<Record<keyof GuestCheckoutInput, string>>
   >({});
 
+  // Default empty form values
+  const getEmptyAddressForm = useCallback(
+    (): ShippingAddressInput => ({
+      firstName: user?.name?.split(" ")[0] || "",
+      lastName: user?.name?.split(" ").slice(1).join(" ") || "",
+      phone: "",
+      latitude: 0,
+      longitude: 0,
+      accuracy: undefined,
+      source: undefined,
+      notes: "",
+    }),
+    [user?.name]
+  );
+
   // Address form state (for new address)
   const [showNewAddressForm, setShowNewAddressForm] = useState(
     savedAddresses.length === 0
   );
-  const [addressForm, setAddressForm] = useState<ShippingAddressInput>({
-    firstName: shippingAddress?.firstName || user?.name?.split(" ")[0] || "",
-    lastName:
-      shippingAddress?.lastName ||
-      user?.name?.split(" ").slice(1).join(" ") ||
-      "",
-    phone: shippingAddress?.phone || "",
-    latitude: shippingAddress?.latitude || 0,
-    longitude: shippingAddress?.longitude || 0,
-    accuracy: shippingAddress?.accuracy,
-    source: shippingAddress?.source,
-    notes: shippingAddress?.notes || "",
+  const [addressForm, setAddressForm] = useState<ShippingAddressInput>(() => {
+    // If we have a shipping address in store and no selectedAddressId,
+    // it means user previously entered a new address
+    if (shippingAddress && !selectedAddressId) {
+      return {
+        firstName: shippingAddress.firstName || user?.name?.split(" ")[0] || "",
+        lastName:
+          shippingAddress.lastName ||
+          user?.name?.split(" ").slice(1).join(" ") ||
+          "",
+        phone: shippingAddress.phone || "",
+        latitude: shippingAddress.latitude || 0,
+        longitude: shippingAddress.longitude || 0,
+        accuracy: shippingAddress.accuracy,
+        source: shippingAddress.source,
+        notes: shippingAddress.notes || "",
+      };
+    }
+    return getEmptyAddressForm();
   });
   const [addressErrors, setAddressErrors] = useState<
     Partial<Record<keyof ShippingAddressInput, string>>
   >({});
+
+  // Save address checkbox (only for logged-in users)
+  const [saveAddress, setSaveAddress] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+
+  // Auto-select default address on initial load (only if no address selected yet)
+  useEffect(() => {
+    if (savedAddresses.length > 0 && !selectedAddressId && !shippingAddress) {
+      const defaultAddress =
+        savedAddresses.find((a) => a.isDefault) || savedAddresses[0];
+      if (defaultAddress) {
+        handleAddressSelect(defaultAddress.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Scroll to first error field when guestErrors or addressErrors change
   useEffect(() => {
@@ -128,6 +171,26 @@ export function StepContactShipping({
 
   // Track if location has been set
   const hasLocation = addressForm.latitude !== 0 || addressForm.longitude !== 0;
+
+  // Handle showing new address form (with reset)
+  const handleShowNewAddressForm = () => {
+    setAddressForm(getEmptyAddressForm());
+    setAddressErrors({});
+    setSaveAddress(false);
+    setShowNewAddressForm(true);
+  };
+
+  // Handle going back to saved addresses
+  const handleBackToSavedAddresses = () => {
+    setShowNewAddressForm(false);
+    // If there was a previously selected address, restore it
+    if (selectedAddressId) {
+      const selected = savedAddresses.find((a) => a.id === selectedAddressId);
+      if (selected) {
+        handleAddressSelect(selectedAddressId);
+      }
+    }
+  };
 
   // Handle saved address selection
   const handleAddressSelect = (addressId: string) => {
@@ -192,7 +255,7 @@ export function StepContactShipping({
   };
 
   // Validate and proceed
-  const handleContinue = () => {
+  const handleContinue = async () => {
     let hasErrors = false;
     let firstErrorMessage: string | null = null;
 
@@ -226,16 +289,12 @@ export function StepContactShipping({
         }
         hasErrors = true;
       } else {
-        // For guests, merge name and phone from guestForm into addressForm
-        // For logged-in users, use user's name and addressForm phone
+        // For guests, merge name and phone from guestForm
+        // For logged-in users, use addressForm fields directly
         const addressToValidate: ShippingAddressInput = {
           ...addressForm,
-          firstName: user
-            ? user.name?.split(" ")[0] || ""
-            : guestForm.firstName,
-          lastName: user
-            ? user.name?.split(" ").slice(1).join(" ") || ""
-            : guestForm.lastName,
+          firstName: user ? addressForm.firstName : guestForm.firstName,
+          lastName: user ? addressForm.lastName : guestForm.lastName,
           phone: user ? addressForm.phone : guestForm.phone,
         };
 
@@ -269,6 +328,34 @@ export function StepContactShipping({
           };
           setShippingAddress(address);
           setSelectedAddressId(null);
+
+          // Save address to user's account if checkbox is checked
+          if (user && saveAddress) {
+            setIsSavingAddress(true);
+            try {
+              const result = await createAddressAction({
+                firstName: addressValidation.data.firstName,
+                lastName: addressValidation.data.lastName,
+                phone: addressValidation.data.phone,
+                latitude: addressValidation.data.latitude,
+                longitude: addressValidation.data.longitude,
+                accuracy: addressValidation.data.accuracy,
+                source: addressValidation.data.source,
+                notes: addressValidation.data.notes,
+                isDefault: savedAddresses.length === 0, // Make default if first address
+              });
+              if (result.error) {
+                // Don't block checkout, just show a warning
+                toast.warning("Could not save address to your account");
+              } else {
+                toast.success("Address saved to your account");
+              }
+            } catch {
+              toast.warning("Could not save address to your account");
+            } finally {
+              setIsSavingAddress(false);
+            }
+          }
         }
       }
     } else if (!shippingAddress) {
@@ -458,7 +545,7 @@ export function StepContactShipping({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowNewAddressForm(true)}
+                onClick={handleShowNewAddressForm}
                 className="w-full"
               >
                 <Plus className="mr-2 size-4" />
@@ -474,30 +561,59 @@ export function StepContactShipping({
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowNewAddressForm(false)}
+                  onClick={handleBackToSavedAddresses}
                   className="mb-4"
                 >
                   &larr; Back to saved locations
                 </Button>
               )}
 
-              {/* Phone field only for logged-in users - guests use phone from Contact Info */}
+              {/* Name and phone fields for logged-in users */}
               {user && (
-                <Field>
-                  <FieldLabel>Phone</FieldLabel>
-                  <PhoneInput
-                    value={addressForm.phone}
-                    onChange={(value) =>
-                      handleAddressChange("phone", value || "")
-                    }
-                    defaultCountry="AF"
-                    aria-invalid={!!addressErrors.phone}
-                  />
-                  <FieldDescription>
-                    Required for delivery coordination
-                  </FieldDescription>
-                  <FieldError>{addressErrors.phone}</FieldError>
-                </Field>
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel>First Name</FieldLabel>
+                      <Input
+                        id="firstName"
+                        value={addressForm.firstName}
+                        onChange={(e) =>
+                          handleAddressChange("firstName", e.target.value)
+                        }
+                        aria-invalid={!!addressErrors.firstName}
+                      />
+                      <FieldError>{addressErrors.firstName}</FieldError>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Last Name</FieldLabel>
+                      <Input
+                        id="lastName"
+                        value={addressForm.lastName}
+                        onChange={(e) =>
+                          handleAddressChange("lastName", e.target.value)
+                        }
+                        aria-invalid={!!addressErrors.lastName}
+                      />
+                      <FieldError>{addressErrors.lastName}</FieldError>
+                    </Field>
+                  </div>
+                  <Field>
+                    <FieldLabel>Phone</FieldLabel>
+                    <PhoneInput
+                      id="phone"
+                      value={addressForm.phone}
+                      onChange={(value) =>
+                        handleAddressChange("phone", value || "")
+                      }
+                      defaultCountry="AF"
+                      aria-invalid={!!addressErrors.phone}
+                    />
+                    <FieldDescription>
+                      Required for delivery coordination
+                    </FieldDescription>
+                    <FieldError>{addressErrors.phone}</FieldError>
+                  </Field>
+                </div>
               )}
 
               {/* Location Picker */}
@@ -518,6 +634,7 @@ export function StepContactShipping({
                   }
                   onChange={handleLocationChange}
                   error={addressErrors.latitude}
+                  deliveryZones={deliveryZones}
                 />
               </Field>
 
@@ -532,6 +649,25 @@ export function StepContactShipping({
                   maxLength={500}
                 />
               </Field>
+
+              {/* Save address checkbox for logged-in users */}
+              {user && (
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="save-address"
+                    checked={saveAddress}
+                    onCheckedChange={(checked) =>
+                      setSaveAddress(checked === true)
+                    }
+                  />
+                  <Label
+                    htmlFor="save-address"
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Save this address for future orders
+                  </Label>
+                </div>
+              )}
             </>
           )}
         </CardContent>
@@ -539,9 +675,9 @@ export function StepContactShipping({
 
       {/* Continue Button */}
       <div className="flex justify-end">
-        <Button onClick={handleContinue} size="lg">
-          Continue to Delivery
-          <ChevronRight className="ml-2 size-4" />
+        <Button onClick={handleContinue} size="lg" disabled={isSavingAddress}>
+          {isSavingAddress ? "Saving address..." : "Continue to Delivery"}
+          {!isSavingAddress && <ChevronRight className="ml-2 size-4" />}
         </Button>
       </div>
     </div>

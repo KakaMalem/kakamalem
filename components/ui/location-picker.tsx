@@ -17,12 +17,23 @@ export interface LocationData {
   plusCode: string;
 }
 
+// Simplified delivery zone type for display purposes
+interface DeliveryZoneDisplay {
+  id: string;
+  name: string;
+  centerLat: string | null;
+  centerLng: string | null;
+  radiusMeters: number | null;
+  color: string | null;
+}
+
 interface LocationPickerProps {
   value?: { latitude: number; longitude: number } | null;
   onChange: (location: LocationData) => void;
   error?: string;
   disabled?: boolean;
   className?: string;
+  deliveryZones?: DeliveryZoneDisplay[];
 }
 
 // Isometric 3D City Illustration Component
@@ -404,12 +415,15 @@ export function LocationPicker({
   error,
   disabled,
   className,
+  deliveryZones = [],
 }: LocationPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const zoneCirclesRef = useRef<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   // Initialize with true if Leaflet is already loaded (e.g., from a previous render)
@@ -420,7 +434,9 @@ export function LocationPicker({
   const { permissionState, isCheckingPermission, requestLocation } =
     useLocationPermission();
 
-  const showMap = !!value;
+  // Show map if we have a value OR if we have delivery zones to display
+  const hasDeliveryZones = deliveryZones.length > 0;
+  const showMap = !!value || hasDeliveryZones;
 
   useEffect(() => {
     if (typeof window === "undefined" || !showMap || leafletLoaded) return;
@@ -441,21 +457,90 @@ export function LocationPicker({
   }, [showMap, leafletLoaded]);
 
   useEffect(() => {
-    if (!leafletLoaded || !mapRef.current || mapInstanceRef.current || !value)
-      return;
+    if (!leafletLoaded || !mapRef.current || mapInstanceRef.current) return;
+    // Need either a value or delivery zones to show the map
+    if (!value && deliveryZones.length === 0) return;
 
     const L = window.L;
-    const map = L.map(mapRef.current).setView(
-      [value.latitude, value.longitude] as [number, number],
-      16
-    );
+
+    // Determine initial map center and zoom
+    let initialCenter: [number, number];
+    let initialZoom = 16;
+
+    if (value) {
+      // Center on the selected location
+      initialCenter = [value.latitude, value.longitude];
+    } else if (deliveryZones.length > 0) {
+      // Center on the first delivery zone
+      const firstZone = deliveryZones.find(
+        (z) => z.centerLat && z.centerLng && z.radiusMeters
+      );
+      if (firstZone && firstZone.centerLat && firstZone.centerLng) {
+        initialCenter = [
+          parseFloat(firstZone.centerLat),
+          parseFloat(firstZone.centerLng),
+        ];
+        // Adjust zoom based on radius (larger radius = smaller zoom)
+        const radius = firstZone.radiusMeters || 3000;
+        if (radius > 10000) initialZoom = 11;
+        else if (radius > 5000) initialZoom = 12;
+        else if (radius > 2000) initialZoom = 13;
+        else initialZoom = 14;
+      } else {
+        // Fallback to Kabul
+        initialCenter = [34.5553, 69.2075];
+        initialZoom = 12;
+      }
+    } else {
+      initialCenter = [34.5553, 69.2075];
+      initialZoom = 12;
+    }
+
+    const map = L.map(mapRef.current).setView(initialCenter, initialZoom);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
 
-    markerRef.current = L.marker([value.latitude, value.longitude]).addTo(map);
+    // Draw delivery zones as circles
+    zoneCirclesRef.current = [];
+    deliveryZones.forEach((zone) => {
+      if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
+
+      const circle = L.circle(
+        [parseFloat(zone.centerLat), parseFloat(zone.centerLng)],
+        {
+          radius: zone.radiusMeters,
+          color: zone.color || "#3b82f6",
+          fillColor: zone.color || "#3b82f6",
+          fillOpacity: 0.1,
+          weight: 2,
+        }
+      ).addTo(map);
+
+      // Add tooltip with zone name
+      circle.bindTooltip(zone.name, {
+        permanent: false,
+        direction: "center",
+        className: "zone-tooltip",
+      });
+
+      zoneCirclesRef.current.push(circle);
+    });
+
+    // Fit bounds to show all zones if we have zones and no selected value
+    if (!value && zoneCirclesRef.current.length > 0) {
+      const group = L.featureGroup(zoneCirclesRef.current);
+      map.fitBounds(group.getBounds().pad(0.1));
+    }
+
+    // Add marker if we have a selected value
+    if (value) {
+      markerRef.current = L.marker([value.latitude, value.longitude]).addTo(
+        map
+      );
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     map.on("click", (e: any) => {
@@ -476,8 +561,9 @@ export function LocationPicker({
       map.remove();
       mapInstanceRef.current = null;
       markerRef.current = null;
+      zoneCirclesRef.current = [];
     };
-  }, [leafletLoaded, value, disabled, onChange]);
+  }, [leafletLoaded, value, disabled, onChange, deliveryZones]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !leafletLoaded || !value) return;
@@ -615,11 +701,30 @@ export function LocationPicker({
         ) : (
           <div className="relative">
             <div ref={mapRef} className="h-72 w-full" />
-            <div className="pointer-events-none absolute bottom-4 left-4 right-4">
+            <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-end justify-between gap-2">
               <div className="inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-medium text-gray-600 shadow-lg backdrop-blur-sm">
                 <MapPin className="size-3.5 text-primary" />
-                Tap the map to adjust your location
+                {value
+                  ? "Tap to adjust location"
+                  : hasDeliveryZones
+                    ? "Tap within highlighted area to select"
+                    : "Tap to select your location"}
               </div>
+              {!value && !disabled && (
+                <button
+                  type="button"
+                  onClick={handleButtonClick}
+                  disabled={isLoading}
+                  className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-medium text-white shadow-lg transition-colors hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Navigation className="size-3.5" />
+                  )}
+                  {isLoading ? "Getting..." : "Use GPS"}
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { OrderStatusSelect } from "@/components/dashboard/orders/order-status-select";
 import { OrderNotesSection } from "@/components/dashboard/orders/order-notes-section";
 import { OrderPrintButton } from "@/components/dashboard/orders/order-print-button";
+import { DeliveryLocationMapWrapper } from "@/components/dashboard/orders/delivery-location-map";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
@@ -264,6 +265,23 @@ export default async function OrderDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          {/* Delivery Location Map */}
+          {order.shippingAddress.latitude &&
+            order.shippingAddress.longitude && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Delivery Location</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DeliveryLocationMapWrapper
+                    latitude={order.shippingAddress.latitude}
+                    longitude={order.shippingAddress.longitude}
+                    customerName={`${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`}
+                  />
+                </CardContent>
+              </Card>
+            )}
         </div>
       </div>
     </div>

@@ -92,14 +92,16 @@ export function ProductInfo({
   const [isInWishlist, setIsInWishlist] = useState(initialIsInWishlist);
   const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
   const [quantity, setQuantity] = useState(product.minOrderQuantity ?? 1);
+  const [isEditingQty, setIsEditingQty] = useState(false);
+  const [editingQtyValue, setEditingQtyValue] = useState("");
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
   const [shakeButton, setShakeButton] = useState(false);
   const setCart = useCartStore((state) => state.setCart);
   const setCartOpen = useCartStore((state) => state.setIsOpen);
 
-  // Order quantity limits
+  // Order quantity limits (no default max - supports bulk/wholesale orders)
   const minQty = product.minOrderQuantity ?? 1;
-  const maxQty = product.maxOrderQuantity ?? 999;
+  const maxQty = product.maxOrderQuantity ?? null; // null = unlimited
 
   // Find the variant that matches ALL selected options
   const selectedVariant =
@@ -193,9 +195,15 @@ export function ProductInfo({
       ? groupVariantsByOption(product.variants)
       : null;
 
-  // Quantity controls
+  // Quantity controls (supports unlimited quantities for bulk orders)
   const incrementQuantity = () => {
-    const newQty = Math.min(quantity + 1, maxQty, currentStock || maxQty);
+    let newQty = quantity + 1;
+    // Apply max limit if set
+    if (maxQty !== null) newQty = Math.min(newQty, maxQty);
+    // Apply stock limit if tracking inventory
+    if (product.trackInventory && !product.allowBackorder && currentStock) {
+      newQty = Math.min(newQty, currentStock);
+    }
     setQuantity(newQty);
   };
 
@@ -204,19 +212,70 @@ export function ProductInfo({
     setQuantity(newQty);
   };
 
-  const handleQuantityChange = (value: string) => {
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed)) return;
-    const clamped = Math.max(
-      minQty,
-      Math.min(parsed, maxQty, currentStock || maxQty)
-    );
-    setQuantity(clamped);
+  const handleQuantityInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value;
+    // Allow empty string for typing, or valid positive integers
+    if (value === "" || /^\d+$/.test(value)) {
+      setEditingQtyValue(value);
+
+      // Update quantity in real-time for valid numbers (enables live tier pricing)
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed) && parsed >= minQty) {
+        let clamped = parsed;
+        if (maxQty !== null) clamped = Math.min(clamped, maxQty);
+        if (product.trackInventory && !product.allowBackorder && currentStock) {
+          clamped = Math.min(clamped, currentStock);
+        }
+        setQuantity(clamped);
+      }
+    }
   };
 
-  // Check if can add more (considering stock)
+  const handleQuantityInputFocus = () => {
+    setIsEditingQty(true);
+    setEditingQtyValue(String(quantity));
+  };
+
+  const handleQuantityInputBlur = () => {
+    setIsEditingQty(false);
+    const parsed = parseInt(editingQtyValue, 10);
+    if (isNaN(parsed) || parsed < minQty) {
+      // Reset to min quantity if invalid
+      return;
+    }
+    let clamped = Math.max(minQty, parsed);
+    // Apply max limit if set
+    if (maxQty !== null) clamped = Math.min(clamped, maxQty);
+    // Apply stock limit if tracking inventory
+    if (product.trackInventory && !product.allowBackorder && currentStock) {
+      clamped = Math.min(clamped, currentStock);
+    }
+    if (clamped !== quantity) {
+      setQuantity(clamped);
+    }
+  };
+
+  const handleQuantityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      setIsEditingQty(false);
+      setEditingQtyValue(String(quantity));
+      e.currentTarget.blur();
+    }
+  };
+
+  // Display value: use editingQtyValue while editing, otherwise quantity
+  const displayQtyValue = isEditingQty ? editingQtyValue : String(quantity);
+
+  // Check if can add more (considering stock and optional max limit)
   const canIncrement =
-    quantity < maxQty && (!product.trackInventory || quantity < currentStock);
+    (maxQty === null || quantity < maxQty) &&
+    (!product.trackInventory ||
+      product.allowBackorder ||
+      quantity < currentStock);
   const canDecrement = quantity > minQty;
 
   // Trigger shake animation on error
@@ -516,16 +575,15 @@ export function ProductInfo({
               <Minus className="size-4" />
             </Button>
             <Input
-              type="number"
-              min={minQty}
-              max={Math.min(
-                maxQty,
-                product.trackInventory ? currentStock : maxQty
-              )}
-              value={quantity}
-              onChange={(e) => handleQuantityChange(e.target.value)}
+              type="text"
+              inputMode="numeric"
+              value={displayQtyValue}
+              onChange={handleQuantityInputChange}
+              onFocus={handleQuantityInputFocus}
+              onBlur={handleQuantityInputBlur}
+              onKeyDown={handleQuantityKeyDown}
               onWheel={(e) => e.currentTarget.blur()}
-              className="h-10 w-16 text-center border-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="h-10 w-24 text-center border-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               disabled={isAddingToCart}
             />
             <Button

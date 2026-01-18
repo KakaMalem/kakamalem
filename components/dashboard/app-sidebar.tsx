@@ -9,7 +9,6 @@ import {
   FolderTree,
   Image,
   ShoppingCart,
-  Truck,
   BarChart3,
   Settings,
   Store,
@@ -152,11 +151,6 @@ export function AppSidebar({
       title: "Customers",
       href: `${baseUrl}/customers/groups`,
       icon: Users,
-    },
-    {
-      title: "Shipping",
-      href: `${baseUrl}/shipping`,
-      icon: Truck,
     },
     {
       title: "Sales",

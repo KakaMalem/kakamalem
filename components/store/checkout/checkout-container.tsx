@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import type { Address } from "@/lib/db/schema";
+import type { Address, DeliveryZone } from "@/lib/db/schema";
 import type { Cart } from "@/lib/db/queries/carts";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { useMounted } from "@/lib/hooks/use-mounted";
@@ -38,6 +38,7 @@ interface CheckoutContainerProps {
     email: string;
   } | null;
   subtotal: number;
+  deliveryZones: DeliveryZone[];
 }
 
 export function CheckoutContainer({
@@ -48,6 +49,7 @@ export function CheckoutContainer({
   savedAddresses,
   user,
   subtotal,
+  deliveryZones,
 }: CheckoutContainerProps) {
   const mounted = useMounted();
 
@@ -144,6 +146,7 @@ export function CheckoutContainer({
               savedAddresses={savedAddresses}
               tenantId={tenantId}
               storeSlug={storeSlug}
+              deliveryZones={deliveryZones}
             />
           )}
           {currentStep === 2 && (

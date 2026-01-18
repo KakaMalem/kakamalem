@@ -253,7 +253,7 @@ export function CartItem({
               <Minus className="h-3 w-3" />
             </Button>
 
-            {/* Editable quantity input */}
+            {/* Editable quantity input - wider to support bulk orders */}
             <Input
               ref={inputRef}
               type="text"
@@ -263,7 +263,7 @@ export function CartItem({
               onBlur={handleInputBlur}
               onKeyDown={handleInputKeyDown}
               onFocus={handleInputFocus}
-              className="h-8 w-16 text-center text-sm font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              className="h-8 w-20 text-center text-sm font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               disabled={isSyncing}
               aria-label="Quantity"
             />

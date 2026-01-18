@@ -52,6 +52,11 @@ export function SettingsNav() {
       description: "Manage staff and collaborators",
     },
     {
+      title: "Delivery & Shipping",
+      href: `${baseUrl}/delivery`,
+      description: "Delivery zones, rates, and shipping options",
+    },
+    {
       title: "Danger Zone",
       href: `${baseUrl}/danger`,
       description: "Delete or transfer store",
@@ -108,6 +113,7 @@ export function SettingsNavTabs() {
     { title: "SEO", href: `${baseUrl}/seo` },
     { title: "Domains", href: `${baseUrl}/domains` },
     { title: "Team", href: `${baseUrl}/team` },
+    { title: "Delivery & Shipping", href: `${baseUrl}/delivery` },
     { title: "Danger Zone", href: `${baseUrl}/danger` },
   ];
 

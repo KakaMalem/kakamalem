@@ -21,10 +21,10 @@ import {
 } from "drizzle-orm";
 
 // Order statuses that should be excluded from revenue calculations
-const EXCLUDED_REVENUE_STATUSES: (
-  | "cancelled"
-  | "refunded"
-)[] = ["cancelled", "refunded"];
+const EXCLUDED_REVENUE_STATUSES: ("cancelled" | "refunded")[] = [
+  "cancelled",
+  "refunded",
+];
 
 // ============================================================================
 // Analytics Page Types
