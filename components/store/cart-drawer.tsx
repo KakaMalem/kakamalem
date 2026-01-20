@@ -27,19 +27,10 @@ import {
 } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice, cn } from "@/lib/utils";
-import {
-  useCartItems,
-  useCartSubtotal,
-  useCartItemCount,
-  useCartIsOpen,
-  useCartStore,
-} from "@/lib/stores/use-cart-store";
-import { useDebouncedCartSync } from "@/lib/hooks/use-debounced-cart-sync";
-
-import type { CartItem } from "@/lib/stores/use-cart-store";
+import { useCart, useCartDrawer } from "@/lib/hooks/use-cart";
+import type { CartItem } from "@/lib/types/cart";
 
 interface CartDrawerProps {
-  tenantId: string;
   storeSlug: string;
   currency: string;
 }
@@ -58,12 +49,9 @@ function useIsMobile() {
   return isMobile;
 }
 
-export function CartDrawer({ tenantId, storeSlug, currency }: CartDrawerProps) {
-  const isOpen = useCartIsOpen();
-  const setIsOpen = useCartStore((state) => state.setIsOpen);
-  const items = useCartItems();
-  const subtotal = useCartSubtotal();
-  const itemCount = useCartItemCount();
+export function CartDrawer({ storeSlug, currency }: CartDrawerProps) {
+  const { isOpen, close } = useCartDrawer();
+  const { items, subtotal, itemCount } = useCart();
   const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -80,7 +68,7 @@ export function CartDrawer({ tenantId, storeSlug, currency }: CartDrawerProps) {
     <Drawer
       direction={isMobile ? "bottom" : "right"}
       open={isOpen}
-      onOpenChange={setIsOpen}
+      onOpenChange={(open) => !open && close()}
       dismissible={true}
       shouldScaleBackground={false}
     >
@@ -141,7 +129,6 @@ export function CartDrawer({ tenantId, storeSlug, currency }: CartDrawerProps) {
                   <div key={item.id}>
                     <CartDrawerItem
                       item={item}
-                      tenantId={tenantId}
                       storeSlug={storeSlug}
                       currency={currency}
                     />
@@ -199,34 +186,48 @@ export function CartDrawer({ tenantId, storeSlug, currency }: CartDrawerProps) {
 
 interface CartDrawerItemProps {
   item: CartItem;
-  tenantId: string;
   storeSlug: string;
   currency: string;
 }
 
-function CartDrawerItem({
-  item,
-  tenantId,
-  storeSlug,
-  currency,
-}: CartDrawerItemProps) {
-  const [isRemoving, setIsRemoving] = useState(false);
+function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");
+  // Local quantity for immediate UI feedback
+  const [localQuantity, setLocalQuantity] = useState(item.quantity);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { updateQuantity, isItemSyncing } = useDebouncedCartSync({
-    tenantId,
-    storeSlug,
-  });
+  // Refs for debouncing
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingQuantityRef = useRef<number | null>(null);
 
-  const isSyncing = isItemSyncing(item.id);
+  const { updateQuantity, removeItem, isRemovingItem } = useCart();
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Sync localQuantity from server when item.quantity changes externally
+  // The debounce logic handles reconciliation - any mid-click server response
+  // will be overwritten by the next debounced update with the correct value
+  const [prevItemQuantity, setPrevItemQuantity] = useState(item.quantity);
+  if (prevItemQuantity !== item.quantity) {
+    setPrevItemQuantity(item.quantity);
+    setLocalQuantity(item.quantity);
+  }
+
+  const isRemoving = isRemovingItem(item.id);
 
   const price = item.variant?.price
     ? parseFloat(item.variant.price)
     : parseFloat(item.product.price);
 
-  const lineTotal = price * item.quantity;
+  const lineTotal = price * localQuantity;
 
   const availableStock = item.variant ? item.variant.stock : item.product.stock;
   const trackInventory = item.product.trackInventory;
@@ -236,10 +237,34 @@ function CartDrawerItem({
     ? `${item.product.name} - ${item.variant.displayName}`
     : item.product.name;
 
-  // Display value: use editingValue while editing, otherwise item.quantity
-  const displayValue = isEditing ? editingValue : String(item.quantity);
+  // Display value: use editingValue while editing, otherwise localQuantity
+  const displayValue = isEditing ? editingValue : String(localQuantity);
 
-  const handleQuantityChange = (newQuantity: number) => {
+  // Debounced server update - only sends after user stops clicking
+  const debouncedServerUpdate = (quantity: number) => {
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Mark that we have a pending update
+    pendingQuantityRef.current = quantity;
+
+    // Schedule the actual server update
+    debounceTimerRef.current = setTimeout(() => {
+      const finalQuantity = pendingQuantityRef.current;
+      pendingQuantityRef.current = null;
+      debounceTimerRef.current = null;
+
+      if (finalQuantity !== null) {
+        updateQuantity(item.id, finalQuantity);
+      }
+    }, 300); // 300ms debounce
+  };
+
+  const handleQuantityChange = (delta: number) => {
+    const newQuantity = localQuantity + delta;
+
     if (newQuantity < 1) return;
 
     if (trackInventory && !allowBackorder && newQuantity > availableStock) {
@@ -252,8 +277,10 @@ function CartDrawerItem({
       return;
     }
 
-    // Use debounced sync - handles optimistic updates internally
-    updateQuantity(item.id, newQuantity, item.quantity);
+    // Update local state immediately for responsive UI
+    setLocalQuantity(newQuantity);
+    // Debounce the server update
+    debouncedServerUpdate(newQuantity);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,11 +295,21 @@ function CartDrawerItem({
     const parsed = parseInt(editingValue, 10);
 
     if (isNaN(parsed) || parsed < 1) {
+      // Reset to current quantity if invalid
+      setEditingValue(String(localQuantity));
       return;
     }
 
-    if (parsed !== item.quantity) {
-      handleQuantityChange(parsed);
+    if (parsed !== localQuantity) {
+      if (trackInventory && !allowBackorder && parsed > availableStock) {
+        toast.error("Can't add more", {
+          description: `Only ${availableStock} item${availableStock === 1 ? "" : "s"} available`,
+        });
+        setEditingValue(String(localQuantity));
+        return;
+      }
+      setLocalQuantity(parsed);
+      debouncedServerUpdate(parsed);
     }
   };
 
@@ -281,29 +318,27 @@ function CartDrawerItem({
       inputRef.current?.blur();
     } else if (e.key === "Escape") {
       setIsEditing(false);
+      setEditingValue(String(localQuantity));
       inputRef.current?.blur();
     }
   };
 
   const handleInputFocus = () => {
     setIsEditing(true);
-    setEditingValue(String(item.quantity));
+    setEditingValue(String(localQuantity));
     setTimeout(() => inputRef.current?.select(), 0);
   };
 
   const handleRemove = () => {
     if (isRemoving) return;
-
-    setIsRemoving(true);
-    updateQuantity(item.id, 0, item.quantity);
-    toast.success("Item removed from cart");
+    removeItem(item.id);
   };
 
   return (
     <div
       className={cn(
         "flex gap-4 transition-opacity",
-        (isSyncing || isRemoving) && "opacity-50"
+        isRemoving && "opacity-50"
       )}
     >
       {/* Product Image */}
@@ -365,8 +400,8 @@ function CartDrawerItem({
               variant="ghost"
               size="icon"
               className="size-8 rounded-r-none"
-              onClick={() => handleQuantityChange(item.quantity - 1)}
-              disabled={item.quantity <= 1}
+              onClick={() => handleQuantityChange(-1)}
+              disabled={localQuantity <= 1}
             >
               <Minus className="size-3" />
             </Button>
@@ -380,18 +415,17 @@ function CartDrawerItem({
               onKeyDown={handleInputKeyDown}
               onFocus={handleInputFocus}
               className="h-8 w-12 rounded-none border-0 border-x bg-transparent text-center text-sm font-medium focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              disabled={isSyncing}
               aria-label="Quantity"
             />
             <Button
               variant="ghost"
               size="icon"
               className="size-8 rounded-l-none"
-              onClick={() => handleQuantityChange(item.quantity + 1)}
+              onClick={() => handleQuantityChange(+1)}
               disabled={
                 trackInventory &&
                 !allowBackorder &&
-                item.quantity >= availableStock
+                localQuantity >= availableStock
               }
             >
               <Plus className="size-3" />

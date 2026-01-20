@@ -25,6 +25,7 @@ export type AdjustmentInput = {
   adjustmentType: "add" | "remove" | "set";
   quantity: number;
   reason?: string;
+  notes?: string;
 };
 
 /**
@@ -43,7 +44,8 @@ export async function adjustStock(
       };
     }
 
-    const { productId, variantId, adjustmentType, quantity, reason } = input;
+    const { productId, variantId, adjustmentType, quantity, reason, notes } =
+      input;
 
     // Validate quantity
     if (quantity < 0) {
@@ -188,6 +190,7 @@ export async function adjustStock(
         reason:
           reason ||
           `Stock ${adjustmentType === "set" ? "set to" : adjustmentType === "add" ? "increased by" : "decreased by"} ${quantity}`,
+        notes: notes || null,
       })
       .returning({ id: inventoryMovements.id });
 

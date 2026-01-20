@@ -26,3 +26,18 @@ export function formatPrice(price: number, currency: string = "AFN"): string {
     maximumFractionDigits: 0,
   }).format(price);
 }
+
+/**
+ * Format a date string for display
+ * Format: "Jan 15, 2024 at 3:30 PM"
+ */
+export function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

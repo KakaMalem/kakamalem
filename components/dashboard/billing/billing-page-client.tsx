@@ -1,27 +1,24 @@
 "use client";
 
 import { BillingStatusCard } from "./billing-status-card";
-import { TransactionList } from "./transaction-list";
+import { PlanComparison } from "./plan-comparison";
 import type {
-  BillingOverview,
-  CommissionTransactionItem,
-  TransactionPagination,
+  SubscriptionOverview,
+  PlanFeature,
 } from "@/lib/db/queries/billing";
 
 interface BillingPageClientProps {
   storeSlug: string;
+  storeName: string;
   currency: string;
-  billing: BillingOverview;
-  transactions: CommissionTransactionItem[];
-  pagination: TransactionPagination;
+  subscription: SubscriptionOverview;
+  planFeatures: PlanFeature[];
 }
 
 export function BillingPageClient({
-  storeSlug,
   currency,
-  billing,
-  transactions,
-  pagination,
+  subscription,
+  planFeatures,
 }: BillingPageClientProps) {
   return (
     <div className="space-y-6">
@@ -29,18 +26,17 @@ export function BillingPageClient({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
         <p className="text-muted-foreground">
-          Manage your store&apos;s billing and commission fees
+          Manage your subscription and view your plan details
         </p>
       </div>
 
-      {/* Billing Status Card */}
-      <BillingStatusCard billing={billing} currency={currency} />
+      {/* Subscription Status Card */}
+      <BillingStatusCard subscription={subscription} currency={currency} />
 
-      {/* Transaction History */}
-      <TransactionList
-        transactions={transactions}
-        pagination={pagination}
-        storeSlug={storeSlug}
+      {/* Plan Comparison */}
+      <PlanComparison
+        subscription={subscription}
+        planFeatures={planFeatures}
         currency={currency}
       />
     </div>

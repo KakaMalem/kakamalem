@@ -18,12 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { VariantSelector } from "@/components/store/variant-selector";
 import { cn, formatPrice } from "@/lib/utils";
 import { getDisplayPrices } from "@/lib/utils/pricing-display";
-import { addToCartAction } from "@/lib/cart/actions";
 import { toggleWishlistAction } from "@/lib/actions/wishlists";
-import { useCartStore } from "@/lib/stores/use-cart-store";
+import { useCart } from "@/lib/hooks/use-cart";
+import type { CartItemProduct, CartItemVariant } from "@/lib/types/cart";
 
 import type { ProductWithDetails } from "@/lib/db/queries/products";
 import type { PriceTier } from "@/lib/db/schema";
@@ -46,17 +47,22 @@ interface ProductInfoProps {
   priceTiers?: PriceTier[];
   onVariantChange?: (variantId: string | null) => void;
   initialIsInWishlist?: boolean;
+  /** When true, hides add-to-cart and quantity controls (catalog/showcase mode) */
+  catalogMode?: boolean;
+  /** Contact phone for catalog mode */
+  contactPhone?: string | null;
 }
 
 export function ProductInfo({
   product,
   tenantId,
-  storeSlug,
   currency,
   reviewStats,
   priceTiers = [],
   onVariantChange,
   initialIsInWishlist = false,
+  catalogMode = false,
+  contactPhone,
 }: ProductInfoProps) {
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
   const [selectedOptions, setSelectedOptions] = useState<
@@ -88,7 +94,6 @@ export function ProductInfo({
     }
     return {};
   });
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isInWishlist, setIsInWishlist] = useState(initialIsInWishlist);
   const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
   const [quantity, setQuantity] = useState(product.minOrderQuantity ?? 1);
@@ -96,8 +101,13 @@ export function ProductInfo({
   const [editingQtyValue, setEditingQtyValue] = useState("");
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
   const [shakeButton, setShakeButton] = useState(false);
-  const setCart = useCartStore((state) => state.setCart);
-  const setCartOpen = useCartStore((state) => state.setIsOpen);
+
+  // Use the new cart hook
+  const {
+    addToCart,
+    isAdding: isAddingToCart,
+    addError,
+  } = useCart({ debounce: false });
 
   // Order quantity limits (no default max - supports bulk/wholesale orders)
   const minQty = product.minOrderQuantity ?? 1;
@@ -292,36 +302,63 @@ export function ProductInfo({
     }
   }, [addToCartError]);
 
-  const handleAddToCart = async () => {
-    setIsAddingToCart(true);
+  const handleAddToCart = () => {
     setAddToCartError(null);
 
-    const result = await addToCartAction(
-      tenantId,
-      storeSlug,
+    // Build optimistic product data for immediate UI feedback
+    const optimisticProduct: CartItemProduct = {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: product.price,
+      stock: product.stock,
+      trackInventory: product.trackInventory,
+      allowBackorder: product.allowBackorder,
+      status: product.status,
+      hasVariants: product.hasVariants,
+      image: product.images?.[0]
+        ? {
+            url: product.images[0].media.url,
+            altText: product.images[0].media.altText,
+          }
+        : null,
+      priceTiers: priceTiers.map((tier) => ({
+        id: tier.id,
+        minQuantity: tier.minQuantity,
+        maxQuantity: tier.maxQuantity,
+        price: tier.price,
+      })),
+    };
+
+    // Build optimistic variant data if selected
+    const optimisticVariant: CartItemVariant = selectedVariant
+      ? {
+          id: selectedVariant.id,
+          displayName: selectedVariant.displayName,
+          price: selectedVariant.price,
+          stock: selectedVariant.stock,
+          isActive: selectedVariant.isActive,
+        }
+      : null;
+
+    addToCart(
       product.id,
       quantity,
-      selectedVariantId
+      selectedVariantId,
+      optimisticProduct,
+      optimisticVariant
     );
-
-    if (result.success) {
-      setCart(result.cart, storeSlug);
-      // Open the cart drawer to show the added item
-      setCartOpen(true);
-    } else {
-      // Show visual feedback
-      triggerShake();
-      setAddToCartError(result.error);
-
-      // Show toast with clear context
-      toast.error("Couldn't add to cart", {
-        description: result.error,
-        icon: <AlertCircle className="size-5" />,
-      });
-    }
-
-    setIsAddingToCart(false);
   };
+
+  // Handle add to cart errors - track previous error to detect new errors during render
+  const [prevAddError, setPrevAddError] = useState(addError);
+  if (addError !== prevAddError) {
+    setPrevAddError(addError);
+    if (addError) {
+      triggerShake();
+      setAddToCartError(addError.message);
+    }
+  }
 
   const handleToggleWishlist = async () => {
     setIsTogglingWishlist(true);
@@ -488,9 +525,7 @@ export function ProductInfo({
       </div>
 
       {/* Description */}
-      {product.description && (
-        <p className="text-muted-foreground">{product.description}</p>
-      )}
+      {product.description && <RichTextContent html={product.description} />}
 
       <Separator />
 
@@ -549,118 +584,139 @@ export function ProductInfo({
         </>
       )}
 
-      {/* Quantity Selector */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="font-medium">Quantity</span>
-          {product.showStock &&
-            product.trackInventory &&
-            currentStock > 0 &&
-            currentStock <= 10 && (
-              <span className="text-sm text-amber-600">
-                Only {currentStock} left in stock
+      {/* Quantity Selector - Hidden in catalog mode */}
+      {!catalogMode && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">Quantity</span>
+            {product.showStock &&
+              product.trackInventory &&
+              currentStock > 0 &&
+              currentStock <= 10 && (
+                <span className="text-sm text-amber-600">
+                  Only {currentStock} left in stock
+                </span>
+              )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center border rounded-lg">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-r-none"
+                onClick={decrementQuantity}
+                disabled={!canDecrement || isAddingToCart}
+              >
+                <Minus className="size-4" />
+              </Button>
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={displayQtyValue}
+                onChange={handleQuantityInputChange}
+                onFocus={handleQuantityInputFocus}
+                onBlur={handleQuantityInputBlur}
+                onKeyDown={handleQuantityKeyDown}
+                onWheel={(e) => e.currentTarget.blur()}
+                className="h-10 w-24 text-center border-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                disabled={isAddingToCart}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-l-none"
+                onClick={incrementQuantity}
+                disabled={!canIncrement || isAddingToCart}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </div>
+            {minQty > 1 && (
+              <span className="text-sm text-muted-foreground">
+                Min. order: {minQty}
               </span>
             )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center border rounded-lg">
+      )}
+
+      {/* Action Buttons - Different for catalog mode */}
+      {catalogMode ? (
+        <div className="space-y-4">
+          <div className="rounded-lg border bg-muted/50 p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Interested in this product? Contact us for pricing and
+              availability.
+            </p>
+            {contactPhone && (
+              <a
+                href={`tel:${contactPhone}`}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Call: {contactPhone}
+              </a>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-4">
             <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-r-none"
-              onClick={decrementQuantity}
-              disabled={!canDecrement || isAddingToCart}
+              className={cn(
+                "grow gap-2 h-12 text-base transition-transform",
+                shakeButton && "animate-shake",
+                addToCartError && "ring-2 ring-destructive ring-offset-2"
+              )}
+              size="lg"
+              disabled={isOutOfStock || isAddingToCart}
+              onClick={handleAddToCart}
             >
-              <Minus className="size-4" />
+              {isAddingToCart ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="size-5" />
+                  Add to Cart
+                </>
+              )}
             </Button>
-            <Input
-              type="text"
-              inputMode="numeric"
-              value={displayQtyValue}
-              onChange={handleQuantityInputChange}
-              onFocus={handleQuantityInputFocus}
-              onBlur={handleQuantityInputBlur}
-              onKeyDown={handleQuantityKeyDown}
-              onWheel={(e) => e.currentTarget.blur()}
-              className="h-10 w-24 text-center border-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              disabled={isAddingToCart}
-            />
             <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-l-none"
-              onClick={incrementQuantity}
-              disabled={!canIncrement || isAddingToCart}
+              variant="outline"
+              size="lg"
+              className="h-12 px-4"
+              onClick={handleToggleWishlist}
+              disabled={isTogglingWishlist}
             >
-              <Plus className="size-4" />
+              {isTogglingWishlist ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : (
+                <Heart
+                  className={cn(
+                    "size-5",
+                    isInWishlist && "fill-red-500 stroke-red-500"
+                  )}
+                />
+              )}
             </Button>
           </div>
-          {minQty > 1 && (
-            <span className="text-sm text-muted-foreground">
-              Min. order: {minQty}
-            </span>
+
+          {/* Error Message */}
+          {addToCartError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{addToCartError}</span>
+            </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Action Buttons */}
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-4">
-          <Button
-            className={cn(
-              "grow gap-2 h-12 text-base transition-transform",
-              shakeButton && "animate-shake",
-              addToCartError && "ring-2 ring-destructive ring-offset-2"
-            )}
-            size="lg"
-            disabled={isOutOfStock || isAddingToCart}
-            onClick={handleAddToCart}
-          >
-            {isAddingToCart ? (
-              <>
-                <Loader2 className="size-5 animate-spin" />
-                Adding...
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="size-5" />
-                Add to Cart
-              </>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            className="h-12 px-4"
-            onClick={handleToggleWishlist}
-            disabled={isTogglingWishlist}
-          >
-            {isTogglingWishlist ? (
-              <Loader2 className="size-5 animate-spin" />
-            ) : (
-              <Heart
-                className={cn(
-                  "size-5",
-                  isInWishlist && "fill-red-500 stroke-red-500"
-                )}
-              />
-            )}
-          </Button>
-        </div>
-
-        {/* Error Message */}
-        {addToCartError && (
-          <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
-            <AlertCircle className="size-4 shrink-0" />
-            <span>{addToCartError}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Stock Status */}
-      {isOutOfStock && (
+      {/* Stock Status - Hidden in catalog mode */}
+      {!catalogMode && isOutOfStock && (
         <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-center font-medium">
           Out of Stock
         </div>

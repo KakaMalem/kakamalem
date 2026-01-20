@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { OrderStatusSelect } from "@/components/dashboard/orders/order-status-select";
 import { OrderNotesSection } from "@/components/dashboard/orders/order-notes-section";
 import { OrderPrintButton } from "@/components/dashboard/orders/order-print-button";
+import { OrderPrintReceipt } from "@/components/dashboard/orders/order-print-receipt";
+import { OrderPaymentSection } from "@/components/dashboard/orders/order-payment-section";
 import { DeliveryLocationMapWrapper } from "@/components/dashboard/orders/delivery-location-map";
 
 interface OrderDetailPageProps {
@@ -190,6 +192,22 @@ export default async function OrderDetailPage({
 
         {/* Sidebar - 1 column on lg */}
         <div className="space-y-6">
+          {/* Payment Section - show for offline/phone orders */}
+          {(order.salesChannel === "offline" ||
+            order.salesChannel === "phone") && (
+            <OrderPaymentSection
+              orderId={order.id}
+              tenantId={store.id}
+              storeSlug={slug}
+              currency={store.currency}
+              orderTotal={order.total}
+              totalPaid={order.totalPaid}
+              amountRemaining={order.amountRemaining}
+              isPaid={order.isPaid}
+              payments={order.payments}
+            />
+          )}
+
           {/* Customer Info */}
           <Card>
             <CardHeader>
@@ -207,15 +225,17 @@ export default async function OrderDetailPage({
                 </div>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="size-4" />
-                  <a
-                    href={`mailto:${order.customerSnapshot.email}`}
-                    className="hover:underline"
-                  >
-                    {order.customerSnapshot.email}
-                  </a>
-                </div>
+                {order.customerSnapshot.email && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Mail className="size-4" />
+                    <a
+                      href={`mailto:${order.customerSnapshot.email}`}
+                      className="hover:underline"
+                    >
+                      {order.customerSnapshot.email}
+                    </a>
+                  </div>
+                )}
                 {order.customerSnapshot.phone && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="size-4" />
@@ -231,44 +251,46 @@ export default async function OrderDetailPage({
             </CardContent>
           </Card>
 
-          {/* Shipping Address */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Shipping Address</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <p className="font-medium">
-                  {order.shippingAddress.firstName}{" "}
-                  {order.shippingAddress.lastName}
-                </p>
-                <div className="flex items-start gap-2 text-muted-foreground">
-                  <Phone className="size-4 mt-0.5" />
-                  <span>{order.shippingAddress.phone}</span>
-                </div>
-                {order.shippingAddress.city && (
+          {/* Shipping Address - only show for orders with shipping address */}
+          {order.shippingAddress && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Shipping Address</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <p className="font-medium">
+                    {order.shippingAddress.firstName}{" "}
+                    {order.shippingAddress.lastName}
+                  </p>
                   <div className="flex items-start gap-2 text-muted-foreground">
-                    <MapPin className="size-4 mt-0.5" />
-                    <span>{order.shippingAddress.city}</span>
+                    <Phone className="size-4 mt-0.5" />
+                    <span>{order.shippingAddress.phone}</span>
                   </div>
-                )}
-                {order.shippingAddress.notes && (
-                  <p className="text-muted-foreground pt-2 border-t">
-                    {order.shippingAddress.notes}
-                  </p>
-                )}
-                {order.shippingAddress.plusCode && (
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Plus Code: {order.shippingAddress.plusCode}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  {order.shippingAddress.city && (
+                    <div className="flex items-start gap-2 text-muted-foreground">
+                      <MapPin className="size-4 mt-0.5" />
+                      <span>{order.shippingAddress.city}</span>
+                    </div>
+                  )}
+                  {order.shippingAddress.notes && (
+                    <p className="text-muted-foreground pt-2 border-t">
+                      {order.shippingAddress.notes}
+                    </p>
+                  )}
+                  {order.shippingAddress.plusCode && (
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Plus Code: {order.shippingAddress.plusCode}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Delivery Location Map */}
-          {order.shippingAddress.latitude &&
-            order.shippingAddress.longitude && (
+          {order.shippingAddress?.latitude &&
+            order.shippingAddress?.longitude && (
               <Card>
                 <CardHeader>
                   <CardTitle>Delivery Location</CardTitle>
@@ -284,6 +306,22 @@ export default async function OrderDetailPage({
             )}
         </div>
       </div>
+
+      {/* Print-only receipt (hidden on screen, shown when printing) */}
+      <OrderPrintReceipt
+        order={order}
+        storeName={store.name}
+        storeLogo={store.logoUrl}
+        storePhone={store.contactPhone}
+        storeEmail={store.contactEmail}
+        currency={store.currency}
+        receiptSettings={{
+          paperWidth: store.receiptPaperWidth,
+          showLogo: store.receiptShowLogo,
+          showContact: store.receiptShowContact,
+          footerText: store.receiptFooterText,
+        }}
+      />
     </div>
   );
 }

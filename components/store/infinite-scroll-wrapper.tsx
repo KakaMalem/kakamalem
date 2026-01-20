@@ -58,6 +58,8 @@ interface InfiniteScrollWrapperProps {
   basePath: string;
   filters?: ProductFilters;
   currentSort?: string;
+  /** When true, hides add-to-cart buttons (catalog/showcase mode) */
+  catalogMode?: boolean;
 }
 
 export function InfiniteScrollWrapper(props: InfiniteScrollWrapperProps) {

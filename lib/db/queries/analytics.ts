@@ -385,9 +385,35 @@ export async function getTopProducts(
     }));
   }
 
-  // Fall back to order items (slower but works without analytics data)
-  // This is a placeholder - would need orderItems join in production
-  return [];
+  // Fall back to order items (works without analytics data)
+  const startDateStr = startDate.toISOString();
+  const fromOrderItems = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      quantitySold: sum(orderItems.quantity),
+      revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+    })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .innerJoin(products, eq(orderItems.productId, products.id))
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        gte(orders.createdAt, startDateStr),
+        notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+      )
+    )
+    .groupBy(products.id, products.name)
+    .orderBy(desc(sum(orderItems.quantity)))
+    .limit(limit);
+
+  return fromOrderItems.map((p) => ({
+    id: p.id,
+    name: p.name,
+    quantitySold: Number(p.quantitySold) || 0,
+    revenue: parseFloat(String(p.revenue) || "0"),
+  }));
 }
 
 /**
@@ -397,6 +423,7 @@ export async function getRecentOrders(
   tenantId: string,
   limit: number = 5
 ): Promise<RecentOrder[]> {
+  // Query orders with item count using a subquery
   const recentOrders = await db
     .select({
       id: orders.id,
@@ -404,21 +431,24 @@ export async function getRecentOrders(
       total: orders.total,
       status: orders.status,
       createdAt: orders.createdAt,
+      itemCount: sql<number>`(
+        SELECT COALESCE(SUM(${orderItems.quantity}), 0)::int
+        FROM ${orderItems}
+        WHERE ${orderItems.orderId} = ${orders.id}
+      )`,
     })
     .from(orders)
     .where(eq(orders.tenantId, tenantId))
     .orderBy(desc(orders.createdAt))
     .limit(limit);
 
-  // Get item counts for each order
-  // For now, return without item counts to keep it simple
   return recentOrders.map((o) => ({
     id: o.id,
     customerName: o.customerSnapshot?.name || "Guest",
     total: o.total,
     status: o.status,
     createdAt: o.createdAt,
-    itemCount: 0, // Would need a subquery or join to get this
+    itemCount: o.itemCount || 0,
   }));
 }
 
@@ -620,87 +650,118 @@ export async function getAnalyticsData(
   const previousEndStr = previous.end.toISOString();
 
   // Run all queries in parallel (excluding cancelled/refunded orders)
-  const [currentPeriodStats, previousPeriodStats, dailyData, topProductsData] =
-    await Promise.all([
-      // Current period aggregate stats
-      db
-        .select({
-          totalRevenue: sum(orders.total),
-          totalOrders: count(),
-          // Count unique customers by extracting email from JSONB customerSnapshot
-          uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
-        })
-        .from(orders)
-        .where(
-          and(
-            eq(orders.tenantId, tenantId),
-            gte(orders.createdAt, currentStartStr),
-            lte(orders.createdAt, currentEndStr),
-            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
-          )
-        ),
-
-      // Previous period aggregate stats (for comparison)
-      db
-        .select({
-          totalRevenue: sum(orders.total),
-          totalOrders: count(),
-          uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
-        })
-        .from(orders)
-        .where(
-          and(
-            eq(orders.tenantId, tenantId),
-            gte(orders.createdAt, previousStartStr),
-            lte(orders.createdAt, previousEndStr),
-            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
-          )
-        ),
-
-      // Daily breakdown for charts
-      db
-        .select({
-          date: sql<string>`date(${orders.createdAt})`,
-          revenue: sum(orders.total),
-          orders: count(),
-          uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
-        })
-        .from(orders)
-        .where(
-          and(
-            eq(orders.tenantId, tenantId),
-            gte(orders.createdAt, currentStartStr),
-            lte(orders.createdAt, currentEndStr),
-            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
-          )
+  const [
+    currentPeriodStats,
+    previousPeriodStats,
+    dailyData,
+    topProductsData,
+    returningCustomersData,
+  ] = await Promise.all([
+    // Current period aggregate stats
+    db
+      .select({
+        totalRevenue: sum(orders.total),
+        totalOrders: count(),
+        // Count unique customers by extracting email from JSONB customerSnapshot
+        uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.tenantId, tenantId),
+          gte(orders.createdAt, currentStartStr),
+          lte(orders.createdAt, currentEndStr),
+          notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
         )
-        .groupBy(sql`date(${orders.createdAt})`)
-        .orderBy(sql`date(${orders.createdAt})`),
+      ),
 
-      // Top products by quantity sold
-      db
-        .select({
-          id: products.id,
-          name: products.name,
-          quantitySold: sum(orderItems.quantity),
-          revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
-          ordersContaining: sql<number>`count(distinct ${orders.id})`,
-        })
-        .from(orderItems)
-        .innerJoin(orders, eq(orderItems.orderId, orders.id))
-        .innerJoin(products, eq(orderItems.productId, products.id))
-        .where(
-          and(
-            eq(orders.tenantId, tenantId),
-            gte(orders.createdAt, currentStartStr),
-            lte(orders.createdAt, currentEndStr),
-            notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
-          )
+    // Previous period aggregate stats (for comparison)
+    db
+      .select({
+        totalRevenue: sum(orders.total),
+        totalOrders: count(),
+        uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.tenantId, tenantId),
+          gte(orders.createdAt, previousStartStr),
+          lte(orders.createdAt, previousEndStr),
+          notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
         )
-        .groupBy(products.id, products.name)
-        .orderBy(desc(sum(orderItems.quantity)))
-        .limit(5),
-    ]);
+      ),
+
+    // Daily breakdown for charts
+    db
+      .select({
+        date: sql<string>`date(${orders.createdAt})`,
+        revenue: sum(orders.total),
+        orders: count(),
+        uniqueCustomers: sql<number>`count(distinct (${orders.customerSnapshot}->>'email'))`,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.tenantId, tenantId),
+          gte(orders.createdAt, currentStartStr),
+          lte(orders.createdAt, currentEndStr),
+          notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+        )
+      )
+      .groupBy(sql`date(${orders.createdAt})`)
+      .orderBy(sql`date(${orders.createdAt})`),
+
+    // Top products by quantity sold
+    db
+      .select({
+        id: products.id,
+        name: products.name,
+        quantitySold: sum(orderItems.quantity),
+        revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+        ordersContaining: sql<number>`count(distinct ${orders.id})`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(products, eq(orderItems.productId, products.id))
+      .where(
+        and(
+          eq(orders.tenantId, tenantId),
+          gte(orders.createdAt, currentStartStr),
+          lte(orders.createdAt, currentEndStr),
+          notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+        )
+      )
+      .groupBy(products.id, products.name)
+      .orderBy(desc(sum(orderItems.quantity)))
+      .limit(5),
+
+    // Count returning customers (customers who ordered in current period AND had previous orders)
+    db
+      .select({
+        count: sql<number>`count(distinct current_period.email)`,
+      })
+      .from(
+        sql`(
+          SELECT DISTINCT ${orders.customerSnapshot}->>'email' as email
+          FROM ${orders}
+          WHERE ${orders.tenantId} = ${tenantId}
+            AND ${orders.createdAt} >= ${currentStartStr}
+            AND ${orders.createdAt} <= ${currentEndStr}
+            AND ${orders.status} NOT IN ('cancelled', 'refunded')
+        ) as current_period`
+      )
+      .innerJoin(
+        sql`(
+          SELECT DISTINCT ${orders.customerSnapshot}->>'email' as email
+          FROM ${orders}
+          WHERE ${orders.tenantId} = ${tenantId}
+            AND ${orders.createdAt} < ${currentStartStr}
+            AND ${orders.status} NOT IN ('cancelled', 'refunded')
+        ) as previous_orders`,
+        sql`current_period.email = previous_orders.email`
+      ),
+  ]);
 
   // Process current period stats
   const currentStats = currentPeriodStats[0];
@@ -716,6 +777,10 @@ export async function getAnalyticsData(
   const prevCustomers = previousStats?.uniqueCustomers || 0;
   const prevAov = prevOrders > 0 ? prevRevenue / prevOrders : 0;
 
+  // Calculate new vs returning customers
+  const returningCustomers = returningCustomersData[0]?.count || 0;
+  const newCustomers = Math.max(0, totalCustomers - returningCustomers);
+
   // Calculate KPIs
   const kpis: AnalyticsKPIs = {
     totalRevenue,
@@ -725,8 +790,8 @@ export async function getAnalyticsData(
     averageOrderValue: Math.round(averageOrderValue),
     aovChange: calculateChange(averageOrderValue, prevAov),
     totalCustomers,
-    newCustomers: totalCustomers, // Simplified: treating all as new for this period
-    returningCustomers: 0, // Would need historical customer data to calculate
+    newCustomers,
+    returningCustomers,
     customersChange: calculateChange(totalCustomers, prevCustomers),
   };
 

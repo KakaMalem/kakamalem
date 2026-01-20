@@ -159,10 +159,6 @@ export const auth = betterAuth({
       process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://") ?? false,
     // Cookie prefix
     cookiePrefix: "kaka_malem",
-    // Cross-site cookie settings
-    crossSubDomainCookies: {
-      enabled: false,
-    },
   },
 
   // ==========================================================================

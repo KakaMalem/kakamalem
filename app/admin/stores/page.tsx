@@ -1,0 +1,284 @@
+import Link from "next/link";
+import { getAdminStores } from "@/lib/db/queries/admin";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Store, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { StoresFilters } from "./stores-filters";
+
+// =============================================================================
+// ADMIN STORES LIST
+// =============================================================================
+// List all stores with filtering and pagination
+// =============================================================================
+
+interface StoresPageProps {
+  searchParams: Promise<{
+    page?: string;
+    search?: string;
+    status?: string;
+    subscriptionStatus?: string;
+  }>;
+}
+
+export default async function AdminStoresPage({
+  searchParams,
+}: StoresPageProps) {
+  const params = await searchParams;
+  const page = parseInt(params.page || "1", 10);
+  const search = params.search || "";
+  const status = params.status || "";
+  const subscriptionStatus = params.subscriptionStatus || "";
+
+  // Treat "all" as no filter
+  const statusFilter = status && status !== "all" ? status : undefined;
+  const subscriptionFilter =
+    subscriptionStatus && subscriptionStatus !== "all"
+      ? subscriptionStatus
+      : undefined;
+
+  const { stores, pagination } = await getAdminStores({
+    page,
+    limit: 20,
+    search: search || undefined,
+    status: statusFilter,
+    subscriptionStatus: subscriptionFilter,
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Stores</h1>
+        <p className="text-muted-foreground">
+          Manage all stores on the platform
+        </p>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <StoresFilters
+            initialSearch={search}
+            initialStatus={status}
+            initialSubscriptionStatus={subscriptionStatus}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Stores Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Store className="size-5" />
+            {pagination.total} Stores
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Store</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Subscription</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stores.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={7}
+                    className="h-24 text-center text-muted-foreground"
+                  >
+                    No stores found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                stores.map((store) => (
+                  <TableRow key={store.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{store.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          /{store.slug}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="text-sm">{store.owner?.name || "—"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {store.owner?.email}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={store.status} />
+                    </TableCell>
+                    <TableCell>
+                      <SubscriptionBadge status={store.subscriptionStatus} />
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {store.subscriptionPlan}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(store.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/store/${store.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="ghost" size="icon">
+                            <ExternalLink className="size-4" />
+                          </Button>
+                        </Link>
+                        <Link href={`/admin/stores/${store.id}`}>
+                          <Button variant="outline" size="sm">
+                            Manage
+                          </Button>
+                        </Link>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Page {pagination.page} of {pagination.totalPages}
+              </p>
+              <div className="flex gap-2">
+                <Link
+                  href={buildUrl({
+                    page: pagination.page - 1,
+                    search,
+                    status,
+                    subscriptionStatus,
+                  })}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pagination.page <= 1}
+                  >
+                    <ChevronLeft className="mr-1 size-4" />
+                    Previous
+                  </Button>
+                </Link>
+                <Link
+                  href={buildUrl({
+                    page: pagination.page + 1,
+                    search,
+                    status,
+                    subscriptionStatus,
+                  })}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pagination.page >= pagination.totalPages}
+                  >
+                    Next
+                    <ChevronRight className="ml-1 size-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const variants: Record<
+    string,
+    "default" | "secondary" | "destructive" | "outline"
+  > = {
+    active: "default",
+    pending_review: "secondary",
+    suspended: "destructive",
+    inactive: "outline",
+  };
+
+  const labels: Record<string, string> = {
+    active: "Active",
+    pending_review: "Pending",
+    suspended: "Suspended",
+    inactive: "Inactive",
+  };
+
+  return (
+    <Badge variant={variants[status] || "outline"}>
+      {labels[status] || status}
+    </Badge>
+  );
+}
+
+function SubscriptionBadge({ status }: { status: string }) {
+  const variants: Record<
+    string,
+    "default" | "secondary" | "destructive" | "outline"
+  > = {
+    active: "default",
+    trialing: "secondary",
+    past_due: "destructive",
+    cancelled: "outline",
+    expired: "destructive",
+  };
+
+  const labels: Record<string, string> = {
+    active: "Paid",
+    trialing: "Trial",
+    past_due: "Past Due",
+    cancelled: "Cancelled",
+    expired: "Expired",
+  };
+
+  return (
+    <Badge variant={variants[status] || "outline"}>
+      {labels[status] || status}
+    </Badge>
+  );
+}
+
+function buildUrl(params: {
+  page: number;
+  search: string;
+  status: string;
+  subscriptionStatus: string;
+}) {
+  const urlParams = new URLSearchParams();
+  if (params.page > 1) urlParams.set("page", String(params.page));
+  if (params.search) urlParams.set("search", params.search);
+  if (params.status && params.status !== "all") {
+    urlParams.set("status", params.status);
+  }
+  if (params.subscriptionStatus && params.subscriptionStatus !== "all") {
+    urlParams.set("subscriptionStatus", params.subscriptionStatus);
+  }
+  const query = urlParams.toString();
+  return `/admin/stores${query ? `?${query}` : ""}`;
+}

@@ -95,7 +95,7 @@ export function CheckoutContainer({
   // Prevent hydration issues
   if (!mounted) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="animate-pulse">
           <div className="h-8 w-48 bg-muted rounded mb-8" />
           <div className="grid gap-8 lg:grid-cols-3">
@@ -123,7 +123,7 @@ export function CheckoutContainer({
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-bold mb-8">Checkout</h1>
 
       {/* Step Indicator */}

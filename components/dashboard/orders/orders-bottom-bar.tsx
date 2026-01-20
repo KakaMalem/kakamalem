@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, CheckCircle, RefreshCw, Download } from "lucide-react";
+import { X, CheckCircle, RefreshCw, Download, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -11,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface OrdersBottomBarProps {
   storeSlug: string;
@@ -28,6 +31,7 @@ interface OrdersBottomBarProps {
   onBulkStatusUpdate: () => void;
   hasValidBulkStatuses: boolean;
   onExport: () => void;
+  showRecordSale?: boolean;
 }
 
 const LIMIT_OPTIONS = [25, 50, 100, 500] as const;
@@ -44,8 +48,16 @@ export function OrdersBottomBar({
   onBulkStatusUpdate,
   hasValidBulkStatuses,
   onExport,
+  showRecordSale = false,
 }: OrdersBottomBarProps) {
   const router = useRouter();
+
+  // Hydration fix: only render Select after mount
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   // Build URL with params
   const buildUrl = (updates: { page?: number; limit?: number }) => {
@@ -100,26 +112,30 @@ export function OrdersBottomBar({
                       <span className="text-border">|</span>
                       <div className="flex items-center gap-1.5">
                         <span className="hidden sm:inline">Show</span>
-                        <Select
-                          value={currentLimit.toString()}
-                          onValueChange={(value) =>
-                            handleLimitChange(Number(value))
-                          }
-                        >
-                          <SelectTrigger
-                            size="sm"
-                            className="h-6 w-auto gap-1 px-2 py-0 text-sm font-medium"
+                        {mounted ? (
+                          <Select
+                            value={currentLimit.toString()}
+                            onValueChange={(value) =>
+                              handleLimitChange(Number(value))
+                            }
                           >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent align="start">
-                            {LIMIT_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt.toString()}>
-                                {opt}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                            <SelectTrigger
+                              size="sm"
+                              className="h-6 w-auto gap-1 px-2 py-0 text-sm font-medium"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="start">
+                              {LIMIT_OPTIONS.map((opt) => (
+                                <SelectItem key={opt} value={opt.toString()}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Skeleton className="h-6 w-12" />
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -166,8 +182,18 @@ export function OrdersBottomBar({
                       className="h-7 gap-1.5"
                     >
                       <Download className="size-3.5" />
-                      Export CSV
+                      Export
                     </Button>
+                    {showRecordSale && (
+                      <Button size="sm" className="h-7 gap-1.5 ml-auto" asChild>
+                        <Link
+                          href={`/dashboard/${storeSlug}/offline-sales/new`}
+                        >
+                          <Plus className="size-3.5" />
+                          New Sale
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </motion.div>
               ) : (

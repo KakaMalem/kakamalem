@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getUserStores, getTenantBySlug } from "@/lib/db/queries/tenants";
+import { TenantSettingsHydration } from "@/components/dashboard/tenant-settings-hydration";
+import { transformTenantToSettings } from "@/lib/utils/tenant-settings";
 
 interface StoreLayoutProps {
   children: React.ReactNode;
   params: Promise<{ slug: string }>;
 }
 
-// This layout validates store access without rendering any UI
+// This layout validates store access and hydrates tenant settings
 // The parent /dashboard/layout.tsx handles the sidebar
 export default async function StoreLayout({
   children,
@@ -36,6 +38,14 @@ export default async function StoreLayout({
     notFound();
   }
 
-  // Just pass through children - parent layout handles the UI
-  return <>{children}</>;
+  // Transform store data for client-side hydration
+  const tenantSettings = transformTenantToSettings(store);
+
+  return (
+    <>
+      {/* Hydrate tenant settings store with server data */}
+      <TenantSettingsHydration settings={tenantSettings} />
+      {children}
+    </>
+  );
 }

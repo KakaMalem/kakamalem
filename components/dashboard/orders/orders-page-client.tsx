@@ -3,8 +3,9 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
-import { OrdersFilters } from "./orders-filters";
+import { OrdersFilters, OrdersChannelFilter } from "./orders-filters";
 import { OrdersList } from "./orders-list";
 import { OrdersBottomBar } from "./orders-bottom-bar";
 import {
@@ -47,6 +48,7 @@ interface OrdersPageClientProps {
   searchParams: Record<string, string | undefined>;
   currentLimit: number;
   orderCounts: OrderCounts;
+  showRecordSale?: boolean;
 }
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -69,6 +71,7 @@ export function OrdersPageClient({
   searchParams,
   currentLimit,
   orderCounts,
+  showRecordSale = false,
 }: OrdersPageClientProps) {
   const router = useRouter();
 
@@ -158,9 +161,8 @@ export function OrdersPageClient({
     setIsUpdating(false);
   }, [selectedIds, bulkNewStatus, tenantId, router]);
 
-  // Export orders to CSV
+  // Export orders to Excel
   const handleExport = useCallback(() => {
-    // Get orders to export (selected or all visible)
     const ordersToExport =
       selectedIds.size > 0
         ? orders.filter((o) => selectedIds.has(o.id))
@@ -171,73 +173,121 @@ export function OrdersPageClient({
       return;
     }
 
-    // Build CSV content
-    const headers = [
-      "Order Number",
-      "Date",
-      "Customer Name",
-      "Customer Email",
-      "Customer Phone",
-      "Status",
-      "Items",
-      "Subtotal",
-      "Shipping",
-      "Tax",
-      "Discount",
-      "Total",
-      "City",
-      "Customer Notes",
-    ];
-
-    const rows = ordersToExport.map((order) => [
-      order.orderNumber,
-      new Date(order.createdAt).toLocaleDateString(),
-      order.customerSnapshot.name,
-      order.customerSnapshot.email,
-      order.customerSnapshot.phone || "",
-      STATUS_LABELS[order.status],
-      order.itemCount.toString(),
-      order.subtotal,
-      order.shippingTotal,
-      order.taxTotal,
-      order.discountTotal,
-      order.total,
-      order.shippingAddress.city || "",
-      order.customerNotes?.replace(/[\n\r,]/g, " ") || "",
-    ]);
-
-    // Escape and format CSV
-    const escapeCSV = (value: string) => {
-      if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-        return `"${value.replace(/"/g, '""')}"`;
-      }
-      return value;
+    // Format date for Excel (local time)
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
     };
 
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-      ...rows.map((row) => row.map(escapeCSV).join(",")),
-    ].join("\n");
+    const formatTime = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `${hours}:${minutes}`;
+    };
 
-    // Create download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `orders-${new Date().toISOString().split("T")[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Format phone with LTR mark for RTL support
+    const formatPhone = (phone: string | undefined) => {
+      if (!phone) return "";
+      return `\u200E${phone}`;
+    };
+
+    const channelLabels: Record<string, string> = {
+      online: "Online",
+      offline: "In-Store",
+      phone: "Phone",
+    };
+
+    // Build data rows
+    const data = ordersToExport.map((order) => ({
+      "Order Number": order.orderNumber,
+      Date: formatDate(order.createdAt),
+      Time: formatTime(order.createdAt),
+      Status: STATUS_LABELS[order.status],
+      "Sales Channel": channelLabels[order.salesChannel] || order.salesChannel,
+      "Customer Name": order.customerSnapshot.name || "",
+      "Customer Email": order.customerSnapshot.email || "",
+      "Customer Phone": formatPhone(order.customerSnapshot.phone),
+      "Item Count": order.itemCount,
+      Subtotal: parseFloat(order.subtotal) || 0,
+      "Shipping Cost": parseFloat(order.shippingTotal) || 0,
+      Tax: parseFloat(order.taxTotal) || 0,
+      Discount: parseFloat(order.discountTotal) || 0,
+      Total: parseFloat(order.total) || 0,
+      Currency: currency,
+      "Delivery City": order.shippingAddress?.city || "",
+      "Delivery Recipient": order.shippingAddress
+        ? `${order.shippingAddress.firstName || ""} ${order.shippingAddress.lastName || ""}`.trim()
+        : "",
+      "Delivery Phone": formatPhone(order.shippingAddress?.phone),
+      "Plus Code": order.shippingAddress?.plusCode || "",
+      "Delivery Notes": (order.shippingAddress?.notes || "")
+        .replace(/[\r\n]+/g, " ")
+        .trim(),
+      "Customer Notes": (order.customerNotes || "")
+        .replace(/[\r\n]+/g, " ")
+        .trim(),
+    }));
+
+    // Create worksheet from data
+    const ws = XLSX.utils.json_to_sheet(data);
+
+    // Set column widths
+    ws["!cols"] = [
+      { wch: 16 }, // Order Number
+      { wch: 12 }, // Date
+      { wch: 6 }, // Time
+      { wch: 12 }, // Status
+      { wch: 12 }, // Sales Channel
+      { wch: 20 }, // Customer Name
+      { wch: 25 }, // Customer Email
+      { wch: 16 }, // Customer Phone
+      { wch: 10 }, // Item Count
+      { wch: 12 }, // Subtotal
+      { wch: 12 }, // Shipping Cost
+      { wch: 10 }, // Tax
+      { wch: 10 }, // Discount
+      { wch: 12 }, // Total
+      { wch: 8 }, // Currency
+      { wch: 14 }, // Delivery City
+      { wch: 18 }, // Delivery Recipient
+      { wch: 16 }, // Delivery Phone
+      { wch: 14 }, // Plus Code
+      { wch: 30 }, // Delivery Notes
+      { wch: 30 }, // Customer Notes
+    ];
+
+    // Create workbook and export
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Orders");
+    XLSX.writeFile(wb, `orders-${new Date().toISOString().split("T")[0]}.xlsx`);
 
     toast.success(`Exported ${ordersToExport.length} orders`);
-  }, [orders, selectedIds]);
+  }, [orders, selectedIds, currency]);
 
   const validBulkStatuses = getValidBulkStatuses();
 
   return (
     <>
       <div className="space-y-4 pb-36">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Orders</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage all your orders in one place
+            </p>
+          </div>
+          <OrdersChannelFilter
+            storeSlug={storeSlug}
+            orderCounts={orderCounts}
+            currentChannel={searchParams.channel}
+          />
+        </div>
+
         {/* Filters */}
         <OrdersFilters
           storeSlug={storeSlug}
@@ -270,6 +320,7 @@ export function OrdersPageClient({
         onBulkStatusUpdate={handleOpenBulkStatusDialog}
         hasValidBulkStatuses={validBulkStatuses.length > 0}
         onExport={handleExport}
+        showRecordSale={showRecordSale}
       />
 
       {/* Bulk Status Update Dialog */}

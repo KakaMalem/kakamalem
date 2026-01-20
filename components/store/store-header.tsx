@@ -61,6 +61,9 @@ export function StoreHeader({
   // Get hydrated cart count that syncs with Zustand store
   const hydratedCartCount = useHydratedCartCount(cartItemCount);
 
+  // Check if store is in catalog mode (no cart functionality)
+  const isCatalogMode = store.storeMode === "catalog";
+
   const storeUrl = `/store/${store.slug}`;
 
   // Determine what to show in the header based on headerDisplay setting
@@ -117,7 +120,7 @@ export function StoreHeader({
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
-      <div className="container mx-auto px-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Desktop Header */}
         <div className="hidden h-16 items-center gap-6 md:flex">
           {/* Left: Logo / Store Name */}
@@ -162,30 +165,18 @@ export function StoreHeader({
 
           {/* Right: Actions */}
           <div className="flex shrink-0 items-center gap-2">
-            {/* Cart Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative"
-              onClick={() => cartActions.setIsOpen(true)}
-              aria-label={`Shopping cart with ${hydratedCartCount} items`}
-            >
-              <ShoppingCart className="size-5" />
-              <CartBadge initialCount={cartItemCount} />
-            </Button>
-
-            {/* Owner/Staff Badge - Desktop */}
-            {userContext?.isOwner && (
-              <Badge variant="secondary" className="gap-1">
-                <Crown className="size-3" />
-                Owner
-              </Badge>
-            )}
-            {userContext?.isStaff && !userContext?.isOwner && (
-              <Badge variant="outline" className="gap-1">
-                <Shield className="size-3" />
-                {userContext.role === "admin" ? "Admin" : "Staff"}
-              </Badge>
+            {/* Cart Button - Hidden in catalog mode */}
+            {!isCatalogMode && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                onClick={() => cartActions.setIsOpen(true)}
+                aria-label={`Shopping cart with ${hydratedCartCount} items`}
+              >
+                <ShoppingCart className="size-5" />
+                <CartBadge initialCount={cartItemCount} />
+              </Button>
             )}
 
             {/* Auth - Desktop */}
@@ -213,7 +204,29 @@ export function StoreHeader({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5">
-                    <p className="text-sm font-medium">{user.name || "User"}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">
+                        {user.name || "User"}
+                      </p>
+                      {userContext?.isOwner && (
+                        <Badge
+                          variant="secondary"
+                          className="h-5 gap-0.5 text-[10px] px-1.5"
+                        >
+                          <Crown className="size-2.5" />
+                          Owner
+                        </Badge>
+                      )}
+                      {userContext?.isStaff && !userContext?.isOwner && (
+                        <Badge
+                          variant="outline"
+                          className="h-5 gap-0.5 text-[10px] px-1.5"
+                        >
+                          <Shield className="size-2.5" />
+                          {userContext.role === "admin" ? "Admin" : "Staff"}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {user.email}
                     </p>
@@ -299,17 +312,19 @@ export function StoreHeader({
 
             {/* Right: Cart & Profile */}
             <div className="flex items-center gap-0.5">
-              {/* Cart Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative size-9"
-                onClick={() => cartActions.setIsOpen(true)}
-                aria-label={`Shopping cart with ${hydratedCartCount} items`}
-              >
-                <ShoppingCart className="size-5" />
-                <CartBadge initialCount={cartItemCount} />
-              </Button>
+              {/* Cart Button - Hidden in catalog mode */}
+              {!isCatalogMode && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative size-9"
+                  onClick={() => cartActions.setIsOpen(true)}
+                  aria-label={`Shopping cart with ${hydratedCartCount} items`}
+                >
+                  <ShoppingCart className="size-5" />
+                  <CartBadge initialCount={cartItemCount} />
+                </Button>
+              )}
 
               {/* Profile/Auth - Mobile */}
               <DropdownMenu>

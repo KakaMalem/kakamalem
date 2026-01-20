@@ -5,7 +5,6 @@ import { ShoppingCart } from "lucide-react";
 
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { validateCartForCheckout } from "@/lib/db/queries/carts";
-import { getShippingZones } from "@/lib/db/queries/shipping";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
@@ -42,6 +41,33 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     notFound();
   }
 
+  // Check if online checkout is enabled
+  if (!store.onlineCheckoutEnabled) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
+        <ShoppingCart className="mx-auto size-16 text-muted-foreground" />
+        <h1 className="mt-4 text-2xl font-bold">Online Checkout Unavailable</h1>
+        <p className="mt-2 text-muted-foreground">
+          This store does not accept online orders. Please contact the store
+          directly to make a purchase.
+        </p>
+        {store.contactPhone && (
+          <p className="mt-4">
+            <a
+              href={`tel:${store.contactPhone}`}
+              className="text-primary hover:underline"
+            >
+              Call: {store.contactPhone}
+            </a>
+          </p>
+        )}
+        <Button asChild className="mt-6">
+          <Link href={`/store/${slug}`}>Back to Store</Link>
+        </Button>
+      </div>
+    );
+  }
+
   // Get session and user
   const [sessionId, user] = await Promise.all([
     getCartSessionIdOrNull(),
@@ -50,7 +76,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
   // Check if cart exists and has items
   if (!sessionId) {
-    redirect(`/store/${slug}/cart`);
+    redirect(`/store/${slug}/cart?error=session`);
   }
 
   const cartValidation = await validateCartForCheckout(
@@ -61,25 +87,32 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
   // Redirect to cart if empty
   if (!cartValidation.cart || cartValidation.cart.items.length === 0) {
-    redirect(`/store/${slug}/cart`);
+    redirect(`/store/${slug}/cart?error=empty`);
   }
 
   // Check for cart validation errors
   if (!cartValidation.valid) {
-    // Redirect to cart with error indication
-    redirect(`/store/${slug}/cart?errors=true`);
+    // Encode errors for the cart page to display
+    const errorsParam = encodeURIComponent(
+      JSON.stringify(cartValidation.errors)
+    );
+    redirect(`/store/${slug}/cart?error=validation&errors=${errorsParam}`);
   }
 
-  // Check if store has shipping zones configured
-  const shippingZones = await getShippingZones(store.id);
+  // Fetch delivery zones if GPS-based delivery is enabled
+  const deliveryZones = store.enableDeliveryZones
+    ? await getActiveDeliveryZones(store.id)
+    : [];
 
-  if (shippingZones.length === 0) {
+  // Only block checkout if GPS delivery zones are enabled but none are configured
+  // For traditional shipping mode, free shipping is offered as fallback when no zones configured
+  if (store.enableDeliveryZones && deliveryZones.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
         <ShoppingCart className="mx-auto size-16 text-muted-foreground" />
         <h1 className="mt-4 text-2xl font-bold">Checkout Unavailable</h1>
         <p className="mt-2 text-muted-foreground">
-          This store is still setting up shipping options. Please contact the
+          This store is still setting up delivery zones. Please contact the
           store or try again later.
         </p>
         <Button asChild className="mt-6">
@@ -91,11 +124,6 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
   // Get user's saved addresses if logged in
   const savedAddresses = user ? await getUserAddresses(user.id) : [];
-
-  // Get active delivery zones if the store has delivery zones enabled
-  const deliveryZones = store.enableDeliveryZones
-    ? await getActiveDeliveryZones(store.id)
-    : [];
 
   // Calculate cart subtotal with tier pricing
   const subtotal = cartValidation.cart.items.reduce((sum, item) => {

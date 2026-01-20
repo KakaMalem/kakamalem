@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, Trash2, Loader2, AlertCircle, Tag } from "lucide-react";
@@ -9,55 +9,66 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice, cn } from "@/lib/utils";
-import { useDebouncedCartSync } from "@/lib/hooks/use-debounced-cart-sync";
-import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
+import { useCart, getApplicableTierPrice } from "@/lib/hooks/use-cart";
 
-import type { CartItem as CartItemType } from "@/lib/stores/use-cart-store";
+import type { CartItem as CartItemType } from "@/lib/types/cart";
 
 interface CartItemProps {
   item: CartItemType;
-  tenantId: string;
-  storeSlug: string;
   currency: string;
 }
 
-export function CartItem({
-  item,
-  tenantId,
-  storeSlug,
-  currency,
-}: CartItemProps) {
-  const [isRemoving, setIsRemoving] = useState(false);
+export function CartItem({ item, currency }: CartItemProps) {
   const [isEditing, setIsEditing] = useState(false);
-  // Only track local input value while actively editing
   const [editingValue, setEditingValue] = useState("");
+  // Local quantity for immediate UI feedback
+  const [localQuantity, setLocalQuantity] = useState(item.quantity);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { updateQuantity, isItemSyncing } = useDebouncedCartSync({
-    tenantId,
-    storeSlug,
-  });
+  // Refs for debouncing
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingQuantityRef = useRef<number | null>(null);
 
-  const isSyncing = isItemSyncing(item.id);
+  const { updateQuantity, removeItem, isRemovingItem } = useCart();
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Sync localQuantity from server when item.quantity changes externally
+  // The debounce logic handles reconciliation - any mid-click server response
+  // will be overwritten by the next debounced update with the correct value
+  const [prevItemQuantity, setPrevItemQuantity] = useState(item.quantity);
+  if (prevItemQuantity !== item.quantity) {
+    setPrevItemQuantity(item.quantity);
+    setLocalQuantity(item.quantity);
+  }
+
+  const isRemoving = isRemovingItem(item.id);
 
   const basePrice = item.variant?.price
     ? parseFloat(item.variant.price)
     : parseFloat(item.product.price);
 
-  // Calculate tier pricing
+  // Calculate tier pricing using local quantity for responsive UI
   const effectivePrice = useMemo(
     () =>
       getApplicableTierPrice(
         basePrice,
-        item.quantity,
+        localQuantity,
         item.product.priceTiers || []
       ),
-    [basePrice, item.quantity, item.product.priceTiers]
+    [basePrice, localQuantity, item.product.priceTiers]
   );
 
   const hasTierDiscount = effectivePrice < basePrice;
   const savingsPerUnit = hasTierDiscount ? basePrice - effectivePrice : 0;
-  const totalSavings = savingsPerUnit * item.quantity;
+  const totalSavings = savingsPerUnit * localQuantity;
 
   const availableStock = item.variant ? item.variant.stock : item.product.stock;
   const trackInventory = item.product.trackInventory;
@@ -68,18 +79,41 @@ export function CartItem({
     availableStock <= 5 &&
     availableStock > 0;
   const hasStockIssue =
-    trackInventory && !allowBackorder && item.quantity > availableStock;
+    trackInventory && !allowBackorder && localQuantity > availableStock;
 
   const productName = item.variant?.displayName
     ? `${item.product.name} - ${item.variant.displayName}`
     : item.product.name;
 
-  // Display value: use editingValue while editing, otherwise item.quantity
-  const displayValue = isEditing ? editingValue : String(item.quantity);
+  // Display value: use editingValue while editing, otherwise localQuantity
+  const displayValue = isEditing ? editingValue : String(localQuantity);
 
-  const handleQuantityChange = (newQuantity: number) => {
+  // Debounced server update - only sends after user stops clicking
+  const debouncedServerUpdate = (quantity: number) => {
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Mark that we have a pending update
+    pendingQuantityRef.current = quantity;
+
+    // Schedule the actual server update
+    debounceTimerRef.current = setTimeout(() => {
+      const finalQuantity = pendingQuantityRef.current;
+      pendingQuantityRef.current = null;
+      debounceTimerRef.current = null;
+
+      if (finalQuantity !== null) {
+        updateQuantity(item.id, finalQuantity);
+      }
+    }, 300); // 300ms debounce
+  };
+
+  const handleQuantityChange = (delta: number) => {
+    const newQuantity = localQuantity + delta;
+
     if (newQuantity < 1) {
-      // Will be handled by remove
       return;
     }
 
@@ -89,13 +123,14 @@ export function CartItem({
       return;
     }
 
-    // Use debounced sync - it handles optimistic updates internally
-    updateQuantity(item.id, newQuantity, item.quantity);
+    // Update local state immediately for responsive UI
+    setLocalQuantity(newQuantity);
+    // Debounce the server update
+    debouncedServerUpdate(newQuantity);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Allow empty string for typing, or valid positive integers
     if (value === "" || /^\d+$/.test(value)) {
       setEditingValue(value);
     }
@@ -106,12 +141,19 @@ export function CartItem({
     const parsed = parseInt(editingValue, 10);
 
     if (isNaN(parsed) || parsed < 1) {
-      // Reset - displayValue will automatically show item.quantity
+      // Reset to current quantity if invalid
+      setEditingValue(String(localQuantity));
       return;
     }
 
-    if (parsed !== item.quantity) {
-      handleQuantityChange(parsed);
+    if (parsed !== localQuantity) {
+      if (trackInventory && !allowBackorder && parsed > availableStock) {
+        toast.error(`Only ${availableStock} items available`);
+        setEditingValue(String(localQuantity));
+        return;
+      }
+      setLocalQuantity(parsed);
+      debouncedServerUpdate(parsed);
     }
   };
 
@@ -120,36 +162,29 @@ export function CartItem({
       inputRef.current?.blur();
     } else if (e.key === "Escape") {
       setIsEditing(false);
+      setEditingValue(String(localQuantity));
       inputRef.current?.blur();
     }
   };
 
   const handleInputFocus = () => {
     setIsEditing(true);
-    setEditingValue(String(item.quantity));
-    // Select all text on focus for easy replacement
+    setEditingValue(String(localQuantity));
     setTimeout(() => inputRef.current?.select(), 0);
   };
 
   const handleRemove = () => {
-    if (isRemoving) return;
-
-    setIsRemoving(true);
-
-    // Use debounced sync for removal (quantity = 0)
-    // The hook handles optimistic removal and server sync
-    updateQuantity(item.id, 0, item.quantity);
-    toast.success("Item removed from cart");
-
-    // Note: isRemoving stays true to prevent double-clicks
-    // The item will be removed from the list via optimistic update
+    removeItem(item.id);
   };
+
+  // Get store slug from the cart store for links
+  const { storeSlug } = useCart();
 
   return (
     <div
       className={cn(
         "flex gap-4 rounded-lg border p-4 transition-opacity",
-        (isSyncing || isRemoving) && "opacity-60"
+        isRemoving && "opacity-60"
       )}
     >
       {/* Product Image */}
@@ -246,14 +281,13 @@ export function CartItem({
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => handleQuantityChange(item.quantity - 1)}
-              disabled={item.quantity <= 1}
+              onClick={() => handleQuantityChange(-1)}
+              disabled={localQuantity <= 1}
               aria-label="Decrease quantity"
             >
               <Minus className="h-3 w-3" />
             </Button>
 
-            {/* Editable quantity input - wider to support bulk orders */}
             <Input
               ref={inputRef}
               type="text"
@@ -264,7 +298,6 @@ export function CartItem({
               onKeyDown={handleInputKeyDown}
               onFocus={handleInputFocus}
               className="h-8 w-20 text-center text-sm font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              disabled={isSyncing}
               aria-label="Quantity"
             />
 
@@ -272,11 +305,11 @@ export function CartItem({
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => handleQuantityChange(item.quantity + 1)}
+              onClick={() => handleQuantityChange(+1)}
               disabled={
                 trackInventory &&
                 !allowBackorder &&
-                item.quantity >= availableStock
+                localQuantity >= availableStock
               }
               aria-label="Increase quantity"
             >
@@ -287,7 +320,7 @@ export function CartItem({
           {/* Subtotal */}
           <div className="text-right">
             <p className="font-semibold">
-              {formatPrice(effectivePrice * item.quantity, currency)}
+              {formatPrice(effectivePrice * localQuantity, currency)}
             </p>
             {hasTierDiscount && totalSavings > 0 && (
               <p className="text-xs text-green-600">

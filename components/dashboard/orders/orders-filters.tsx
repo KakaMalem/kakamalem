@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useSyncExternalStore } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,7 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { OrderCounts, OrderStatus } from "@/lib/db/queries/orders";
+import { Skeleton } from "@/components/ui/skeleton";
+import type {
+  OrderCounts,
+  OrderStatus,
+  SalesChannel,
+} from "@/lib/db/queries/orders";
 
 interface OrdersFiltersProps {
   storeSlug: string;
@@ -20,15 +25,23 @@ interface OrdersFiltersProps {
 }
 
 type StatusOption = "all" | OrderStatus;
+type ChannelOption = "all" | SalesChannel;
 
 const STATUS_OPTIONS: { value: StatusOption; label: string }[] = [
-  { value: "all", label: "All" },
+  { value: "all", label: "All Statuses" },
   { value: "pending", label: "Pending" },
   { value: "confirmed", label: "Confirmed" },
   { value: "processing", label: "Processing" },
   { value: "shipped", label: "Shipped" },
   { value: "delivered", label: "Delivered" },
   { value: "cancelled", label: "Cancelled" },
+];
+
+const CHANNEL_OPTIONS: { value: ChannelOption; label: string }[] = [
+  { value: "all", label: "All Channels" },
+  { value: "online", label: "Online" },
+  { value: "offline", label: "In-Store" },
+  { value: "phone", label: "Phone" },
 ];
 
 export function OrdersFilters({
@@ -40,6 +53,13 @@ export function OrdersFilters({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState(searchParams.get("search") || "");
+
+  // Hydration fix: only render Select after mount
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const activeStatus = (currentStatus as StatusOption) || "all";
 
@@ -77,15 +97,15 @@ export function OrdersFilters({
     updateParams({ status: status === "all" ? undefined : status });
   };
 
-  const getCount = (status: StatusOption): number => {
+  const getStatusCount = (status: StatusOption): number => {
     if (status === "all") return orderCounts.total;
     return orderCounts[status as keyof OrderCounts] || 0;
   };
 
   return (
-    <div className="flex gap-4 items-center justify-between">
+    <div className="flex flex-wrap gap-4 items-center">
       {/* Search */}
-      <form onSubmit={handleSearch} className="flex-1 sm:max-w-sm">
+      <form onSubmit={handleSearch} className="flex-1 min-w-50 sm:max-w-sm">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -98,22 +118,97 @@ export function OrdersFilters({
       </form>
 
       {/* Status Select */}
-      <Select
-        value={activeStatus}
-        onValueChange={(value) => handleStatusChange(value as StatusOption)}
-        disabled={isPending}
-      >
-        <SelectTrigger className="">
-          <SelectValue placeholder="Filter by status" />
-        </SelectTrigger>
-        <SelectContent>
-          {STATUS_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label} ({getCount(option.value)})
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {mounted ? (
+        <Select
+          value={activeStatus}
+          onValueChange={(value) => handleStatusChange(value as StatusOption)}
+          disabled={isPending}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label} ({getStatusCount(option.value)})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Skeleton className="h-9 w-40" />
+      )}
     </div>
+  );
+}
+
+// Export channel filter as separate component for use in header
+export function OrdersChannelFilter({
+  storeSlug,
+  orderCounts,
+  currentChannel,
+}: {
+  storeSlug: string;
+  orderCounts: OrderCounts;
+  currentChannel?: string;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+
+  const activeChannel = (currentChannel as ChannelOption) || "all";
+
+  const handleChannelChange = (channel: ChannelOption) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", "1");
+
+    const currentLimit = searchParams.get("limit");
+    if (currentLimit && currentLimit !== "25") {
+      params.set("limit", currentLimit);
+    }
+
+    if (channel === "all") {
+      params.delete("channel");
+    } else {
+      params.set("channel", channel);
+    }
+
+    startTransition(() => {
+      router.push(`/dashboard/${storeSlug}/orders?${params.toString()}`);
+    });
+  };
+
+  const getChannelCount = (channel: ChannelOption): number => {
+    if (channel === "all") return orderCounts.total;
+    return orderCounts[channel as keyof OrderCounts] || 0;
+  };
+
+  if (!mounted) {
+    return <Skeleton className="h-9 w-35" />;
+  }
+
+  return (
+    <Select
+      value={activeChannel}
+      onValueChange={(value) => handleChannelChange(value as ChannelOption)}
+      disabled={isPending}
+    >
+      <SelectTrigger className="w-35">
+        <SelectValue placeholder="Channel" />
+      </SelectTrigger>
+      <SelectContent>
+        {CHANNEL_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label} ({getChannelCount(option.value)})
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useTransition, useSyncExternalStore } from "react";
 import {
   Select,
   SelectContent,
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { TimeRange } from "@/lib/db/queries/analytics";
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
@@ -33,6 +34,13 @@ export function AnalyticsTimeFilter({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
+  // Hydration fix: only render Select after mount
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+
   const handleRangeChange = (range: TimeRange) => {
     const params = new URLSearchParams(searchParams.toString());
     if (range === "7d") {
@@ -48,6 +56,10 @@ export function AnalyticsTimeFilter({
       router.push(url);
     });
   };
+
+  if (!mounted) {
+    return <Skeleton className="h-9 w-40" />;
+  }
 
   return (
     <Select

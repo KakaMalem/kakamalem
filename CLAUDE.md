@@ -216,9 +216,21 @@ app/
 │   ├── confirm/            # Email confirmation page
 │   ├── error/              # Auth error page
 │   └── logout/             # Logout handler
+├── admin/                  # Platform admin panel (/admin)
+│   ├── page.tsx            # Admin dashboard
+│   ├── stores/             # Store management
+│   └── settings/           # Platform settings
 ├── dashboard/              # Store owner dashboard (protected)
 └── store/[slug]/           # Public storefront for each tenant
 ```
+
+### Admin Panel (/admin)
+
+Platform administration accessible only to `platform_admin` or `super_admin` users.
+
+- **Dashboard**: Platform stats, trial warnings, expired trials
+- **Stores**: List, search, filter, suspend/activate stores
+- **Settings**: Configure subscription pricing, trial duration, product limits
 
 ### Key Directories
 
@@ -315,17 +327,30 @@ database/                   # PostgreSQL configuration files
 - **User roles** (`profiles.role`): `admin`, `owner`, `staff`, `customer`
 - **Tenant member roles**: `owner`, `admin`, `staff`
 - **Tenant status**: `pending_review`, `active`, `suspended`, `inactive`
-- **Billing status**: `free_tier`, `active`, `grace_period`, `suspended`, `forgiven`
+- **Subscription plan**: `free`, `pro`
+- **Subscription status**: `trialing`, `active`, `past_due`, `cancelled`, `expired`
 - **Order status**: `pending`, `confirmed`, `processing`, `shipped`, `delivered`, `cancelled`, `refunded`, `partially_refunded`
 - **Stock status**: `in_stock`, `low_stock`, `out_of_stock`, `on_backorder`
 - **Shipment status**: `pending`, `picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `failed`, `returned`
 
-### Commission/Billing Model
+### Subscription/Billing Model
 
-1. **Free tier**: First 10,000 AFN in commissions is free
-2. **Grace period**: 30 days to pay after exceeding free tier
-3. **Active**: Paid and in good standing
-4. **Forgiven**: Debt written off, store deactivated (can reactivate by paying)
+Simple subscription model (no transaction fees):
+
+1. **Free Plan**: 7-day trial, 20 product limit, 1 store limit, all features included
+2. **Pro Plan**: 1,100 AFN/month, unlimited products, multiple stores
+
+Settings are configurable from admin panel (`/admin`).
+
+**Subscription States:**
+
+- `trialing` - In free trial period (7 days default)
+- `active` - Paid subscription in good standing
+- `past_due` - Payment failed, in grace period
+- `cancelled` - Cancelled but access until period end
+- `expired` - Trial/subscription expired, needs upgrade
+
+**Suspension is manual** - admins review and suspend stores via the admin panel.
 
 ## Authorization
 

@@ -14,8 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { addToCartAction } from "@/lib/cart/actions";
-import { cartActions } from "@/lib/stores/use-cart-store";
+import { useCart } from "@/lib/hooks/use-cart";
+import type { CartItemProduct } from "@/lib/types/cart";
 import {
   fetchMoreProducts,
   type FetchProductsResult,
@@ -48,6 +48,8 @@ interface InfiniteScrollProductsWithSortProps {
   basePath: string;
   filters?: ProductFilters;
   currentSort?: string;
+  /** When true, hides add-to-cart buttons (catalog/showcase mode) */
+  catalogMode?: boolean;
 }
 
 const SORT_OPTIONS = [
@@ -80,6 +82,7 @@ export function InfiniteScrollProductsWithSort({
   basePath,
   filters,
   currentSort = "createdAt-desc",
+  catalogMode = false,
 }: InfiniteScrollProductsWithSortProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,8 +93,8 @@ export function InfiniteScrollProductsWithSort({
     initialPagination.page < initialPagination.totalPages
   );
   const [isLoading, setIsLoading] = useState(false);
-  const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { addToCart, isAddingProduct } = useCart();
 
   const sort = parseSortParam(currentSort);
 
@@ -166,7 +169,7 @@ export function InfiniteScrollProductsWithSort({
     router.push(`${basePath}?${params.toString()}`);
   };
 
-  const handleAddToCart = async (productId: string) => {
+  const handleAddToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
 
@@ -175,32 +178,22 @@ export function InfiniteScrollProductsWithSort({
       return;
     }
 
-    setAddingToCart(productId);
-    try {
-      const result = await addToCartAction(
-        tenantId,
-        storeSlug,
-        productId,
-        1,
-        null
-      );
+    // Build optimistic product data for immediate UI update
+    const optimisticProduct: CartItemProduct = {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: product.price,
+      stock: product.stock,
+      trackInventory: product.trackInventory,
+      allowBackorder: false,
+      status: product.status,
+      hasVariants: product.hasVariants,
+      image: product.image,
+      priceTiers: [],
+    };
 
-      if (result.success) {
-        cartActions.setCart(result.cart, storeSlug);
-        cartActions.setIsOpen(true);
-      } else {
-        toast.error("Couldn't add to cart", {
-          description: result.error,
-        });
-      }
-    } catch (error) {
-      toast.error("Couldn't add to cart", {
-        description:
-          error instanceof Error ? error.message : "Please try again",
-      });
-    } finally {
-      setAddingToCart(null);
-    }
+    addToCart(productId, 1, null, optimisticProduct, null);
   };
 
   if (products.length === 0) {
@@ -246,8 +239,9 @@ export function InfiniteScrollProductsWithSort({
             product={product}
             storeSlug={storeSlug}
             currency={currency}
-            onAddToCart={handleAddToCart}
-            isAddingToCart={addingToCart === product.id}
+            onAddToCart={catalogMode ? undefined : handleAddToCart}
+            isAddingToCart={isAddingProduct(product.id)}
+            catalogMode={catalogMode}
           />
         ))}
       </div>

@@ -71,7 +71,7 @@ export default async function CheckoutSuccessPage({
   const shippingAddress = order?.shippingAddress as Address | undefined;
 
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl text-center">
         {/* Success Icon */}
         <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-green-100">

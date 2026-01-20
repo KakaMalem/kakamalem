@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,47 +18,29 @@ import {
 import { CartItem } from "./cart-item";
 import { CartSummary } from "./cart-summary";
 import { EmptyCart } from "./empty-cart";
-import { useCartItems, useCartActions } from "@/lib/stores/use-cart-store";
-import { clearCartAction } from "@/lib/cart/actions";
+import { useCart } from "@/lib/hooks/use-cart";
 
 interface CartContentProps {
-  tenantId: string;
   storeSlug: string;
   currency: string;
+  checkoutEnabled?: boolean;
+  contactPhone?: string | null;
 }
 
 export function CartContent({
-  tenantId,
   storeSlug,
   currency,
+  checkoutEnabled = true,
+  contactPhone,
 }: CartContentProps) {
-  const items = useCartItems();
-  const { clearCart } = useCartActions();
-  const [isClearing, setIsClearing] = useState(false);
-
-  const handleClearCart = async () => {
-    setIsClearing(true);
-
-    // Optimistic clear
-    clearCart();
-
-    const result = await clearCartAction(tenantId, storeSlug);
-
-    if (!result.success) {
-      toast.error(result.error || "Failed to clear cart");
-    } else {
-      toast.success("Cart cleared");
-    }
-
-    setIsClearing(false);
-  };
+  const { items, clearCart, isClearing } = useCart();
 
   if (items.length === 0) {
     return <EmptyCart storeSlug={storeSlug} />;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -108,7 +88,7 @@ export function CartContent({
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={handleClearCart}
+                  onClick={clearCart}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   Clear Cart
@@ -125,13 +105,7 @@ export function CartContent({
         <div className="lg:col-span-2">
           <div className="space-y-4">
             {items.map((item) => (
-              <CartItem
-                key={item.id}
-                item={item}
-                tenantId={tenantId}
-                storeSlug={storeSlug}
-                currency={currency}
-              />
+              <CartItem key={item.id} item={item} currency={currency} />
             ))}
           </div>
         </div>
@@ -139,7 +113,12 @@ export function CartContent({
         {/* Order Summary */}
         <div className="lg:col-span-1">
           <div className="sticky top-24">
-            <CartSummary storeSlug={storeSlug} currency={currency} />
+            <CartSummary
+              storeSlug={storeSlug}
+              currency={currency}
+              checkoutEnabled={checkoutEnabled}
+              contactPhone={contactPhone}
+            />
           </div>
         </div>
       </div>

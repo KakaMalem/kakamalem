@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useCartStore, type Cart } from "@/lib/stores/use-cart-store";
+import { cartActions, type Cart } from "@/lib/stores/use-cart-store";
 
 type CartProviderProps = {
   children: React.ReactNode;
   initialCart: Cart | null;
-  tenantId: string;
   storeSlug: string;
 };
 
@@ -20,9 +19,8 @@ export function CartProvider({
   children,
   initialCart,
   storeSlug,
-}: Omit<CartProviderProps, "tenantId"> & { tenantId?: string }) {
+}: CartProviderProps) {
   const initialized = useRef(false);
-  const setCart = useCartStore((state) => state.setCart);
 
   useEffect(() => {
     // Only initialize once per mount
@@ -31,8 +29,13 @@ export function CartProvider({
 
     // Always use server data as the source of truth
     // This prevents stale localStorage data from causing cart bugs
-    setCart(initialCart, storeSlug);
-  }, [initialCart, storeSlug, setCart]);
+    if (initialCart) {
+      cartActions.hydrate(initialCart, storeSlug);
+    } else {
+      // Reset if no cart data
+      cartActions.reset();
+    }
+  }, [initialCart, storeSlug]);
 
   return <>{children}</>;
 }

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProductBySlugWithDetails } from "@/lib/db/queries/products";
+import { stripHtml } from "@/lib/utils/html";
 import { getProductReviewStats } from "@/lib/db/queries/reviews";
 import { getProductPriceTiers } from "@/lib/db/queries/pricing";
 import { isProductInWishlist } from "@/lib/db/queries/wishlists";
@@ -31,14 +32,16 @@ export async function generateMetadata({
   if (!product) return { title: "Product Not Found" };
 
   const primaryImage = product.images?.[0]?.media?.url;
+  const plainDescription = product.description
+    ? stripHtml(product.description)
+    : `Buy ${product.name} at ${store.name}`;
 
   return {
     title: `${product.name} | ${store.name}`,
-    description: product.description || `Buy ${product.name} at ${store.name}`,
+    description: plainDescription,
     openGraph: {
       title: product.name,
-      description:
-        product.description || `Buy ${product.name} at ${store.name}`,
+      description: plainDescription,
       images: primaryImage ? [{ url: primaryImage }] : undefined,
     },
   };
@@ -82,6 +85,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
     { label: product.name, href: "#", current: true },
   ];
 
+  // Check if store is in catalog mode (no cart functionality)
+  const isCatalogMode = store.storeMode === "catalog";
+
   return (
     <section className="py-8 sm:py-16 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -96,6 +102,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
             reviewStats={reviewStats}
             priceTiers={priceTiers}
             initialIsInWishlist={isInWishlist}
+            catalogMode={isCatalogMode}
+            contactPhone={store.contactPhone}
           />
         </div>
 

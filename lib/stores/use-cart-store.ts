@@ -2,89 +2,16 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useShallow } from "zustand/react/shallow";
+import type {
+  Cart,
+  CartItem,
+  CartPriceTier,
+  CartSnapshot,
+} from "@/lib/types/cart";
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
-// Local type definitions to avoid issues with server action bundling
-export type CartPriceTier = {
-  id: string;
-  minQuantity: number;
-  maxQuantity: number | null;
-  price: string;
-};
-
-export type CartItemProduct = {
-  id: string;
-  name: string;
-  slug: string;
-  price: string;
-  stock: number;
-  trackInventory: boolean;
-  allowBackorder: boolean;
-  status: "draft" | "active" | "archived";
-  hasVariants: boolean;
-  image: {
-    url: string;
-    altText: string | null;
-  } | null;
-  priceTiers: CartPriceTier[];
-};
-
-export type CartItemVariant = {
-  id: string;
-  displayName: string | null;
-  price: string | null;
-  stock: number;
-  isActive: boolean;
-} | null;
-
-export type CartItem = {
-  id: string;
-  productId: string;
-  variantId: string | null;
-  quantity: number;
-  product: CartItemProduct;
-  variant: CartItemVariant;
-};
-
-export type Cart = {
-  id: string;
-  tenantId: string;
-  sessionId: string | null;
-  customerId: string | null;
-  items: CartItem[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-type CartStore = {
-  // State
-  items: CartItem[];
-  tenantId: string | null;
-  storeSlug: string | null;
-  isLoading: boolean;
-  isOpen: boolean; // For cart drawer/sidebar
-
-  // Computed values
-  itemCount: number;
-  subtotal: number;
-
-  // Actions
-  setCart: (cart: Cart | null, storeSlug: string) => void;
-  setItems: (items: CartItem[]) => void;
-  setTenant: (tenantId: string, storeSlug: string) => void;
-  clearCart: () => void;
-  setIsLoading: (loading: boolean) => void;
-  setIsOpen: (open: boolean) => void;
-  toggleCart: () => void;
-
-  // Optimistic updates
-  addItemOptimistic: (item: CartItem) => void;
-  updateItemOptimistic: (itemId: string, quantity: number) => void;
-  removeItemOptimistic: (itemId: string) => void;
-};
+// Re-export types for convenience
+export type { Cart, CartItem, CartPriceTier, CartSnapshot };
 
 // ============================================================================
 // HELPERS
@@ -97,7 +24,7 @@ function calculateItemCount(items: CartItem[]): number {
 /**
  * Get the applicable tier price for a given quantity
  */
-function getApplicableTierPrice(
+export function getApplicableTierPrice(
   basePrice: number,
   quantity: number,
   priceTiers: CartPriceTier[]
@@ -125,7 +52,6 @@ function calculateSubtotal(items: CartItem[]): number {
     const basePrice = item.variant?.price
       ? parseFloat(item.variant.price)
       : parseFloat(item.product.price);
-    // Apply tier pricing if available
     const effectivePrice = getApplicableTierPrice(
       basePrice,
       item.quantity,
@@ -135,36 +61,96 @@ function calculateSubtotal(items: CartItem[]): number {
   }, 0);
 }
 
-/**
- * Export for use in components
- */
-export { getApplicableTierPrice };
+function calculateSavings(items: CartItem[]): number {
+  return items.reduce((sum, item) => {
+    const basePrice = item.variant?.price
+      ? parseFloat(item.variant.price)
+      : parseFloat(item.product.price);
+    const effectivePrice = getApplicableTierPrice(
+      basePrice,
+      item.quantity,
+      item.product.priceTiers || []
+    );
+    const savings = (basePrice - effectivePrice) * item.quantity;
+    return sum + Math.max(0, savings);
+  }, 0);
+}
+
+// ============================================================================
+// STORE TYPES
+// ============================================================================
+
+type CartStoreState = {
+  // State
+  items: CartItem[];
+  tenantId: string | null;
+  storeSlug: string | null;
+  isHydrated: boolean;
+  lastSyncedAt: number | null;
+
+  // UI State
+  isOpen: boolean;
+
+  // Computed (cached for performance)
+  itemCount: number;
+  subtotal: number;
+  savings: number;
+
+  // Hydration
+  hydrate: (cart: Cart, storeSlug: string) => void;
+  reset: () => void;
+
+  // UI Actions
+  setIsOpen: (open: boolean) => void;
+  toggleCart: () => void;
+
+  // Optimistic update methods (return previous state for rollback)
+  addItem: (item: CartItem) => CartSnapshot;
+  updateItemQuantity: (itemId: string, quantity: number) => CartSnapshot;
+  removeItem: (itemId: string) => CartSnapshot;
+  clearItems: () => CartSnapshot;
+  setItems: (items: CartItem[]) => CartSnapshot;
+
+  // Rollback
+  rollback: (snapshot: CartSnapshot) => void;
+
+  // Sync state after successful mutation
+  syncFromServer: (cart: Cart) => void;
+};
 
 // ============================================================================
 // STORE
 // ============================================================================
 
-export const useCartStore = create<CartStore>()(
+export const useCartStore = create<CartStoreState>()(
   persist(
     (set, get) => ({
       // Initial state
       items: [],
       tenantId: null,
       storeSlug: null,
-      isLoading: false,
+      isHydrated: false,
+      lastSyncedAt: null,
       isOpen: false,
       itemCount: 0,
       subtotal: 0,
+      savings: 0,
 
-      // Set entire cart from server
-      setCart: (cart, storeSlug) => {
-        if (!cart) {
+      // Hydrate from server data (called by CartProvider)
+      hydrate: (cart, storeSlug) => {
+        const state = get();
+
+        // Clear cart if switching to a different store
+        if (state.tenantId && state.tenantId !== cart.tenantId) {
           set({
             items: [],
-            tenantId: null,
-            storeSlug: null,
+            tenantId: cart.tenantId,
+            storeSlug,
+            isHydrated: true,
+            lastSyncedAt: Date.now(),
             itemCount: 0,
             subtotal: 0,
+            savings: 0,
           });
           return;
         }
@@ -174,57 +160,47 @@ export const useCartStore = create<CartStore>()(
           items,
           tenantId: cart.tenantId,
           storeSlug,
+          isHydrated: true,
+          lastSyncedAt: Date.now(),
           itemCount: calculateItemCount(items),
           subtotal: calculateSubtotal(items),
+          savings: calculateSavings(items),
         });
       },
 
-      // Update items only
-      setItems: (items) => {
-        set({
-          items,
-          itemCount: calculateItemCount(items),
-          subtotal: calculateSubtotal(items),
-        });
-      },
-
-      // Set tenant context
-      setTenant: (tenantId, storeSlug) => {
-        const state = get();
-        // Clear cart if switching to a different store
-        if (state.tenantId && state.tenantId !== tenantId) {
-          set({
-            items: [],
-            tenantId,
-            storeSlug,
-            itemCount: 0,
-            subtotal: 0,
-          });
-        } else {
-          set({ tenantId, storeSlug });
-        }
-      },
-
-      // Clear cart
-      clearCart: () => {
+      // Reset store (on logout or tenant switch)
+      reset: () => {
         set({
           items: [],
+          tenantId: null,
+          storeSlug: null,
+          isHydrated: false,
+          lastSyncedAt: null,
           itemCount: 0,
           subtotal: 0,
+          savings: 0,
         });
       },
 
-      // Loading state
-      setIsLoading: (isLoading) => set({ isLoading }),
-
-      // Cart drawer state
+      // UI Actions
       setIsOpen: (isOpen) => set({ isOpen }),
       toggleCart: () => set((state) => ({ isOpen: !state.isOpen })),
 
-      // Optimistic add
-      addItemOptimistic: (item) => {
-        const items = get().items;
-        const existingIndex = items.findIndex(
+      // ========================================================================
+      // OPTIMISTIC UPDATE METHODS
+      // All return a snapshot for rollback
+      // ========================================================================
+
+      addItem: (item) => {
+        const state = get();
+        const snapshot: CartSnapshot = {
+          items: state.items,
+          tenantId: state.tenantId,
+          storeSlug: state.storeSlug,
+          timestamp: Date.now(),
+        };
+
+        const existingIndex = state.items.findIndex(
           (i) =>
             i.productId === item.productId && i.variantId === item.variantId
         );
@@ -232,27 +208,36 @@ export const useCartStore = create<CartStore>()(
         let newItems: CartItem[];
         if (existingIndex > -1) {
           // Update existing item quantity
-          newItems = items.map((i, index) =>
+          newItems = state.items.map((i, index) =>
             index === existingIndex
               ? { ...i, quantity: i.quantity + item.quantity }
               : i
           );
         } else {
           // Add new item
-          newItems = [...items, item];
+          newItems = [...state.items, item];
         }
 
         set({
           items: newItems,
           itemCount: calculateItemCount(newItems),
           subtotal: calculateSubtotal(newItems),
+          savings: calculateSavings(newItems),
         });
+
+        return snapshot;
       },
 
-      // Optimistic update quantity
-      updateItemOptimistic: (itemId, quantity) => {
-        const items = get().items;
-        const newItems = items.map((item) =>
+      updateItemQuantity: (itemId, quantity) => {
+        const state = get();
+        const snapshot: CartSnapshot = {
+          items: state.items,
+          tenantId: state.tenantId,
+          storeSlug: state.storeSlug,
+          timestamp: Date.now(),
+        };
+
+        const newItems = state.items.map((item) =>
           item.id === itemId ? { ...item, quantity } : item
         );
 
@@ -260,18 +245,92 @@ export const useCartStore = create<CartStore>()(
           items: newItems,
           itemCount: calculateItemCount(newItems),
           subtotal: calculateSubtotal(newItems),
+          savings: calculateSavings(newItems),
         });
+
+        return snapshot;
       },
 
-      // Optimistic remove
-      removeItemOptimistic: (itemId) => {
-        const items = get().items;
-        const newItems = items.filter((item) => item.id !== itemId);
+      removeItem: (itemId) => {
+        const state = get();
+        const snapshot: CartSnapshot = {
+          items: state.items,
+          tenantId: state.tenantId,
+          storeSlug: state.storeSlug,
+          timestamp: Date.now(),
+        };
+
+        const newItems = state.items.filter((item) => item.id !== itemId);
 
         set({
           items: newItems,
           itemCount: calculateItemCount(newItems),
           subtotal: calculateSubtotal(newItems),
+          savings: calculateSavings(newItems),
+        });
+
+        return snapshot;
+      },
+
+      clearItems: () => {
+        const state = get();
+        const snapshot: CartSnapshot = {
+          items: state.items,
+          tenantId: state.tenantId,
+          storeSlug: state.storeSlug,
+          timestamp: Date.now(),
+        };
+
+        set({
+          items: [],
+          itemCount: 0,
+          subtotal: 0,
+          savings: 0,
+        });
+
+        return snapshot;
+      },
+
+      setItems: (items) => {
+        const state = get();
+        const snapshot: CartSnapshot = {
+          items: state.items,
+          tenantId: state.tenantId,
+          storeSlug: state.storeSlug,
+          timestamp: Date.now(),
+        };
+
+        set({
+          items,
+          itemCount: calculateItemCount(items),
+          subtotal: calculateSubtotal(items),
+          savings: calculateSavings(items),
+        });
+
+        return snapshot;
+      },
+
+      // Rollback to previous state (on mutation failure)
+      rollback: (snapshot) => {
+        set({
+          items: snapshot.items,
+          tenantId: snapshot.tenantId,
+          storeSlug: snapshot.storeSlug,
+          itemCount: calculateItemCount(snapshot.items),
+          subtotal: calculateSubtotal(snapshot.items),
+          savings: calculateSavings(snapshot.items),
+        });
+      },
+
+      // Sync from server after successful mutation
+      syncFromServer: (cart) => {
+        set({
+          items: cart.items,
+          tenantId: cart.tenantId,
+          lastSyncedAt: Date.now(),
+          itemCount: calculateItemCount(cart.items),
+          subtotal: calculateSubtotal(cart.items),
+          savings: calculateSavings(cart.items),
         });
       },
     }),
@@ -285,13 +344,17 @@ export const useCartStore = create<CartStore>()(
         storeSlug: state.storeSlug,
         itemCount: state.itemCount,
         subtotal: state.subtotal,
+        savings: state.savings,
+        lastSyncedAt: state.lastSyncedAt,
       }),
+      // Skip hydration on server to prevent hydration mismatch
+      skipHydration: true,
     }
   )
 );
 
 // ============================================================================
-// SELECTOR HOOKS
+// SELECTOR HOOKS (for optimized re-renders)
 // ============================================================================
 
 export function useCartItems() {
@@ -306,32 +369,57 @@ export function useCartSubtotal() {
   return useCartStore((state) => state.subtotal);
 }
 
+export function useCartSavings() {
+  return useCartStore((state) => state.savings);
+}
+
 export function useCartIsOpen() {
   return useCartStore((state) => state.isOpen);
 }
 
-export function useCartIsLoading() {
-  return useCartStore((state) => state.isLoading);
+export function useCartIsHydrated() {
+  return useCartStore((state) => state.isHydrated);
 }
 
-// Get actions directly from the store (stable references, no re-renders)
+export function useCartTenant() {
+  return useCartStore(
+    useShallow((state) => ({
+      tenantId: state.tenantId,
+      storeSlug: state.storeSlug,
+    }))
+  );
+}
+
+export function useCartTotals() {
+  return useCartStore(
+    useShallow((state) => ({
+      itemCount: state.itemCount,
+      subtotal: state.subtotal,
+      savings: state.savings,
+    }))
+  );
+}
+
+// ============================================================================
+// ACTIONS (stable references, no re-renders)
+// ============================================================================
+
 export const cartActions = {
-  setCart: (cart: Cart | null, storeSlug: string) =>
-    useCartStore.getState().setCart(cart, storeSlug),
-  setItems: (items: CartItem[]) => useCartStore.getState().setItems(items),
-  setTenant: (tenantId: string, storeSlug: string) =>
-    useCartStore.getState().setTenant(tenantId, storeSlug),
-  clearCart: () => useCartStore.getState().clearCart(),
-  setIsLoading: (loading: boolean) =>
-    useCartStore.getState().setIsLoading(loading),
+  hydrate: (cart: Cart, storeSlug: string) =>
+    useCartStore.getState().hydrate(cart, storeSlug),
+  reset: () => useCartStore.getState().reset(),
   setIsOpen: (open: boolean) => useCartStore.getState().setIsOpen(open),
   toggleCart: () => useCartStore.getState().toggleCart(),
-  addItemOptimistic: (item: CartItem) =>
-    useCartStore.getState().addItemOptimistic(item),
-  updateItemOptimistic: (itemId: string, quantity: number) =>
-    useCartStore.getState().updateItemOptimistic(itemId, quantity),
-  removeItemOptimistic: (itemId: string) =>
-    useCartStore.getState().removeItemOptimistic(itemId),
+  addItem: (item: CartItem) => useCartStore.getState().addItem(item),
+  updateItemQuantity: (itemId: string, quantity: number) =>
+    useCartStore.getState().updateItemQuantity(itemId, quantity),
+  removeItem: (itemId: string) => useCartStore.getState().removeItem(itemId),
+  clearItems: () => useCartStore.getState().clearItems(),
+  clearCart: () => useCartStore.getState().clearItems(), // Alias for clearItems
+  setItems: (items: CartItem[]) => useCartStore.getState().setItems(items),
+  rollback: (snapshot: CartSnapshot) =>
+    useCartStore.getState().rollback(snapshot),
+  syncFromServer: (cart: Cart) => useCartStore.getState().syncFromServer(cart),
 };
 
 // Hook version for components that need reactive updates

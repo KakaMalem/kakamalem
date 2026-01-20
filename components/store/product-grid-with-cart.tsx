@@ -1,11 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 import { ProductCard } from "./product-card";
-import { addToCartAction } from "@/lib/cart/actions";
-import { cartActions } from "@/lib/stores/use-cart-store";
+import { useCart } from "@/lib/hooks/use-cart";
+import type { CartItemProduct } from "@/lib/types/cart";
 
 interface Product {
   id: string;
@@ -16,6 +15,7 @@ interface Product {
   stock: number;
   hasVariants: boolean;
   trackInventory: boolean;
+  allowBackorder?: boolean;
   showStock: boolean;
   status: "draft" | "active" | "archived";
   image: { url: string; altText: string | null } | null;
@@ -29,17 +29,20 @@ interface ProductGridWithCartProps {
   storeSlug: string;
   tenantId: string;
   currency: string;
+  /** When true, hides add-to-cart buttons (catalog/showcase mode) */
+  catalogMode?: boolean;
 }
 
 export function ProductGridWithCart({
   products,
   storeSlug,
-  tenantId,
   currency,
+  catalogMode = false,
 }: ProductGridWithCartProps) {
   const router = useRouter();
+  const { addToCart, isAddingProduct } = useCart();
 
-  const handleAddToCart = async (productId: string) => {
+  const handleAddToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
 
@@ -49,31 +52,22 @@ export function ProductGridWithCart({
       return;
     }
 
-    try {
-      const result = await addToCartAction(
-        tenantId,
-        storeSlug,
-        productId,
-        1,
-        null
-      );
+    // Build optimistic product data for immediate UI update
+    const optimisticProduct: CartItemProduct = {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: product.price,
+      stock: product.stock,
+      trackInventory: product.trackInventory,
+      allowBackorder: product.allowBackorder ?? false,
+      status: product.status,
+      hasVariants: product.hasVariants,
+      image: product.image,
+      priceTiers: [],
+    };
 
-      if (result.success) {
-        // Update local cart state
-        cartActions.setCart(result.cart, storeSlug);
-        // Open cart drawer
-        cartActions.setIsOpen(true);
-      } else {
-        toast.error("Couldn't add to cart", {
-          description: result.error,
-        });
-      }
-    } catch (error) {
-      toast.error("Couldn't add to cart", {
-        description:
-          error instanceof Error ? error.message : "Please try again",
-      });
-    }
+    addToCart(productId, 1, null, optimisticProduct, null);
   };
 
   return (
@@ -84,7 +78,9 @@ export function ProductGridWithCart({
           product={product}
           storeSlug={storeSlug}
           currency={currency}
-          onAddToCart={handleAddToCart}
+          onAddToCart={catalogMode ? undefined : handleAddToCart}
+          catalogMode={catalogMode}
+          isAddingToCart={isAddingProduct(product.id)}
         />
       ))}
     </div>

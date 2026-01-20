@@ -36,12 +36,15 @@ export default async function StorePage({
 
   const hasProducts = productsResult.products.length > 0;
 
+  // Check if store is in catalog mode (no cart functionality)
+  const isCatalogMode = store.storeMode === "catalog";
+
   return (
     <div className="flex flex-col">
       {/* Search Results Info */}
       {searchQuery && (
         <div className="border-b bg-muted/30 py-4">
-          <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
                 {productsResult.pagination.total} result
@@ -58,7 +61,7 @@ export default async function StorePage({
 
       {/* Products Grid */}
       <section className="py-8">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {hasProducts ? (
             <InfiniteScrollProducts
               initialProducts={productsResult.products}
@@ -68,6 +71,7 @@ export default async function StorePage({
               currency={store.currency}
               filters={{ isActive: true, search: searchQuery }}
               sort={{ field: "displayOrder", direction: "asc" }}
+              catalogMode={isCatalogMode}
             />
           ) : (
             <div className="py-16 text-center">

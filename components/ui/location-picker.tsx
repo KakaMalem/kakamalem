@@ -1,20 +1,41 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, MapPin, Navigation, X, MapPinOff } from "lucide-react";
+import {
+  Loader2,
+  MapPin,
+  Navigation,
+  X,
+  MapPinOff,
+  Search,
+  Check,
+  AlertTriangle,
+  Copy,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { computePlusCode } from "@/lib/geo";
+import { computePlusCode, formatPlusCodeForDisplay } from "@/lib/geo";
 import {
   useLocationPermission,
   type LocationErrorType,
 } from "@/lib/hooks/use-location-permission";
 
+// Location data with history for accuracy analysis
 export interface LocationData {
   latitude: number;
   longitude: number;
   accuracy?: number;
   source: "gps" | "manual";
   plusCode: string;
+  // Location history for accuracy analysis
+  locationHistory?: {
+    gps?: {
+      latitude: number;
+      longitude: number;
+      accuracy?: number;
+      timestamp: number;
+    };
+    manual?: { latitude: number; longitude: number; timestamp: number };
+  };
 }
 
 // Simplified delivery zone type for display purposes
@@ -34,6 +55,47 @@ interface LocationPickerProps {
   disabled?: boolean;
   className?: string;
   deliveryZones?: DeliveryZoneDisplay[];
+}
+
+// Search result type from Nominatim
+interface SearchResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  type: string;
+}
+
+// Check if a point is within any delivery zone
+function isPointInDeliveryZones(
+  lat: number,
+  lng: number,
+  zones: DeliveryZoneDisplay[]
+): { inZone: boolean; zoneName?: string } {
+  for (const zone of zones) {
+    if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) continue;
+
+    const centerLat = parseFloat(zone.centerLat);
+    const centerLng = parseFloat(zone.centerLng);
+
+    // Haversine distance calculation
+    const R = 6371000; // Earth's radius in meters
+    const dLat = ((lat - centerLat) * Math.PI) / 180;
+    const dLng = ((lng - centerLng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((centerLat * Math.PI) / 180) *
+        Math.cos((lat * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    if (distance <= zone.radiusMeters) {
+      return { inZone: true, zoneName: zone.name };
+    }
+  }
+  return { inZone: false };
 }
 
 // Isometric 3D City Illustration Component
@@ -129,10 +191,8 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
 
         {/* Building 1 - Tall blue building */}
         <g transform="translate(30, 60)">
-          {/* Building body */}
           <polygon points="0,90 0,20 30,0 60,20 60,90 30,90" fill="#3b82f6" />
           <polygon points="60,20 60,90 90,70 90,0 30,0" fill="#2563eb" />
-          {/* Windows */}
           <rect x="8" y="30" width="8" height="10" fill="#bfdbfe" />
           <rect x="22" y="30" width="8" height="10" fill="#bfdbfe" />
           <rect x="8" y="50" width="8" height="10" fill="#bfdbfe" />
@@ -145,9 +205,7 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
         <g transform="translate(100, 95)">
           <polygon points="0,55 0,15 20,0 40,15 40,55 0,55" fill="#fb7185" />
           <polygon points="40,15 40,55 55,45 55,5 20,0" fill="#e11d48" />
-          {/* Awning */}
           <polygon points="-5,25 45,25 40,35 0,35" fill="#fda4af" />
-          {/* Door */}
           <rect x="12" y="35" width="16" height="20" fill="#7f1d1d" />
         </g>
 
@@ -155,7 +213,6 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
         <g transform="translate(280, 50)">
           <polygon points="0,100 0,25 25,5 50,25 50,100" fill="#fbbf24" />
           <polygon points="50,25 50,100 75,80 75,5 25,5" fill="#d97706" />
-          {/* Windows */}
           <rect x="8" y="35" width="10" height="12" fill="#fef3c7" />
           <rect x="25" y="35" width="10" height="12" fill="#fef3c7" />
           <rect x="8" y="55" width="10" height="12" fill="#fef3c7" />
@@ -171,144 +228,35 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
           />
         </g>
 
-        {/* Tree 1 */}
+        {/* Trees */}
         <g transform="translate(155, 120)">
           <rect x="8" y="20" width="6" height="15" fill="#854d0e" />
           <ellipse cx="11" cy="12" rx="14" ry="16" fill="#22c55e" />
           <ellipse cx="8" cy="8" rx="10" ry="12" fill="#4ade80" />
         </g>
-
-        {/* Tree 2 */}
         <g transform="translate(240, 115)">
           <rect x="6" y="18" width="5" height="12" fill="#854d0e" />
           <ellipse cx="8" cy="10" rx="12" ry="14" fill="#22c55e" />
           <ellipse cx="6" cy="6" rx="8" ry="10" fill="#4ade80" />
         </g>
 
-        {/* Car 1 - Red car (animated) */}
+        {/* Animated vehicles */}
         <g
           style={{
             animation: isLoading ? "drive-right 4s linear infinite" : "none",
           }}
         >
           <g transform="translate(50, 155)">
-            {/* Body */}
             <rect x="0" y="8" width="40" height="14" rx="3" fill="#ef4444" />
             <rect x="5" y="2" width="25" height="10" rx="2" fill="#ef4444" />
-            {/* Windows */}
             <rect x="8" y="4" width="8" height="6" rx="1" fill="#bfdbfe" />
             <rect x="19" y="4" width="8" height="6" rx="1" fill="#bfdbfe" />
-            {/* Wheels */}
             <circle cx="10" cy="22" r="5" fill="#1f2937" />
-            <circle cx="10" cy="22" r="2" fill="#6b7280" />
             <circle cx="30" cy="22" r="5" fill="#1f2937" />
-            <circle cx="30" cy="22" r="2" fill="#6b7280" />
-            {/* Headlight */}
-            <rect x="36" y="12" width="4" height="4" rx="1" fill="#fef08a" />
           </g>
         </g>
 
-        {/* Car 2 - Blue car */}
-        <g transform="translate(300, 158)">
-          <rect x="0" y="6" width="35" height="12" rx="2" fill="#3b82f6" />
-          <rect x="4" y="0" width="22" height="8" rx="2" fill="#3b82f6" />
-          <rect x="6" y="2" width="7" height="5" rx="1" fill="#bfdbfe" />
-          <rect x="15" y="2" width="7" height="5" rx="1" fill="#bfdbfe" />
-          <circle cx="8" cy="18" r="4" fill="#1f2937" />
-          <circle cx="8" cy="18" r="1.5" fill="#6b7280" />
-          <circle cx="27" cy="18" r="4" fill="#1f2937" />
-          <circle cx="27" cy="18" r="1.5" fill="#6b7280" />
-        </g>
-
-        {/* Motorcycle (animated when loading) */}
-        <g
-          style={{
-            animation: isLoading ? "drive-left 3s linear infinite" : "none",
-          }}
-        >
-          <g transform="translate(250, 160)">
-            {/* Body */}
-            <ellipse cx="12" cy="12" rx="8" ry="5" fill="#7c3aed" />
-            <rect x="6" y="8" width="14" height="6" fill="#7c3aed" />
-            {/* Handlebar */}
-            <rect x="16" y="4" width="2" height="8" fill="#374151" />
-            <rect x="14" y="3" width="6" height="2" rx="1" fill="#374151" />
-            {/* Rider (simple) */}
-            <circle cx="10" cy="2" r="4" fill="#fbbf24" />
-            <rect x="7" y="4" width="6" height="6" fill="#1f2937" />
-            {/* Wheels */}
-            <circle cx="4" cy="16" r="4" fill="#1f2937" />
-            <circle cx="4" cy="16" r="1.5" fill="#9ca3af" />
-            <circle cx="20" cy="16" r="4" fill="#1f2937" />
-            <circle cx="20" cy="16" r="1.5" fill="#9ca3af" />
-          </g>
-        </g>
-
-        {/* Bicycle */}
-        <g transform="translate(170, 135)">
-          {/* Frame */}
-          <line
-            x1="5"
-            y1="10"
-            x2="15"
-            y2="3"
-            stroke="#374151"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="15"
-            y1="3"
-            x2="20"
-            y2="10"
-            stroke="#374151"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="5"
-            y1="10"
-            x2="20"
-            y2="10"
-            stroke="#374151"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="15"
-            y1="3"
-            x2="15"
-            y2="0"
-            stroke="#374151"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="13"
-            y1="0"
-            x2="17"
-            y2="0"
-            stroke="#374151"
-            strokeWidth="1.5"
-          />
-          {/* Wheels */}
-          <circle
-            cx="5"
-            cy="12"
-            r="4"
-            fill="none"
-            stroke="#374151"
-            strokeWidth="1.5"
-          />
-          <circle
-            cx="20"
-            cy="12"
-            r="4"
-            fill="none"
-            stroke="#374151"
-            strokeWidth="1.5"
-          />
-          {/* Basket */}
-          <rect x="17" y="-2" width="6" height="4" fill="#d97706" />
-        </g>
-
-        {/* Delivery scooter with box */}
+        {/* Delivery scooter */}
         <g
           transform="translate(350, 158)"
           style={{
@@ -317,17 +265,15 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
         >
           <rect x="0" y="4" width="12" height="10" rx="1" fill="#22c55e" />
           <rect x="10" y="6" width="18" height="8" rx="1" fill="#16a34a" />
-          {/* Delivery box */}
           <rect x="2" y="-4" width="10" height="8" fill="#ea580c" />
           <text x="4" y="2" fontSize="4" fill="white" fontWeight="bold">
             KM
           </text>
-          {/* Wheels */}
           <circle cx="4" cy="16" r="3" fill="#1f2937" />
           <circle cx="24" cy="16" r="3" fill="#1f2937" />
         </g>
 
-        {/* Location Pin (bouncing when loading) */}
+        {/* Location Pin */}
         <g
           transform="translate(190, 95)"
           style={{
@@ -345,7 +291,6 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
         </g>
       </svg>
 
-      {/* CSS Animations */}
       <style jsx>{`
         @keyframes float-cloud {
           0% {
@@ -361,14 +306,6 @@ function CityIllustration({ isLoading }: { isLoading: boolean }) {
           }
           100% {
             transform: translateX(400px);
-          }
-        }
-        @keyframes drive-left {
-          0% {
-            transform: translateX(150px);
-          }
-          100% {
-            transform: translateX(-100px);
           }
         }
         @keyframes bounce-pin {
@@ -423,21 +360,56 @@ export function LocationPicker({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markerRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accuracyCircleRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const zoneCirclesRef = useRef<any[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mapInitializedRef = useRef(false);
+  const isSelectingResultRef = useRef(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  // Initialize with true if Leaflet is already loaded (e.g., from a previous render)
   const [leafletLoaded, setLeafletLoaded] = useState(
     () => typeof window !== "undefined" && !!window.L
   );
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Location history for accuracy tracking
+  const [locationHistory, setLocationHistory] = useState<{
+    gps?: {
+      latitude: number;
+      longitude: number;
+      accuracy?: number;
+      timestamp: number;
+    };
+    manual?: { latitude: number; longitude: number; timestamp: number };
+  }>({});
+
+  // City name for Plus Code display
+  const [cityName, setCityName] = useState<string | null>(null);
+  const [isFetchingCity, setIsFetchingCity] = useState(false);
+
+  // Zone validation
+  const [zoneStatus, setZoneStatus] = useState<{
+    inZone: boolean;
+    zoneName?: string;
+  } | null>(null);
+
+  // Copy feedback
+  const [copied, setCopied] = useState(false);
+
   const { permissionState, isCheckingPermission, requestLocation } =
     useLocationPermission();
 
-  // Show map if we have a value OR if we have delivery zones to display
   const hasDeliveryZones = deliveryZones.length > 0;
   const showMap = !!value || hasDeliveryZones;
 
+  // Load Leaflet
   useEffect(() => {
     if (typeof window === "undefined" || !showMap || leafletLoaded) return;
 
@@ -456,39 +428,184 @@ export function LocationPicker({
     document.head.appendChild(script);
   }, [showMap, leafletLoaded]);
 
+  // Search for locations using Nominatim
+  const searchLocations = useCallback(async (query: string) => {
+    if (query.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=af&accept-language=en`,
+        { headers: { "User-Agent": "KakaMalem/1.0 (delivery-platform)" } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data);
+        setShowSearchResults(true);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Debounced search
+  const handleSearchChange = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        searchLocations(query);
+      }, 300);
+    },
+    [searchLocations]
+  );
+
+  // Fetch city name for Plus Code display
+  const fetchCityName = useCallback(async (lat: number, lng: number) => {
+    setIsFetchingCity(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&accept-language=en`,
+        { headers: { "User-Agent": "KakaMalem/1.0 (delivery-platform)" } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const address = data.address;
+        setCityName(
+          address?.city ||
+            address?.town ||
+            address?.village ||
+            address?.municipality ||
+            null
+        );
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setIsFetchingCity(false);
+    }
+  }, []);
+
+  // Handle location selection (auto-confirm)
+  const handleLocationSelect = useCallback(
+    (lat: number, lng: number, source: "gps" | "manual", accuracy?: number) => {
+      // Update location history
+      const newHistory = { ...locationHistory };
+      if (source === "gps") {
+        newHistory.gps = {
+          latitude: lat,
+          longitude: lng,
+          accuracy,
+          timestamp: Date.now(),
+        };
+      } else {
+        newHistory.manual = {
+          latitude: lat,
+          longitude: lng,
+          timestamp: Date.now(),
+        };
+      }
+      setLocationHistory(newHistory);
+
+      // Check zone status
+      if (hasDeliveryZones) {
+        const status = isPointInDeliveryZones(lat, lng, deliveryZones);
+        setZoneStatus(status);
+      }
+
+      // Fetch city name
+      fetchCityName(lat, lng);
+
+      // Auto-confirm - call onChange immediately
+      const plusCode = computePlusCode(lat, lng);
+      onChange({
+        latitude: lat,
+        longitude: lng,
+        accuracy,
+        source,
+        plusCode,
+        locationHistory: newHistory,
+      });
+    },
+    [locationHistory, hasDeliveryZones, deliveryZones, fetchCityName, onChange]
+  );
+
+  // Handle search result selection
+  const handleSearchResultSelect = useCallback(
+    (result: SearchResult) => {
+      const lat = parseFloat(result.lat);
+      const lng = parseFloat(result.lon);
+
+      setSearchQuery("");
+      setSearchResults([]);
+      setShowSearchResults(false);
+
+      // Update marker on existing map
+      if (mapInstanceRef.current && markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+        mapInstanceRef.current.setView([lat, lng], 17);
+      }
+
+      handleLocationSelect(lat, lng, "manual");
+    },
+    [handleLocationSelect]
+  );
+
+  // Copy Plus Code to clipboard
+  const handleCopyPlusCode = useCallback(async () => {
+    if (!value) return;
+    const plusCode = computePlusCode(value.latitude, value.longitude);
+    try {
+      await navigator.clipboard.writeText(
+        formatPlusCodeForDisplay(plusCode, cityName)
+      );
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API may not be available
+    }
+  }, [value, cityName]);
+
+  // Store initial value ref for map initialization only
+  const initialValueRef = useRef(value);
+
+  // Initialize map (only once)
   useEffect(() => {
-    if (!leafletLoaded || !mapRef.current || mapInstanceRef.current) return;
-    // Need either a value or delivery zones to show the map
-    if (!value && deliveryZones.length === 0) return;
+    if (!leafletLoaded || !mapRef.current || mapInitializedRef.current) return;
+    if (!showMap) return;
 
     const L = window.L;
 
-    // Determine initial map center and zoom
+    // Determine initial center - use the ref to avoid re-running on value changes
+    const initialValue = initialValueRef.current;
     let initialCenter: [number, number];
-    let initialZoom = 16;
+    let initialZoom = 14;
 
-    if (value) {
-      // Center on the selected location
-      initialCenter = [value.latitude, value.longitude];
+    if (initialValue) {
+      initialCenter = [initialValue.latitude, initialValue.longitude];
+      initialZoom = 16;
     } else if (deliveryZones.length > 0) {
-      // Center on the first delivery zone
-      const firstZone = deliveryZones.find(
-        (z) => z.centerLat && z.centerLng && z.radiusMeters
-      );
+      const firstZone = deliveryZones.find((z) => z.centerLat && z.centerLng);
       if (firstZone && firstZone.centerLat && firstZone.centerLng) {
         initialCenter = [
           parseFloat(firstZone.centerLat),
           parseFloat(firstZone.centerLng),
         ];
-        // Adjust zoom based on radius (larger radius = smaller zoom)
         const radius = firstZone.radiusMeters || 3000;
         if (radius > 10000) initialZoom = 11;
         else if (radius > 5000) initialZoom = 12;
         else if (radius > 2000) initialZoom = 13;
-        else initialZoom = 14;
       } else {
-        // Fallback to Kabul
-        initialCenter = [34.5553, 69.2075];
+        initialCenter = [34.5553, 69.2075]; // Kabul
         initialZoom = 12;
       }
     } else {
@@ -496,14 +613,20 @@ export function LocationPicker({
       initialZoom = 12;
     }
 
-    const map = L.map(mapRef.current).setView(initialCenter, initialZoom);
+    // Create map with zoom control in bottom-left
+    const map = L.map(mapRef.current, {
+      zoomControl: false,
+    }).setView(initialCenter, initialZoom);
+
+    // Add zoom control to bottom-left
+    L.control.zoom({ position: "bottomleft" }).addTo(map);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
 
-    // Draw delivery zones as circles
+    // Draw delivery zones
     zoneCirclesRef.current = [];
     deliveryZones.forEach((zone) => {
       if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
@@ -519,7 +642,6 @@ export function LocationPicker({
         }
       ).addTo(map);
 
-      // Add tooltip with zone name
       circle.bindTooltip(zone.name, {
         permanent: false,
         direction: "center",
@@ -529,46 +651,75 @@ export function LocationPicker({
       zoneCirclesRef.current.push(circle);
     });
 
-    // Fit bounds to show all zones if we have zones and no selected value
-    if (!value && zoneCirclesRef.current.length > 0) {
+    // Fit to zones if no initial value
+    if (!initialValue && zoneCirclesRef.current.length > 0) {
       const group = L.featureGroup(zoneCirclesRef.current);
       map.fitBounds(group.getBounds().pad(0.1));
     }
 
-    // Add marker if we have a selected value
-    if (value) {
-      markerRef.current = L.marker([value.latitude, value.longitude]).addTo(
-        map
-      );
+    // Add marker if we have an initial value
+    if (initialValue) {
+      markerRef.current = L.marker([
+        initialValue.latitude,
+        initialValue.longitude,
+      ]).addTo(map);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    map.on("click", (e: any) => {
-      if (disabled) return;
-      const { lat, lng } = e.latlng;
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng]);
-      } else {
-        markerRef.current = L.marker([lat, lng]).addTo(map);
-      }
-      const plusCode = computePlusCode(lat, lng);
-      onChange({ latitude: lat, longitude: lng, source: "manual", plusCode });
-    });
-
     mapInstanceRef.current = map;
+    mapInitializedRef.current = true;
 
     return () => {
       map.remove();
       mapInstanceRef.current = null;
       markerRef.current = null;
+      accuracyCircleRef.current = null;
       zoneCirclesRef.current = [];
+      mapInitializedRef.current = false;
     };
-  }, [leafletLoaded, value, disabled, onChange, deliveryZones]);
+    // Only depend on leafletLoaded, showMap, and deliveryZones - NOT value
+  }, [leafletLoaded, showMap, deliveryZones]);
 
+  // Separate effect for map click handler to avoid stale closures
+  useEffect(() => {
+    if (!mapInstanceRef.current || !leafletLoaded) return;
+
+    const map = mapInstanceRef.current;
+    const L = window.L;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleMapClick = (e: any) => {
+      if (disabled) return;
+      const { lat, lng } = e.latlng;
+
+      // Update or create marker
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      } else {
+        markerRef.current = L.marker([lat, lng]).addTo(map);
+      }
+
+      // Remove old accuracy circle
+      if (accuracyCircleRef.current) {
+        map.removeLayer(accuracyCircleRef.current);
+        accuracyCircleRef.current = null;
+      }
+
+      handleLocationSelect(lat, lng, "manual");
+    };
+
+    map.on("click", handleMapClick);
+
+    return () => {
+      map.off("click", handleMapClick);
+    };
+  }, [leafletLoaded, disabled, handleLocationSelect]);
+
+  // Update marker position when value changes (without recreating map)
   useEffect(() => {
     if (!mapInstanceRef.current || !leafletLoaded || !value) return;
     const L = window.L;
     const map = mapInstanceRef.current;
+
     if (markerRef.current) {
       markerRef.current.setLatLng([value.latitude, value.longitude]);
     } else {
@@ -576,9 +727,9 @@ export function LocationPicker({
         map
       );
     }
-    map.setView([value.latitude, value.longitude], map.getZoom());
   }, [value, leafletLoaded]);
 
+  // Handle GPS location request
   const handleGetCurrentLocation = useCallback(async () => {
     setIsLoading(true);
     setGpsError(null);
@@ -593,18 +744,41 @@ export function LocationPicker({
 
     if (result.position) {
       const { latitude, longitude, accuracy } = result.position.coords;
-      const plusCode = computePlusCode(latitude, longitude);
-      onChange({
-        latitude,
-        longitude,
-        accuracy: accuracy || undefined,
-        source: "gps",
-        plusCode,
-      });
+
+      // Update marker on existing map
+      if (mapInstanceRef.current) {
+        const L = window.L;
+        const map = mapInstanceRef.current;
+
+        if (markerRef.current) {
+          markerRef.current.setLatLng([latitude, longitude]);
+        } else {
+          markerRef.current = L.marker([latitude, longitude]).addTo(map);
+        }
+
+        // Add accuracy circle
+        if (accuracy && accuracy > 10) {
+          if (accuracyCircleRef.current) {
+            map.removeLayer(accuracyCircleRef.current);
+          }
+          accuracyCircleRef.current = L.circle([latitude, longitude], {
+            radius: accuracy,
+            color: "#3b82f6",
+            fillColor: "#3b82f6",
+            fillOpacity: 0.15,
+            weight: 1,
+            dashArray: "5, 5",
+          }).addTo(map);
+        }
+
+        map.setView([latitude, longitude], 17);
+      }
+
+      handleLocationSelect(latitude, longitude, "gps", accuracy || undefined);
     }
 
     setIsLoading(false);
-  }, [onChange, requestLocation]);
+  }, [requestLocation, handleLocationSelect]);
 
   const handleButtonClick = useCallback(() => {
     if (isLoading) {
@@ -616,6 +790,62 @@ export function LocationPicker({
 
   return (
     <div className={cn("space-y-3", className)}>
+      {/* Search Bar - Outside map to avoid zoom button collision */}
+      {showMap && leafletLoaded && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400 z-10" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() =>
+              searchResults.length > 0 && setShowSearchResults(true)
+            }
+            onBlur={() => {
+              // Delay hiding to allow click events on results to fire
+              // Use a longer timeout and check if user is selecting a result
+              setTimeout(() => {
+                if (!isSelectingResultRef.current) {
+                  setShowSearchResults(false);
+                }
+              }, 300);
+            }}
+            placeholder="Search landmark, mosque, university..."
+            className="w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            disabled={disabled}
+          />
+          {isSearching && (
+            <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-gray-400" />
+          )}
+
+          {/* Search Results Dropdown */}
+          {showSearchResults && searchResults.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-white shadow-lg border z-1000">
+              {searchResults.map((result) => (
+                <button
+                  key={result.place_id}
+                  type="button"
+                  onMouseDown={() => {
+                    // Prevent the blur timeout from hiding results
+                    isSelectingResultRef.current = true;
+                  }}
+                  onClick={() => {
+                    handleSearchResultSelect(result);
+                    // Reset the ref after selection
+                    isSelectingResultRef.current = false;
+                  }}
+                  className="flex w-full items-start gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl"
+                >
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-gray-400" />
+                  <span className="line-clamp-2">{result.display_name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Map Container */}
       <div
         className={cn(
           "relative w-full overflow-hidden rounded-2xl border bg-white shadow-sm",
@@ -628,12 +858,10 @@ export function LocationPicker({
             type="button"
             onClick={handleButtonClick}
             disabled={disabled}
-            className="group relative block w-full min-h-72 cursor-pointer text-left transition-transform active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="group relative block w-full min-h-64 sm:min-h-72 cursor-pointer text-left transition-transform active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
-            {/* 3D City Illustration */}
             <CityIllustration isLoading={isLoading} />
 
-            {/* Top text overlay with gradient fade */}
             <div className="absolute inset-x-0 top-0 z-10 bg-linear-to-b from-white/90 via-white/70 to-transparent pb-12 pt-5 px-5">
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-800">
@@ -649,7 +877,6 @@ export function LocationPicker({
               </div>
             </div>
 
-            {/* Bottom CTA hint with gradient fade */}
             <div className="absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-white/95 via-white/80 to-transparent pt-12 pb-5 px-5">
               <div
                 className={cn(
@@ -687,9 +914,9 @@ export function LocationPicker({
             </div>
           </button>
         ) : !leafletLoaded ? (
-          <div className="relative min-h-72">
+          <div className="relative min-h-64 sm:min-h-72 md:min-h-80 lg:min-h-96">
             <CityIllustration isLoading={true} />
-            <div className="relative z-10 flex min-h-72 flex-col items-center justify-center gap-4">
+            <div className="relative z-10 flex min-h-64 sm:min-h-72 md:min-h-80 lg:min-h-96 flex-col items-center justify-center gap-4">
               <div className="rounded-xl bg-white/90 px-6 py-4 shadow-lg backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                   <Loader2 className="size-4 animate-spin text-primary" />
@@ -700,22 +927,25 @@ export function LocationPicker({
           </div>
         ) : (
           <div className="relative">
-            <div ref={mapRef} className="h-72 w-full" />
-            <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-end justify-between gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-medium text-gray-600 shadow-lg backdrop-blur-sm">
+            {/* Map - Responsive height */}
+            <div ref={mapRef} className="h-64 sm:h-72 md:h-80 lg:h-96 w-full" />
+
+            {/* Bottom Controls */}
+            <div className="pointer-events-none absolute bottom-4 left-14 right-4 flex items-end justify-between gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-600 shadow-lg backdrop-blur-sm">
                 <MapPin className="size-3.5 text-primary" />
                 {value
-                  ? "Tap to adjust location"
+                  ? "Tap to adjust"
                   : hasDeliveryZones
-                    ? "Tap within highlighted area to select"
-                    : "Tap to select your location"}
+                    ? "Tap within highlighted area"
+                    : "Tap to select"}
               </div>
-              {!value && !disabled && (
+              {!disabled && (
                 <button
                   type="button"
                   onClick={handleButtonClick}
                   disabled={isLoading}
-                  className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-medium text-white shadow-lg transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-colors hover:bg-primary/90 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -730,6 +960,87 @@ export function LocationPicker({
         )}
       </div>
 
+      {/* Location Info Panel - shows after selection */}
+      {value && (
+        <div className="rounded-xl border bg-white p-3 shadow-sm space-y-2">
+          {/* GPS Accuracy Notice */}
+          {locationHistory.gps?.accuracy &&
+            locationHistory.gps.accuracy > 50 && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-sm text-amber-700">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <div>
+                  <p className="font-medium text-xs">
+                    GPS accuracy: ~{Math.round(locationHistory.gps.accuracy)}m
+                  </p>
+                  <p className="text-xs mt-0.5 opacity-80">
+                    Tap on the map to refine your exact location
+                  </p>
+                </div>
+              </div>
+            )}
+
+          {/* Zone Status */}
+          {hasDeliveryZones && zoneStatus && (
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-lg p-2.5 text-sm",
+                zoneStatus.inZone
+                  ? "bg-green-50 text-green-700"
+                  : "bg-red-50 text-red-700"
+              )}
+            >
+              {zoneStatus.inZone ? (
+                <>
+                  <Check className="size-4 shrink-0" />
+                  <p className="text-xs">
+                    Delivery available in{" "}
+                    <span className="font-medium">{zoneStatus.zoneName}</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="size-4 shrink-0" />
+                  <p className="text-xs">
+                    Outside delivery zones. Please select within highlighted
+                    areas.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Plus Code Display */}
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+            <div>
+              <p className="text-xs text-gray-500">Location Code</p>
+              <p className="font-mono text-sm font-medium">
+                {isFetchingCity ? (
+                  <span className="text-gray-400">Loading...</span>
+                ) : (
+                  formatPlusCodeForDisplay(
+                    computePlusCode(value.latitude, value.longitude),
+                    cityName
+                  )
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyPlusCode}
+              className="rounded-lg p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              title="Copy location code"
+            >
+              {copied ? (
+                <Check className="size-4 text-green-600" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error Display */}
       {(gpsError || error) && (
         <div className="flex items-start gap-2.5 rounded-xl bg-red-50 p-3.5 text-sm text-red-600">
           <X className="mt-0.5 size-4 shrink-0" />

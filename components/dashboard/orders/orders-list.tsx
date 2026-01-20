@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingBag, Check, User } from "lucide-react";
+import { ShoppingBag, Check, User, Store, Phone } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -123,9 +123,24 @@ function OrderCard({
             >
               {order.orderNumber}
             </Link>
-            {/* Desktop badge */}
-            <div className="hidden sm:block">
+            {/* Desktop badges */}
+            <div className="hidden items-center gap-1.5 sm:flex">
               <Badge variant={statusStyle.variant}>{statusStyle.label}</Badge>
+              {order.salesChannel !== "online" && (
+                <Badge variant="outline" className="gap-1 text-xs">
+                  {order.salesChannel === "phone" ? (
+                    <>
+                      <Phone className="size-3" />
+                      Phone
+                    </>
+                  ) : (
+                    <>
+                      <Store className="size-3" />
+                      In-Store
+                    </>
+                  )}
+                </Badge>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
@@ -143,10 +158,19 @@ function OrderCard({
             </span>
           </div>
           {/* Mobile only */}
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground sm:hidden">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground sm:hidden">
             <Badge variant={statusStyle.variant} className="text-xs">
               {statusStyle.label}
             </Badge>
+            {order.salesChannel !== "online" && (
+              <Badge variant="outline" className="gap-1 text-xs">
+                {order.salesChannel === "phone" ? (
+                  <Phone className="size-3" />
+                ) : (
+                  <Store className="size-3" />
+                )}
+              </Badge>
+            )}
             <span>{order.itemCount} items</span>
           </div>
         </div>

@@ -119,6 +119,7 @@ async function findCart(
       where: and(eq(carts.tenantId, tenantId), eq(carts.userId, customerId)),
       with: {
         items: {
+          orderBy: (ci, { desc }) => [desc(ci.createdAt)],
           with: {
             product: {
               with: {
@@ -148,6 +149,7 @@ async function findCart(
     where: and(eq(carts.tenantId, tenantId), eq(carts.sessionId, sessionId)),
     with: {
       items: {
+        orderBy: (ci, { desc }) => [desc(ci.createdAt)],
         with: {
           product: {
             with: {

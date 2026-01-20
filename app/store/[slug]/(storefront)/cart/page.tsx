@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getOrCreateCart } from "@/lib/db/queries/carts";
@@ -7,6 +8,7 @@ import { getCartSessionIdOrNull } from "@/lib/cart/session";
 import { getUser } from "@/lib/auth/server";
 import { CartProvider } from "@/components/store/cart-provider";
 import { CartContent } from "@/components/store/cart-content";
+import { CartErrorToast } from "@/components/store/cart-error-toast";
 
 interface CartPageProps {
   params: Promise<{ slug: string }>;
@@ -57,11 +59,15 @@ export default async function CartPage({ params }: CartPageProps) {
       };
 
   return (
-    <CartProvider initialCart={cart} tenantId={store.id} storeSlug={slug}>
+    <CartProvider initialCart={cart} storeSlug={slug}>
+      <Suspense fallback={null}>
+        <CartErrorToast />
+      </Suspense>
       <CartContent
-        tenantId={store.id}
         storeSlug={slug}
         currency={store.currency}
+        checkoutEnabled={store.onlineCheckoutEnabled}
+        contactPhone={store.contactPhone}
       />
     </CartProvider>
   );

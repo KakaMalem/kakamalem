@@ -8,6 +8,7 @@ import { Plus, Minus, Equal, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,7 @@ export function QuickAdjustDialog({
     "add" | "remove" | "set"
   >("add");
   const [quantity, setQuantity] = useState("");
+  const [notes, setNotes] = useState("");
 
   const newStock = (() => {
     const qty = parseInt(quantity) || 0;
@@ -76,6 +78,7 @@ export function QuickAdjustDialog({
         variantId,
         adjustmentType,
         quantity: qty,
+        notes: notes.trim() || undefined,
       });
 
       if (result.success) {
@@ -89,6 +92,7 @@ export function QuickAdjustDialog({
           } ${qty}`
         );
         setQuantity("");
+        setNotes("");
         setAdjustmentType("add");
         onOpenChange(false);
         router.refresh();
@@ -187,6 +191,18 @@ export function QuickAdjustDialog({
                 onWheel={(e) => e.currentTarget.blur()}
                 placeholder="Enter quantity"
                 autoFocus
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label htmlFor="quick-notes">Notes (optional)</Label>
+              <Textarea
+                id="quick-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g., Received shipment from supplier"
+                rows={2}
               />
             </div>
 

@@ -123,6 +123,14 @@ export async function updateTenant(
     currency: string;
     deliveryMode: "distance_based" | "service_level" | "weight_price_based";
     enableDeliveryZones: boolean;
+    storeMode: "full" | "online_only" | "offline_only" | "catalog";
+    onlineCheckoutEnabled: boolean;
+    posEnabled: boolean;
+    phoneOrdersEnabled: boolean;
+    receiptPaperWidth: string;
+    receiptShowLogo: boolean;
+    receiptShowContact: boolean;
+    receiptFooterText: string | null;
     socialLinks: Record<string, string | undefined>;
     seo: Record<string, string | undefined>;
     status: "pending_review" | "active" | "suspended" | "inactive";

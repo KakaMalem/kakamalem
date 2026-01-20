@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export function StoreHeaderSkeleton() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
-      <div className="container mx-auto px-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Desktop Header Skeleton */}
         <div className="hidden h-16 items-center gap-6 md:flex">
           {/* Left: Logo / Store Name Skeleton */}
@@ -70,7 +70,7 @@ export function StoreHeaderSkeletonShimmer() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
-      <div className="container mx-auto px-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Desktop Header Skeleton */}
         <div className="hidden h-16 items-center gap-6 md:flex">
           {/* Left: Logo / Store Name Skeleton */}

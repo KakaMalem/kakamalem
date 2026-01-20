@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ export function GeneralSettingsForm({
   storeId,
   initialData,
 }: GeneralSettingsFormProps) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<
@@ -69,6 +71,20 @@ export function GeneralSettingsForm({
     contactPhone: initialData.contactPhone,
     currency: initialData.currency,
   });
+
+  // Track previous initialData to sync state when props change (e.g., after router.refresh())
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData);
+    setFormData({
+      name: initialData.name,
+      tagline: initialData.tagline,
+      description: initialData.description,
+      contactEmail: initialData.contactEmail,
+      contactPhone: initialData.contactPhone,
+      currency: initialData.currency,
+    });
+  }
 
   // Scroll to first error field when fieldErrors change
   useEffect(() => {
@@ -139,6 +155,8 @@ export function GeneralSettingsForm({
 
       setSuccess(true);
       toast.success("Settings saved successfully!");
+      // Refresh to update all components with fresh server data
+      router.refresh();
     });
   }
 

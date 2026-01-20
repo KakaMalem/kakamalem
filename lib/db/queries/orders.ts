@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import {
   orders,
   orderItems,
+  orderPayments,
   products,
   media,
   productImages,
@@ -182,6 +183,7 @@ export type OrderStatus =
 export type OrderFilters = {
   search?: string;
   status?: OrderStatus | "all";
+  channel?: SalesChannel | "all";
   dateFrom?: string;
   dateTo?: string;
 };
@@ -191,17 +193,20 @@ export type OrderSort = {
   direction: "asc" | "desc";
 };
 
+export type SalesChannel = "online" | "offline" | "phone";
+
 export type DashboardOrder = {
   id: string;
   orderNumber: string;
   customerSnapshot: CustomerSnapshot;
-  shippingAddress: Address;
+  shippingAddress: Address | null;
   subtotal: string;
   shippingTotal: string;
   taxTotal: string;
   discountTotal: string;
   total: string;
   status: OrderStatus;
+  salesChannel: SalesChannel;
   customerNotes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -245,6 +250,9 @@ export const getDashboardOrders = cache(
           : undefined,
         filters.status && filters.status !== "all"
           ? eq(orders.status, filters.status)
+          : undefined,
+        filters.channel && filters.channel !== "all"
+          ? eq(orders.salesChannel, filters.channel)
           : undefined,
         filters.dateFrom ? gte(orders.createdAt, filters.dateFrom) : undefined,
         filters.dateTo
@@ -299,6 +307,7 @@ export const getDashboardOrders = cache(
       discountTotal: order.discountTotal,
       total: order.total,
       status: order.status as OrderStatus,
+      salesChannel: order.salesChannel as SalesChannel,
       customerNotes: order.customerNotes,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
@@ -323,14 +332,23 @@ export const getDashboardOrders = cache(
   }
 );
 
+export type OrderPaymentRecord = {
+  id: string;
+  amount: string;
+  paymentMethod: string;
+  notes: string | null;
+  createdAt: string;
+};
+
 export type DashboardOrderDetail = {
   id: string;
   orderNumber: string;
+  receiptNumber: string | null;
   tenantId: string;
   userId: string | null;
   storeCustomerId: string | null;
   customerSnapshot: CustomerSnapshot;
-  shippingAddress: Address;
+  shippingAddress: Address | null;
   billingAddress: Address | null;
   subtotal: string;
   shippingTotal: string;
@@ -338,11 +356,19 @@ export type DashboardOrderDetail = {
   discountTotal: string;
   total: string;
   status: OrderStatus;
+  salesChannel: SalesChannel;
+  paymentMethod: string | null;
+  isPaid: boolean;
+  paidAt: string | null;
   customerNotes: string | null;
   staffNotes: string | null;
   createdAt: string;
   updatedAt: string;
   items: OrderItemWithImage[];
+  payments: OrderPaymentRecord[];
+  // Computed payment fields
+  totalPaid: string;
+  amountRemaining: string;
 };
 
 export type OrderItemWithImage = {
@@ -375,31 +401,46 @@ export const getDashboardOrderById = cache(
       return null;
     }
 
-    // Get order items with images
-    // Use leftJoin for products in case a product was deleted after the order
-    const items = await db
-      .select({
-        id: orderItems.id,
-        productId: orderItems.productId,
-        productName: orderItems.productName,
-        variantName: orderItems.variantName,
-        sku: orderItems.sku,
-        price: orderItems.price,
-        quantity: orderItems.quantity,
-        imageUrl: media.url,
-        imageAlt: media.altText,
-      })
-      .from(orderItems)
-      .leftJoin(products, eq(orderItems.productId, products.id))
-      .leftJoin(
-        productImages,
-        and(
-          eq(productImages.productId, orderItems.productId),
-          eq(productImages.position, 0)
+    // Get order items with images and payments in parallel
+    const [items, payments] = await Promise.all([
+      // Get order items with images
+      // Use leftJoin for products in case a product was deleted after the order
+      db
+        .select({
+          id: orderItems.id,
+          productId: orderItems.productId,
+          productName: orderItems.productName,
+          variantName: orderItems.variantName,
+          sku: orderItems.sku,
+          price: orderItems.price,
+          quantity: orderItems.quantity,
+          imageUrl: media.url,
+          imageAlt: media.altText,
+        })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .leftJoin(
+          productImages,
+          and(
+            eq(productImages.productId, orderItems.productId),
+            eq(productImages.position, 0)
+          )
         )
-      )
-      .leftJoin(media, eq(productImages.mediaId, media.id))
-      .where(eq(orderItems.orderId, orderId));
+        .leftJoin(media, eq(productImages.mediaId, media.id))
+        .where(eq(orderItems.orderId, orderId)),
+      // Get order payments
+      db
+        .select({
+          id: orderPayments.id,
+          amount: orderPayments.amount,
+          paymentMethod: orderPayments.paymentMethod,
+          notes: orderPayments.notes,
+          createdAt: orderPayments.createdAt,
+        })
+        .from(orderPayments)
+        .where(eq(orderPayments.orderId, orderId))
+        .orderBy(desc(orderPayments.createdAt)),
+    ]);
 
     const itemsWithImages: OrderItemWithImage[] = items.map((item) => ({
       id: item.id,
@@ -417,9 +458,26 @@ export const getDashboardOrderById = cache(
         : null,
     }));
 
+    // Calculate payment totals
+    const orderTotal = parseFloat(order.total);
+    const totalPaid = payments.reduce(
+      (sum, p) => sum + parseFloat(p.amount),
+      0
+    );
+    const amountRemaining = Math.max(0, orderTotal - totalPaid);
+
     return {
       ...order,
       items: itemsWithImages,
+      payments: payments.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        paymentMethod: p.paymentMethod,
+        notes: p.notes,
+        createdAt: p.createdAt,
+      })),
+      totalPaid: totalPaid.toFixed(2),
+      amountRemaining: amountRemaining.toFixed(2),
     } as DashboardOrderDetail;
   }
 );
@@ -433,21 +491,36 @@ export type OrderCounts = {
   delivered: number;
   cancelled: number;
   refunded: number;
+  // Channel counts
+  online: number;
+  offline: number;
+  phone: number;
 };
 
 /**
- * Get order counts by status for dashboard badges
+ * Get order counts by status and channel for dashboard badges
  */
 export const getOrderCounts = cache(
   async (tenantId: string): Promise<OrderCounts> => {
-    const counts = await db
-      .select({
-        status: orders.status,
-        count: drizzleCount(),
-      })
-      .from(orders)
-      .where(eq(orders.tenantId, tenantId))
-      .groupBy(orders.status);
+    // Get counts by status and channel in parallel
+    const [statusCounts, channelCounts] = await Promise.all([
+      db
+        .select({
+          status: orders.status,
+          count: drizzleCount(),
+        })
+        .from(orders)
+        .where(eq(orders.tenantId, tenantId))
+        .groupBy(orders.status),
+      db
+        .select({
+          channel: orders.salesChannel,
+          count: drizzleCount(),
+        })
+        .from(orders)
+        .where(eq(orders.tenantId, tenantId))
+        .groupBy(orders.salesChannel),
+    ]);
 
     // Initialize all counts to 0
     const result: OrderCounts = {
@@ -459,15 +532,29 @@ export const getOrderCounts = cache(
       delivered: 0,
       cancelled: 0,
       refunded: 0,
+      online: 0,
+      offline: 0,
+      phone: 0,
     };
 
-    // Fill in counts from query results
-    counts.forEach(({ status, count }) => {
-      const statusKey = status as keyof Omit<OrderCounts, "total">;
+    // Fill in status counts
+    statusCounts.forEach(({ status, count }) => {
+      const statusKey = status as keyof Omit<
+        OrderCounts,
+        "total" | "online" | "offline" | "phone"
+      >;
       if (statusKey in result) {
         result[statusKey] = count;
       }
       result.total += count;
+    });
+
+    // Fill in channel counts
+    channelCounts.forEach(({ channel, count }) => {
+      const channelKey = channel as "online" | "offline" | "phone";
+      if (channelKey in result) {
+        result[channelKey] = count;
+      }
     });
 
     return result;

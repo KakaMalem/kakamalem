@@ -155,13 +155,29 @@ export const tenantStatusEnum = pgEnum("tenant_status", [
   "inactive", // Disabled by owner or after commission grace period
 ]);
 
-// Billing Status Enum
+// Billing Status Enum (DEPRECATED - use subscriptionPlanEnum instead)
+// Kept for backward compatibility during migration
 export const billingStatusEnum = pgEnum("billing_status", [
   "free_tier", // In free trial period (up to 10,000 AFN commission accrued)
   "active", // Paid and in good standing
   "grace_period", // Free tier exceeded, has 30 days to pay
   "suspended", // Didn't pay, store suspended
   "forgiven", // Debt forgiven (store deactivated, can reactivate by paying)
+]);
+
+// Subscription Plan Enum (new subscription model)
+export const subscriptionPlanEnum = pgEnum("subscription_plan", [
+  "free", // Free tier with limitations (20 products, 1 store)
+  "pro", // Pro tier with all features (unlimited products, multiple stores)
+]);
+
+// Subscription Status Enum
+export const subscriptionStatusEnum = pgEnum("subscription_status", [
+  "trialing", // In free trial period
+  "active", // Paid and in good standing
+  "past_due", // Payment failed, grace period
+  "cancelled", // Subscription cancelled (access until period end)
+  "expired", // Trial or subscription expired, needs to upgrade
 ]);
 
 // Customer Group Type Enum (for tiered pricing)
@@ -201,6 +217,29 @@ export const deliveryModeEnum = pgEnum("delivery_mode", [
   "distance_based", // GPS-based zones with distance-tiered pricing (like DoorDash/Talabat)
   "service_level", // Service tiers: Standard, Express, Same-Day (like Amazon)
   "weight_price_based", // Traditional shipping: weight/price-based rates (like Shopify)
+]);
+
+// Sales Channel - where the order originated
+export const salesChannelEnum = pgEnum("sales_channel", [
+  "online", // Customer purchased through storefront
+  "offline", // In-person sale at physical location
+  "phone", // Phone order taken by staff
+]);
+
+// Payment Method - how the customer paid (for offline sales tracking)
+export const paymentMethodEnum = pgEnum("payment_method", [
+  "cash", // Cash payment
+  "card", // Credit/debit card
+  "mobile_money", // Mobile money (M-Paisa, etc.)
+  "bank_transfer", // Bank transfer
+]);
+
+// Store Mode - how the store operates
+export const storeModeEnum = pgEnum("store_mode", [
+  "full", // Online + Offline (omnichannel)
+  "online_only", // E-commerce only, no POS
+  "offline_only", // POS only, no public storefront checkout
+  "catalog", // Showcase only, no checkout anywhere (contact for orders)
 ]);
 
 // ============================================================================
@@ -509,10 +548,64 @@ export const tenants = pgTable(
       .default(false)
       .notNull(),
 
+    // Store Mode - determines how the store operates
+    storeMode: storeModeEnum("store_mode").default("full").notNull(),
+
+    // Channel toggles - fine-grained control over sales channels
+    // These override storeMode for specific channels
+    onlineCheckoutEnabled: boolean("online_checkout_enabled")
+      .default(true)
+      .notNull(),
+    posEnabled: boolean("pos_enabled").default(true).notNull(),
+    phoneOrdersEnabled: boolean("phone_orders_enabled").default(true).notNull(),
+
+    // Receipt Settings
+    receiptPaperWidth: varchar("receipt_paper_width", { length: 10 })
+      .default("80mm")
+      .notNull(),
+    receiptShowLogo: boolean("receipt_show_logo").default(true).notNull(),
+    receiptShowContact: boolean("receipt_show_contact").default(true).notNull(),
+    receiptFooterText: varchar("receipt_footer_text", { length: 200 }),
+
     // Status (replaces simple isActive)
     status: tenantStatusEnum("status").default("pending_review").notNull(),
 
-    // Billing & Commission
+    // ==========================================================================
+    // SUBSCRIPTION (New billing model)
+    // ==========================================================================
+    subscriptionPlan: subscriptionPlanEnum("subscription_plan")
+      .default("free")
+      .notNull(),
+    subscriptionStatus: subscriptionStatusEnum("subscription_status")
+      .default("trialing")
+      .notNull(),
+
+    // Trial tracking
+    trialStartedAt: timestamp("trial_started_at", {
+      withTimezone: true,
+      mode: "string",
+    }).defaultNow(),
+    trialEndsAt: timestamp("trial_ends_at", {
+      withTimezone: true,
+      mode: "string",
+    }), // Set to trialStartedAt + trial_duration_days from platform_settings
+
+    // Subscription period (for paid subscriptions)
+    subscriptionStartedAt: timestamp("subscription_started_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    subscriptionEndsAt: timestamp("subscription_ends_at", {
+      withTimezone: true,
+      mode: "string",
+    }), // Current billing period end
+
+    // Admin notes for manual billing decisions
+    subscriptionNotes: text("subscription_notes"),
+
+    // ==========================================================================
+    // LEGACY: Billing & Commission (DEPRECATED - kept for migration)
+    // ==========================================================================
     billingStatus: billingStatusEnum("billing_status")
       .default("free_tier")
       .notNull(),
@@ -1603,8 +1696,8 @@ export const orders = pgTable(
       .$type<CustomerSnapshot>()
       .notNull(),
 
-    // Structured addresses
-    shippingAddress: jsonb("shipping_address").$type<Address>().notNull(),
+    // Structured addresses (shippingAddress nullable for offline sales)
+    shippingAddress: jsonb("shipping_address").$type<Address>(),
     billingAddress: jsonb("billing_address").$type<Address>(),
 
     // Financial breakdown
@@ -1622,6 +1715,17 @@ export const orders = pgTable(
 
     // Status
     status: orderStatusEnum("status").default("pending").notNull(),
+
+    // Sales channel (online, offline, phone)
+    salesChannel: salesChannelEnum("sales_channel").default("online").notNull(),
+
+    // Payment tracking (primarily for offline sales)
+    paymentMethod: paymentMethodEnum("payment_method"),
+    isPaid: boolean("is_paid").default(false).notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
+
+    // Receipt number for offline sales (e.g., "RCP-2025-000001")
+    receiptNumber: varchar("receipt_number", { length: 30 }),
 
     // Notes
     customerNotes: text("customer_notes"),
@@ -1648,6 +1752,8 @@ export const orders = pgTable(
     index("orders_user_id_idx").on(table.userId),
     // Store customer orders
     index("orders_store_customer_id_idx").on(table.storeCustomerId),
+    // Sales channel filtering (online/offline/phone)
+    index("orders_tenant_channel_idx").on(table.tenantId, table.salesChannel),
   ]
 );
 
@@ -1680,6 +1786,36 @@ export const orderItems = pgTable(
   (table) => [
     index("order_items_order_id_idx").on(table.orderId),
     check("order_items_quantity_check", sql`quantity > 0`),
+  ]
+);
+
+// ============================================================================
+// ORDER PAYMENTS (Track partial payments for credit/unpaid orders)
+// ============================================================================
+export const orderPayments = pgTable(
+  "order_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    // Payment amount
+    amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+    // How the payment was made
+    paymentMethod: paymentMethodEnum("payment_method").notNull(),
+    // Optional notes (e.g., "Partial payment", "Final payment")
+    notes: text("notes"),
+    // Who recorded this payment (staff member)
+    recordedBy: text("recorded_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("order_payments_order_id_idx").on(table.orderId),
+    check("order_payments_amount_check", sql`amount > 0`),
   ]
 );
 
@@ -3952,6 +4088,93 @@ export const deliveryPayoutItems = pgTable(
 );
 
 // ============================================================================
+// PLATFORM SETTINGS (Admin-configurable global settings)
+// ============================================================================
+// Single-row table for platform-wide configuration.
+// Managed exclusively through /admin
+export const platformSettings = pgTable("platform_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // ==========================================================================
+  // SUBSCRIPTION PRICING
+  // ==========================================================================
+  // Pro plan monthly price in AFN (changeable from admin panel)
+  proPlanPriceAfn: decimal("pro_plan_price_afn", { precision: 10, scale: 2 })
+    .default("1100")
+    .notNull(),
+
+  // Free tier limits
+  freeProductLimit: integer("free_product_limit").default(20).notNull(),
+  freeStoreLimit: integer("free_store_limit").default(1).notNull(),
+
+  // Trial settings
+  trialDurationDays: integer("trial_duration_days").default(7).notNull(),
+
+  // ==========================================================================
+  // PLATFORM FEES (for future use)
+  // ==========================================================================
+  // Transaction fee percentage (0 = disabled)
+  transactionFeePercent: decimal("transaction_fee_percent", {
+    precision: 5,
+    scale: 2,
+  })
+    .default("0")
+    .notNull(),
+
+  // ==========================================================================
+  // NOTIFICATIONS
+  // ==========================================================================
+  // Days before trial ends to show warning
+  trialWarningDays: integer("trial_warning_days").default(3).notNull(),
+
+  // ==========================================================================
+  // METADATA
+  // ==========================================================================
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+  updatedBy: text("updated_by").references(() => user.id, {
+    onDelete: "set null",
+  }),
+});
+
+// ============================================================================
+// ADMIN AUDIT LOG (Track admin actions)
+// ============================================================================
+// Records all admin actions for accountability
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    adminId: text("admin_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // What happened
+    action: varchar("action", { length: 100 }).notNull(), // e.g., "store.suspend", "store.activate", "settings.update"
+    targetType: varchar("target_type", { length: 50 }), // e.g., "tenant", "user", "settings"
+    targetId: text("target_id"), // ID of affected resource
+
+    // Details
+    details: jsonb("details"), // Additional context (old/new values, reason, etc.)
+
+    // Request metadata
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: text("user_agent"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("admin_audit_log_admin_id_idx").on(table.adminId),
+    index("admin_audit_log_action_idx").on(table.action),
+    index("admin_audit_log_target_idx").on(table.targetType, table.targetId),
+    index("admin_audit_log_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -3991,6 +4214,25 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+// Admin Audit Log Relations
+export const adminAuditLogRelations = relations(adminAuditLog, ({ one }) => ({
+  admin: one(user, {
+    fields: [adminAuditLog.adminId],
+    references: [user.id],
+  }),
+}));
+
+// Platform Settings Relations
+export const platformSettingsRelations = relations(
+  platformSettings,
+  ({ one }) => ({
+    updater: one(user, {
+      fields: [platformSettings.updatedBy],
+      references: [user.id],
+    }),
+  })
+);
 
 export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
   user: one(user, {
@@ -4461,6 +4703,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     references: [storeCustomers.id],
   }),
   items: many(orderItems),
+  payments: many(orderPayments),
   shipments: many(shipments),
   reviews: many(reviews),
   inventoryMovements: many(inventoryMovements),
@@ -4469,6 +4712,17 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   affiliateClicks: many(affiliateClicks),
   affiliateConversions: many(affiliateConversions),
   conversionEvents: many(analyticsConversionEvents),
+}));
+
+export const orderPaymentsRelations = relations(orderPayments, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderPayments.orderId],
+    references: [orders.id],
+  }),
+  recordedByUser: one(user, {
+    fields: [orderPayments.recordedBy],
+    references: [user.id],
+  }),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
@@ -5269,6 +5523,9 @@ export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
 export type TenantStatus = (typeof tenantStatusEnum.enumValues)[number];
 export type BillingStatus = (typeof billingStatusEnum.enumValues)[number];
+export type SubscriptionPlan = (typeof subscriptionPlanEnum.enumValues)[number];
+export type SubscriptionStatus =
+  (typeof subscriptionStatusEnum.enumValues)[number];
 
 // Tenant member types
 export type TenantMember = typeof tenantMembers.$inferSelect;

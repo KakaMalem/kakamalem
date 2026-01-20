@@ -9,7 +9,9 @@ import {
   brandingSettingsSchema,
   socialLinksSchema,
   seoSettingsSchema,
+  storeModeSettingsSchema,
   type CreateStoreInput,
+  type StoreModeSettingsInput,
 } from "@/lib/validations/stores";
 import {
   checkSlugAvailable,
@@ -829,6 +831,90 @@ export async function updateDeliveryZonesEnabled(
     return {
       error: {
         message: "Failed to update delivery zone settings. Please try again.",
+      },
+    };
+  }
+}
+
+/**
+ * Update store mode settings
+ * Controls how the store operates: full commerce, online only, offline only, or catalog
+ */
+export async function updateStoreModeSettings(
+  storeId: string,
+  storeSlug: string,
+  settings: StoreModeSettingsInput
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  try {
+    storeModeSettingsSchema.parse(settings);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed",
+          field: firstError?.path[0] as string,
+        },
+      };
+    }
+  }
+
+  // Apply store mode presets with channel overrides
+  let onlineCheckoutEnabled = settings.onlineCheckoutEnabled;
+  let posEnabled = settings.posEnabled;
+  let phoneOrdersEnabled = settings.phoneOrdersEnabled;
+
+  // Store mode determines the defaults, but toggles can override
+  switch (settings.storeMode) {
+    case "online_only":
+      posEnabled = false;
+      phoneOrdersEnabled = false;
+      break;
+    case "offline_only":
+      onlineCheckoutEnabled = false;
+      break;
+    case "catalog":
+      onlineCheckoutEnabled = false;
+      posEnabled = false;
+      phoneOrdersEnabled = false;
+      break;
+    // "full" mode respects all toggles
+  }
+
+  try {
+    await updateTenant(storeId, {
+      storeMode: settings.storeMode,
+      onlineCheckoutEnabled,
+      posEnabled,
+      phoneOrdersEnabled,
+      // Receipt settings
+      receiptPaperWidth: settings.receiptPaperWidth,
+      receiptShowLogo: settings.receiptShowLogo,
+      receiptShowContact: settings.receiptShowContact,
+      receiptFooterText: settings.receiptFooterText || null,
+    });
+
+    // Revalidate dashboard and store pages
+    revalidatePath(`/dashboard/${storeSlug}`, "layout");
+    revalidatePath(`/store/${storeSlug}`, "layout");
+    return { success: true };
+  } catch {
+    return {
+      error: {
+        message: "Failed to update store mode. Please try again.",
       },
     };
   }

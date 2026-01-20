@@ -7,8 +7,8 @@ import { toast } from "sonner";
 
 import { ProductCard } from "./product-card";
 import { ProductCardSkeleton } from "./product-card-skeleton";
-import { addToCartAction } from "@/lib/cart/actions";
-import { cartActions } from "@/lib/stores/use-cart-store";
+import { useCart } from "@/lib/hooks/use-cart";
+import type { CartItemProduct } from "@/lib/types/cart";
 import {
   fetchMoreProducts,
   type FetchProductsResult,
@@ -40,6 +40,8 @@ interface InfiniteScrollProductsProps {
   currency: string;
   filters?: ProductFilters;
   sort?: ProductSort;
+  /** When true, hides add-to-cart buttons (catalog/showcase mode) */
+  catalogMode?: boolean;
 }
 
 export function InfiniteScrollProducts({
@@ -50,6 +52,7 @@ export function InfiniteScrollProducts({
   currency,
   filters,
   sort,
+  catalogMode = false,
 }: InfiniteScrollProductsProps) {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -58,8 +61,8 @@ export function InfiniteScrollProducts({
     initialPagination.page < initialPagination.totalPages
   );
   const [isLoading, setIsLoading] = useState(false);
-  const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { addToCart, isAddingProduct } = useCart();
 
   // Reset when filters/sort change (props update from server)
   useEffect(() => {
@@ -125,7 +128,7 @@ export function InfiniteScrollProducts({
     };
   }, [hasMore, isLoading, loadMore]);
 
-  const handleAddToCart = async (productId: string) => {
+  const handleAddToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
 
@@ -135,32 +138,22 @@ export function InfiniteScrollProducts({
       return;
     }
 
-    setAddingToCart(productId);
-    try {
-      const result = await addToCartAction(
-        tenantId,
-        storeSlug,
-        productId,
-        1,
-        null
-      );
+    // Build optimistic product data for immediate UI update
+    const optimisticProduct: CartItemProduct = {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: product.price,
+      stock: product.stock,
+      trackInventory: product.trackInventory,
+      allowBackorder: false,
+      status: product.status,
+      hasVariants: product.hasVariants,
+      image: product.image,
+      priceTiers: [],
+    };
 
-      if (result.success) {
-        cartActions.setCart(result.cart, storeSlug);
-        cartActions.setIsOpen(true);
-      } else {
-        toast.error("Couldn't add to cart", {
-          description: result.error,
-        });
-      }
-    } catch (error) {
-      toast.error("Couldn't add to cart", {
-        description:
-          error instanceof Error ? error.message : "Please try again",
-      });
-    } finally {
-      setAddingToCart(null);
-    }
+    addToCart(productId, 1, null, optimisticProduct, null);
   };
 
   if (products.length === 0) {
@@ -189,8 +182,9 @@ export function InfiniteScrollProducts({
             product={product}
             storeSlug={storeSlug}
             currency={currency}
-            onAddToCart={handleAddToCart}
-            isAddingToCart={addingToCart === product.id}
+            onAddToCart={catalogMode ? undefined : handleAddToCart}
+            isAddingToCart={isAddingProduct(product.id)}
+            catalogMode={catalogMode}
           />
         ))}
       </div>

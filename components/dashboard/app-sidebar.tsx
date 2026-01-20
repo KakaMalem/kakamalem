@@ -10,13 +10,9 @@ import {
   Image,
   ShoppingCart,
   BarChart3,
-  Settings,
   Store,
-  CreditCard,
   Layers,
   Warehouse,
-  Tag,
-  Users,
 } from "lucide-react";
 
 import {
@@ -36,6 +32,7 @@ import {
 } from "@/components/ui/sidebar";
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
+import type { SubscriptionOverview } from "@/lib/db/queries/billing";
 
 // NavLink component that closes mobile sidebar on navigation
 // Uses forwardRef to properly work with SidebarMenuButton's asChild prop
@@ -69,6 +66,8 @@ interface AppSidebarProps {
   stores?: StoreInfo[];
   currentStore?: StoreInfo | null;
   storeSlug?: string;
+  posEnabled?: boolean;
+  subscription?: SubscriptionOverview | null;
 }
 
 // Reserved paths that are not store slugs
@@ -88,6 +87,7 @@ export function AppSidebar({
   stores = [],
   currentStore,
   storeSlug: initialStoreSlug,
+  subscription,
 }: AppSidebarProps) {
   const pathname = usePathname();
 
@@ -147,16 +147,6 @@ export function AppSidebar({
       href: `${baseUrl}/orders`,
       icon: ShoppingCart,
     },
-    {
-      title: "Customers",
-      href: `${baseUrl}/customers/groups`,
-      icon: Users,
-    },
-    {
-      title: "Sales",
-      href: `${baseUrl}/sales`,
-      icon: Tag,
-    },
   ];
 
   const insightsNavItems = [
@@ -165,11 +155,6 @@ export function AppSidebar({
       href: `${baseUrl}/analytics`,
       icon: BarChart3,
     },
-    {
-      title: "Billing",
-      href: `${baseUrl}/billing`,
-      icon: CreditCard,
-    },
   ];
 
   const settingsNavItems = [
@@ -177,11 +162,6 @@ export function AppSidebar({
       title: "Store Settings",
       href: `${baseUrl}/settings`,
       icon: Store,
-    },
-    {
-      title: "Account",
-      href: "/dashboard/account",
-      icon: Settings,
     },
   ];
 
@@ -284,7 +264,7 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter>
-        <UserNav user={user} />
+        <UserNav user={user} subscription={subscription} />
       </SidebarFooter>
 
       <SidebarRail />

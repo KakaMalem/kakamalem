@@ -12,13 +12,7 @@ import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { ActionableItems } from "@/components/dashboard/actionable-items";
 import { RecentOrders } from "@/components/dashboard/recent-orders";
 import { TopProducts } from "@/components/dashboard/top-products";
-import {
-  ShoppingCart,
-  Package,
-  DollarSign,
-  CreditCard,
-  TrendingUp,
-} from "lucide-react";
+import { ShoppingCart, Package, DollarSign, TrendingUp } from "lucide-react";
 
 interface StorePageProps {
   params: Promise<{ slug: string }>;
@@ -128,26 +122,6 @@ export default async function StoreDashboardPage({ params }: StorePageProps) {
             currency={store.currency}
             storeSlug={slug}
           />
-
-          {/* Billing Status (SaaS Layer) */}
-          <div className="rounded-lg border bg-linear-to-br from-primary/5 to-primary/10 p-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <CreditCard className="size-4" />
-              Billing Status
-            </div>
-            <div className="mt-2">
-              <p className="text-2xl font-bold">Free Tier</p>
-              <p className="text-sm text-muted-foreground">
-                0 / 10,000 {store.currency} threshold
-              </p>
-              <div className="mt-2 h-2 rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary"
-                  style={{ width: "0%" }}
-                />
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

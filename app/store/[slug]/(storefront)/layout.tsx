@@ -15,6 +15,7 @@ import { StoreFooter } from "@/components/store/store-footer";
 import { CartProvider } from "@/components/store/cart-provider";
 import { CartDrawer } from "@/components/store/cart-drawer";
 import { Button } from "@/components/ui/button";
+import { QueryProvider } from "@/lib/providers/query-provider";
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -129,57 +130,60 @@ export default async function StoreLayout({
     0
   );
 
+  // Check if store is in catalog mode (no cart functionality)
+  const isCatalogMode = store.storeMode === "catalog";
+
   return (
-    <CartProvider initialCart={cart} tenantId={store.id} storeSlug={slug}>
-      <div className="flex min-h-screen flex-col bg-background">
-        <StoreHeaderWrapper
-          store={store}
-          cartItemCount={cartItemCount}
-          user={
-            user
-              ? {
-                  name: user.name,
-                  email: user.email,
-                  avatarUrl: user.image || undefined,
-                }
-              : null
-          }
-          userContext={
-            userContext
-              ? {
-                  isOwner: userContext.isOwner,
-                  isStaff: userContext.isStaff,
-                  isMember: userContext.isMember,
-                  role: userContext.role,
-                }
-              : null
-          }
-        />
-        <StoreCategoriesBar
-          categories={categories.map((c) => ({
-            id: c.id,
-            name: c.name,
-            slug: c.slug,
-            imageUrl: c.imageUrl,
-          }))}
-          storeSlug={slug}
-        />
-        <main className="flex-1">{children}</main>
-        <StoreFooter
-          store={store}
-          categories={categories.map((c) => ({
-            id: c.id,
-            name: c.name,
-            slug: c.slug,
-          }))}
-        />
-        {/* Cart Drawer - can be opened from anywhere via Zustand store */}
-        <CartDrawer
-          tenantId={store.id}
-          storeSlug={slug}
-          currency={store.currency}
-        />
-      </div>
-    </CartProvider>
+    <QueryProvider>
+      <CartProvider initialCart={cart} storeSlug={slug}>
+        <div className="flex min-h-screen flex-col bg-background">
+          <StoreHeaderWrapper
+            store={store}
+            cartItemCount={cartItemCount}
+            user={
+              user
+                ? {
+                    name: user.name,
+                    email: user.email,
+                    avatarUrl: user.image || undefined,
+                  }
+                : null
+            }
+            userContext={
+              userContext
+                ? {
+                    isOwner: userContext.isOwner,
+                    isStaff: userContext.isStaff,
+                    isMember: userContext.isMember,
+                    role: userContext.role,
+                  }
+                : null
+            }
+          />
+          <StoreCategoriesBar
+            categories={categories.map((c) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+              imageUrl: c.imageUrl,
+            }))}
+            storeSlug={slug}
+          />
+          <main className="flex-1">{children}</main>
+          <StoreFooter
+            store={store}
+            categories={categories.map((c) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+            }))}
+          />
+          {/* Cart Drawer - Hidden in catalog mode */}
+          {!isCatalogMode && (
+            <CartDrawer storeSlug={slug} currency={store.currency} />
+          )}
+        </div>
+      </CartProvider>
+    </QueryProvider>
   );
 }

@@ -33,6 +33,8 @@ interface ProductCardProps {
   onToggleWishlist?: (productId: string) => void;
   isInWishlist?: boolean;
   isAddingToCart?: boolean;
+  /** When true, hides add-to-cart button (catalog/showcase mode) */
+  catalogMode?: boolean;
 }
 
 export function ProductCard({
@@ -44,6 +46,7 @@ export function ProductCard({
   onToggleWishlist,
   isInWishlist = false,
   isAddingToCart = false,
+  catalogMode = false,
 }: ProductCardProps) {
   const isOutOfStock = product.trackInventory && product.stock <= 0;
   const isLowStock =
@@ -204,30 +207,39 @@ export function ProductCard({
         <div className="flex-1 min-h-1" />
 
         {/* Quick Add Button - Anchored at bottom */}
-        <button
-          className={cn(
-            "w-full h-8 mt-2 flex items-center justify-center gap-1.5 text-xs font-medium rounded-lg transition-all",
-            isOutOfStock || isAddingToCart
-              ? "bg-muted text-muted-foreground cursor-not-allowed"
-              : "bg-primary text-primary-foreground active:scale-[0.98]"
-          )}
-          onClick={handleAddToCart}
-          disabled={isOutOfStock || isAddingToCart}
-          aria-label={isOutOfStock ? "Out of stock" : "Add to cart"}
-        >
-          {!isOutOfStock && (
-            <Plus
-              className={cn("w-3.5 h-3.5", isAddingToCart && "animate-spin")}
-            />
-          )}
-          <span>
-            {isOutOfStock
-              ? "Out of Stock"
-              : isAddingToCart
-                ? "Adding..."
-                : "Add to Cart"}
-          </span>
-        </button>
+        {catalogMode ? (
+          <Link
+            href={`/store/${storeSlug}/product/${product.slug}`}
+            className="w-full h-8 mt-2 flex items-center justify-center gap-1.5 text-xs font-medium rounded-lg transition-all bg-primary text-primary-foreground active:scale-[0.98]"
+          >
+            <span>View Details</span>
+          </Link>
+        ) : (
+          <button
+            className={cn(
+              "w-full h-8 mt-2 flex items-center justify-center gap-1.5 text-xs font-medium rounded-lg transition-all",
+              isOutOfStock || isAddingToCart
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground active:scale-[0.98]"
+            )}
+            onClick={handleAddToCart}
+            disabled={isOutOfStock || isAddingToCart}
+            aria-label={isOutOfStock ? "Out of stock" : "Add to cart"}
+          >
+            {!isOutOfStock && (
+              <Plus
+                className={cn("w-3.5 h-3.5", isAddingToCart && "animate-spin")}
+              />
+            )}
+            <span>
+              {isOutOfStock
+                ? "Out of Stock"
+                : isAddingToCart
+                  ? "Adding..."
+                  : "Add to Cart"}
+            </span>
+          </button>
+        )}
       </div>
     </Card>
   );

@@ -27,7 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -1285,12 +1285,12 @@ export function ProductForm({
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea
+                <RichTextEditor
                   id="description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={setDescription}
                   placeholder="Describe your product..."
-                  rows={5}
+                  minHeight="120px"
                 />
               </div>
             </CardContent>

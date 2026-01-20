@@ -182,6 +182,67 @@ export const seoSettingsSchema = z.object({
 
 export type SeoSettingsInput = z.infer<typeof seoSettingsSchema>;
 
+// Store mode options
+export const storeModeOptions = [
+  "full",
+  "online_only",
+  "offline_only",
+  "catalog",
+] as const;
+
+export type StoreMode = (typeof storeModeOptions)[number];
+
+// Store mode labels for UI
+export const storeModeLabels: Record<StoreMode, string> = {
+  full: "Full Commerce",
+  online_only: "Online Store Only",
+  offline_only: "Point of Sale Only",
+  catalog: "Catalog / Showcase",
+};
+
+// Store mode descriptions for UI
+export const storeModeDescriptions: Record<StoreMode, string> = {
+  full: "Accept orders from your website and record in-person sales. Best for omnichannel businesses.",
+  online_only:
+    "Customers can only purchase through your website. Offline sales features are hidden.",
+  offline_only:
+    "For physical stores only - no public website checkout. Perfect for retail shops.",
+  catalog:
+    "Display products without checkout. Perfect for real estate, portfolios, or businesses that take orders via WhatsApp/phone.",
+};
+
+// Receipt paper width options
+export const receiptPaperWidthOptions = ["80mm", "58mm"] as const;
+export type ReceiptPaperWidth = (typeof receiptPaperWidthOptions)[number];
+
+// Receipt paper width labels for UI
+export const receiptPaperWidthLabels: Record<ReceiptPaperWidth, string> = {
+  "80mm": "80mm Standard",
+  "58mm": "58mm Compact",
+};
+
+// Receipt paper width descriptions for UI
+export const receiptPaperWidthDescriptions: Record<ReceiptPaperWidth, string> =
+  {
+    "80mm": "Standard thermal printer paper. Best for detailed receipts.",
+    "58mm": "Compact mobile printer paper. Good for quick transactions.",
+  };
+
+// Store mode settings validation schema
+export const storeModeSettingsSchema = z.object({
+  storeMode: z.enum(storeModeOptions),
+  onlineCheckoutEnabled: z.boolean(),
+  posEnabled: z.boolean(),
+  phoneOrdersEnabled: z.boolean(),
+  // Receipt settings
+  receiptPaperWidth: z.enum(receiptPaperWidthOptions),
+  receiptShowLogo: z.boolean(),
+  receiptShowContact: z.boolean(),
+  receiptFooterText: z.string().max(200).optional(),
+});
+
+export type StoreModeSettingsInput = z.infer<typeof storeModeSettingsSchema>;
+
 /**
  * Generate ASCII-only slug from store name
  * Store slugs must be ASCII for clean URLs (kakamalem.com/store/[slug])

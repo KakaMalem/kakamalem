@@ -75,9 +75,12 @@ export default async function CategoryPage({
     },
   });
 
+  // Check if store is in catalog mode (no cart functionality)
+  const isCatalogMode = store.storeMode === "catalog";
+
   return (
     <div className="flex flex-col">
-      <div className="container mx-auto px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
           <Link href={`/store/${slug}`} className="hover:text-foreground">
@@ -100,6 +103,7 @@ export default async function CategoryPage({
             isActive: true,
           }}
           currentSort={sort || "createdAt-desc"}
+          catalogMode={isCatalogMode}
         />
       </div>
     </div>

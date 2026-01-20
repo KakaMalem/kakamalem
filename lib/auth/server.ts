@@ -194,6 +194,46 @@ export async function hasStoreAccess(
 }
 
 /**
+ * Check if the current user is a platform admin
+ * (platform_admin or super_admin role)
+ */
+export const isPlatformAdmin = cache(async () => {
+  const profile = await getUserProfile();
+  if (!profile) return false;
+  return (
+    profile.platformRole === "platform_admin" ||
+    profile.platformRole === "super_admin"
+  );
+});
+
+/**
+ * Check if the current user is a super admin
+ */
+export const isSuperAdmin = cache(async () => {
+  const profile = await getUserProfile();
+  if (!profile) return false;
+  return profile.platformRole === "super_admin";
+});
+
+/**
+ * Require platform admin access - throws if not authorized
+ * Use in admin server actions/routes
+ */
+export async function requirePlatformAdmin() {
+  const user = await getUser();
+  if (!user) {
+    throw new Error("Unauthorized - not authenticated");
+  }
+
+  const isAdmin = await isPlatformAdmin();
+  if (!isAdmin) {
+    throw new Error("Unauthorized - admin access required");
+  }
+
+  return user;
+}
+
+/**
  * Create user profile after sign up
  * Call this in a webhook or after successful registration
  */

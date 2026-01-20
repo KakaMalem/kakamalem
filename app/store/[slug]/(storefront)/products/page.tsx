@@ -36,8 +36,11 @@ export default async function ProductsPage({
     },
   });
 
+  // Check if store is in catalog mode (no cart functionality)
+  const isCatalogMode = store.storeMode === "catalog";
+
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold">All Products</h1>
@@ -59,6 +62,7 @@ export default async function ProductsPage({
           search: search || undefined,
         }}
         currentSort={sort || "displayOrder-asc"}
+        catalogMode={isCatalogMode}
       />
     </div>
   );

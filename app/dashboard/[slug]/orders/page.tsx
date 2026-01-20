@@ -6,6 +6,7 @@ import {
   type OrderFilters,
   type OrderSort,
   type OrderStatus,
+  type SalesChannel,
 } from "@/lib/db/queries/orders";
 import { OrdersPageClient } from "@/components/dashboard/orders/orders-page-client";
 
@@ -16,6 +17,7 @@ interface OrdersPageProps {
     limit?: string;
     search?: string;
     status?: string;
+    channel?: string;
     dateFrom?: string;
     dateTo?: string;
     sort?: string;
@@ -43,6 +45,7 @@ export default async function OrdersPage({
   const filters: OrderFilters = {
     search: search.search,
     status: search.status as OrderStatus | "all" | undefined,
+    channel: search.channel as SalesChannel | "all" | undefined,
     dateFrom: search.dateFrom,
     dateTo: search.dateTo,
   };
@@ -61,6 +64,9 @@ export default async function OrdersPage({
     getOrderCounts(store.id),
   ]);
 
+  // Check if store supports offline sales (not online_only mode)
+  const showRecordSale = store.storeMode !== "online_only";
+
   return (
     <OrdersPageClient
       storeSlug={slug}
@@ -71,6 +77,7 @@ export default async function OrdersPage({
       searchParams={search}
       currentLimit={limit}
       orderCounts={orderCounts}
+      showRecordSale={showRecordSale}
     />
   );
 }

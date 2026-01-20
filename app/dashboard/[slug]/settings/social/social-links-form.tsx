@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ export function SocialLinksForm({
   storeId,
   initialData,
 }: SocialLinksFormProps) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<
@@ -54,6 +56,11 @@ export function SocialLinksForm({
   const [isPending, startTransition] = useTransition();
 
   const [formData, setFormData] = useState(initialData);
+
+  // Sync state when props change (e.g., after router.refresh())
+  useEffect(() => {
+    setFormData(initialData);
+  }, [initialData]);
 
   // Scroll to first error field when fieldErrors change
   useEffect(() => {
@@ -122,6 +129,8 @@ export function SocialLinksForm({
 
       setSuccess(true);
       toast.success("Social links saved successfully!");
+      // Refresh to update all components with fresh server data
+      router.refresh();
     });
   }
 

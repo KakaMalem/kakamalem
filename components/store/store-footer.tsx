@@ -107,7 +107,7 @@ export function StoreFooter({ store, categories }: StoreFooterProps) {
   return (
     <TooltipProvider>
       <footer className="border-t bg-muted/30">
-        <div className="container mx-auto px-4 py-12">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {/* Store Info */}
             <div className="space-y-4 sm:col-span-2 lg:col-span-1">

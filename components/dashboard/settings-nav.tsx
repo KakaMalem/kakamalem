@@ -57,6 +57,11 @@ export function SettingsNav() {
       description: "Delivery zones, rates, and shipping options",
     },
     {
+      title: "Store Mode",
+      href: `${baseUrl}/store-mode`,
+      description: "Configure how your store operates",
+    },
+    {
       title: "Danger Zone",
       href: `${baseUrl}/danger`,
       description: "Delete or transfer store",
@@ -114,6 +119,7 @@ export function SettingsNavTabs() {
     { title: "Domains", href: `${baseUrl}/domains` },
     { title: "Team", href: `${baseUrl}/team` },
     { title: "Delivery & Shipping", href: `${baseUrl}/delivery` },
+    { title: "Store Mode", href: `${baseUrl}/store-mode` },
     { title: "Danger Zone", href: `${baseUrl}/danger` },
   ];
 

@@ -17,9 +17,16 @@ import {
 interface CartSummaryProps {
   storeSlug: string;
   currency: string;
+  checkoutEnabled?: boolean;
+  contactPhone?: string | null;
 }
 
-export function CartSummary({ storeSlug, currency }: CartSummaryProps) {
+export function CartSummary({
+  storeSlug,
+  currency,
+  checkoutEnabled = true,
+  contactPhone,
+}: CartSummaryProps) {
   const subtotal = useCartSubtotal();
   const itemCount = useCartItemCount();
   const items = useCartItems();
@@ -86,23 +93,44 @@ export function CartSummary({ storeSlug, currency }: CartSummaryProps) {
         </div>
       </div>
 
-      <Button
-        size="lg"
-        className="mt-6 w-full"
-        asChild
-        disabled={itemCount === 0}
-      >
-        <Link href={`/store/${storeSlug}/checkout`}>
-          Proceed to Checkout
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Link>
-      </Button>
+      {checkoutEnabled ? (
+        <>
+          <Button
+            size="lg"
+            className="mt-6 w-full"
+            asChild
+            disabled={itemCount === 0}
+          >
+            <Link href={`/store/${storeSlug}/checkout`}>
+              Proceed to Checkout
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
 
-      {/* Trust Badges */}
-      <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <ShieldCheck className="h-4 w-4" />
-        <span>Secure checkout</span>
-      </div>
+          {/* Trust Badges */}
+          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4" />
+            <span>Secure checkout</span>
+          </div>
+        </>
+      ) : (
+        <div className="mt-6 space-y-3">
+          <div className="rounded-lg bg-muted p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Online checkout is not available. Please contact the store to
+              complete your purchase.
+            </p>
+            {contactPhone && (
+              <a
+                href={`tel:${contactPhone}`}
+                className="mt-2 inline-block text-primary hover:underline"
+              >
+                Call: {contactPhone}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

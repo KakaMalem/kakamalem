@@ -2,8 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { PackageSearch } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
 
 import { ProductCard } from "./product-card";
 import { Button } from "@/components/ui/button";
@@ -14,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { addToCartAction } from "@/lib/cart/actions";
-import { cartActions } from "@/lib/stores/use-cart-store";
+import { useCart } from "@/lib/hooks/use-cart";
+import type { CartItemProduct } from "@/lib/types/cart";
 
 interface ProductGridProps {
   products: {
@@ -41,6 +39,8 @@ interface ProductGridProps {
   currency: string;
   basePath: string;
   currentSort?: string;
+  /** When true, hides add-to-cart buttons (catalog/showcase mode) */
+  catalogMode?: boolean;
 }
 
 const SORT_OPTIONS = [
@@ -56,14 +56,14 @@ export function ProductGrid({
   products,
   pagination,
   storeSlug,
-  tenantId,
   currency,
   basePath,
   currentSort = "createdAt-desc",
+  catalogMode = false,
 }: ProductGridProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [addingToCart, setAddingToCart] = useState<string | null>(null);
+  const { addToCart, isAddingProduct } = useCart();
 
   const handleSortChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -78,7 +78,7 @@ export function ProductGrid({
     router.push(`${basePath}?${params.toString()}`);
   };
 
-  const handleAddToCart = async (productId: string) => {
+  const handleAddToCart = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
 
@@ -88,37 +88,22 @@ export function ProductGrid({
       return;
     }
 
-    setAddingToCart(productId);
+    // Build optimistic product data for immediate UI update
+    const optimisticProduct: CartItemProduct = {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: product.price,
+      stock: product.stock,
+      trackInventory: product.trackInventory,
+      allowBackorder: false,
+      status: product.status,
+      hasVariants: product.hasVariants,
+      image: product.image,
+      priceTiers: [],
+    };
 
-    try {
-      const result = await addToCartAction(
-        tenantId,
-        storeSlug,
-        productId,
-        1,
-        null
-      );
-
-      if (result.success) {
-        // Update local cart state
-        cartActions.setCart(result.cart, storeSlug);
-        toast.success("Added to cart", {
-          description: product.name,
-        });
-        // Open cart drawer
-        cartActions.setIsOpen(true);
-      } else {
-        toast.error("Failed to add to cart", {
-          description: result.error,
-        });
-      }
-    } catch (error) {
-      toast.error("Failed to add to cart", {
-        description: error instanceof Error ? error.message : "Unknown error",
-      });
-    } finally {
-      setAddingToCart(null);
-    }
+    addToCart(productId, 1, null, optimisticProduct, null);
   };
 
   if (products.length === 0) {
@@ -166,8 +151,9 @@ export function ProductGrid({
             product={product}
             storeSlug={storeSlug}
             currency={currency}
-            onAddToCart={handleAddToCart}
-            isAddingToCart={addingToCart === product.id}
+            onAddToCart={catalogMode ? undefined : handleAddToCart}
+            isAddingToCart={isAddingProduct(product.id)}
+            catalogMode={catalogMode}
           />
         ))}
       </div>

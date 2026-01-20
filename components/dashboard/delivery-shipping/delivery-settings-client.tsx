@@ -85,9 +85,8 @@ export function DeliverySettingsClient({
 }: DeliverySettingsClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [mode, setMode] = useState<DeliveryMode>(
-    initialEnabled ? "local" : "anywhere"
-  );
+  // Default to "local" (GPS-based delivery zones) as the recommended option
+  const [mode, setMode] = useState<DeliveryMode>("local");
 
   const hasChanges = (mode === "local") !== initialEnabled;
 
@@ -130,7 +129,7 @@ export function DeliverySettingsClient({
                 className="flex items-center gap-2"
               >
                 <MapPin className="h-4 w-4" />
-                Delivery Zones
+                GPS System
               </TabsTrigger>
               <TabsTrigger
                 value="anywhere"

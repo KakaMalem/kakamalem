@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,7 @@ export function SeoSettingsForm({
   storeName,
   initialData,
 }: SeoSettingsFormProps) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<
@@ -63,6 +65,13 @@ export function SeoSettingsForm({
   // OG Image state
   const [ogImageUrl, setOgImageUrl] = useState(initialData.ogImageUrl);
   const [mediaSelectorOpen, setMediaSelectorOpen] = useState(false);
+
+  // Sync state when props change (e.g., after router.refresh())
+  useEffect(() => {
+    setMetaTitle(initialData.metaTitle);
+    setMetaDescription(initialData.metaDescription);
+    setOgImageUrl(initialData.ogImageUrl);
+  }, [initialData]);
 
   const handleMediaSelect = (media: MediaSelection | null) => {
     setOgImageUrl(media?.url || "");
@@ -136,6 +145,8 @@ export function SeoSettingsForm({
 
       setSuccess(true);
       toast.success("SEO settings saved!");
+      // Refresh to update all components with fresh server data
+      router.refresh();
     });
   }
 

@@ -29,6 +29,10 @@ interface ProductPageContentProps {
   reviewStats: ReviewStats;
   priceTiers?: PriceTier[];
   initialIsInWishlist?: boolean;
+  /** When true, hides add-to-cart and quantity controls (catalog/showcase mode) */
+  catalogMode?: boolean;
+  /** Contact phone for catalog mode */
+  contactPhone?: string | null;
 }
 
 export function ProductPageContent({
@@ -40,6 +44,8 @@ export function ProductPageContent({
   reviewStats,
   priceTiers = [],
   initialIsInWishlist = false,
+  catalogMode = false,
+  contactPhone,
 }: ProductPageContentProps) {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
@@ -122,6 +128,8 @@ export function ProductPageContent({
           priceTiers={priceTiers}
           onVariantChange={setSelectedVariantId}
           initialIsInWishlist={initialIsInWishlist}
+          catalogMode={catalogMode}
+          contactPhone={contactPhone}
         />
       </div>
     </>

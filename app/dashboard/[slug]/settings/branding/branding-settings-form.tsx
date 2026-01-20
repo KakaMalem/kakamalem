@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -53,6 +54,7 @@ export function BrandingSettingsForm({
   storeId,
   initialData,
 }: BrandingSettingsFormProps) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -70,6 +72,21 @@ export function BrandingSettingsForm({
       ? { url: initialData.faviconUrl, isStaged: false }
       : null
   );
+
+  // Track previous initialData to sync state when props change (e.g., after router.refresh())
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData);
+    setHeaderDisplay(initialData.headerDisplay);
+    setLogo(
+      initialData.logoUrl ? { url: initialData.logoUrl, isStaged: false } : null
+    );
+    setFavicon(
+      initialData.faviconUrl
+        ? { url: initialData.faviconUrl, isStaged: false }
+        : null
+    );
+  }
 
   // Upload progress state
   const [logoUploadProgress, setLogoUploadProgress] = useState<UploadProgress>({
@@ -327,6 +344,8 @@ export function BrandingSettingsForm({
 
           setSuccess(true);
           toast.success("Branding settings saved!");
+          // Refresh to update all components with fresh server data
+          router.refresh();
         } catch {
           toast.error("Failed to save settings. Please try again.");
         }
