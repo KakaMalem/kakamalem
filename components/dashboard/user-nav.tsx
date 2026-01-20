@@ -145,7 +145,7 @@ export function UserNav({ user, subscription }: UserNavProps) {
                 <span className="truncate text-xs text-muted-foreground flex items-center gap-1">
                   {isPro ? (
                     <>
-                      <Crown className="size-3 text-amber-500" />
+                      <Crown className="size-3 text-primary" />
                       Pro Plan
                     </>
                   ) : (
@@ -180,7 +180,7 @@ export function UserNav({ user, subscription }: UserNavProps) {
                   <span className="truncate text-xs text-muted-foreground flex items-center gap-1">
                     {isPro ? (
                       <>
-                        <Crown className="size-3 text-amber-500" />
+                        <Crown className="size-3 text-primary" />
                         Pro Plan
                       </>
                     ) : (
@@ -233,11 +233,7 @@ export function UserNav({ user, subscription }: UserNavProps) {
 
                   {/* Get Pro Button */}
                   {showUpgrade && (
-                    <Button
-                      size="sm"
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white"
-                      asChild
-                    >
+                    <Button size="sm" className="w-full" asChild>
                       <Link
                         href={`${baseUrl}/billing`}
                         onClick={closeSidebarOnMobile}

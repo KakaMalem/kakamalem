@@ -92,7 +92,7 @@ export function BillingStatusCard({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            {isPro && <Crown className="size-5 text-amber-500" />}
+            {isPro && <Crown className="size-5 text-primary" />}
             Current Plan
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ export function BillingStatusCard({
           <div className="rounded-lg border p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {isPro ? (
-                <Crown className="size-4 text-amber-500" />
+                <Crown className="size-4 text-primary" />
               ) : (
                 <Zap className="size-4" />
               )}

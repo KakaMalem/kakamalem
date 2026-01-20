@@ -3,12 +3,12 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, Trash2, Loader2, AlertCircle, Tag } from "lucide-react";
+import { Minus, Plus, Trash2, AlertCircle, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
 import { useCart, getApplicableTierPrice } from "@/lib/hooks/use-cart";
 
 import type { CartItem as CartItemType } from "@/lib/types/cart";
@@ -29,7 +29,7 @@ export function CartItem({ item, currency }: CartItemProps) {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pendingQuantityRef = useRef<number | null>(null);
 
-  const { updateQuantity, removeItem, isRemovingItem } = useCart();
+  const { updateQuantity, removeItem } = useCart();
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -48,8 +48,6 @@ export function CartItem({ item, currency }: CartItemProps) {
     setPrevItemQuantity(item.quantity);
     setLocalQuantity(item.quantity);
   }
-
-  const isRemoving = isRemovingItem(item.id);
 
   const basePrice = item.variant?.price
     ? parseFloat(item.variant.price)
@@ -181,12 +179,7 @@ export function CartItem({ item, currency }: CartItemProps) {
   const { storeSlug } = useCart();
 
   return (
-    <div
-      className={cn(
-        "flex gap-4 rounded-lg border p-4 transition-opacity",
-        isRemoving && "opacity-60"
-      )}
-    >
+    <div className="flex gap-4 rounded-lg border p-4">
       {/* Product Image */}
       <Link
         href={`/store/${storeSlug}/product/${item.product.slug}`}
@@ -246,16 +239,11 @@ export function CartItem({ item, currency }: CartItemProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive active:scale-90 transition-transform"
             onClick={handleRemove}
-            disabled={isRemoving}
             aria-label="Remove item"
           >
-            {isRemoving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
 

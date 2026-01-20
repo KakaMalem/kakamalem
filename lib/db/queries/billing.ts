@@ -236,3 +236,51 @@ export const canAddProduct = cache(
     return { allowed: true };
   }
 );
+
+/**
+ * Check if a user can create more stores based on their plan
+ * Users with any Pro store can create multiple stores
+ * Users on free plan are limited to freeStoreLimit (default: 1)
+ */
+export const canAddStore = cache(
+  async (userId: string): Promise<{ allowed: boolean; reason?: string }> => {
+    // Fetch user's stores and platform settings in parallel
+    const [userStores, settings] = await Promise.all([
+      db.query.tenants.findMany({
+        where: eq(tenants.ownerId, userId),
+        columns: {
+          id: true,
+          subscriptionPlan: true,
+          subscriptionStatus: true,
+        },
+      }),
+      db.query.platformSettings.findFirst(),
+    ]);
+
+    const freeStoreLimit = settings?.freeStoreLimit ?? 1;
+    const currentStoreCount = userStores.length;
+
+    // Check if user has any active Pro subscription
+    const hasProPlan = userStores.some(
+      (store) =>
+        store.subscriptionPlan === "pro" &&
+        store.subscriptionStatus !== "expired" &&
+        store.subscriptionStatus !== "cancelled"
+    );
+
+    // Pro users can create unlimited stores
+    if (hasProPlan) {
+      return { allowed: true };
+    }
+
+    // Free users are limited to freeStoreLimit
+    if (currentStoreCount >= freeStoreLimit) {
+      return {
+        allowed: false,
+        reason: `You've reached the limit of ${freeStoreLimit} store${freeStoreLimit === 1 ? "" : "s"} on the free plan. Upgrade to Pro for multiple stores.`,
+      };
+    }
+
+    return { allowed: true };
+  }
+);

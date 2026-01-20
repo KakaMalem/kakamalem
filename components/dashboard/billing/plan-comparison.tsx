@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type {
   PlanFeature,
@@ -22,17 +21,17 @@ interface PlanComparisonProps {
   currency: string;
 }
 
-function formatPrice(price: string | number, currency: string): string {
+function formatPrice(price: string | number): string {
   const value = typeof price === "string" ? parseFloat(price) : price;
-  return `${value.toLocaleString()} ${currency}`;
+  return value.toLocaleString();
 }
 
 function FeatureValue({ value }: { value: string | boolean }) {
   if (typeof value === "boolean") {
     return value ? (
-      <Check className="size-5 text-green-600" />
+      <Check className="size-4 text-green-600" />
     ) : (
-      <X className="size-5 text-muted-foreground/50" />
+      <X className="size-4 text-muted-foreground/40" />
     );
   }
   return <span className="text-sm font-medium">{value}</span>;
@@ -62,50 +61,57 @@ export function PlanComparison({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Plan Cards */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           {/* Free Plan */}
           <div
             className={cn(
-              "relative rounded-xl border-2 p-6",
-              !isPro ? "border-primary bg-primary/5" : "border-border"
+              "relative flex flex-col rounded-lg border bg-card p-6 transition-shadow",
+              !isPro ? "ring-2 ring-primary shadow-sm" : "hover:shadow-sm"
             )}
           >
             {!isPro && (
-              <Badge className="absolute -top-3 right-4" variant="default">
-                Current Plan
-              </Badge>
+              <div className="absolute -top-3 left-4">
+                <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+                  Current Plan
+                </span>
+              </div>
             )}
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-lg bg-muted">
                 <Zap className="size-5 text-muted-foreground" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Free</h3>
-                <p className="text-sm text-muted-foreground">
-                  Perfect for getting started
-                </p>
+                <h3 className="font-semibold">Free</h3>
+                <p className="text-xs text-muted-foreground">Get started</p>
               </div>
             </div>
-            <div className="mt-4">
-              <span className="text-3xl font-bold">0</span>
-              <span className="text-muted-foreground"> {currency}/month</span>
+
+            <div className="mb-4">
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-bold tracking-tight">0</span>
+                <span className="text-sm text-muted-foreground">
+                  {currency}/mo
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {subscription.trialDurationDays}-day trial, then{" "}
+                {subscription.freeProductLimit} products
+              </p>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {subscription.trialDurationDays}-day trial with full access, then
-              limited to {subscription.freeProductLimit} products
-            </p>
-            <ul className="mt-6 space-y-3">
+
+            <div className="flex-1 space-y-2.5">
               {planFeatures.map((feature) => (
-                <li
+                <div
                   key={feature.name}
-                  className="flex items-center justify-between text-sm"
+                  className="flex items-center justify-between gap-2 text-sm"
                 >
                   <span className="text-muted-foreground">{feature.name}</span>
                   <FeatureValue value={feature.free} />
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
+
             {!isPro && subscription.status !== "trialing" && (
               <Button variant="outline" className="mt-6 w-full" disabled>
                 Current Plan
@@ -116,64 +122,67 @@ export function PlanComparison({
           {/* Pro Plan */}
           <div
             className={cn(
-              "relative rounded-xl border-2 p-6",
+              "relative flex flex-col rounded-lg border p-6 transition-shadow",
               isPro
-                ? "border-primary bg-primary/5"
-                : "border-amber-200 bg-amber-50"
+                ? "ring-2 ring-primary bg-card shadow-sm"
+                : "border-primary/20 bg-primary/2 hover:shadow-sm"
             )}
           >
             {isPro ? (
-              <Badge className="absolute -top-3 right-4" variant="default">
-                Current Plan
-              </Badge>
+              <div className="absolute -top-3 left-4">
+                <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+                  Current Plan
+                </span>
+              </div>
             ) : (
-              <Badge
-                className="absolute -top-3 right-4 bg-amber-500 hover:bg-amber-600"
-                variant="default"
-              >
-                Recommended
-              </Badge>
+              <div className="absolute -top-3 left-4">
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+                  <Crown className="size-3" />
+                  Recommended
+                </span>
+              </div>
             )}
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-amber-100">
-                <Crown className="size-5 text-amber-600" />
+
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+                <Crown className="size-5 text-primary" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Pro</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="font-semibold">Pro</h3>
+                <p className="text-xs text-muted-foreground">
                   For growing businesses
                 </p>
               </div>
             </div>
-            <div className="mt-4">
-              <span className="text-3xl font-bold">
-                {
-                  formatPrice(subscription.proPlanPriceAfn, currency).split(
-                    " "
-                  )[0]
-                }
-              </span>
-              <span className="text-muted-foreground"> {currency}/month</span>
+
+            <div className="mb-4">
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-bold tracking-tight">
+                  {formatPrice(subscription.proPlanPriceAfn)}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {currency}/mo
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Unlimited products & priority support
+              </p>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Unlimited products and priority support for serious sellers
-            </p>
-            <ul className="mt-6 space-y-3">
+
+            <div className="flex-1 space-y-2.5">
               {planFeatures.map((feature) => (
-                <li
+                <div
                   key={feature.name}
-                  className="flex items-center justify-between text-sm"
+                  className="flex items-center justify-between gap-2 text-sm"
                 >
                   <span className="text-muted-foreground">{feature.name}</span>
                   <FeatureValue value={feature.pro} />
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
+
             {showUpgrade && (
-              <Button
-                className="mt-6 w-full bg-amber-500 hover:bg-amber-600"
-                asChild
-              >
+              <Button className="mt-6 w-full" asChild>
                 <a
                   href={`https://wa.me/93708133894?text=${encodeURIComponent("Hi! I'd like to upgrade my Kaka Malem store to Pro plan.")}`}
                   target="_blank"

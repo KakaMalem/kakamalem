@@ -700,6 +700,55 @@ export const tenantMembers = pgTable(
 );
 
 // ============================================================================
+// ONBOARDING CHECKLISTS (Getting started guides for new stores)
+// ============================================================================
+// Tracks onboarding progress for newly created stores.
+// Items are personalized based on store mode (online, offline, catalog, full).
+
+// Type for individual checklist items
+export type OnboardingChecklistItem = {
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+  completed: boolean;
+  completedAt?: string;
+};
+
+export const onboardingChecklists = pgTable(
+  "onboarding_checklists",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .unique()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Checklist items stored as JSONB for flexibility
+    items: jsonb("items").$type<OnboardingChecklistItem[]>().notNull(),
+
+    // Track overall progress
+    completedCount: integer("completed_count").default(0).notNull(),
+    totalCount: integer("total_count").default(5).notNull(),
+
+    // Dismissal tracking
+    isDismissed: boolean("is_dismissed").default(false).notNull(),
+    dismissedAt: timestamp("dismissed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("onboarding_checklists_tenant_id_idx").on(table.tenantId)]
+);
+
+// ============================================================================
 // STORE CUSTOMERS (Tenant-scoped customer metadata)
 // ============================================================================
 // Stores tenant-specific data about customers. NOT for authentication.
@@ -5531,6 +5580,10 @@ export type SubscriptionStatus =
 export type TenantMember = typeof tenantMembers.$inferSelect;
 export type NewTenantMember = typeof tenantMembers.$inferInsert;
 export type TenantMemberRole = (typeof tenantMemberRoleEnum.enumValues)[number];
+
+// Onboarding checklist types
+export type OnboardingChecklist = typeof onboardingChecklists.$inferSelect;
+export type NewOnboardingChecklist = typeof onboardingChecklists.$inferInsert;
 
 // Store customer types
 export type StoreCustomer = typeof storeCustomers.$inferSelect;

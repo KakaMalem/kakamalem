@@ -11,7 +11,7 @@ export default async function CreateStorePage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-3xl">
         <div className="text-center space-y-2 mb-8">
           <h1 className="text-2xl font-bold">Create your store</h1>
           <p className="text-muted-foreground">

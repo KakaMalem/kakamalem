@@ -77,7 +77,29 @@ export async function createTenant(data: {
   contactEmail?: string;
   contactPhone?: string;
   currency?: string;
+  storeMode?: "full" | "online_only" | "offline_only" | "catalog";
 }) {
+  // Determine channel settings based on store mode
+  let onlineCheckoutEnabled = true;
+  let posEnabled = true;
+  let phoneOrdersEnabled = true;
+
+  switch (data.storeMode) {
+    case "online_only":
+      posEnabled = false;
+      phoneOrdersEnabled = false;
+      break;
+    case "offline_only":
+      onlineCheckoutEnabled = false;
+      break;
+    case "catalog":
+      onlineCheckoutEnabled = false;
+      posEnabled = false;
+      phoneOrdersEnabled = false;
+      break;
+    // "full" mode keeps all channels enabled
+  }
+
   const [newTenant] = await db
     .insert(tenants)
     .values({
@@ -90,6 +112,10 @@ export async function createTenant(data: {
       contactEmail: data.contactEmail || null,
       contactPhone: data.contactPhone || null,
       currency: data.currency || "AFN",
+      storeMode: data.storeMode || "full",
+      onlineCheckoutEnabled,
+      posEnabled,
+      phoneOrdersEnabled,
       status: "active", // New stores are active by default
     })
     .returning();

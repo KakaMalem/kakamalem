@@ -13,6 +13,7 @@ import { productSchema, type ProductInput } from "@/lib/validations/products";
 import { generateUniqueProductSlug } from "@/lib/db/queries/slugs";
 import { getMaxProductDisplayOrder } from "@/lib/db/queries/products";
 import { getUser } from "@/lib/auth/server";
+import { canAddProduct } from "@/lib/db/queries/billing";
 
 export type ProductActionResult = {
   success: boolean;
@@ -34,6 +35,17 @@ export async function createProduct(
   input: ProductInput
 ): Promise<ProductActionResult> {
   try {
+    // Check product limit before creating
+    const limitCheck = await canAddProduct(tenantId);
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: {
+          message: limitCheck.reason || "Cannot add more products",
+        },
+      };
+    }
+
     // Validate input
     const result = productSchema.safeParse(input);
     if (!result.success) {
@@ -227,6 +239,17 @@ export async function createProductWithImages(
       return {
         success: false,
         error: { message: "Not authenticated" },
+      };
+    }
+
+    // Check product limit before creating
+    const limitCheck = await canAddProduct(tenantId);
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: {
+          message: limitCheck.reason || "Cannot add more products",
+        },
       };
     }
 

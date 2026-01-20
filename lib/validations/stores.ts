@@ -38,6 +38,11 @@ export const currencyOptions = ["AFN", "USD"] as const;
 
 // Create store validation schema (for wizard)
 export const createStoreSchema = z.object({
+  // Step 0: Store Type
+  storeMode: z
+    .enum(["full", "online_only", "offline_only", "catalog"] as const)
+    .default("full"),
+
   // Step 1: Basic Info
   name: z
     .string()

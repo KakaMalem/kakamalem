@@ -20,6 +20,7 @@ import {
   getTenantById,
   deleteTenant,
 } from "@/lib/db/queries/tenants";
+import { canAddStore } from "@/lib/db/queries/billing";
 
 export type StoreActionError = {
   message: string;
@@ -82,7 +83,21 @@ export async function createStore(
     return { error: { message: "You must be logged in to create a store" } };
   }
 
+  // Check store limit before creating
+  const limitCheck = await canAddStore(user.id);
+  if (!limitCheck.allowed) {
+    return {
+      error: { message: limitCheck.reason || "Cannot create more stores" },
+    };
+  }
+
   const formValues: CreateStoreInput = {
+    storeMode:
+      (formData.get("storeMode") as
+        | "full"
+        | "online_only"
+        | "offline_only"
+        | "catalog") || "full",
     name: formData.get("name") as string,
     slug: formData.get("slug") as string,
     tagline: (formData.get("tagline") as string) || undefined,
@@ -165,6 +180,14 @@ export async function createStoreWithLogo(
     return { error: { message: "You must be logged in to create a store" } };
   }
 
+  // Check store limit before creating
+  const limitCheck = await canAddStore(user.id);
+  if (!limitCheck.allowed) {
+    return {
+      error: { message: limitCheck.reason || "Cannot create more stores" },
+    };
+  }
+
   // Server-side validation
   try {
     createStoreSchema.parse(formValues);
@@ -202,6 +225,7 @@ export async function createStoreWithLogo(
       contactEmail: formValues.contactEmail,
       contactPhone: formValues.contactPhone,
       currency: formValues.currency,
+      storeMode: formValues.storeMode,
     });
 
     if (!newStore) {
@@ -218,6 +242,20 @@ export async function createStoreWithLogo(
         // Update store with logo URL
         await updateTenant(newStore.id, { logoUrl });
       }
+    }
+
+    // Create onboarding checklist for the new store
+    try {
+      const { createOnboardingChecklist } =
+        await import("@/lib/db/queries/onboarding");
+      await createOnboardingChecklist(
+        newStore.id,
+        formValues.slug,
+        formValues.storeMode || "full"
+      );
+    } catch (checklistError) {
+      // Log but don't fail store creation if checklist fails
+      console.error("Failed to create onboarding checklist:", checklistError);
     }
 
     revalidatePath("/dashboard", "layout");

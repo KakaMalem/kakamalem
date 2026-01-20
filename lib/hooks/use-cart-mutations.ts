@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { cartActions } from "@/lib/stores/use-cart-store";
+import { cartActions, useCartStore } from "@/lib/stores/use-cart-store";
 import {
   addToCartAction,
   updateCartItemQuantityAction,
@@ -70,6 +70,9 @@ export function useAddToCartMutation() {
         queryKey: cartKeys.byTenant(variables.tenantId),
       });
 
+      // Open cart drawer IMMEDIATELY for instant feedback
+      cartActions.setIsOpen(true);
+
       // Create optimistic cart item if product data provided
       if (variables.optimisticProduct) {
         const optimisticItem: CartItem = {
@@ -89,16 +92,9 @@ export function useAddToCartMutation() {
       return { snapshot: null };
     },
 
-    onSuccess: (cart, variables) => {
-      // Sync store with server response
+    onSuccess: (cart) => {
+      // Sync store with server response (silently reconcile)
       cartActions.syncFromServer(cart);
-
-      // Open cart drawer to show added item
-      cartActions.setIsOpen(true);
-
-      toast.success("Added to cart", {
-        description: `${variables.quantity} item${variables.quantity > 1 ? "s" : ""} added`,
-      });
     },
 
     onError: (error, variables, context) => {
@@ -223,14 +219,12 @@ export function useRemoveCartItemMutation() {
     },
 
     onSuccess: (cart) => {
-      // Sync store with server response
+      // Sync store with server response (no toast - instant UI is enough)
       cartActions.syncFromServer(cart);
-
-      toast.success("Item removed from cart");
     },
 
     onError: (error, variables, context) => {
-      // Rollback optimistic update
+      // Rollback optimistic update - item reappears
       if (context?.snapshot) {
         cartActions.rollback(context.snapshot);
       }
@@ -238,6 +232,104 @@ export function useRemoveCartItemMutation() {
       toast.error("Couldn't remove item", {
         description: error.message || "Please try again",
       });
+    },
+
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: cartKeys.byTenant(variables.tenantId),
+      });
+    },
+  });
+}
+
+// ============================================================================
+// MUTATION: Remove with Undo (5 second window)
+// ============================================================================
+
+/**
+ * Remove cart item with undo capability.
+ * Item is removed instantly from UI, with a 5-second window to undo.
+ * Server deletion happens after the undo window closes.
+ */
+export function useRemoveCartItemWithUndo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      tenantId,
+      storeSlug,
+      itemId,
+      skipUndo,
+    }: RemoveCartItemVariables & { skipUndo?: boolean }) => {
+      // Wait for undo window unless skipped
+      if (!skipUndo) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+
+      const result = await removeFromCartAction(tenantId, storeSlug, itemId);
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      return result.cart;
+    },
+
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: cartKeys.byTenant(variables.tenantId),
+      });
+
+      // Get the item before removing (for undo)
+      const items = useCartStore.getState().items;
+      const removedItem = items.find(
+        (item: CartItem) => item.id === variables.itemId
+      );
+
+      // Apply optimistic update IMMEDIATELY
+      const snapshot = cartActions.removeItem(variables.itemId);
+
+      // Show undo toast
+      const toastId = toast("Item removed", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            // Will be handled by onError with special flag
+          },
+        },
+        duration: 5000,
+      });
+
+      return { snapshot, removedItem, toastId, undone: false };
+    },
+
+    onSuccess: (cart, _variables, context) => {
+      // Dismiss the undo toast
+      if (context?.toastId) {
+        toast.dismiss(context.toastId);
+      }
+      // Sync store with server response
+      cartActions.syncFromServer(cart);
+    },
+
+    onError: (error, variables, context) => {
+      // Dismiss the undo toast
+      if (context?.toastId) {
+        toast.dismiss(context.toastId);
+      }
+
+      // Rollback optimistic update - item reappears
+      if (context?.snapshot) {
+        cartActions.rollback(context.snapshot);
+      }
+
+      // Only show error if it wasn't an undo action
+      if (!context?.undone) {
+        toast.error("Couldn't remove item", {
+          description: error.message || "Please try again",
+        });
+      }
     },
 
     onSettled: (_data, _error, variables) => {

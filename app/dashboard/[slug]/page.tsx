@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getOnboardingChecklist } from "@/lib/db/queries/onboarding";
 import {
   getDashboardStats,
   getDailyMetrics,
@@ -12,6 +13,7 @@ import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { ActionableItems } from "@/components/dashboard/actionable-items";
 import { RecentOrders } from "@/components/dashboard/recent-orders";
 import { TopProducts } from "@/components/dashboard/top-products";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding";
 import { ShoppingCart, Package, DollarSign, TrendingUp } from "lucide-react";
 
 interface StorePageProps {
@@ -28,12 +30,14 @@ export default async function StoreDashboardPage({ params }: StorePageProps) {
   }
 
   // Fetch all dashboard data in parallel
-  const [stats, dailyMetrics, topProducts, recentOrders] = await Promise.all([
-    getDashboardStats(store.id),
-    getDailyMetrics(store.id, 7),
-    getTopProducts(store.id, 30, 5),
-    getRecentOrders(store.id, 5),
-  ]);
+  const [stats, dailyMetrics, topProducts, recentOrders, checklist] =
+    await Promise.all([
+      getDashboardStats(store.id),
+      getDailyMetrics(store.id, 7),
+      getTopProducts(store.id, 30, 5),
+      getRecentOrders(store.id, 5),
+      getOnboardingChecklist(store.id),
+    ]);
 
   const formatCurrency = (value: string | number) => {
     const num = typeof value === "string" ? parseFloat(value) : value;
@@ -60,6 +64,11 @@ export default async function StoreDashboardPage({ params }: StorePageProps) {
           </p>
         </div>
       </div>
+
+      {/* Onboarding Checklist - Show for new stores */}
+      {checklist && !checklist.isDismissed && (
+        <OnboardingChecklist storeSlug={slug} checklist={checklist} />
+      )}
 
       {/* KPI Cards - Top Row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

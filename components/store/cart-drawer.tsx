@@ -8,7 +8,6 @@ import {
   Minus,
   Plus,
   Trash2,
-  Loader2,
   ArrowRight,
   ShoppingBag,
   X,
@@ -201,7 +200,7 @@ function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pendingQuantityRef = useRef<number | null>(null);
 
-  const { updateQuantity, removeItem, isRemovingItem } = useCart();
+  const { updateQuantity, removeItem } = useCart();
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -220,8 +219,6 @@ function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
     setPrevItemQuantity(item.quantity);
     setLocalQuantity(item.quantity);
   }
-
-  const isRemoving = isRemovingItem(item.id);
 
   const price = item.variant?.price
     ? parseFloat(item.variant.price)
@@ -330,17 +327,11 @@ function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
   };
 
   const handleRemove = () => {
-    if (isRemoving) return;
     removeItem(item.id);
   };
 
   return (
-    <div
-      className={cn(
-        "flex gap-4 transition-opacity",
-        isRemoving && "opacity-50"
-      )}
-    >
+    <div className="flex gap-4">
       {/* Product Image */}
       <Link
         href={`/store/${storeSlug}/product/${item.product.slug}`}
@@ -374,15 +365,10 @@ function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+            className="size-7 shrink-0 text-muted-foreground hover:text-destructive active:scale-90 transition-transform"
             onClick={handleRemove}
-            disabled={isRemoving}
           >
-            {isRemoving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Trash2 className="size-4" />
-            )}
+            <Trash2 className="size-4" />
             <span className="sr-only">Remove</span>
           </Button>
         </div>

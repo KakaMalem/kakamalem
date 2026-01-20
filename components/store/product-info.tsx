@@ -154,6 +154,7 @@ export function ProductInfo({
   // Get display prices with discount calculation
   const {
     price: displayPrice,
+    compareAtPrice: displayCompareAtPrice,
     discountPercent,
     hasDiscount,
   } = getDisplayPrices(basePrice, baseCompareAtPrice ?? null);
@@ -413,7 +414,12 @@ export function ProductInfo({
           </h4>
           {(hasDiscount || applicableTier) && (
             <span className="text-xl text-muted-foreground line-through">
-              {formatPrice(displayPrice, currency)}
+              {formatPrice(
+                applicableTier
+                  ? displayPrice
+                  : (displayCompareAtPrice ?? displayPrice),
+                currency
+              )}
             </span>
           )}
           {hasDiscount && discountPercent && !applicableTier && (
