@@ -143,23 +143,31 @@ export default async function AdminDashboardPage() {
       {/* Stats Grid - 2x2 on mobile, 4 columns on desktop */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          title="Stores"
+          title="Total Stores"
           value={stats.totalStores}
           icon={Store}
           trend={`${stats.activeStores} active`}
           href="/admin/stores"
+          color="blue"
         />
         <StatCard
-          title="Users"
+          title="Total Users"
           value={stats.totalUsers}
           icon={Users}
-          href="/admin/stores"
+          href="/admin/users"
+          color="purple"
         />
-        <StatCard title="Products" value={stats.totalProducts} icon={Package} />
         <StatCard
-          title="Orders"
+          title="Total Products"
+          value={stats.totalProducts}
+          icon={Package}
+          color="green"
+        />
+        <StatCard
+          title="Total Orders"
           value={stats.totalOrders}
           icon={ShoppingCart}
+          color="orange"
         />
       </div>
 
@@ -339,13 +347,40 @@ function StatCard({
   icon: Icon,
   trend,
   href,
+  color = "primary",
 }: {
   title: string;
   value: number;
   icon: React.ComponentType<{ className?: string }>;
   trend?: string;
   href?: string;
+  color?: "blue" | "purple" | "green" | "orange" | "primary";
 }) {
+  const colorClasses = {
+    blue: {
+      bg: "bg-blue-100",
+      text: "text-blue-600",
+    },
+    purple: {
+      bg: "bg-purple-100",
+      text: "text-purple-600",
+    },
+    green: {
+      bg: "bg-green-100",
+      text: "text-green-600",
+    },
+    orange: {
+      bg: "bg-orange-100",
+      text: "text-orange-600",
+    },
+    primary: {
+      bg: "bg-primary/10",
+      text: "text-primary",
+    },
+  };
+
+  const colors = colorClasses[color];
+
   const content = (
     <Card className={href ? "transition-colors hover:bg-muted/50" : ""}>
       <CardContent className="p-4 sm:p-6">
@@ -357,14 +392,12 @@ function StatCard({
             <p className="mt-1 text-xl font-bold sm:text-2xl">
               {value.toLocaleString()}
             </p>
-            {trend && (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {trend}
-              </p>
-            )}
+            <p className="mt-0.5 h-4 truncate text-xs text-muted-foreground">
+              {trend || "\u00A0"}
+            </p>
           </div>
-          <div className="ml-2 rounded-lg bg-primary/10 p-2 sm:p-2.5">
-            <Icon className="size-4 text-primary sm:size-5" />
+          <div className={`ml-2 rounded-lg p-2 sm:p-2.5 ${colors.bg}`}>
+            <Icon className={`size-4 sm:size-5 ${colors.text}`} />
           </div>
         </div>
       </CardContent>

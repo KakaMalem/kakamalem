@@ -545,6 +545,9 @@ export function MediaLibrary({
         onUploadComplete={handleUploadComplete}
         maxFiles={MAX_FILES.mediaLibrary}
       />
+      <p className="text-xs text-muted-foreground mt-2">
+        For product images: 1000×1000px minimum, square (1:1) format recommended
+      </p>
 
       {/* Saving indicator */}
       {isSaving && (

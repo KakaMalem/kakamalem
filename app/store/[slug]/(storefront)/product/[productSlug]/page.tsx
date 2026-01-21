@@ -36,13 +36,35 @@ export async function generateMetadata({
     ? stripHtml(product.description)
     : `Buy ${product.name} at ${store.name}`;
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+  const productUrl = `${appUrl}/store/${slug}/product/${productSlug}`;
+  const imageUrl = primaryImage ? `${appUrl}${primaryImage}` : undefined;
+
   return {
     title: `${product.name} | ${store.name}`,
     description: plainDescription,
     openGraph: {
+      type: "website",
       title: product.name,
       description: plainDescription,
-      images: primaryImage ? [{ url: primaryImage }] : undefined,
+      url: productUrl,
+      siteName: store.name,
+      images: imageUrl
+        ? [
+            {
+              url: imageUrl,
+              width: 1200,
+              height: 630,
+              alt: product.name,
+            },
+          ]
+        : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.name,
+      description: plainDescription,
+      images: imageUrl ? [imageUrl] : undefined,
     },
   };
 }

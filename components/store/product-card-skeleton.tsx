@@ -13,13 +13,13 @@ export function ProductCardSkeleton({ className }: ProductCardSkeletonProps) {
         className
       )}
     >
-      {/* Image Skeleton - taller aspect ratio */}
-      <div className="relative aspect-4/5 overflow-hidden bg-muted/30">
+      {/* Image Skeleton - square aspect ratio */}
+      <div className="relative aspect-square overflow-hidden bg-muted/30">
         <Skeleton className="absolute inset-0 rounded-none" />
       </div>
 
       {/* Content - Price first layout */}
-      <div className="flex flex-1 flex-col p-2.5">
+      <div className="flex flex-1 flex-col p-2.5 sm:p-3">
         {/* Price */}
         <Skeleton className="h-4 w-16" />
 

@@ -883,6 +883,352 @@ Handle `store_customers` record lifecycle (lazy creation on first order).
 
 ---
 
+## Phase 7: Advanced Variant Management System
+
+### Research Summary (January 2026)
+
+#### Industry Standards from Major Platforms
+
+| Platform    | Variant Limit | Key Features                                           |
+| ----------- | ------------- | ------------------------------------------------------ |
+| Shopify     | 2,048 (2025)  | AJAX-based loading, GraphQL API, 3 options per product |
+| BigCommerce | 600           | Shared variants/modifiers, V3 options system           |
+| Amazon      | 2,000 ASINs   | Parent-child structure, Variation Wizard, flat files   |
+| WooCommerce | Unlimited     | Attribute-based, bulk variations plugin ecosystem      |
+| Magento     | Unlimited     | Configurable products, matrix/grid extensions          |
+
+**Key Takeaways:**
+
+- Major platforms are increasing limits (Shopify: 100 → 2,048)
+- Parent-child hierarchy is the dominant pattern
+- Shared/global options reduce duplication
+- Matrix/grid views are essential for B2B/wholesale
+
+#### UX Best Practices (Baymard Institute & Industry Research)
+
+**Visual Swatches:**
+
+- Minimum touch target: 7mm × 7mm (critical for mobile)
+- Minimum spacing between swatches: 2mm
+- 57% of e-commerce sites fail to show all swatches in product lists
+- Interactive swatches on listings increase engagement
+- Instant image updates on swatch selection
+
+**Swatch Types:**
+
+- Color swatches: circles/squares with actual color fill
+- Image swatches: thumbnails for patterns, textures, materials
+- Text swatches: pills/badges for sizes with out-of-stock strikethrough
+- Dual-color swatches: for two-tone options
+
+**Matrix/Grid Patterns (B2B/Wholesale):**
+
+- Display all variants in table format
+- Quantity input per cell for bulk ordering
+- Show stock status, tier pricing per cell
+- Collapsible sections by first option (e.g., group by Color)
+
+#### Emerging Trends 2025-2026
+
+1. **AI-Powered Variant Generation**
+   - PIM systems (Pimberly, Akeneo, Pimcore) auto-generate variant combinations
+   - AI suggests option values based on product type
+   - Automated SKU generation with smart naming
+   - Bulk content variation for marketing copy
+
+2. **Dynamic/Generative UI**
+   - Interface adapts based on variant count and type
+   - Progressive disclosure: simple selector for <5 variants, matrix for 50+
+   - AI-driven swatch recommendations based on product images
+
+3. **Cross-Platform Synchronization**
+   - Single variant source → multiple channels (website, Amazon, social)
+   - Real-time inventory sync across platforms
+   - Unified SKU management
+
+4. **Accessibility First**
+   - ARIA attributes as default
+   - Keyboard navigation (Tab between swatches, Enter to select)
+   - Screen reader announcements for selections
+   - High contrast mode for swatches
+
+5. **Hyper-Personalization**
+   - Show "most popular" variant pre-selected
+   - Customer segment-specific default selections
+   - "Recommended for you" variant highlighting
+
+---
+
+### Current Implementation Analysis
+
+**What We Have:**
+
+- [variant-options-manager.tsx](components/dashboard/variants/variant-options-manager.tsx) - Card-based option manager
+- Badge/pill style for option values
+- Inline editing (click to edit)
+- Add/remove values inline
+- No visual swatches (text only)
+- No drag-to-reorder for options/values
+- Separate from product form (global options page)
+
+**What's Missing:**
+
+- Visual swatch support (color, image)
+- Drag-to-reorder for display order
+- Bulk value management (import from CSV/text)
+- Option templates (pre-defined sets like "T-Shirt Sizes")
+- Search/filter when many options exist
+- Matrix view for variant bulk editing
+- Variant image assignment per option value
+- Stock preview per variant in options manager
+
+---
+
+### Phase 7.1: Visual Swatch System
+
+#### Schema Updates
+
+- [ ] Add `swatch_type` to `variant_option_values` table
+  - Enum: `text`, `color`, `image`
+- [ ] Add `swatch_value` to `variant_option_values` table
+  - For `color`: hex code (e.g., `#FF5733`)
+  - For `image`: media_id reference
+  - For `text`: null (uses value field)
+- [ ] Migration for existing data (default to `text` type)
+
+#### Option Value Swatch Editor
+
+- [ ] Create `SwatchEditor` component
+  - Type selector: Text / Color / Image
+  - Color picker (for color type) with hex input
+  - Media selector (for image type)
+  - Preview of how swatch will appear
+- [ ] Update `variant-options-manager.tsx` to use SwatchEditor
+- [ ] Swatch preview in option value badges
+
+#### Storefront Swatch Display
+
+- [ ] Create `VariantSwatchSelector` component for PDP
+  - Render color circles, image thumbnails, or text pills based on type
+  - Selected state styling (border/ring)
+  - Out-of-stock styling (strikethrough, opacity)
+  - Disabled state for unavailable combinations
+- [ ] Interactive swatches on product cards (optional per store setting)
+- [ ] Mobile-optimized swatch layout (horizontal scroll vs wrap)
+
+---
+
+### Phase 7.2: Enhanced Options Manager UX
+
+#### Drag-to-Reorder
+
+- [ ] Drag-to-reorder option cards (dnd-kit)
+- [ ] Drag-to-reorder values within options
+- [ ] Visual drag handles
+- [ ] Auto-save display order changes
+
+#### Bulk Value Management
+
+- [ ] "Add Multiple Values" button
+  - Text area input (comma or newline separated)
+  - Paste from spreadsheet support
+- [ ] "Import from Template" dropdown
+  - Pre-defined sets: "Standard Sizes (XS-XXL)", "US Shoe Sizes", "Ring Sizes"
+  - Store-specific saved templates
+- [ ] "Copy Values" - copy values from another option
+- [ ] Bulk delete selected values
+
+#### Option Templates
+
+- [ ] Create `OptionTemplate` entity (optional)
+  - Or: built-in presets in code
+- [ ] Template categories: Clothing, Footwear, Jewelry, Electronics
+- [ ] "Save as Template" for custom reusable options
+- [ ] Template marketplace (future: community templates)
+
+#### Search & Filter
+
+- [ ] Search bar for options (when 5+ options exist)
+- [ ] Filter by "has swatches" / "text only"
+- [ ] Sort by: name, value count, last modified
+
+---
+
+### Phase 7.3: Variant Matrix Improvements
+
+#### Enhanced Matrix Table
+
+- [ ] Sticky header row and first column (for scrolling large matrices)
+- [ ] Column resize handles
+- [ ] Keyboard navigation (Tab, Arrow keys, Enter to edit)
+- [ ] Cell selection (click) with multi-select (Shift+Click, Ctrl+Click)
+- [ ] Paste from Excel/Google Sheets (Ctrl+V on selected cells)
+
+#### Bulk Operations Toolbar
+
+- [ ] "Fill Down" - apply selected cell value to cells below
+- [ ] "Fill Selection" - apply value to all selected cells
+- [ ] "Clear Selection" - reset selected cells to defaults
+- [ ] "Auto-generate SKUs" - regenerate SKUs for selection
+- [ ] "Import Prices from CSV"
+- [ ] "Export Matrix to CSV"
+
+#### Visual Enhancements
+
+- [ ] Swatch preview in variant rows (show color circle/image thumbnail)
+- [ ] Stock status indicator per row (green/yellow/red dot)
+- [ ] Price comparison to base price (show +/- difference)
+- [ ] Image thumbnail per variant (if assigned)
+
+#### Performance Optimization
+
+- [ ] Virtualized table for 100+ variants (react-virtual or tanstack-virtual)
+- [ ] Lazy load variant images
+- [ ] Debounced updates (batch changes)
+- [ ] Pagination for extremely large matrices (500+ variants)
+
+---
+
+### Phase 7.4: Variant Images per Option Value
+
+#### Concept
+
+When customer selects "Blue" color, product gallery shows blue product images automatically.
+
+#### Implementation
+
+- [ ] Add `image_media_ids` array to `variant_option_values` (for color/pattern options)
+- [ ] Or: Add `option_value_images` junction table
+- [ ] Option value → multiple images mapping
+- [ ] In product form: assign images to option values
+- [ ] Storefront: filter gallery by selected option value
+
+#### UI Components
+
+- [ ] "Assign Images" button per option value in options manager
+- [ ] Image assignment modal (multi-select from product images)
+- [ ] Preview thumbnails showing assigned images
+- [ ] Storefront gallery filtering on option change
+
+---
+
+### Phase 7.5: Smart Variant Generation (AI-Assisted)
+
+#### Auto-Suggest Option Values
+
+- [ ] Based on product category, suggest common options
+  - Clothing → Size, Color
+  - Electronics → Storage, Color
+  - Footwear → Size, Width
+- [ ] Based on product name/description, suggest values
+  - "Blue T-Shirt" → suggest "Blue" as color value
+- [ ] Integration point for future AI API calls
+
+#### Smart SKU Generation
+
+- [ ] Configurable SKU patterns per store
+  - Pattern: `{product_code}-{color_abbr}-{size}`
+  - Example: `TSH-BLU-M`
+- [ ] Auto-abbreviation rules (Blue → BLU, Medium → M)
+- [ ] Collision detection and resolution
+
+#### Variant Pricing Suggestions
+
+- [ ] Suggest price adjustments based on market data (future)
+- [ ] "Similar products" pricing reference
+- [ ] Tier pricing auto-calculation
+
+---
+
+### Phase 7.6: Accessibility & Mobile
+
+#### Accessibility Requirements
+
+- [ ] ARIA labels on all swatch buttons (`aria-label="Select Blue color"`)
+- [ ] `role="radiogroup"` for swatch groups
+- [ ] `aria-selected` state on selected swatch
+- [ ] Keyboard focus ring visible
+- [ ] `aria-disabled` for out-of-stock variants
+- [ ] Screen reader announcements on selection change
+
+#### Mobile Optimizations
+
+- [ ] Touch-friendly swatch size (minimum 44×44px tap target)
+- [ ] Horizontal scroll for many swatches (with scroll indicators)
+- [ ] Collapsible option groups on mobile (accordion style)
+- [ ] Bottom sheet variant selector for mobile PDP
+- [ ] Haptic feedback on selection (native apps, future)
+
+---
+
+### Phase 7.7: Store Settings & Configuration
+
+#### Variant Display Settings
+
+- [ ] Add to store settings: "Variant Display" section
+- [ ] Toggle: Show swatches on product cards (collection pages)
+- [ ] Toggle: Show stock status on variants
+- [ ] Toggle: Allow backorder for out-of-stock variants
+- [ ] Select: Default variant display mode (dropdown / swatches / matrix)
+
+#### Inventory Settings
+
+- [ ] Low stock threshold per variant (override product-level)
+- [ ] "Hide when out of stock" option per variant
+- [ ] Pre-order/backorder settings per variant
+
+---
+
+### Files to Create
+
+- [ ] `lib/db/schema.ts` - Update variant_option_values with swatch fields
+- [ ] `components/dashboard/variants/swatch-editor.tsx`
+- [ ] `components/dashboard/variants/bulk-value-input.tsx`
+- [ ] `components/dashboard/variants/option-templates.tsx`
+- [ ] `components/store/variant-swatch-selector.tsx`
+- [ ] `lib/variants/sku-generator.ts` - Configurable SKU patterns
+- [ ] `lib/variants/option-templates.ts` - Pre-defined option sets
+
+### Files to Modify
+
+- [ ] `components/dashboard/variants/variant-options-manager.tsx` - Major overhaul
+- [ ] `components/dashboard/products/variant-matrix-table.tsx` - Enhancements
+- [ ] `components/store/product-detail.tsx` - Swatch selector integration
+- [ ] `components/store/product-card.tsx` - Optional swatch display
+
+---
+
+### Implementation Priority
+
+**High Priority (Core UX):**
+
+1. Visual swatch system (color/image)
+2. Drag-to-reorder options/values
+3. Storefront swatch selector
+4. Accessibility compliance
+
+**Medium Priority (Power User Features):** 5. Bulk value management 6. Matrix table enhancements 7. Option templates 8. Variant images per option value
+
+**Lower Priority (Advanced):** 9. AI-assisted suggestions 10. Configurable SKU patterns 11. Cross-platform sync (future)
+
+---
+
+### Research Sources
+
+- [Shopify 2,048 Variants Announcement](https://www.shopify.com/blog/2048-variants)
+- [Shopify Variant Best Practices - Prediko](https://www.prediko.io/blog/shopify-variant-limit)
+- [BigCommerce Variants vs Modifiers](https://blog.yourstorewizards.com/variants-vs-modifiers-in-bigcommerce/)
+- [Amazon Variation Listings Guide](https://sell.amazon.com/blog/amazon-variation-listing)
+- [Baymard: Mobile Color Swatches](https://baymard.com/blog/mobile-interactive-color-swatches)
+- [Product Variants UX Guide - Number Analytics](https://www.numberanalytics.com/blog/ultimate-guide-product-variants-ux-ecommerce)
+- [WooCommerce Bulk Variations - Barn2](https://barn2.com/wordpress-plugins/woocommerce-bulk-variations/)
+- [Magento Product Matrix - Webkul](https://store.webkul.com/magento2-product-matrix.html)
+- [AI in PIM Systems - Netguru](https://www.netguru.com/blog/ai-in-pim-systems)
+- [The State of UX 2025](https://trends.uxdesign.cc)
+- [Color Swatches UX - Searchanise](https://searchanise.io/blog/color-swatches/)
+
+---
+
 ## Future Enhancements (Post-MVP)
 
 - [ ] Multi-language support (Dari, Pashto, English)

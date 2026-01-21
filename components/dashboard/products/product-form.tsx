@@ -1365,6 +1365,10 @@ export function ProductForm({
                 <p className="text-sm text-muted-foreground">
                   The first image will be used as the main product image.
                 </p>
+                <p className="text-xs text-muted-foreground/80">
+                  Recommended: 1000×1000px minimum, square (1:1) format for best
+                  display
+                </p>
 
                 {/* Upload Progress */}
                 {uploadingImages.length > 0 && (

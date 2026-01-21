@@ -1,7 +1,11 @@
 "use client";
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import {
+  persist,
+  createJSONStorage,
+  type StateStorage,
+} from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 import type {
   Cart,
@@ -12,6 +16,13 @@ import type {
 
 // Re-export types for convenience
 export type { Cart, CartItem, CartPriceTier, CartSnapshot };
+
+// No-op storage for SSR
+const noopStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+};
 
 // ============================================================================
 // HELPERS
@@ -336,7 +347,9 @@ export const useCartStore = create<CartStoreState>()(
     }),
     {
       name: "kaka-malem-cart",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() =>
+        typeof window !== "undefined" ? localStorage : noopStorage
+      ),
       partialize: (state) => ({
         // Only persist these fields
         items: state.items,

@@ -135,7 +135,7 @@ export function HeroMockup() {
                   className="group overflow-hidden rounded-lg border bg-background shadow-sm transition-shadow hover:shadow-md"
                 >
                   {/* Product image */}
-                  <div className={`relative aspect-4/5 ${product.image}`}>
+                  <div className={`relative aspect-square ${product.image}`}>
                     {/* Badges */}
                     <div className="absolute left-2 top-2 flex flex-col gap-1">
                       {product.isNew && (

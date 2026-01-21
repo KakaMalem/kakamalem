@@ -1,9 +1,20 @@
 "use client";
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import {
+  persist,
+  createJSONStorage,
+  type StateStorage,
+} from "zustand/middleware";
 import type { StoreMode, ReceiptPaperWidth } from "@/lib/validations/stores";
 import type { TenantSettings } from "@/lib/types/tenant-settings";
+
+// No-op storage for SSR
+const noopStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+};
 
 // Re-export for convenience
 export type { TenantSettings };
@@ -179,7 +190,9 @@ export const useTenantSettingsStore = create<TenantSettingsState>()(
     }),
     {
       name: "kaka-malem-tenant-settings",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() =>
+        typeof window !== "undefined" ? localStorage : noopStorage
+      ),
       partialize: (state) => ({
         // Only persist these fields for offline support
         settings: state.settings,

@@ -6,12 +6,9 @@ import {
   Heart,
   Loader2,
   Star,
-  Tag,
   Minus,
   Plus,
-  Check,
   AlertCircle,
-  ChevronUp,
   Phone,
   Store,
 } from "lucide-react";
@@ -23,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { VariantSelector } from "@/components/store/variant-selector";
+import { BulkPricingTiers } from "@/components/store/bulk-pricing-tiers";
 import { cn, formatPrice } from "@/lib/utils";
 import { getDisplayPrices } from "@/lib/utils/pricing-display";
 import { toggleWishlistAction } from "@/lib/actions/wishlists";
@@ -476,71 +474,13 @@ export function ProductInfo({
 
         {/* Price Tiers (Quantity Discounts) */}
         {sortedTiers.length > 0 && (
-          <div className="p-3 sm:p-4 bg-muted/30 rounded-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <Tag className="size-4 text-primary" />
-              <span className="text-sm font-semibold">Bulk Pricing</span>
-            </div>
-            <div className="space-y-1.5">
-              {sortedTiers.map((tier) => {
-                const tierPrice = parseFloat(tier.price);
-                const savings = Math.round(
-                  ((displayPrice - tierPrice) / displayPrice) * 100
-                );
-                const isActive = applicableTier?.id === tier.id;
-
-                return (
-                  <div
-                    key={tier.id}
-                    className={cn(
-                      "flex items-center justify-between p-2 sm:p-2.5 rounded-lg transition-colors",
-                      isActive
-                        ? "bg-primary/10 ring-1 ring-primary/30"
-                        : "hover:bg-muted/50"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isActive && (
-                        <Check className="size-4 text-primary shrink-0" />
-                      )}
-                      <span
-                        className={cn(
-                          "text-xs sm:text-sm",
-                          isActive ? "font-medium" : "text-muted-foreground"
-                        )}
-                      >
-                        {tier.maxQuantity === null
-                          ? `${tier.minQuantity}+`
-                          : `${tier.minQuantity}-${tier.maxQuantity}`}
-                        <span className="hidden sm:inline"> units</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <span
-                        className={cn(
-                          "text-sm font-medium",
-                          isActive && "text-primary"
-                        )}
-                      >
-                        {formatPrice(tierPrice, currency)}
-                      </span>
-                      {savings > 0 && (
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "text-xs px-1.5",
-                            isActive && "bg-green-100 text-green-700"
-                          )}
-                        >
-                          -{savings}%
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <BulkPricingTiers
+            tiers={sortedTiers}
+            basePrice={displayPrice}
+            currency={currency}
+            quantity={quantity}
+            onQuantityChange={!catalogMode ? setQuantity : undefined}
+          />
         )}
       </div>
 
@@ -769,62 +709,6 @@ export function ProductInfo({
               <span>{addToCartError}</span>
             </div>
           )}
-
-          {/* Mobile Sticky Add to Cart Bar */}
-          <div
-            className={cn(
-              "fixed bottom-0 inset-x-0 z-50 md:hidden",
-              "bg-background/95 backdrop-blur-lg border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]",
-              "pb-[env(safe-area-inset-bottom)]"
-            )}
-          >
-            <div className="flex items-center gap-3 px-4 py-3">
-              {/* Product info */}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground truncate">
-                  {product.name}
-                </p>
-                <p className="text-base font-bold">
-                  {formatPrice(effectivePrice, currency)}
-                  {quantity > 1 && (
-                    <span className="text-xs font-normal text-muted-foreground ml-1">
-                      × {quantity}
-                    </span>
-                  )}
-                </p>
-              </div>
-
-              {/* Scroll to top */}
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-10 shrink-0 rounded-xl"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                aria-label="Scroll to top"
-              >
-                <ChevronUp className="size-5" />
-              </Button>
-
-              {/* Add to cart button */}
-              <Button
-                className="h-10 px-5 rounded-xl gap-2 shrink-0"
-                disabled={isOutOfStock || isAddingToCart}
-                onClick={handleAddToCart}
-              >
-                {isAddingToCart ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <>
-                    <ShoppingCart className="size-4" />
-                    <span>Add</span>
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* Spacer for sticky bar on mobile */}
-          <div className="h-20 md:hidden" aria-hidden="true" />
         </div>
       )}
     </div>

@@ -14,6 +14,7 @@ import {
 import {
   LayoutDashboard,
   Store,
+  Users,
   Settings,
   LogOut,
   Shield,
@@ -37,6 +38,7 @@ export const metadata = {
 const navItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/stores", icon: Store, label: "Stores" },
+  { href: "/admin/users", icon: Users, label: "Users" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 

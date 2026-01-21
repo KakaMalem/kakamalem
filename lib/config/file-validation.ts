@@ -100,15 +100,13 @@ export const UPLOAD_ERROR_MESSAGES = {
 export type FolderType = keyof typeof MAX_SIZES;
 
 // =============================================================================
-// IMAGE DIMENSIONS
+// IMAGE DIMENSION SUGGESTIONS (not enforced)
 // =============================================================================
 
-/** Image dimension constraints */
-export const IMAGE_DIMENSIONS = {
-  maxWidth: 4096,
-  maxHeight: 4096,
-  minWidth: 10,
-  minHeight: 10,
+/** Suggested dimensions for optimal display - shown as hints, not validated */
+export const DIMENSION_SUGGESTIONS = {
+  products: "Square images (1:1) look best",
+  logos: "Square or horizontal format",
 } as const;
 
 // =============================================================================

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -9,6 +10,7 @@ import {
   Star,
   Loader2,
   Eye,
+  ImageOff,
 } from "lucide-react";
 
 import { cn, formatPrice } from "@/lib/utils";
@@ -42,6 +44,8 @@ interface ProductCardProps {
   initialIsInWishlist?: boolean;
   /** When true, hides add-to-cart button (catalog/showcase mode) */
   catalogMode?: boolean;
+  /** Set to true for above-the-fold cards to prioritize loading */
+  priority?: boolean;
 }
 
 export function ProductCard({
@@ -54,7 +58,11 @@ export function ProductCard({
   isAddingToCart = false,
   initialIsInWishlist = false,
   catalogMode = false,
+  priority = false,
 }: ProductCardProps) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
   // Wishlist state with optimistic updates
   const {
     isInWishlist,
@@ -93,6 +101,15 @@ export function ProductCard({
     toggleWishlist();
   };
 
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoaded(true);
+  };
+
   return (
     <article
       className={cn(
@@ -101,39 +118,69 @@ export function ProductCard({
         className
       )}
     >
-      {/* Image Container */}
+      {/* Image Container - 1:1 aspect ratio (square, industry standard) */}
       <Link
         href={`/store/${storeSlug}/product/${product.slug}`}
-        className="relative aspect-4/5 overflow-hidden bg-muted/30"
+        className="relative aspect-square overflow-hidden bg-muted/30"
       >
-        {product.image ? (
+        {/* Shimmer loading placeholder */}
+        <div
+          className={cn(
+            "absolute inset-0 z-1 overflow-hidden transition-opacity duration-300",
+            imageLoaded || !product.image || imageError
+              ? "opacity-0"
+              : "opacity-100"
+          )}
+        >
+          <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-linear-to-r from-transparent via-white/20 to-transparent" />
+        </div>
+
+        {/* Product image */}
+        {product.image && !imageError ? (
           <Image
             src={product.image.url}
             alt={product.image.altText || product.name}
             fill
-            className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            priority={priority}
+            className={cn(
+              "object-cover transition-all duration-500 ease-out",
+              "group-hover:scale-105",
+              imageLoaded ? "opacity-100" : "opacity-0"
+            )}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            onLoad={handleImageLoad}
+            onError={handleImageError}
           />
         ) : (
-          <div className="flex h-full items-center justify-center">
-            <ShoppingBag className="size-10 text-muted-foreground/20" />
+          // Placeholder for no image or error
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/30">
+            {imageError ? (
+              <>
+                <ImageOff className="size-8 sm:size-10" />
+                <span className="text-[10px] sm:text-xs">
+                  Image unavailable
+                </span>
+              </>
+            ) : (
+              <ShoppingBag className="size-10 sm:size-12" />
+            )}
           </div>
         )}
 
         {/* Left badges - NEW, Low Stock, Sold Out */}
-        <div className="absolute left-1.5 top-1.5 flex flex-col gap-1">
+        <div className="absolute left-1.5 top-1.5 z-2 flex flex-col gap-1">
           {product.isNew && (
-            <span className="rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
-              NEW
+            <span className="rounded-md bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
+              New
             </span>
           )}
           {isLowStock && !isOutOfStock && product.showStock && (
-            <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            <span className="rounded-md bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
               Low Stock
             </span>
           )}
           {isOutOfStock && (
-            <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            <span className="rounded-md bg-gray-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm backdrop-blur-sm">
               Sold Out
             </span>
           )}
@@ -141,20 +188,20 @@ export function ProductCard({
 
         {/* Right badge - Discount */}
         {hasDiscount && discountPercent && (
-          <span className="absolute right-1.5 top-1.5 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          <span className="absolute right-1.5 top-1.5 z-2 rounded-md bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
             -{discountPercent}%
           </span>
         )}
       </Link>
 
-      {/* Content - Price first layout like hero mockup */}
-      <div className="flex flex-1 flex-col p-2.5">
+      {/* Content - Price first layout */}
+      <div className="flex flex-1 flex-col p-2.5 sm:p-3">
         {/* Price Row */}
         <div className="flex items-baseline gap-1.5">
           {product.hasVariants && (
             <span className="text-[10px] text-muted-foreground">From</span>
           )}
-          <span className="text-sm font-bold">
+          <span className="text-sm font-bold tracking-tight">
             {formatPrice(price, currency)}
           </span>
           {hasDiscount && compareAtPrice && (
@@ -165,10 +212,10 @@ export function ProductCard({
         </div>
 
         {/* Product Name */}
-        <h3 className="mt-1 line-clamp-2 text-xs text-muted-foreground leading-snug">
+        <h3 className="mt-1.5 line-clamp-2 text-xs font-medium leading-snug text-foreground/90 sm:text-sm">
           <Link
             href={`/store/${storeSlug}/product/${product.slug}`}
-            className="hover:text-foreground transition-colors"
+            className="transition-colors hover:text-foreground"
           >
             {product.name}
           </Link>
@@ -190,7 +237,7 @@ export function ProductCard({
         )}
 
         {/* Spacer */}
-        <div className="flex-1 min-h-1" />
+        <div className="min-h-1 flex-1" />
 
         {/* Action Buttons */}
         <div className="mt-2 flex gap-1.5">
@@ -199,7 +246,7 @@ export function ProductCard({
             onClick={handleToggleWishlist}
             disabled={isWishlistPending}
             className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all active:scale-95",
+              "flex size-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-95",
               isInWishlist
                 ? "border-red-200 bg-red-50 text-red-500"
                 : "border-border bg-background text-muted-foreground hover:border-red-200 hover:bg-red-50 hover:text-red-500"
@@ -234,9 +281,9 @@ export function ProductCard({
               onClick={handleAddToCart}
               disabled={isOutOfStock || isAddingToCart}
               className={cn(
-                "flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-all active:scale-[0.98]",
+                "flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-all duration-200 active:scale-[0.98]",
                 isOutOfStock
-                  ? "bg-muted text-muted-foreground cursor-not-allowed"
+                  ? "cursor-not-allowed bg-muted text-muted-foreground"
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
               )}
               aria-label={isOutOfStock ? "Out of stock" : "Add to cart"}

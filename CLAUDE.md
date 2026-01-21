@@ -184,6 +184,7 @@ scripts/
 - **Language**: TypeScript 5 (strict mode)
 - **Styling**: Tailwind CSS 4 with CSS variables in OKLCH color space
 - **State Management**: Zustand (for client-side state like cart)
+- **Data Fetching**: React Query (for client-side data fetching/caching)
 - **Database**: PostgreSQL 18 with PgBouncer + Drizzle ORM
 - **Authentication**: Better Auth (email/password, Google OAuth, Facebook OAuth)
 - **File Storage**: Local NVMe storage (served via Next.js API route)
@@ -386,6 +387,18 @@ Location: `lib/stores/`
 - **Order status**: `pending`, `confirmed`, `processing`, `shipped`, `delivered`, `cancelled`, `refunded`, `partially_refunded`
 - **Stock status**: `in_stock`, `low_stock`, `out_of_stock`, `on_backorder`
 - **Shipment status**: `pending`, `picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `failed`, `returned`
+- **Store mode**: `full`, `online_only`, `offline_only`, `catalog`
+
+### Store Modes
+
+| Mode           | Online Cart | Checkout | POS/Offline | Use Case                        |
+| -------------- | ----------- | -------- | ----------- | ------------------------------- |
+| `full`         | Yes         | Yes      | Yes         | Omnichannel (default)           |
+| `online_only`  | Yes         | Yes      | No          | E-commerce only                 |
+| `offline_only` | No          | No       | Yes         | Physical store, POS only        |
+| `catalog`      | No          | No       | No          | Showcase products, contact only |
+
+When `store_mode` is `catalog` or `offline_only`, the storefront disables the cart drawer and shows appropriate CTAs (contact info or "visit in-store").
 
 ### Subscription/Billing Model
 
@@ -515,6 +528,21 @@ Using Better Auth (https://www.better-auth.com) - a self-hosted, PostgreSQL-back
 import { auth } from "@/lib/auth";
 const session = await auth.api.getSession({ headers: await headers() });
 
+// Additional server helpers:
+// - getUser() - Get current user (cached)
+// - getUserProfile() - Get user's extended profile
+// - requireAuth() - Require auth (throws if not authenticated)
+// - isPlatformAdmin() - Check if user is platform/super admin
+// - requirePlatformAdmin() - Require admin access (throws if not)
+// - getPortalAccess() - Get all user's portal access (seller, staff, affiliate, delivery)
+// - hasStoreAccess(tenantId) - Check store access with role
+
+// lib/auth/context.ts - Store context helpers
+// - getUserStoreContext(tenantId) - Get user's relationship to a store
+// - canManageStore(tenantId) - Check if user can manage store
+// - hasMinimumRole(tenantId, role) - Check role hierarchy
+// - getUserAddresses() - Get user's saved addresses
+
 // lib/auth/client.ts - Client-side
 import { authClient } from "@/lib/auth/client";
 const { data: session } = authClient.useSession();
@@ -563,6 +591,7 @@ STORAGE_PATH="C:/Users/YourName/kakamalem-uploads"
 - **No test framework** configured yet
 - **ESLint 9+** flat config in `eslint.config.mjs`
 - **React Server Components** enabled by default
+- **Rich text editor**: TipTap (used for product descriptions)
 - Components in `components/ui/` are shadcn/ui (don't modify directly unless necessary)
 - For new features, create server actions in appropriate `lib/` subdirectory
 
@@ -608,22 +637,3 @@ const products = await db.query.products.findMany({
   where: eq(products.tenantId, tenantId),
 });
 ```
-
-## TODO: Store Settings Features
-
-### Completed
-
-- [x] General settings (store name, description, currency, timezone)
-- [x] Social links (Facebook, Instagram, Twitter, TikTok, WhatsApp, Telegram)
-- [x] Branding settings - Logo and favicon upload with staged upload pattern
-- [x] SEO settings - OG image upload with staged upload pattern
-- [x] Danger zone - Deactivate/reactivate store functionality
-- [x] Danger zone - Delete store permanently (with confirmation)
-- [x] Team management - Add team members by email
-- [x] Team management - List/manage existing team members
-- [x] Team management - Remove team members
-- [x] Team management - Change member roles (admin/staff)
-
-### Pending
-
-- [ ] Team management - Email invitations (currently requires user to have an account first)

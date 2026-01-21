@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import {
   motion,
   AnimatePresence,
   useDragControls,
   PanInfo,
 } from "framer-motion";
-import { ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { ImageIcon, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Dynamic import to prevent SSR issues with YARL CSS
+const ProductLightbox = dynamic(
+  () =>
+    import("@/components/store/product-lightbox").then(
+      (mod) => mod.ProductLightbox
+    ),
+  { ssr: false }
+);
 
 interface ProductImageGalleryProps {
   images: {
@@ -27,8 +37,39 @@ export function ProductImageGallery({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const constraintsRef = useRef<HTMLDivElement>(null);
   const dragControls = useDragControls();
+
+  // Lightbox handlers
+  const openLightbox = useCallback(() => {
+    setLightboxOpen(true);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+  }, []);
+
+  const handleLightboxIndexChange = useCallback(
+    (index: number) => {
+      if (index !== currentIndex) {
+        setDirection(index > currentIndex ? 1 : -1);
+        setCurrentIndex(index);
+      }
+    },
+    [currentIndex]
+  );
+
+  // Reset loading state when lightbox closes to handle cached images
+  useEffect(() => {
+    if (!lightboxOpen) {
+      // Small delay to allow animation to complete, then ensure loading is reset
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [lightboxOpen]);
 
   // Swipe threshold - slightly higher for mobile to prevent accidental swipes
   const swipeThreshold = 50;
@@ -36,7 +77,8 @@ export function ProductImageGallery({
 
   const goToImage = useCallback(
     (index: number, dir?: number) => {
-      if (index < 0 || index >= images.length) return;
+      // Skip if already on this image or out of bounds
+      if (index === currentIndex || index < 0 || index >= images.length) return;
       setDirection(dir ?? (index > currentIndex ? 1 : -1));
       setCurrentIndex(index);
       setIsLoading(true);
@@ -92,7 +134,7 @@ export function ProductImageGallery({
 
   if (images.length === 0) {
     return (
-      <div className="aspect-square sm:aspect-4/5 overflow-hidden rounded-xl bg-muted/30">
+      <div className="aspect-square overflow-hidden rounded-xl bg-muted/30">
         <div className="flex h-full flex-col items-center justify-center gap-3">
           <ImageIcon className="size-16 sm:size-20 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">No image available</p>
@@ -192,6 +234,22 @@ export function ProductImageGallery({
           </div>
         )}
 
+        {/* Zoom button - opens lightbox */}
+        <button
+          type="button"
+          onClick={openLightbox}
+          className={cn(
+            "absolute top-3 right-3 z-10",
+            "size-10 rounded-full bg-white/90 shadow-lg backdrop-blur-sm",
+            "flex items-center justify-center",
+            "transition-all duration-200 hover:bg-white hover:scale-105",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          )}
+          aria-label="Open image viewer"
+        >
+          <ZoomIn className="size-5" />
+        </button>
+
         {/* Swipeable image container */}
         <AnimatePresence mode="popLayout" custom={direction}>
           <motion.div
@@ -210,7 +268,8 @@ export function ProductImageGallery({
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}
             onDragEnd={handleDragEnd}
-            className="absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing"
+            onClick={openLightbox}
+            className="absolute inset-0 flex items-center justify-center cursor-zoom-in active:cursor-grabbing"
           >
             <Image
               src={currentImage.url}
@@ -232,7 +291,7 @@ export function ProductImageGallery({
       {images.length > 1 && (
         <div className="relative">
           {/* Mobile: Horizontal scroll */}
-          <div className="flex md:hidden gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
+          <div className="flex md:hidden gap-2 overflow-x-auto p-1 -m-1 scrollbar-none snap-x snap-mandatory">
             {images.map((image, index) => (
               <button
                 key={image.id}
@@ -259,7 +318,7 @@ export function ProductImageGallery({
           </div>
 
           {/* Desktop: Grid */}
-          <div className="hidden md:grid grid-cols-5 lg:grid-cols-6 gap-2">
+          <div className="hidden md:grid grid-cols-5 lg:grid-cols-6 gap-2 p-1 -m-1">
             {images.map((image, index) => (
               <motion.button
                 key={image.id}
@@ -288,6 +347,15 @@ export function ProductImageGallery({
           </div>
         </div>
       )}
+
+      {/* Lightbox for full-screen image viewing */}
+      <ProductLightbox
+        images={images}
+        open={lightboxOpen}
+        index={currentIndex}
+        onClose={closeLightbox}
+        onIndexChange={handleLightboxIndexChange}
+      />
     </div>
   );
 }
