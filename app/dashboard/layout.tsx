@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 
-import { getUser } from "@/lib/auth/server";
+import { getUser, getUserProfile } from "@/lib/auth/server";
 
 // Force dynamic rendering - auth state must be checked on every request
 export const dynamic = "force-dynamic";
@@ -33,6 +33,12 @@ export default async function DashboardLayout({
 
   if (!user) {
     redirect("/login");
+  }
+
+  // Check if user has completed their profile (phone required)
+  const profile = await getUserProfile();
+  if (!profile?.phone) {
+    redirect("/complete-profile");
   }
 
   // Get current path to determine active store

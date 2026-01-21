@@ -29,6 +29,8 @@ interface AddressFormProps {
   address?: UserAddress;
   /** When provided, name fields are hidden and name is taken from auth */
   userName?: string | null;
+  /** Pre-fill phone for new addresses (from user profile) */
+  defaultPhone?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
@@ -36,6 +38,7 @@ interface AddressFormProps {
 export function AddressForm({
   address,
   userName,
+  defaultPhone,
   onSuccess,
   onCancel,
 }: AddressFormProps) {
@@ -52,7 +55,7 @@ export function AddressForm({
     // When using auth name, don't pre-fill (server will use auth name)
     firstName: useAuthName ? "" : address?.firstName || "",
     lastName: useAuthName ? "" : address?.lastName || "",
-    phone: address?.phone || "",
+    phone: address?.phone || defaultPhone || "",
     latitude: address?.latitude ? parseFloat(address.latitude) : 0,
     longitude: address?.longitude ? parseFloat(address.longitude) : 0,
     accuracy: address?.accuracy ? parseFloat(address.accuracy) : undefined,

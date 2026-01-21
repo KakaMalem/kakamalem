@@ -158,15 +158,14 @@ export function InfiniteScrollProducts({
 
   if (products.length === 0) {
     return (
-      <div className="py-16 text-center">
-        <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-muted">
-          <Package className="size-10 text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center">
+        <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-muted/50">
+          <Package className="size-10 text-muted-foreground/50" />
         </div>
-        <h2 className="text-xl font-semibold tracking-tight">
-          No products found
-        </h2>
-        <p className="mt-2 text-muted-foreground">
-          Try adjusting your search or filters
+        <h2 className="text-xl font-semibold">No products found</h2>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+          Try adjusting your search or filters to find what you&apos;re looking
+          for
         </p>
       </div>
     );
@@ -175,11 +174,12 @@ export function InfiniteScrollProducts({
   return (
     <div className="flex flex-col">
       {/* Products Grid */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {products.map((product) => (
           <ProductCard
             key={product.id}
             product={product}
+            tenantId={tenantId}
             storeSlug={storeSlug}
             currency={currency}
             onAddToCart={catalogMode ? undefined : handleAddToCart}
@@ -191,7 +191,7 @@ export function InfiniteScrollProducts({
 
       {/* Loading Skeletons */}
       {isLoading && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5 mt-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mt-3 sm:mt-4">
           {Array.from({ length: initialPagination.limit }).map((_, i) => (
             <ProductCardSkeleton key={`skeleton-${i}`} />
           ))}
@@ -199,7 +199,7 @@ export function InfiniteScrollProducts({
       )}
 
       {/* Sentinel element for infinite scroll */}
-      <div ref={sentinelRef} className="py-4">
+      <div ref={sentinelRef} className="py-8">
         {!hasMore && products.length > 0 && (
           <p className="text-sm text-muted-foreground text-center">
             You&apos;ve seen all {initialPagination.total} products

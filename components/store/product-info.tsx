@@ -11,6 +11,9 @@ import {
   Plus,
   Check,
   AlertCircle,
+  ChevronUp,
+  Phone,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,9 +50,11 @@ interface ProductInfoProps {
   priceTiers?: PriceTier[];
   onVariantChange?: (variantId: string | null) => void;
   initialIsInWishlist?: boolean;
-  /** When true, hides add-to-cart and quantity controls (catalog/showcase mode) */
+  /** When true, hides add-to-cart and quantity controls */
   catalogMode?: boolean;
-  /** Contact phone for catalog mode */
+  /** Store mode for appropriate messaging */
+  storeMode?: "full" | "online_only" | "offline_only" | "catalog";
+  /** Contact phone for catalog/offline mode */
   contactPhone?: string | null;
 }
 
@@ -62,6 +67,7 @@ export function ProductInfo({
   onVariantChange,
   initialIsInWishlist = false,
   catalogMode = false,
+  storeMode = "full",
   contactPhone,
 }: ProductInfoProps) {
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
@@ -164,8 +170,7 @@ export function ProductInfo({
       ? selectedVariant.stock
       : product.stock;
 
-  const isOutOfStock =
-    product.trackInventory && currentStock <= 0 && !product.allowBackorder;
+  const isOutOfStock = currentStock <= 0 && !product.allowBackorder;
 
   // Sort price tiers by minQuantity
   const sortedTiers = useMemo(
@@ -385,35 +390,40 @@ export function ProductInfo({
   };
 
   return (
-    <div className="space-y-6 py-5">
+    <div className="space-y-5 sm:space-y-6">
       {/* Product Title */}
-      <h1 className="text-3xl font-semibold">{product.name}</h1>
+      <h1 className="text-2xl sm:text-3xl font-semibold leading-tight">
+        {product.name}
+      </h1>
 
       {/* Rating */}
       {reviewStats.totalReviews > 0 && reviewStats.averageRating && (
-        <div className="flex w-fit items-center rounded-sm border px-2.5 py-1.5">
-          <span className="me-2.5 flex items-center gap-1 border-e pe-2.5 text-sm">
-            <span className="text-lg font-medium">
+        <a
+          href="#reviews"
+          className="inline-flex w-fit items-center gap-2 rounded-full bg-muted/50 px-3 py-1.5 transition-colors hover:bg-muted"
+        >
+          <div className="flex items-center gap-1">
+            <Star className="size-4 fill-amber-500 stroke-transparent" />
+            <span className="text-sm font-medium">
               {reviewStats.averageRating.toFixed(1)}
             </span>
-            <Star className="mb-0.5 size-4 fill-amber-500 stroke-transparent" />
+          </div>
+          <span className="text-sm text-muted-foreground">
+            ({reviewStats.totalReviews}{" "}
+            {reviewStats.totalReviews === 1 ? "review" : "reviews"})
           </span>
-          <span className="text-muted-foreground">
-            {reviewStats.totalReviews}{" "}
-            {reviewStats.totalReviews === 1 ? "Review" : "Reviews"}
-          </span>
-        </div>
+        </a>
       )}
 
       {/* Price Section */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {/* Current Price */}
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <h4 className="text-3xl font-bold text-primary">
+        <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
+          <span className="text-2xl sm:text-3xl font-bold">
             {formatPrice(effectivePrice, currency)}
-          </h4>
+          </span>
           {(hasDiscount || applicableTier) && (
-            <span className="text-xl text-muted-foreground line-through">
+            <span className="text-base sm:text-lg text-muted-foreground line-through">
               {formatPrice(
                 applicableTier
                   ? displayPrice
@@ -423,17 +433,20 @@ export function ProductInfo({
             </span>
           )}
           {hasDiscount && discountPercent && !applicableTier && (
-            <Badge variant="destructive" className="text-sm font-semibold">
-              -{discountPercent}% OFF
+            <Badge
+              variant="destructive"
+              className="text-xs sm:text-sm font-semibold"
+            >
+              -{discountPercent}%
             </Badge>
           )}
           {applicableTier && (
-            <Badge className="bg-green-600 text-sm font-semibold">
-              Bulk Discount Applied
+            <Badge className="bg-green-600 text-xs sm:text-sm font-semibold">
+              Bulk Discount
             </Badge>
           )}
           {product.hasVariants && !selectedVariant && !hasDiscount && (
-            <span className="text-sm font-medium text-muted-foreground">
+            <span className="text-xs sm:text-sm text-muted-foreground">
               Starting price
             </span>
           )}
@@ -441,19 +454,19 @@ export function ProductInfo({
 
         {/* Total and Savings */}
         {quantity > 1 && (
-          <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+          <div className="p-3 bg-muted/30 rounded-xl">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
-                {quantity} items × {formatPrice(effectivePrice, currency)}
+                {quantity} × {formatPrice(effectivePrice, currency)}
               </span>
-              <span className="text-lg font-bold">
+              <span className="text-base sm:text-lg font-bold">
                 {formatPrice(totalPrice, currency)}
               </span>
             </div>
             {totalSavings > 0 && (
-              <div className="flex items-center justify-between mt-1 text-green-600">
-                <span className="text-sm">You save</span>
-                <span className="text-sm font-semibold">
+              <div className="flex items-center justify-between mt-1.5 text-green-600">
+                <span className="text-xs sm:text-sm">You save</span>
+                <span className="text-xs sm:text-sm font-semibold">
                   {formatPrice(totalSavings, currency)}
                 </span>
               </div>
@@ -463,12 +476,12 @@ export function ProductInfo({
 
         {/* Price Tiers (Quantity Discounts) */}
         {sortedTiers.length > 0 && (
-          <div className="p-4 bg-muted/50 rounded-lg border">
+          <div className="p-3 sm:p-4 bg-muted/30 rounded-xl">
             <div className="flex items-center gap-2 mb-3">
               <Tag className="size-4 text-primary" />
-              <span className="font-semibold">Bulk Pricing - Save More!</span>
+              <span className="text-sm font-semibold">Bulk Pricing</span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {sortedTiers.map((tier) => {
                 const tierPrice = parseFloat(tier.price);
                 const savings = Math.round(
@@ -480,10 +493,10 @@ export function ProductInfo({
                   <div
                     key={tier.id}
                     className={cn(
-                      "flex items-center justify-between p-2 rounded-md transition-colors",
+                      "flex items-center justify-between p-2 sm:p-2.5 rounded-lg transition-colors",
                       isActive
-                        ? "bg-primary/10 border border-primary/30"
-                        : "hover:bg-muted"
+                        ? "bg-primary/10 ring-1 ring-primary/30"
+                        : "hover:bg-muted/50"
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -492,19 +505,20 @@ export function ProductInfo({
                       )}
                       <span
                         className={cn(
-                          "text-sm",
+                          "text-xs sm:text-sm",
                           isActive ? "font-medium" : "text-muted-foreground"
                         )}
                       >
                         {tier.maxQuantity === null
-                          ? `${tier.minQuantity}+ units`
-                          : `${tier.minQuantity}-${tier.maxQuantity} units`}
+                          ? `${tier.minQuantity}+`
+                          : `${tier.minQuantity}-${tier.maxQuantity}`}
+                        <span className="hidden sm:inline"> units</span>
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       <span
                         className={cn(
-                          "font-medium",
+                          "text-sm font-medium",
                           isActive && "text-primary"
                         )}
                       >
@@ -514,7 +528,7 @@ export function ProductInfo({
                         <Badge
                           variant="secondary"
                           className={cn(
-                            "text-xs",
+                            "text-xs px-1.5",
                             isActive && "bg-green-100 text-green-700"
                           )}
                         >
@@ -593,28 +607,30 @@ export function ProductInfo({
       {/* Quantity Selector - Hidden in catalog mode */}
       {!catalogMode && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Quantity</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              Quantity
+            </span>
             {product.showStock &&
               product.trackInventory &&
               currentStock > 0 &&
               currentStock <= 10 && (
-                <span className="text-sm text-amber-600">
-                  Only {currentStock} left in stock
+                <span className="text-xs sm:text-sm text-amber-600 font-medium">
+                  Only {currentStock} left
                 </span>
               )}
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center border rounded-lg">
+            <div className="inline-flex items-center rounded-xl border-2 border-border">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 rounded-r-none"
+                className="size-11 sm:size-12 rounded-l-lg rounded-r-none hover:bg-muted/50"
                 onClick={decrementQuantity}
                 disabled={!canDecrement || isAddingToCart}
               >
-                <Minus className="size-4" />
+                <Minus className="size-4 sm:size-5" />
               </Button>
               <Input
                 type="text"
@@ -625,53 +641,85 @@ export function ProductInfo({
                 onBlur={handleQuantityInputBlur}
                 onKeyDown={handleQuantityKeyDown}
                 onWheel={(e) => e.currentTarget.blur()}
-                className="h-10 w-24 text-center border-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="h-11 sm:h-12 w-16 sm:w-20 text-center text-base font-medium border-0 rounded-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 disabled={isAddingToCart}
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 rounded-l-none"
+                className="size-11 sm:size-12 rounded-r-lg rounded-l-none hover:bg-muted/50"
                 onClick={incrementQuantity}
                 disabled={!canIncrement || isAddingToCart}
               >
-                <Plus className="size-4" />
+                <Plus className="size-4 sm:size-5" />
               </Button>
             </div>
             {minQty > 1 && (
-              <span className="text-sm text-muted-foreground">
-                Min. order: {minQty}
+              <span className="text-xs sm:text-sm text-muted-foreground">
+                Min: {minQty}
               </span>
             )}
           </div>
         </div>
       )}
 
-      {/* Action Buttons - Different for catalog mode */}
+      {/* Action Buttons - Different for catalog/offline mode */}
       {catalogMode ? (
-        <div className="space-y-4">
-          <div className="rounded-lg border bg-muted/50 p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Interested in this product? Contact us for pricing and
-              availability.
-            </p>
-            {contactPhone && (
-              <a
-                href={`tel:${contactPhone}`}
-                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Call: {contactPhone}
-              </a>
-            )}
-          </div>
+        <div className="rounded-xl bg-muted/30 p-4 text-center">
+          {storeMode === "offline_only" ? (
+            <>
+              <div className="mb-2 flex justify-center">
+                <Store className="size-8 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-foreground">
+                Available in-store only
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Visit us to purchase this product
+              </p>
+              {contactPhone && (
+                <a
+                  href={`tel:${contactPhone}`}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted active:scale-95"
+                >
+                  <Phone className="size-4" />
+                  Call: {contactPhone}
+                </a>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Interested in this product? Contact us for pricing and
+                availability.
+              </p>
+              {contactPhone && (
+                <a
+                  href={`tel:${contactPhone}`}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:scale-95"
+                >
+                  <Phone className="size-4" />
+                  Call: {contactPhone}
+                </a>
+              )}
+            </>
+          )}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-4">
+        <div className="space-y-3">
+          {/* Out of stock notice */}
+          {isOutOfStock && (
+            <div className="p-3 bg-destructive/10 text-destructive rounded-xl text-center text-sm font-medium">
+              Currently out of stock
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-2 sm:gap-3">
             <Button
               className={cn(
-                "grow gap-2 h-12 text-base transition-transform",
+                "flex-1 gap-2 h-12 sm:h-14 text-sm sm:text-base rounded-xl transition-all active:scale-[0.98]",
                 shakeButton && "animate-shake",
                 addToCartError && "ring-2 ring-destructive ring-offset-2"
               )}
@@ -682,7 +730,7 @@ export function ProductInfo({
               {isAddingToCart ? (
                 <>
                   <Loader2 className="size-5 animate-spin" />
-                  Adding...
+                  <span className="hidden sm:inline">Adding...</span>
                 </>
               ) : (
                 <>
@@ -694,16 +742,19 @@ export function ProductInfo({
             <Button
               variant="outline"
               size="lg"
-              className="h-12 px-4"
+              className="size-12 sm:size-14 shrink-0 rounded-xl border-2"
               onClick={handleToggleWishlist}
               disabled={isTogglingWishlist}
+              aria-label={
+                isInWishlist ? "Remove from wishlist" : "Add to wishlist"
+              }
             >
               {isTogglingWishlist ? (
                 <Loader2 className="size-5 animate-spin" />
               ) : (
                 <Heart
                   className={cn(
-                    "size-5",
+                    "size-5 sm:size-6 transition-colors",
                     isInWishlist && "fill-red-500 stroke-red-500"
                   )}
                 />
@@ -713,18 +764,67 @@ export function ProductInfo({
 
           {/* Error Message */}
           {addToCartError && (
-            <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-xl text-sm">
               <AlertCircle className="size-4 shrink-0" />
               <span>{addToCartError}</span>
             </div>
           )}
-        </div>
-      )}
 
-      {/* Stock Status - Hidden in catalog mode */}
-      {!catalogMode && isOutOfStock && (
-        <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-center font-medium">
-          Out of Stock
+          {/* Mobile Sticky Add to Cart Bar */}
+          <div
+            className={cn(
+              "fixed bottom-0 inset-x-0 z-50 md:hidden",
+              "bg-background/95 backdrop-blur-lg border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]",
+              "pb-[env(safe-area-inset-bottom)]"
+            )}
+          >
+            <div className="flex items-center gap-3 px-4 py-3">
+              {/* Product info */}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground truncate">
+                  {product.name}
+                </p>
+                <p className="text-base font-bold">
+                  {formatPrice(effectivePrice, currency)}
+                  {quantity > 1 && (
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      × {quantity}
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              {/* Scroll to top */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-10 shrink-0 rounded-xl"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                aria-label="Scroll to top"
+              >
+                <ChevronUp className="size-5" />
+              </Button>
+
+              {/* Add to cart button */}
+              <Button
+                className="h-10 px-5 rounded-xl gap-2 shrink-0"
+                disabled={isOutOfStock || isAddingToCart}
+                onClick={handleAddToCart}
+              >
+                {isAddingToCart ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>
+                    <ShoppingCart className="size-4" />
+                    <span>Add</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Spacer for sticky bar on mobile */}
+          <div className="h-20 md:hidden" aria-hidden="true" />
         </div>
       )}
     </div>

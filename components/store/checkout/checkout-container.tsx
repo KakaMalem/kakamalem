@@ -37,6 +37,7 @@ interface CheckoutContainerProps {
     name: string | null;
     email: string;
   } | null;
+  userPhone: string;
   subtotal: number;
   deliveryZones: DeliveryZone[];
 }
@@ -48,6 +49,7 @@ export function CheckoutContainer({
   cart,
   savedAddresses,
   user,
+  userPhone,
   subtotal,
   deliveryZones,
 }: CheckoutContainerProps) {
@@ -143,6 +145,7 @@ export function CheckoutContainer({
           {currentStep === 1 && (
             <StepContactShipping
               user={user}
+              userPhone={userPhone}
               savedAddresses={savedAddresses}
               tenantId={tenantId}
               storeSlug={storeSlug}

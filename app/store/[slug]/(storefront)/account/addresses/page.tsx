@@ -1,7 +1,7 @@
 import { MapPin, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { getUser } from "@/lib/auth/server";
+import { getUser, getUserProfile } from "@/lib/auth/server";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
 import { AddressCard } from "@/components/store/account/address-card";
 import { AddAddressButton } from "@/components/store/account/add-address-button";
@@ -14,7 +14,10 @@ export default async function AddressesPage() {
     return null;
   }
 
-  const addresses = await getUserAddresses(user.id);
+  const [addresses, profile] = await Promise.all([
+    getUserAddresses(user.id),
+    getUserProfile(),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -33,7 +36,10 @@ export default async function AddressesPage() {
             <MapPin className="size-5" />
             Saved Addresses
           </CardTitle>
-          <AddAddressButton userName={user.name} />
+          <AddAddressButton
+            userName={user.name}
+            defaultPhone={profile?.phone || ""}
+          />
         </CardHeader>
         <CardContent>
           {addresses.length === 0 ? (
@@ -49,6 +55,7 @@ export default async function AddressesPage() {
                   variant="default"
                   showIcon
                   userName={user.name}
+                  defaultPhone={profile?.phone || ""}
                 />
               </div>
             </div>

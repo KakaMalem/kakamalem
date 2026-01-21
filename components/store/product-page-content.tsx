@@ -29,9 +29,11 @@ interface ProductPageContentProps {
   reviewStats: ReviewStats;
   priceTiers?: PriceTier[];
   initialIsInWishlist?: boolean;
-  /** When true, hides add-to-cart and quantity controls (catalog/showcase mode) */
+  /** When true, hides add-to-cart and quantity controls */
   catalogMode?: boolean;
-  /** Contact phone for catalog mode */
+  /** Store mode for appropriate messaging */
+  storeMode?: "full" | "online_only" | "offline_only" | "catalog";
+  /** Contact phone for catalog/offline mode */
   contactPhone?: string | null;
 }
 
@@ -45,6 +47,7 @@ export function ProductPageContent({
   priceTiers = [],
   initialIsInWishlist = false,
   catalogMode = false,
+  storeMode = "full",
   contactPhone,
 }: ProductPageContentProps) {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
@@ -83,37 +86,33 @@ export function ProductPageContent({
   return (
     <>
       {/* Image Gallery Column */}
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col">
         <ProductImageGallery images={images} productName={product.name} />
       </div>
 
       {/* Product Info Column */}
-      <div className="space-y-6">
+      <div className="flex flex-col">
         {/* Breadcrumbs */}
-        <nav aria-label="breadcrumb">
-          <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground wrap-break-words sm:gap-2.5">
+        <nav aria-label="breadcrumb" className="mb-4">
+          <ol className="flex items-center gap-1 text-sm overflow-x-auto scrollbar-none">
             {breadcrumbs.map((crumb, index) => (
-              <div key={index} className="flex items-center gap-2.5">
-                <li className="inline-flex items-center gap-1.5">
-                  {crumb.current ? (
-                    <span className="text-foreground font-normal">
-                      {crumb.label}
-                    </span>
-                  ) : (
+              <li key={index} className="flex items-center gap-1 shrink-0">
+                {crumb.current ? (
+                  <span className="text-foreground font-medium truncate max-w-50">
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <>
                     <Link
                       href={crumb.href}
-                      className="hover:text-foreground transition-colors"
+                      className="text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
                     >
                       {crumb.label}
                     </Link>
-                  )}
-                </li>
-                {index < breadcrumbs.length - 1 && (
-                  <li role="presentation" aria-hidden="true">
-                    <ChevronRight className="size-3.5" />
-                  </li>
+                    <ChevronRight className="size-3.5 text-muted-foreground/50 shrink-0" />
+                  </>
                 )}
-              </div>
+              </li>
             ))}
           </ol>
         </nav>
@@ -129,6 +128,7 @@ export function ProductPageContent({
           onVariantChange={setSelectedVariantId}
           initialIsInWishlist={initialIsInWishlist}
           catalogMode={catalogMode}
+          storeMode={storeMode}
           contactPhone={contactPhone}
         />
       </div>

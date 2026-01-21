@@ -56,6 +56,7 @@ export function ProductGrid({
   products,
   pagination,
   storeSlug,
+  tenantId,
   currency,
   basePath,
   currentSort = "createdAt-desc",
@@ -108,13 +109,13 @@ export function ProductGrid({
 
   if (products.length === 0) {
     return (
-      <div className="py-16 text-center">
-        <PackageSearch className="mx-auto size-12 text-muted-foreground/50" />
-        <h2 className="mt-4 text-xl font-semibold text-muted-foreground">
-          No products found
-        </h2>
-        <p className="mt-2 text-muted-foreground">
-          Try adjusting your filters or check back later.
+      <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center">
+        <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-muted/50">
+          <PackageSearch className="size-10 text-muted-foreground/50" />
+        </div>
+        <h2 className="text-xl font-semibold">No products found</h2>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+          Try adjusting your filters or check back later
         </p>
       </div>
     );
@@ -123,14 +124,14 @@ export function ProductGrid({
   return (
     <div>
       {/* Sort Controls */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Showing {(pagination.page - 1) * pagination.limit + 1}-
           {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
           {pagination.total} products
         </p>
         <Select value={currentSort} onValueChange={handleSortChange}>
-          <SelectTrigger className="w-45">
+          <SelectTrigger className="w-full sm:w-45">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
@@ -144,11 +145,12 @@ export function ProductGrid({
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {products.map((product) => (
           <ProductCard
             key={product.id}
             product={product}
+            tenantId={tenantId}
             storeSlug={storeSlug}
             currency={currency}
             onAddToCart={catalogMode ? undefined : handleAddToCart}

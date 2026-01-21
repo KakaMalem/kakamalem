@@ -150,6 +150,29 @@ export const auth = betterAuth({
   },
 
   // ==========================================================================
+  // DATABASE HOOKS
+  // ==========================================================================
+  // Auto-create related records when users are created
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // Create user profile with default preferences
+          await db
+            .insert(schema.userProfiles)
+            .values({
+              userId: user.id,
+              platformRole: "user",
+              preferredCurrency: "AFN",
+              preferredLanguage: "fa",
+            })
+            .onConflictDoNothing();
+        },
+      },
+    },
+  },
+
+  // ==========================================================================
   // ADVANCED OPTIONS
   // ==========================================================================
   advanced: {
@@ -160,12 +183,6 @@ export const auth = betterAuth({
     // Cookie prefix
     cookiePrefix: "kaka_malem",
   },
-
-  // ==========================================================================
-  // CALLBACKS & HOOKS
-  // ==========================================================================
-  // These run after authentication events
-  // Use to create related records (userProfiles, etc.)
 
   // ==========================================================================
   // PLUGINS

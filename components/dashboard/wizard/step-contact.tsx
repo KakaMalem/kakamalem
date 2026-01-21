@@ -64,7 +64,7 @@ export function StepContact({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="contactPhone">Contact phone (optional)</FieldLabel>
+        <FieldLabel htmlFor="contactPhone">Contact phone</FieldLabel>
         <PhoneInput
           id="contactPhone"
           value={contactPhone}

@@ -31,6 +31,8 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { SystemStatus } from "@/components/admin/system-status";
+import { StorageHealth } from "@/components/admin/storage-health";
 
 // =============================================================================
 // ADMIN DASHBOARD
@@ -131,6 +133,12 @@ export default async function AdminDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* System Health - Infrastructure Monitoring */}
+      <SystemStatus />
+
+      {/* Storage Health - Media & Uploads Monitoring */}
+      <StorageHealth />
 
       {/* Stats Grid - 2x2 on mobile, 4 columns on desktop */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

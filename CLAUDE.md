@@ -22,7 +22,7 @@ pnpm db:generate       # Generate migration files from schema changes
 pnpm db:migrate        # Apply migrations from drizzle/ folder
 pnpm db:migrate:custom # Apply custom SQL (triggers, functions) from drizzle/custom/
 pnpm db:studio         # Open Drizzle Studio GUI
-pnpm db:push           # Push schema directly (DEV ONLY - clears RLS!)
+pnpm db:push           # Push schema directly (DEV ONLY - can cause data loss!)
 ```
 
 ## Database Migration Workflow
@@ -199,7 +199,7 @@ Path-based routing following [Next.js multi-tenant guide](https://nextjs.org/doc
 
 - **Public storefronts**: `kakamalem.com/store/[slug]`
 - **Store management**: `kakamalem.com/dashboard`
-- **All tenant data isolated** via `tenant_id` foreign key + RLS policies
+- **All tenant data isolated** via `tenant_id` foreign key + application-level checks
 - **Tenant-isolated carts**: Each shop has separate carts (no cross-shop cart)
 
 ### App Router Structure
@@ -209,10 +209,9 @@ app/
 ├── layout.tsx              # Root layout (Geist fonts, metadata)
 ├── page.tsx                # Landing page
 ├── globals.css             # Tailwind + CSS theme variables
-├── auth/
+├── (auth)/                 # Route group: platform auth
 │   ├── login/              # Email/password + OAuth login
 │   ├── signup/             # User registration
-│   ├── callback/route.ts   # OAuth callback handler
 │   ├── confirm/            # Email confirmation page
 │   ├── error/              # Auth error page
 │   └── logout/             # Logout handler
@@ -221,7 +220,37 @@ app/
 │   ├── stores/             # Store management
 │   └── settings/           # Platform settings
 ├── dashboard/              # Store owner dashboard (protected)
-└── store/[slug]/           # Public storefront for each tenant
+│   ├── page.tsx            # Store selector
+│   ├── new/                # Create new store
+│   ├── account/            # User account settings
+│   └── [slug]/             # Per-store dashboard
+│       ├── page.tsx        # Store dashboard home
+│       ├── products/       # Product management
+│       ├── categories/     # Category management
+│       ├── orders/         # Order management
+│       ├── offline-sales/  # POS/offline sales
+│       ├── inventory/      # Stock management
+│       ├── analytics/      # Store analytics
+│       ├── shipping/       # Shipping methods
+│       ├── customers/      # Customer groups
+│       ├── variants/       # Variant options (Size, Color, etc.)
+│       ├── media/          # Media library
+│       ├── settings/       # Store settings
+│       └── billing/        # Subscription management
+├── store/[slug]/           # Public storefront for each tenant
+│   ├── (auth)/             # Store-specific customer auth
+│   │   └── auth/           # Login, signup, forgot-password
+│   └── (storefront)/       # Public pages
+│       ├── page.tsx        # Store homepage
+│       ├── products/       # Product listing
+│       ├── product/[slug]/ # Product detail
+│       ├── category/[slug]/# Category view
+│       ├── cart/           # Shopping cart
+│       ├── checkout/       # Checkout flow
+│       └── account/        # Customer account (orders, addresses, wishlist)
+├── privacy/                # Privacy policy
+├── terms/                  # Terms of service
+└── data-deletion/          # Data deletion request (Facebook requirement)
 ```
 
 ### Admin Panel (/admin)
@@ -239,27 +268,39 @@ lib/
 ├── db/
 │   ├── index.ts            # Drizzle client
 │   ├── schema.ts           # Database schema (see below)
-│   └── queries/            # Reusable query functions
+│   └── queries/            # Reusable query functions (20+ files)
 ├── auth/
 │   ├── index.ts            # Better Auth configuration
 │   ├── client.ts           # Client-side auth hooks
 │   └── server.ts           # Server-side auth helpers
 ├── storage/
 │   └── index.ts            # Local file storage utilities
-├── actions/                # Server actions for data mutations
-├── validations/
-│   └── auth.ts             # Zod schemas for auth forms
+├── actions/                # Server actions for data mutations (22+ files)
+├── stores/                 # Zustand stores for client state
+├── validations/            # Zod schemas for forms
 └── utils.ts                # cn() helper for Tailwind classes
 
 components/
 ├── ui/                     # shadcn/ui components
-└── auth/                   # Auth-related components
+├── auth/                   # Auth-related components
+├── dashboard/              # Dashboard page components
+└── store/                  # Storefront components
 
 database/                   # PostgreSQL configuration files
 ├── postgresql.conf         # Optimized PostgreSQL 18 config
 ├── pg_hba.conf            # Client authentication config
 └── pgbouncer.ini          # Connection pooling config
 ```
+
+### Client-Side State (Zustand)
+
+Location: `lib/stores/`
+
+| Store                          | Purpose                                 |
+| ------------------------------ | --------------------------------------- |
+| `use-cart-store.ts`            | Shopping cart state per tenant          |
+| `use-checkout-store.ts`        | Checkout flow state (address, shipping) |
+| `use-tenant-settings-store.ts` | Cached tenant settings for storefront   |
 
 ### Path Alias
 
@@ -291,15 +332,28 @@ database/                   # PostgreSQL configuration files
 
 ### Orders & Shipping
 
-| Table                      | Purpose                                                      |
-| -------------------------- | ------------------------------------------------------------ |
-| `carts` / `cart_items`     | Shopping carts (session or customer based)                   |
-| `orders` / `order_items`   | Orders with address, financial breakdown                     |
-| `shipping_zones`           | Geographic regions (countries, states, cities, postal codes) |
-| `shipping_methods`         | Delivery options per zone (flat, weight-based, price-based)  |
-| `shipments`                | Physical shipments with tracking                             |
-| `shipment_items`           | Which items in each shipment (split shipment support)        |
-| `shipment_tracking_events` | Tracking history                                             |
+| Table                                    | Purpose                                                      |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| `carts` / `cart_items`                   | Shopping carts (session or customer based)                   |
+| `orders` / `order_items`                 | Orders with address, financial breakdown                     |
+| `offline_orders` / `offline_order_items` | POS/in-store sales (no shipping required)                    |
+| `shipping_zones`                         | Geographic regions (countries, states, cities, postal codes) |
+| `shipping_methods`                       | Delivery options per zone (flat, weight-based, price-based)  |
+| `delivery_zones`                         | Local delivery areas with polygon/radius boundaries          |
+| `shipments`                              | Physical shipments with tracking                             |
+| `shipment_items`                         | Which items in each shipment (split shipment support)        |
+| `shipment_tracking_events`               | Tracking history                                             |
+
+### Customers & Pricing
+
+| Table                          | Purpose                                             |
+| ------------------------------ | --------------------------------------------------- |
+| `customer_groups`              | Customer segments per tenant (VIP, Wholesale, etc.) |
+| `customer_group_members`       | Junction: customers <-> groups                      |
+| `price_tiers`                  | Quantity-based pricing (buy 10+ get discount)       |
+| `group_pricing`                | Special prices per customer group                   |
+| `scheduled_sales`              | Time-limited discounts (start/end date)             |
+| `wishlists` / `wishlist_items` | Customer wishlists per tenant                       |
 
 ### Reviews & Billing
 
@@ -357,23 +411,22 @@ Settings are configurable from admin panel (`/admin`).
 ### Role Hierarchy
 
 - **Owner** > **Admin** > **Staff** (per-tenant via `tenant_members`)
-- Global admin role via `profiles.role = 'admin'`
+- Platform admin role via `user_profiles.platform_role = 'platform_admin'` or `'super_admin'`
 
-### RLS Policies Summary
+### Authorization Model
 
-- **Public read**: Active tenants, categories, active products, reviews, media
-- **Staff+**: Create/update products, categories, media; view orders
-- **Admin+**: Delete products/categories/orders; manage tenant members
-- **Owner**: Update/delete tenant; manage all members
+Authorization is enforced at the **application level** (not database RLS):
 
-Helper functions in SQL:
-
-- `check_tenant_access(tenant_id, role)` - Check role hierarchy
-- `is_tenant_owner(tenant_id)` - Check if user owns tenant
+- All queries filter by `tenant_id` for tenant isolation
+- Server actions check permissions via `lib/auth/context.ts` helpers:
+  - `getUserStoreContext(tenantId)` - Get user's relationship to a store
+  - `canManageStore(tenantId)` - Check if user can manage store
+  - `hasMinimumRole(tenantId, role)` - Check role hierarchy
+- Platform admin access checked via `isPlatformAdmin()` in `lib/auth/server.ts`
 
 ### Auto Profile Creation
 
-Better Auth handles profile creation automatically when users sign up.
+Better Auth creates `user_profiles` automatically via database hooks when users sign up.
 
 ## Validation Patterns
 

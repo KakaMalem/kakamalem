@@ -21,32 +21,47 @@ interface CartItemProps {
 export function CartItem({ item, currency }: CartItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");
-  // Local quantity for immediate UI feedback
+  // Local quantity is the single source of truth during user interaction
+  // This prevents jitter when server responses arrive during rapid clicking
   const [localQuantity, setLocalQuantity] = useState(item.quantity);
+  // When true, local state is "locked" and ignores server updates
+  // This becomes true on user interaction and false after cooldown
+  const [isLocalLocked, setIsLocalLocked] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Refs for debouncing
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pendingQuantityRef = useRef<number | null>(null);
+  const lockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { updateQuantity, removeItem } = useCart();
+  // Disable the mutation-level debounce since we handle debouncing locally
+  // This gives us precise control over optimistic updates
+  const { updateQuantity, removeItem } = useCart({ debounce: false });
 
-  // Cleanup debounce timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
+    const debounceTimer = debounceTimerRef.current;
+    const lockTimer = lockTimeoutRef.current;
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      if (lockTimer) {
+        clearTimeout(lockTimer);
       }
     };
   }, []);
 
-  // Sync localQuantity from server when item.quantity changes externally
-  // The debounce logic handles reconciliation - any mid-click server response
-  // will be overwritten by the next debounced update with the correct value
+  // Sync from server during render (React recommended pattern for derived state)
+  // Only sync when local state is NOT locked by user interaction
   const [prevItemQuantity, setPrevItemQuantity] = useState(item.quantity);
   if (prevItemQuantity !== item.quantity) {
     setPrevItemQuantity(item.quantity);
-    setLocalQuantity(item.quantity);
+    // Only accept server updates if user hasn't interacted recently
+    // This is the key fix: ignore server updates while user is actively clicking
+    if (!isLocalLocked) {
+      setLocalQuantity(item.quantity);
+    }
   }
 
   const basePrice = item.variant?.price
@@ -86,9 +101,26 @@ export function CartItem({ item, currency }: CartItemProps) {
   // Display value: use editingValue while editing, otherwise localQuantity
   const displayValue = isEditing ? editingValue : String(localQuantity);
 
+  // Lock local state to prevent server sync from overwriting during interaction
+  const lockLocalState = () => {
+    setIsLocalLocked(true);
+    // Clear any existing unlock timeout
+    if (lockTimeoutRef.current) {
+      clearTimeout(lockTimeoutRef.current);
+    }
+    // Unlock after debounce + server round-trip buffer (300 + 500 = 800ms)
+    lockTimeoutRef.current = setTimeout(() => {
+      setIsLocalLocked(false);
+      lockTimeoutRef.current = null;
+    }, 800);
+  };
+
   // Debounced server update - only sends after user stops clicking
   const debouncedServerUpdate = (quantity: number) => {
-    // Clear any existing timer
+    // Lock local state immediately on user interaction
+    lockLocalState();
+
+    // Clear any existing debounce timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }

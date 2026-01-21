@@ -36,23 +36,30 @@ export default async function StorePage({
 
   const hasProducts = productsResult.products.length > 0;
 
-  // Check if store is in catalog mode (no cart functionality)
-  const isCatalogMode = store.storeMode === "catalog";
+  // Check if online cart should be disabled
+  // - catalog: Display only, no checkout anywhere
+  // - offline_only: POS only, no online checkout
+  const isCartDisabled =
+    store.storeMode === "catalog" || store.storeMode === "offline_only";
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col min-h-[50vh]">
       {/* Search Results Info */}
       {searchQuery && (
-        <div className="border-b bg-muted/30 py-4">
+        <div className="border-b bg-muted/20 py-3 sm:py-4">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <p className="text-sm text-muted-foreground">
-                {productsResult.pagination.total} result
-                {productsResult.pagination.total !== 1 && "s"} for &quot;
-                {searchQuery}&quot;
+                <span className="font-medium text-foreground">
+                  {productsResult.pagination.total}
+                </span>{" "}
+                result{productsResult.pagination.total !== 1 && "s"} for{" "}
+                <span className="font-medium text-foreground">
+                  &quot;{searchQuery}&quot;
+                </span>
               </p>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={`/store/${slug}`}>Clear search</Link>
+              <Button variant="ghost" size="sm" className="shrink-0" asChild>
+                <Link href={`/store/${slug}`}>Clear</Link>
               </Button>
             </div>
           </div>
@@ -60,7 +67,7 @@ export default async function StorePage({
       )}
 
       {/* Products Grid */}
-      <section className="py-8">
+      <section className="py-6 sm:py-8 flex-1">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {hasProducts ? (
             <InfiniteScrollProducts
@@ -71,19 +78,19 @@ export default async function StorePage({
               currency={store.currency}
               filters={{ isActive: true, search: searchQuery }}
               sort={{ field: "displayOrder", direction: "asc" }}
-              catalogMode={isCatalogMode}
+              catalogMode={isCartDisabled}
             />
           ) : (
-            <div className="py-16 text-center">
-              <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-muted">
-                <Package className="size-10 text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center">
+              <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-muted/50">
+                <Package className="size-10 text-muted-foreground/50" />
               </div>
-              <h2 className="text-xl font-semibold tracking-tight">
+              <h2 className="text-xl font-semibold">
                 {searchQuery ? "No products found" : "No products yet"}
               </h2>
-              <p className="mt-2 text-muted-foreground">
+              <p className="mt-2 text-sm text-muted-foreground max-w-sm">
                 {searchQuery
-                  ? "Try adjusting your search terms"
+                  ? "Try adjusting your search terms or browse our categories"
                   : "Check back soon for new arrivals!"}
               </p>
               {searchQuery && (

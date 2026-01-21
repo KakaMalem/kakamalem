@@ -130,8 +130,11 @@ export default async function StoreLayout({
     0
   );
 
-  // Check if store is in catalog mode (no cart functionality)
-  const isCatalogMode = store.storeMode === "catalog";
+  // Check if online cart should be disabled
+  // - catalog: Display only, no checkout anywhere
+  // - offline_only: POS only, no online checkout
+  const isCartDisabled =
+    store.storeMode === "catalog" || store.storeMode === "offline_only";
 
   return (
     <QueryProvider>
@@ -178,8 +181,8 @@ export default async function StoreLayout({
               slug: c.slug,
             }))}
           />
-          {/* Cart Drawer - Hidden in catalog mode */}
-          {!isCatalogMode && (
+          {/* Cart Drawer - Hidden when online cart is disabled */}
+          {!isCartDisabled && (
             <CartDrawer storeSlug={slug} currency={store.currency} />
           )}
         </div>

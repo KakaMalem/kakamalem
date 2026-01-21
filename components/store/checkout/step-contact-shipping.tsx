@@ -39,6 +39,7 @@ interface StepContactShippingProps {
     name: string | null;
     email: string;
   } | null;
+  userPhone: string;
   savedAddresses: Array<{
     id: string;
     label: string | null;
@@ -62,6 +63,7 @@ interface StepContactShippingProps {
 
 export function StepContactShipping({
   user,
+  userPhone,
   savedAddresses,
   tenantId: _tenantId,
   storeSlug: _storeSlug,
@@ -98,14 +100,14 @@ export function StepContactShipping({
     (): ShippingAddressInput => ({
       firstName: user?.name?.split(" ")[0] || "",
       lastName: user?.name?.split(" ").slice(1).join(" ") || "",
-      phone: "",
+      phone: userPhone,
       latitude: 0,
       longitude: 0,
       accuracy: undefined,
       source: undefined,
       notes: "",
     }),
-    [user?.name]
+    [user?.name, userPhone]
   );
 
   // Address form state (for new address)

@@ -17,12 +17,15 @@ interface AddAddressButtonProps {
   showIcon?: boolean;
   /** Pass user name to auto-fill from auth instead of showing name fields */
   userName?: string | null;
+  /** Pre-fill phone for new addresses (from user profile) */
+  defaultPhone?: string;
 }
 
 export function AddAddressButton({
   variant = "outline",
   showIcon = false,
   userName,
+  defaultPhone,
 }: AddAddressButtonProps) {
   const [open, setOpen] = useState(false);
 
@@ -40,6 +43,7 @@ export function AddAddressButton({
         </DialogHeader>
         <AddressForm
           userName={userName}
+          defaultPhone={defaultPhone}
           onSuccess={() => setOpen(false)}
           onCancel={() => setOpen(false)}
         />

@@ -75,37 +75,46 @@ export default async function CategoryPage({
     },
   });
 
-  // Check if store is in catalog mode (no cart functionality)
-  const isCatalogMode = store.storeMode === "catalog";
+  // Check if online cart should be disabled
+  // - catalog: Display only, no checkout anywhere
+  // - offline_only: POS only, no online checkout
+  const isCartDisabled =
+    store.storeMode === "catalog" || store.storeMode === "offline_only";
 
   return (
-    <div className="flex flex-col">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Breadcrumb */}
-        <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <Link href={`/store/${slug}`} className="hover:text-foreground">
-            Home
-          </Link>
-          <ChevronRight className="size-4" />
-          <span className="text-foreground">{category.name}</span>
-        </nav>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Breadcrumb */}
+      <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
+        <Link href={`/store/${slug}`} className="hover:text-foreground">
+          Home
+        </Link>
+        <ChevronRight className="size-4" />
+        <span className="text-foreground">{category.name}</span>
+      </nav>
 
-        {/* Products Grid with Infinite Scroll */}
-        <InfiniteScrollWrapper
-          initialProducts={productsResult.products}
-          initialPagination={productsResult.pagination}
-          tenantId={store.id}
-          storeSlug={slug}
-          currency={store.currency}
-          basePath={`/store/${slug}/category/${categorySlug}`}
-          filters={{
-            categoryId: category.id,
-            isActive: true,
-          }}
-          currentSort={sort || "createdAt-desc"}
-          catalogMode={isCatalogMode}
-        />
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">{category.name}</h1>
+        {category.description && (
+          <p className="mt-2 text-muted-foreground">{category.description}</p>
+        )}
       </div>
+
+      {/* Products Grid with Infinite Scroll */}
+      <InfiniteScrollWrapper
+        initialProducts={productsResult.products}
+        initialPagination={productsResult.pagination}
+        tenantId={store.id}
+        storeSlug={slug}
+        currency={store.currency}
+        basePath={`/store/${slug}/category/${categorySlug}`}
+        filters={{
+          categoryId: category.id,
+          isActive: true,
+        }}
+        currentSort={sort || "createdAt-desc"}
+        catalogMode={isCartDisabled}
+      />
     </div>
   );
 }

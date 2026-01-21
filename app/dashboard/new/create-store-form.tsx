@@ -43,6 +43,7 @@ type LogoState = {
 
 interface CreateStoreFormProps {
   userEmail: string;
+  userPhone: string;
 }
 
 // Animation variants for step transitions
@@ -61,7 +62,10 @@ const slideVariants = {
   }),
 };
 
-export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
+export function CreateStoreForm({
+  userEmail,
+  userPhone,
+}: CreateStoreFormProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -104,7 +108,7 @@ export function CreateStoreForm({ userEmail }: CreateStoreFormProps) {
     logoUrl: "",
     headerDisplay: "name_only",
     contactEmail: userEmail,
-    contactPhone: "",
+    contactPhone: userPhone,
     currency: "AFN",
   });
 

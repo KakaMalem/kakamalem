@@ -85,14 +85,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     { label: product.name, href: "#", current: true },
   ];
 
-  // Check if store is in catalog mode (no cart functionality)
-  const isCatalogMode = store.storeMode === "catalog";
+  // Check if online cart should be disabled
+  // - catalog: Display only, contact for orders
+  // - offline_only: POS only, in-store purchases only
+  const isCartDisabled =
+    store.storeMode === "catalog" || store.storeMode === "offline_only";
 
   return (
-    <section className="py-8 sm:py-16 lg:py-24">
+    <section className="py-4 sm:py-8 lg:py-12">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Product Content Grid */}
-        <div className="grid grid-cols-1 gap-12 md:grid-cols-2 md:gap-8 xl:gap-24">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16">
           <ProductPageContent
             product={product}
             tenantId={store.id}
@@ -102,13 +105,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
             reviewStats={reviewStats}
             priceTiers={priceTiers}
             initialIsInWishlist={isInWishlist}
-            catalogMode={isCatalogMode}
+            catalogMode={isCartDisabled}
+            storeMode={store.storeMode}
             contactPhone={store.contactPhone}
           />
         </div>
 
         {/* Reviews Section */}
-        <section className="mt-20">
+        <section className="mt-12 sm:mt-16 lg:mt-20">
           <ProductReviews
             tenantId={store.id}
             productId={product.id}

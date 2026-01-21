@@ -8,7 +8,7 @@ import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
-import { getUser } from "@/lib/auth/server";
+import { getUser, getUserProfile } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
 import { CheckoutContainer } from "@/components/store/checkout/checkout-container";
 
@@ -122,8 +122,11 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     );
   }
 
-  // Get user's saved addresses if logged in
-  const savedAddresses = user ? await getUserAddresses(user.id) : [];
+  // Get user's saved addresses and profile phone if logged in
+  const [savedAddresses, userProfile] = await Promise.all([
+    user ? getUserAddresses(user.id) : Promise.resolve([]),
+    user ? getUserProfile() : Promise.resolve(null),
+  ]);
 
   // Calculate cart subtotal with tier pricing
   const subtotal = cartValidation.cart.items.reduce((sum, item) => {
@@ -158,6 +161,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       cart={cartValidation.cart}
       savedAddresses={savedAddresses}
       user={user}
+      userPhone={userProfile?.phone || ""}
       subtotal={subtotal}
       deliveryZones={deliveryZones}
     />

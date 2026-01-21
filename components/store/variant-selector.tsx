@@ -23,33 +23,46 @@ export function VariantSelector({
   onValueChange,
 }: VariantSelectorProps) {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <h4 className="text-lg font-semibold">{label}:</h4>
+    <div className="space-y-3">
+      <h4 className="text-sm font-medium text-muted-foreground">{label}</h4>
       <RadioGroup
         value={selectedValue}
         onValueChange={onValueChange}
-        className="flex flex-wrap gap-3"
+        className="flex flex-wrap gap-2"
       >
         {options.map((option) => (
           <label
             key={option.value}
             className={cn(
-              "border-input group relative flex flex-col items-center gap-3 rounded-md border px-3 py-1.5 text-center shadow-xs transition-[color,box-shadow] outline-none cursor-pointer",
-              "has-focus-visible:border-ring has-focus-visible:ring-ring/50 has-focus-visible:ring-[3px]",
-              "has-data-disabled:cursor-not-allowed has-data-disabled:opacity-50",
-              "has-data-[state=checked]:bg-primary has-data-[state=checked]:border-primary"
+              "group relative flex items-center justify-center",
+              "min-h-11 min-w-11 px-4 py-2.5",
+              "rounded-lg border-2 text-center cursor-pointer",
+              "transition-all duration-200 active:scale-95",
+              // Default state
+              "border-border bg-background hover:border-primary/50 hover:bg-primary/5",
+              // Focus state
+              "has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2",
+              // Disabled state
+              "has-data-disabled:cursor-not-allowed has-data-disabled:opacity-40 has-data-disabled:line-through",
+              // Selected state
+              "has-data-[state=checked]:bg-primary has-data-[state=checked]:border-primary has-data-[state=checked]:shadow-sm"
             )}
           >
             <RadioGroupItem
               value={option.value}
-              id={`option-${option.value}`}
-              aria-label={`option-radio-${option.value}`}
+              id={`option-${label}-${option.value}`}
+              aria-label={`${label}: ${option.value}`}
               disabled={!option.isAvailable}
               className="sr-only after:absolute after:inset-0"
             />
-            <p className="text-foreground group-has-data-[state=checked]:text-primary-foreground text-sm leading-none font-medium">
+            <span
+              className={cn(
+                "text-sm font-medium leading-none",
+                "group-has-data-[state=checked]:text-primary-foreground"
+              )}
+            >
               {option.label}
-            </p>
+            </span>
           </label>
         ))}
       </RadioGroup>

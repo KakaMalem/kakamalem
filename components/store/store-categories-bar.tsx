@@ -159,7 +159,7 @@ export function StoreCategoriesBar({
             <div
               ref={scrollRef}
               onScroll={checkScroll}
-              className="flex gap-4 overflow-x-auto scroll-smooth py-1 scrollbar-none md:gap-6"
+              className="flex gap-4 overflow-x-auto scroll-smooth px-1 py-1 scrollbar-none md:gap-6"
               style={{
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",

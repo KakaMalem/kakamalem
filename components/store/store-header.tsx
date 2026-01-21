@@ -61,8 +61,11 @@ export function StoreHeader({
   // Get hydrated cart count that syncs with Zustand store
   const hydratedCartCount = useHydratedCartCount(cartItemCount);
 
-  // Check if store is in catalog mode (no cart functionality)
-  const isCatalogMode = store.storeMode === "catalog";
+  // Check if online cart should be disabled
+  // - catalog: Display only, no checkout anywhere
+  // - offline_only: POS only, no online checkout
+  const isCartDisabled =
+    store.storeMode === "catalog" || store.storeMode === "offline_only";
 
   const storeUrl = `/store/${store.slug}`;
 
@@ -166,7 +169,7 @@ export function StoreHeader({
           {/* Right: Actions */}
           <div className="flex shrink-0 items-center gap-2">
             {/* Cart Button - Hidden in catalog mode */}
-            {!isCatalogMode && (
+            {!isCartDisabled && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -313,7 +316,7 @@ export function StoreHeader({
             {/* Right: Cart & Profile */}
             <div className="flex items-center gap-0.5">
               {/* Cart Button - Hidden in catalog mode */}
-              {!isCatalogMode && (
+              {!isCartDisabled && (
                 <Button
                   variant="ghost"
                   size="icon"

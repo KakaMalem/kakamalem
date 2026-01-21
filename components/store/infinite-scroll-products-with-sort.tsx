@@ -232,11 +232,12 @@ export function InfiniteScrollProductsWithSort({
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {products.map((product) => (
           <ProductCard
             key={product.id}
             product={product}
+            tenantId={tenantId}
             storeSlug={storeSlug}
             currency={currency}
             onAddToCart={catalogMode ? undefined : handleAddToCart}
@@ -248,7 +249,7 @@ export function InfiniteScrollProductsWithSort({
 
       {/* Loading Skeletons */}
       {isLoading && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5 mt-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mt-3 sm:mt-4">
           {Array.from({ length: initialPagination.limit }).map((_, i) => (
             <ProductCardSkeleton key={`skeleton-${i}`} />
           ))}
