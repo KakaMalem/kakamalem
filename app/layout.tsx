@@ -29,7 +29,7 @@ export default function RootLayout({
         <meta name="color-scheme" content="light only" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} overflow-x-hidden antialiased`}
       >
         {children}
         <Toaster richColors position="top-right" />

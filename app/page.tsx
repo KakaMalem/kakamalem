@@ -85,8 +85,8 @@ export default async function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-blur:bg-background/60">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <header className="sticky top-0 z-50 border-b bg-background/95 px-6 backdrop-blur supports-backdrop-blur:bg-background/60">
+        <div className="mx-auto flex max-w-6xl items-center justify-between py-4">
           <Link href="/" className="text-xl font-bold">
             Kaka Malem
           </Link>
@@ -180,7 +180,7 @@ export default async function Home() {
               </div>
 
               {/* Hero mockup */}
-              <div>
+              <div className="min-w-0">
                 <HeroMockup />
               </div>
             </div>

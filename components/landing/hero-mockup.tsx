@@ -48,12 +48,13 @@ export function HeroMockup() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.2 }}
-      className="relative"
+      className="relative w-full"
     >
       {/* Floating animation wrapper */}
       <motion.div
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        className="w-full"
       >
         {/* Browser frame */}
         <div className="overflow-hidden rounded-xl border bg-background shadow-2xl">
@@ -86,7 +87,7 @@ export function HeroMockup() {
                 </div>
                 {/* Search bar - desktop only, inline */}
                 <div className="mx-4 hidden flex-1 justify-center sm:flex">
-                  <div className="flex w-full max-w-70 items-center gap-2 rounded-md border bg-muted/30 px-4 py-1.5 text-xs text-muted-foreground">
+                  <div className="flex w-full max-w-xs items-center gap-2 rounded-md border bg-muted/30 px-4 py-1.5 text-xs text-muted-foreground">
                     <Search className="size-3" />
                     <span>Search products...</span>
                   </div>
@@ -111,7 +112,7 @@ export function HeroMockup() {
             </div>
 
             {/* Categories */}
-            <div className="flex gap-2 overflow-x-auto border-b px-4 py-2">
+            <div className="flex min-w-0 gap-2 overflow-x-auto border-b px-4 py-2">
               {categories.map((cat, i) => (
                 <div
                   key={cat}
@@ -193,8 +194,8 @@ export function HeroMockup() {
       </motion.div>
 
       {/* Decorative elements */}
-      <div className="absolute -right-4 -top-4 -z-10 size-24 rounded-full bg-primary/10 blur-2xl" />
-      <div className="absolute -bottom-4 -left-4 -z-10 size-32 rounded-full bg-primary/5 blur-3xl" />
+      <div className="absolute right-0 top-0 -z-10 size-24 rounded-full bg-primary/10 blur-2xl" />
+      <div className="absolute bottom-0 left-0 -z-10 size-32 rounded-full bg-primary/5 blur-3xl" />
     </motion.div>
   );
 }
