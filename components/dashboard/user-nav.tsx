@@ -102,6 +102,14 @@ export function UserNav({ user, subscription }: UserNavProps) {
         100
       : 0;
   const showUpgrade = subscription && !isPro;
+  const showProductLimit = subscription?.productLimit !== null;
+  const showTrialInfo =
+    subscription?.status === "trialing" &&
+    subscription?.daysRemainingInTrial !== null;
+  const showUsageSection =
+    subscription &&
+    storeSlug &&
+    (showProductLimit || showTrialInfo || showUpgrade);
 
   // Show skeleton until mounted to avoid hydration mismatch
   if (!isMounted) {
@@ -192,7 +200,7 @@ export function UserNav({ user, subscription }: UserNavProps) {
             </DropdownMenuLabel>
 
             {/* Usage Section */}
-            {subscription && storeSlug && (
+            {showUsageSection && (
               <>
                 <DropdownMenuSeparator />
                 <div className="px-2 py-2">

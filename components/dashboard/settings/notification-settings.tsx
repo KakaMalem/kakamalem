@@ -136,9 +136,7 @@ export function NotificationSettings({
         // Check if VAPID key is configured and valid
         const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
         if (!isValidVapidKey(vapidKey)) {
-          toast.error(
-            "Push notifications are not configured. Add VAPID keys to .env.local"
-          );
+          toast.error("Push notifications are not configured on this server");
           setIsSubscribing(false);
           return;
         }

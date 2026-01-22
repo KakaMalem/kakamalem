@@ -137,7 +137,8 @@ export default async function Home() {
               {/* Text content */}
               <div className="text-center lg:text-left">
                 <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                  Create your Store{" "}
+                  Create your Store
+                  <br />
                   <span className="text-muted-foreground">In 5 Minutes</span>
                 </h1>
                 <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground lg:mx-0">
