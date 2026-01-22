@@ -26,6 +26,7 @@ x-app-common: &app-common
       NEXT_PUBLIC_SITE_URL: https://kakamalem.com
       NEXT_PUBLIC_APP_DOMAIN: kakamalem.com
       NEXT_PUBLIC_UPLOADS_URL: /uploads
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
     secrets:
       - BETTER_AUTH_SECRET
   restart: unless-stopped
