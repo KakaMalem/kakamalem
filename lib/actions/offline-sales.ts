@@ -22,6 +22,7 @@ import {
   type RecordOrderPaymentInput,
   type PaymentMethod,
 } from "@/lib/validations/offline-sales";
+import { sendOrderNotificationToTenant } from "@/lib/push";
 
 // =============================================================================
 // TYPES
@@ -406,6 +407,25 @@ export async function recordOfflineSale(
     revalidatePath(`/dashboard/${storeSlug}/orders`);
     revalidatePath(`/dashboard/${storeSlug}/inventory`);
     revalidatePath(`/dashboard/${storeSlug}`);
+
+    // Send push notification to store owners/admins (non-blocking)
+    // Calculate total for notification
+    let notificationTotal = 0;
+    for (const item of validatedInput.items) {
+      notificationTotal += item.price * item.quantity;
+    }
+    notificationTotal -= validatedInput.discountAmount || 0;
+
+    sendOrderNotificationToTenant(tenantId, storeSlug, {
+      orderNumber: order.orderNumber,
+      orderId: order.id,
+      customerName: validatedInput.customerName || "Walk-in Customer",
+      total: notificationTotal.toFixed(2),
+      currency: "AFN",
+      isOffline: true,
+    }).catch((error) => {
+      console.error("Failed to send offline sale notification:", error);
+    });
 
     return {
       success: true,

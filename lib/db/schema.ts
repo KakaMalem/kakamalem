@@ -232,6 +232,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "card", // Credit/debit card
   "mobile_money", // Mobile money (M-Paisa, etc.)
   "bank_transfer", // Bank transfer
+  "credit", // Debt/loan - pay later (traditional credit, not credit card)
 ]);
 
 // Store Mode - how the store operates
@@ -696,6 +697,66 @@ export const tenantMembers = pgTable(
     ),
     // Find all tenants a user belongs to (dashboard sidebar)
     index("tenant_members_user_id_idx").on(table.userId),
+  ]
+);
+
+// ============================================================================
+// PUSH SUBSCRIPTIONS (Browser push notification subscriptions)
+// ============================================================================
+// Stores Web Push API subscriptions per user per tenant.
+// Used for order notifications to store owners/admins.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // Web Push subscription data (from browser's PushSubscription.toJSON())
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(), // Public encryption key
+    auth: text("auth").notNull(), // Auth secret
+
+    // Device/browser metadata for management UI
+    userAgent: text("user_agent"),
+    deviceName: varchar("device_name", { length: 100 }), // e.g., "Chrome on Windows"
+
+    // Subscription status tracking
+    isActive: boolean("is_active").default(true).notNull(),
+    lastUsedAt: timestamp("last_used_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    failedAt: timestamp("failed_at", { withTimezone: true, mode: "string" }),
+    failCount: integer("fail_count").default(0).notNull(), // Consecutive failures
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Unique subscription per endpoint per user per tenant
+    uniqueIndex("push_subscriptions_endpoint_user_tenant_idx").on(
+      table.endpoint,
+      table.userId,
+      table.tenantId
+    ),
+    // Find all subscriptions for a tenant (for sending notifications)
+    index("push_subscriptions_tenant_id_idx").on(table.tenantId),
+    // Find all subscriptions for a user (for managing devices)
+    index("push_subscriptions_user_id_idx").on(table.userId),
+    // Find active subscriptions efficiently
+    index("push_subscriptions_tenant_active_idx").on(
+      table.tenantId,
+      table.isActive
+    ),
   ]
 );
 
@@ -4375,6 +4436,20 @@ export const tenantMembersRelations = relations(tenantMembers, ({ one }) => ({
   }),
 }));
 
+export const pushSubscriptionsRelations = relations(
+  pushSubscriptions,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [pushSubscriptions.tenantId],
+      references: [tenants.id],
+    }),
+    user: one(user, {
+      fields: [pushSubscriptions.userId],
+      references: [user.id],
+    }),
+  })
+);
+
 export const storeCustomersRelations = relations(
   storeCustomers,
   ({ one, many }) => ({
@@ -5816,3 +5891,7 @@ export type DeliveryPayout = typeof deliveryPayouts.$inferSelect;
 export type NewDeliveryPayout = typeof deliveryPayouts.$inferInsert;
 export type DeliveryPayoutItem = typeof deliveryPayoutItems.$inferSelect;
 export type NewDeliveryPayoutItem = typeof deliveryPayoutItems.$inferInsert;
+
+// Push subscription types
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;

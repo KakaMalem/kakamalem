@@ -42,10 +42,10 @@ export default function DataDeletionPage() {
             <p>
               Send an email to{" "}
               <a
-                href="mailto:support@kakamalem.com"
+                href="mailto:kakamalem.team@gmail.com"
                 className="text-primary underline"
               >
-                support@kakamalem.com
+                kakamalem.team@gmail.com
               </a>{" "}
               with the subject line &quot;Data Deletion Request&quot; and
               include:
@@ -105,10 +105,10 @@ export default function DataDeletionPage() {
               If you have any questions about data deletion, please contact us
               at{" "}
               <a
-                href="mailto:support@kakamalem.com"
+                href="mailto:kakamalem.team@gmail.com"
                 className="text-primary underline"
               >
-                support@kakamalem.com
+                kakamalem.team@gmail.com
               </a>
             </p>
           </section>

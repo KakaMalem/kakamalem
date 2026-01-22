@@ -34,6 +34,7 @@ import {
 import type { CartPriceTier } from "@/lib/db/queries/carts";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import { checkDeliveryZone } from "@/lib/geo/delivery-zone-check";
+import { sendOrderNotificationToTenant } from "@/lib/push";
 
 // =============================================================================
 // DELIVERY SETTINGS HELPER
@@ -845,6 +846,18 @@ export async function createOrderAction(
       if (user) {
         revalidatePath(`/store/${storeSlug}/account/orders`);
       }
+
+      // Send push notification to store owners/admins (non-blocking)
+      sendOrderNotificationToTenant(tenantId, storeSlug, {
+        orderNumber: order.orderNumber,
+        orderId: order.id,
+        customerName: order.customerSnapshot.name,
+        total: order.total,
+        currency: "AFN",
+        isOffline: false,
+      }).catch((error) => {
+        console.error("Failed to send order notification:", error);
+      });
 
       return {
         success: true,

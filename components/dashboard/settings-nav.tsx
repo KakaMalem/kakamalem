@@ -62,6 +62,11 @@ export function SettingsNav() {
       description: "Configure how your store operates",
     },
     {
+      title: "Notifications",
+      href: `${baseUrl}/notifications`,
+      description: "Order alerts and push notifications",
+    },
+    {
       title: "Danger Zone",
       href: `${baseUrl}/danger`,
       description: "Delete or transfer store",
@@ -120,6 +125,7 @@ export function SettingsNavTabs() {
     { title: "Team", href: `${baseUrl}/team` },
     { title: "Delivery & Shipping", href: `${baseUrl}/delivery` },
     { title: "Store Mode", href: `${baseUrl}/store-mode` },
+    { title: "Notifications", href: `${baseUrl}/notifications` },
     { title: "Danger Zone", href: `${baseUrl}/danger` },
   ];
 
