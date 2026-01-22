@@ -1,16 +1,13 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Lightbox, { type Slide } from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import Fullscreen from "yet-another-react-lightbox/plugins/fullscreen";
-import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
 import Counter from "yet-another-react-lightbox/plugins/counter";
-import Slideshow from "yet-another-react-lightbox/plugins/slideshow";
 
 // Import YARL styles
 import "yet-another-react-lightbox/styles.css";
-import "yet-another-react-lightbox/plugins/thumbnails.css";
 import "yet-another-react-lightbox/plugins/counter.css";
 
 interface ProductImage {
@@ -34,6 +31,9 @@ export function ProductLightbox({
   onClose,
   onIndexChange,
 }: ProductLightboxProps) {
+  // Track if close was triggered by popstate (back button) vs X button
+  const closedViaPopstateRef = useRef(false);
+
   // Convert images to YARL slide format
   const slides: Slide[] = images.map((image) => ({
     src: image.url,
@@ -53,16 +53,44 @@ export function ProductLightbox({
     [onIndexChange]
   );
 
+  // Handle closing - if closed via X button, also go back in history
+  const handleClose = useCallback(() => {
+    if (!closedViaPopstateRef.current) {
+      // Closed via X button or backdrop click - go back to remove our history entry
+      window.history.back();
+    }
+    closedViaPopstateRef.current = false;
+    onClose();
+  }, [onClose]);
+
+  // Handle browser back button to close lightbox
+  useEffect(() => {
+    if (open) {
+      // Push a new history state when lightbox opens
+      window.history.pushState({ lightbox: true }, "");
+
+      const handlePopState = () => {
+        closedViaPopstateRef.current = true;
+        onClose();
+      };
+
+      window.addEventListener("popstate", handlePopState);
+      return () => {
+        window.removeEventListener("popstate", handlePopState);
+      };
+    }
+  }, [open, onClose]);
+
   if (images.length === 0) return null;
 
   return (
     <Lightbox
       open={open}
-      close={onClose}
+      close={handleClose}
       index={index}
       slides={slides}
       on={{ view: handleView }}
-      plugins={[Zoom, Fullscreen, Thumbnails, Counter, Slideshow]}
+      plugins={[Zoom, Fullscreen, Counter]}
       // Zoom configuration - enterprise grade
       zoom={{
         maxZoomPixelRatio: 4, // Allow 4x zoom for detailed product inspection
@@ -74,22 +102,6 @@ export function ProductLightbox({
         wheelZoomDistanceFactor: 100,
         pinchZoomDistanceFactor: 100,
         scrollToZoom: true, // Enable scroll wheel zoom
-      }}
-      // Thumbnails configuration
-      thumbnails={{
-        position: "bottom",
-        width: 80,
-        height: 80,
-        border: 2,
-        borderRadius: 8,
-        padding: 4,
-        gap: 8,
-        showToggle: true,
-      }}
-      // Slideshow configuration
-      slideshow={{
-        autoplay: false,
-        delay: 3000,
       }}
       // Animation settings
       animation={{
@@ -159,13 +171,10 @@ export function ProductLightbox({
         container: {
           backgroundColor: "rgba(0, 0, 0, 0.95)",
         },
-        thumbnailsContainer: {
-          backgroundColor: "rgba(0, 0, 0, 0.8)",
-        },
       }}
       // Inline styles for toolbar
       toolbar={{
-        buttons: ["slideshow", "fullscreen", "zoom", "close"],
+        buttons: ["fullscreen", "zoom", "close"],
       }}
     />
   );

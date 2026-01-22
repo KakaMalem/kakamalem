@@ -2,24 +2,10 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
-import dynamic from "next/dynamic";
-import {
-  motion,
-  AnimatePresence,
-  useDragControls,
-  PanInfo,
-} from "framer-motion";
+import { motion, AnimatePresence, PanInfo } from "framer-motion";
 import { ImageIcon, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// Dynamic import to prevent SSR issues with YARL CSS
-const ProductLightbox = dynamic(
-  () =>
-    import("@/components/store/product-lightbox").then(
-      (mod) => mod.ProductLightbox
-    ),
-  { ssr: false }
-);
+import { ProductLightbox } from "@/components/store/product-lightbox";
 
 interface ProductImageGalleryProps {
   images: {
@@ -36,10 +22,19 @@ export function ProductImageGallery({
 }: ProductImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const constraintsRef = useRef<HTMLDivElement>(null);
-  const dragControls = useDragControls();
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  // Track which images have been loaded to avoid showing spinner for cached images
+  const loadedImagesRef = useRef<Set<string>>(new Set());
+  const [isCurrentImageLoaded, setIsCurrentImageLoaded] = useState(false);
+
+  // Track client-side mount to prevent hydration mismatch with lightbox
+  // This is a valid pattern for SSR/hydration safety - the one-time setState is intentional
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
 
   // Lightbox handlers
   const openLightbox = useCallback(() => {
@@ -60,20 +55,20 @@ export function ProductImageGallery({
     [currentIndex]
   );
 
-  // Reset loading state when lightbox closes to handle cached images
+  // Check if current image is already loaded when index changes
   useEffect(() => {
-    if (!lightboxOpen) {
-      // Small delay to allow animation to complete, then ensure loading is reset
-      const timer = setTimeout(() => {
-        setIsLoading(false);
-      }, 100);
-      return () => clearTimeout(timer);
+    const currentImage = images[currentIndex];
+    if (currentImage && loadedImagesRef.current.has(currentImage.id)) {
+      setIsCurrentImageLoaded(true);
+    } else {
+      setIsCurrentImageLoaded(false);
     }
-  }, [lightboxOpen]);
+  }, [currentIndex, images]);
 
   // Swipe threshold - slightly higher for mobile to prevent accidental swipes
   const swipeThreshold = 50;
   const swipeVelocityThreshold = 500;
+  const clickThreshold = 10; // Minimum movement to consider it a drag, not a click
 
   const goToImage = useCallback(
     (index: number, dir?: number) => {
@@ -81,9 +76,28 @@ export function ProductImageGallery({
       if (index === currentIndex || index < 0 || index >= images.length) return;
       setDirection(dir ?? (index > currentIndex ? 1 : -1));
       setCurrentIndex(index);
-      setIsLoading(true);
     },
     [currentIndex, images.length]
+  );
+
+  const handleDragStart = useCallback(
+    (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      dragStartRef.current = { x: info.point.x, y: info.point.y };
+      setIsDragging(false);
+    },
+    []
+  );
+
+  const handleDrag = useCallback(
+    (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      // If user has moved beyond click threshold, consider it a drag
+      const dx = Math.abs(info.point.x - dragStartRef.current.x);
+      const dy = Math.abs(info.point.y - dragStartRef.current.y);
+      if (dx > clickThreshold || dy > clickThreshold) {
+        setIsDragging(true);
+      }
+    },
+    []
   );
 
   const handleDragEnd = useCallback(
@@ -105,9 +119,19 @@ export function ProductImageGallery({
           goToImage(currentIndex - 1, -1);
         }
       }
+
+      // Reset dragging state after a short delay to allow click prevention
+      setTimeout(() => setIsDragging(false), 50);
     },
     [currentIndex, images.length, goToImage]
   );
+
+  const handleImageClick = useCallback(() => {
+    // Only open lightbox if we weren't dragging
+    if (!isDragging) {
+      openLightbox();
+    }
+  }, [isDragging, openLightbox]);
 
   const handleThumbnailClick = useCallback(
     (index: number) => {
@@ -152,8 +176,8 @@ export function ProductImageGallery({
         ref={constraintsRef}
         className="group relative aspect-square overflow-hidden rounded-xl bg-muted/20 touch-pan-y"
       >
-        {/* Loading skeleton */}
-        {isLoading && (
+        {/* Loading skeleton - only show for images not yet loaded */}
+        {!isCurrentImageLoaded && (
           <div className="absolute inset-0 z-5 flex items-center justify-center bg-muted/30">
             <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
@@ -264,11 +288,12 @@ export function ProductImageGallery({
               opacity: { duration: 0.2 },
             }}
             drag="x"
-            dragControls={dragControls}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}
+            onDragStart={handleDragStart}
+            onDrag={handleDrag}
             onDragEnd={handleDragEnd}
-            onClick={openLightbox}
+            onClick={handleImageClick}
             className="absolute inset-0 flex items-center justify-center cursor-zoom-in active:cursor-grabbing"
           >
             <Image
@@ -281,7 +306,10 @@ export function ProductImageGallery({
               className="object-contain pointer-events-none select-none"
               priority={currentIndex === 0}
               draggable={false}
-              onLoad={() => setIsLoading(false)}
+              onLoad={() => {
+                loadedImagesRef.current.add(currentImage.id);
+                setIsCurrentImageLoaded(true);
+              }}
             />
           </motion.div>
         </AnimatePresence>
@@ -348,14 +376,16 @@ export function ProductImageGallery({
         </div>
       )}
 
-      {/* Lightbox for full-screen image viewing */}
-      <ProductLightbox
-        images={images}
-        open={lightboxOpen}
-        index={currentIndex}
-        onClose={closeLightbox}
-        onIndexChange={handleLightboxIndexChange}
-      />
+      {/* Lightbox for full-screen image viewing - only render after client mount */}
+      {mounted && (
+        <ProductLightbox
+          images={images}
+          open={lightboxOpen}
+          index={currentIndex}
+          onClose={closeLightbox}
+          onIndexChange={handleLightboxIndexChange}
+        />
+      )}
     </div>
   );
 }

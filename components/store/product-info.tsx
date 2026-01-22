@@ -168,7 +168,8 @@ export function ProductInfo({
       ? selectedVariant.stock
       : product.stock;
 
-  const isOutOfStock = currentStock <= 0 && !product.allowBackorder;
+  const isOutOfStock =
+    product.trackInventory && currentStock <= 0 && !product.allowBackorder;
 
   // Sort price tiers by minQuantity
   const sortedTiers = useMemo(
