@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { User, Lock, Trash2, Info } from "lucide-react";
 import {
   Card,
@@ -9,14 +10,25 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getUser } from "@/lib/auth/server";
+import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import {
   UpdateNameForm,
   ChangePasswordForm,
   DeleteAccountSection,
 } from "@/components/store/account/account-settings-forms";
+import { CustomerNotificationSettings } from "@/components/store/account/notification-settings";
 
-export default async function SettingsPage() {
-  const user = await getUser();
+interface SettingsPageProps {
+  params: Promise<{ slug: string }>;
+}
+
+export default async function SettingsPage({ params }: SettingsPageProps) {
+  const { slug } = await params;
+  const [user, store] = await Promise.all([getUser(), getTenantBySlug(slug)]);
+
+  if (!store) {
+    notFound();
+  }
 
   // Shouldn't happen due to layout protection, but just in case
   if (!user) {
@@ -43,6 +55,12 @@ export default async function SettingsPage() {
           <UpdateNameForm currentName={user.name || ""} />
         </CardContent>
       </Card>
+
+      {/* Notification Settings */}
+      <CustomerNotificationSettings
+        tenantId={store.id}
+        storeName={store.name}
+      />
 
       {/* Security Settings */}
       <Card>

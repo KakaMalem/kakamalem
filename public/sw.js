@@ -30,6 +30,7 @@ self.addEventListener("push", (event) => {
     tag: data.tag || "order-notification",
     renotify: true,
     requireInteraction: data.requireInteraction ?? true,
+    silent: true, // Disable default browser sound - we play our own
     data: {
       url: data.url,
       orderId: data.orderId,
@@ -43,7 +44,26 @@ self.addEventListener("push", (event) => {
     timestamp: Date.now(),
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  // Play custom notification sound via open clients
+  const playSound = clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((windowClients) => {
+      // Send message to all open windows to play sound
+      // Only one will actually play it (the first to receive)
+      windowClients.forEach((client) => {
+        client.postMessage({
+          type: "PLAY_NOTIFICATION_SOUND",
+          notificationType: data.type || "order",
+        });
+      });
+    });
+
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(data.title, options),
+      playSound,
+    ])
+  );
 });
 
 // Notification click event

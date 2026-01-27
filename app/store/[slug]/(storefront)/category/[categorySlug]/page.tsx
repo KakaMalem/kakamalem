@@ -68,6 +68,7 @@ export default async function CategoryPage({
     filters: {
       categoryId: category.id,
       isActive: true,
+      showOnStorefront: true,
     },
     sort: {
       field: sortField,
@@ -111,6 +112,7 @@ export default async function CategoryPage({
         filters={{
           categoryId: category.id,
           isActive: true,
+          showOnStorefront: true,
         }}
         currentSort={sort || "createdAt-desc"}
         catalogMode={isCartDisabled}

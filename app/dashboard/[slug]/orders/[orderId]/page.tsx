@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Package, MapPin, Phone, Mail } from "lucide-react";
+import { ArrowLeft, Package, MapPin, Phone } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getDashboardOrderById } from "@/lib/db/queries/orders";
 import { Button } from "@/components/ui/button";
@@ -13,15 +13,23 @@ import { OrderPrintButton } from "@/components/dashboard/orders/order-print-butt
 import { OrderPrintReceipt } from "@/components/dashboard/orders/order-print-receipt";
 import { OrderPaymentSection } from "@/components/dashboard/orders/order-payment-section";
 import { DeliveryLocationMapWrapper } from "@/components/dashboard/orders/delivery-location-map";
+import { OrderShipmentSection } from "@/components/dashboard/orders/order-shipment-section";
+import { OrderQuickActions } from "@/components/dashboard/orders/order-quick-actions";
+import { OrderShippingAdjustment } from "@/components/dashboard/orders/order-shipping-adjustment";
+import { OrderTotalAdjustment } from "@/components/dashboard/orders/order-total-adjustment";
+import { AutoPrintTrigger } from "@/components/dashboard/orders/auto-print-trigger";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
+  searchParams: Promise<{ print?: string }>;
 }
 
 export default async function OrderDetailPage({
   params,
+  searchParams,
 }: OrderDetailPageProps) {
   const { slug, orderId } = await params;
+  const { print: shouldPrint } = await searchParams;
 
   const store = await getTenantBySlug(slug);
   if (!store) {
@@ -78,8 +86,17 @@ export default async function OrderDetailPage({
             orderId={order.id}
             tenantId={store.id}
             currentStatus={order.status}
+            fulfillmentType={order.fulfillmentType}
+            channel={order.channel}
           />
           <OrderPrintButton />
+          <OrderQuickActions
+            orderId={order.id}
+            tenantId={store.id}
+            storeSlug={slug}
+            orderNumber={order.orderNumber}
+            currentStatus={order.status}
+          />
         </div>
       </div>
 
@@ -142,8 +159,17 @@ export default async function OrderDetailPage({
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>{formatPrice(order.subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Shipping</span>
+                  <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Shipping</span>
+                      <OrderShippingAdjustment
+                        orderId={order.id}
+                        tenantId={store.id}
+                        currency={store.currency}
+                        currentShipping={order.shippingTotal}
+                        subtotal={order.subtotal}
+                      />
+                    </div>
                     <span>{formatPrice(order.shippingTotal)}</span>
                   </div>
                   {parseFloat(order.taxTotal) > 0 && (
@@ -159,9 +185,18 @@ export default async function OrderDetailPage({
                     </div>
                   )}
                   <Separator className="my-2" />
-                  <div className="flex justify-between font-semibold">
-                    <span>Total</span>
-                    <span>{formatPrice(order.total)}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Total</span>
+                    <OrderTotalAdjustment
+                      orderId={order.id}
+                      tenantId={store.id}
+                      currency={store.currency}
+                      subtotal={order.subtotal}
+                      shippingTotal={order.shippingTotal}
+                      taxTotal={order.taxTotal}
+                      discountTotal={order.discountTotal}
+                      currentTotal={order.total}
+                    />
                   </div>
                 </div>
               </div>
@@ -182,6 +217,9 @@ export default async function OrderDetailPage({
             </Card>
           )}
 
+          {/* Shipments Section */}
+          <OrderShipmentSection shipments={order.shipments} />
+
           {/* Staff Notes */}
           <OrderNotesSection
             orderId={order.id}
@@ -192,118 +230,102 @@ export default async function OrderDetailPage({
 
         {/* Sidebar - 1 column on lg */}
         <div className="space-y-6">
-          {/* Payment Section - show for offline/phone orders */}
-          {(order.salesChannel === "offline" ||
-            order.salesChannel === "phone") && (
-            <OrderPaymentSection
-              orderId={order.id}
-              tenantId={store.id}
-              storeSlug={slug}
-              currency={store.currency}
-              orderTotal={order.total}
-              totalPaid={order.totalPaid}
-              amountRemaining={order.amountRemaining}
-              isPaid={order.isPaid}
-              payments={order.payments}
-            />
-          )}
+          {/* Payment Section */}
+          <OrderPaymentSection
+            orderId={order.id}
+            tenantId={store.id}
+            storeSlug={slug}
+            currency={store.currency}
+            orderTotal={order.total}
+            totalPaid={order.totalPaid}
+            amountRefunded={order.amountRefunded}
+            amountRemaining={order.amountRemaining}
+            isPaid={order.isPaid}
+            payments={order.payments}
+          />
 
-          {/* Customer Info */}
+          {/* Customer & Delivery */}
           <Card>
             <CardHeader>
-              <CardTitle>Customer</CardTitle>
+              <CardTitle>Customer Info</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+            <CardContent className="space-y-4">
+              {/* Customer Info */}
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-muted shrink-0">
                   <span className="text-sm font-medium">
                     {order.customerSnapshot.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <div>
-                  <p className="font-medium">{order.customerSnapshot.name}</p>
-                </div>
-              </div>
-              <div className="space-y-2 text-sm">
-                {order.customerSnapshot.email && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="size-4" />
+                <div className="min-w-0">
+                  <p className="font-medium truncate">
+                    {order.customerSnapshot.name}
+                  </p>
+                  {order.customerSnapshot.email && (
                     <a
                       href={`mailto:${order.customerSnapshot.email}`}
-                      className="hover:underline"
+                      className="text-sm text-muted-foreground hover:underline truncate block"
                     >
                       {order.customerSnapshot.email}
                     </a>
-                  </div>
-                )}
-                {order.customerSnapshot.phone && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="size-4" />
-                    <a
-                      href={`tel:${order.customerSnapshot.phone}`}
-                      className="hover:underline"
-                    >
-                      {order.customerSnapshot.phone}
-                    </a>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Shipping Address - only show for orders with shipping address */}
-          {order.shippingAddress && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Shipping Address</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <p className="font-medium">
-                    {order.shippingAddress.firstName}{" "}
-                    {order.shippingAddress.lastName}
-                  </p>
-                  <div className="flex items-start gap-2 text-muted-foreground">
-                    <Phone className="size-4 mt-0.5" />
-                    <span>{order.shippingAddress.phone}</span>
-                  </div>
-                  {order.shippingAddress.city && (
-                    <div className="flex items-start gap-2 text-muted-foreground">
-                      <MapPin className="size-4 mt-0.5" />
-                      <span>{order.shippingAddress.city}</span>
-                    </div>
-                  )}
-                  {order.shippingAddress.notes && (
-                    <p className="text-muted-foreground pt-2 border-t">
-                      {order.shippingAddress.notes}
-                    </p>
-                  )}
-                  {order.shippingAddress.plusCode && (
-                    <p className="text-xs text-muted-foreground font-mono">
-                      Plus Code: {order.shippingAddress.plusCode}
-                    </p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
 
-          {/* Delivery Location Map */}
-          {order.shippingAddress?.latitude &&
-            order.shippingAddress?.longitude && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Delivery Location</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DeliveryLocationMapWrapper
-                    latitude={order.shippingAddress.latitude}
-                    longitude={order.shippingAddress.longitude}
-                    customerName={`${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`}
-                  />
-                </CardContent>
-              </Card>
-            )}
+              {/* Contact & Address */}
+              {order.shippingAddress && (
+                <>
+                  <Separator />
+                  <div className="space-y-2 text-sm">
+                    {/* Phone - prefer shipping address phone, fallback to customer snapshot */}
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Phone className="size-4 shrink-0" />
+                      <a
+                        href={`tel:${order.shippingAddress.phone}`}
+                        className="hover:underline"
+                      >
+                        {order.shippingAddress.phone}
+                      </a>
+                    </div>
+                    {/* City */}
+                    {order.shippingAddress.city && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="size-4 shrink-0" />
+                        <span>{order.shippingAddress.city}</span>
+                      </div>
+                    )}
+                    {/* Plus Code */}
+                    {order.shippingAddress.plusCode && (
+                      <p className="text-xs text-muted-foreground font-mono pl-6">
+                        {order.shippingAddress.plusCode}
+                      </p>
+                    )}
+                    {/* Delivery Notes */}
+                    {order.shippingAddress.notes && (
+                      <div className="pt-2 mt-2 border-t">
+                        <p className="text-muted-foreground">
+                          {order.shippingAddress.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Delivery Location Map */}
+              {order.shippingAddress?.latitude &&
+                order.shippingAddress?.longitude && (
+                  <>
+                    <Separator />
+                    <DeliveryLocationMapWrapper
+                      latitude={order.shippingAddress.latitude}
+                      longitude={order.shippingAddress.longitude}
+                      customerName={`${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`}
+                    />
+                  </>
+                )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -322,6 +344,9 @@ export default async function OrderDetailPage({
           footerText: store.receiptFooterText,
         }}
       />
+
+      {/* Auto-trigger print when ?print=true */}
+      {shouldPrint === "true" && <AutoPrintTrigger />}
     </div>
   );
 }

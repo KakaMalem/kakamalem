@@ -1,6 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getUserStoreContext } from "@/lib/auth/context";
+import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { GeneralSettingsForm } from "./general-settings-form";
 
 interface SettingsPageProps {
@@ -21,9 +24,16 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     notFound();
   }
 
-  // Verify ownership
-  if (store.ownerId !== user.id) {
-    notFound();
+  // Role-based access check (requires admin or owner)
+  const userContext = await getUserStoreContext(store.id);
+  if (!userContext || !canAccessSettingsPage(userContext.role, "general")) {
+    return (
+      <AccessDenied
+        message="You need admin or owner access to edit general settings."
+        backUrl={`/dashboard/${slug}`}
+        backLabel="Back to Dashboard"
+      />
+    );
   }
 
   return (

@@ -1,6 +1,12 @@
 import { z } from "zod";
 
 // ============================================================================
+// SWATCH TYPES
+// ============================================================================
+
+export const swatchTypeSchema = z.enum(["text", "color", "image"]);
+
+// ============================================================================
 // INLINE OPTION TYPES
 // ============================================================================
 // These types represent options and values in the variant builder form,
@@ -20,6 +26,12 @@ export const inlineOptionValueSchema = z.object({
     .max(100, "Value must be less than 100 characters"),
   /** True if this value is being created inline (not from global options) */
   isNew: z.boolean().default(false),
+  /** Swatch type for visual display */
+  swatchType: swatchTypeSchema.default("text"),
+  /** Swatch value - hex color (#FF5733) or media_id for image swatches */
+  swatchValue: z.string().optional(),
+  /** Media URL for image swatches (resolved from swatchValue) */
+  swatchImageUrl: z.string().optional(),
 });
 
 export type InlineOptionValue = z.infer<typeof inlineOptionValueSchema>;
@@ -80,8 +92,11 @@ export const generatedVariantSchema = z.object({
   optionValues: z.array(variantOptionValueRefSchema),
   /** Human-readable name (e.g., "Red / S") */
   displayName: z.string(),
-  /** SKU - auto-generated but editable */
-  sku: z.string().max(100, "SKU must be less than 100 characters").default(""),
+  /** Barcode for POS scanning (UPC/EAN/custom) */
+  barcode: z
+    .string()
+    .max(50, "Barcode must be less than 50 characters")
+    .default(""),
   /** Price override - empty string means use base price */
   price: z
     .string()
@@ -339,7 +354,13 @@ export function transformDbOptionsToInlineOptions(
     id: string;
     name: string;
     displayOrder: number;
-    values: { id: string; value: string; displayOrder: number }[];
+    values: {
+      id: string;
+      value: string;
+      displayOrder: number;
+      swatchType?: "text" | "color" | "image";
+      swatchValue?: string | null;
+    }[];
   }[]
 ): InlineOption[] {
   return dbOptions.map((opt) => ({
@@ -349,6 +370,8 @@ export function transformDbOptionsToInlineOptions(
       id: val.id,
       value: val.value,
       isNew: false,
+      swatchType: val.swatchType || "text",
+      swatchValue: val.swatchValue ?? undefined,
     })),
     isNew: false,
   }));
@@ -362,6 +385,7 @@ export function transformDbVariantsToGeneratedVariants(
   dbVariants: {
     id: string;
     sku: string | null;
+    barcode: string | null;
     displayName: string | null;
     price: string | null;
     stock: number;
@@ -403,7 +427,7 @@ export function transformDbVariantsToGeneratedVariants(
     displayName:
       variant.displayName ||
       variant.options.map((o) => o.optionValue.value).join(" / "),
-    sku: variant.sku || "",
+    barcode: variant.barcode || "",
     price: variant.price || "",
     stock: String(variant.stock),
     weight: variant.weight || "",

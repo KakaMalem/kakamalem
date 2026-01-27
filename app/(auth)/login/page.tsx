@@ -11,5 +11,6 @@ export default async function LoginPage() {
   if (user) {
     redirect("/dashboard");
   }
+
   return <LoginForm />;
 }

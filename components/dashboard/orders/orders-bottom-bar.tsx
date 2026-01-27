@@ -186,9 +186,7 @@ export function OrdersBottomBar({
                     </Button>
                     {showRecordSale && (
                       <Button size="sm" className="h-7 gap-1.5 ml-auto" asChild>
-                        <Link
-                          href={`/dashboard/${storeSlug}/offline-sales/new`}
-                        >
+                        <Link href={`/dashboard/${storeSlug}/pos`}>
                           <Plus className="size-3.5" />
                           New Sale
                         </Link>

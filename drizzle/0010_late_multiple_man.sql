@@ -1,0 +1,1 @@
+ALTER TABLE "reviews" ADD COLUMN "is_edited" boolean DEFAULT false NOT NULL;

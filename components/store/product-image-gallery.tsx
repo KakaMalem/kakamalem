@@ -58,11 +58,15 @@ export function ProductImageGallery({
   // Check if current image is already loaded when index changes
   useEffect(() => {
     const currentImage = images[currentIndex];
-    if (currentImage && loadedImagesRef.current.has(currentImage.id)) {
-      setIsCurrentImageLoaded(true);
-    } else {
-      setIsCurrentImageLoaded(false);
-    }
+    const isLoaded =
+      currentImage && loadedImagesRef.current.has(currentImage.id);
+
+    // Defer setState to avoid synchronous setState in effect
+    const timeoutId = setTimeout(() => {
+      setIsCurrentImageLoaded(!!isLoaded);
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, [currentIndex, images]);
 
   // Swipe threshold - slightly higher for mobile to prevent accidental swipes

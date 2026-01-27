@@ -159,6 +159,7 @@ export function VariantOptionsBuilder({
           id: v.id,
           value: v.value,
           isNew: false,
+          swatchType: "text" as const,
         })),
         isNew: false,
       };
@@ -188,6 +189,7 @@ export function VariantOptionsBuilder({
       const newValue: InlineOptionValue = {
         value: trimmedValue,
         isNew: true,
+        swatchType: "text",
       };
 
       const newOptions = [...options];

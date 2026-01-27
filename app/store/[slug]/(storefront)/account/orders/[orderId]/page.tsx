@@ -1,6 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Package, Truck, MapPin, HelpCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Package,
+  Truck,
+  MapPin,
+  HelpCircle,
+  Download,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -75,9 +82,20 @@ export default async function OrderDetailPage({
                 })}
               </CardDescription>
             </div>
-            <Badge variant={statusInfo.color} className="w-fit">
-              {statusInfo.label}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={statusInfo.color} className="w-fit">
+                {statusInfo.label}
+              </Badge>
+              <Button variant="outline" size="sm" asChild>
+                <a
+                  href={`/api/store/${slug}/orders/${orderId}/invoice`}
+                  download={`invoice-${order.orderNumber}.pdf`}
+                >
+                  <Download className="mr-2 size-4" />
+                  Invoice
+                </a>
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>

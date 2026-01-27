@@ -11,6 +11,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
 import { generateUniqueProductSlug } from "@/lib/db/queries/slugs";
+import { generateSku } from "@/lib/utils/slug";
 import { getMaxProductDisplayOrder } from "@/lib/db/queries/products";
 import { getUser } from "@/lib/auth/server";
 import { canAddProduct } from "@/lib/db/queries/billing";
@@ -103,7 +104,11 @@ export async function createProduct(
         width: data.width && data.width !== "" ? data.width : null,
         height: data.height && data.height !== "" ? data.height : null,
         status: data.status,
+        showOnStorefront: data.showOnStorefront ?? true,
+        showOnPos: data.showOnPos ?? true,
         displayOrder: nextDisplayOrder,
+        sku: generateSku(data.name), // Auto-generate SKU from product name
+        barcode: data.barcode && data.barcode !== "" ? data.barcode : null,
       })
       .returning({ id: products.id, slug: products.slug });
 
@@ -352,6 +357,8 @@ export async function createProductWithImages(
           width: data.width && data.width !== "" ? data.width : null,
           height: data.height && data.height !== "" ? data.height : null,
           status: data.status,
+          showOnStorefront: data.showOnStorefront ?? true,
+          showOnPos: data.showOnPos ?? true,
           displayOrder: nextDisplayOrder,
         })
         .returning({ id: products.id, slug: products.slug });
@@ -579,6 +586,10 @@ export async function updateProductWithImages(
           width: data.width && data.width !== "" ? data.width : null,
           height: data.height && data.height !== "" ? data.height : null,
           status: data.status,
+          showOnStorefront: data.showOnStorefront ?? true,
+          showOnPos: data.showOnPos ?? true,
+          sku: generateSku(data.name), // Auto-generate SKU from product name
+          barcode: data.barcode && data.barcode !== "" ? data.barcode : null,
           // Note: displayOrder is NOT updated here - it's only changed via drag-and-drop reordering
           updatedAt: new Date().toISOString(),
         })
@@ -745,6 +756,10 @@ export async function updateProduct(
         width: data.width && data.width !== "" ? data.width : null,
         height: data.height && data.height !== "" ? data.height : null,
         status: data.status,
+        showOnStorefront: data.showOnStorefront ?? true,
+        showOnPos: data.showOnPos ?? true,
+        sku: generateSku(data.name), // Auto-generate SKU from product name
+        barcode: data.barcode && data.barcode !== "" ? data.barcode : null,
         // Note: displayOrder is NOT updated here - it's only changed via drag-and-drop reordering
         updatedAt: new Date().toISOString(),
       })

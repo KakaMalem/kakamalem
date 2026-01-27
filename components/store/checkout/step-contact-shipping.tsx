@@ -21,6 +21,7 @@ import {
   LocationPicker,
   type LocationData,
 } from "@/components/ui/location-picker";
+import { AddressesMapPreview } from "./addresses-map-preview";
 import { cn } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
@@ -472,6 +473,16 @@ export function StepContactShipping({
           {/* Saved Addresses */}
           {savedAddresses.length > 0 && !showNewAddressForm && (
             <>
+              {/* Map Preview with Delivery Zones and Address Markers */}
+              {deliveryZones.length > 0 && (
+                <AddressesMapPreview
+                  addresses={savedAddresses}
+                  deliveryZones={deliveryZones}
+                  selectedAddressId={selectedAddressId}
+                  onAddressClick={handleAddressSelect}
+                />
+              )}
+
               <RadioGroup
                 value={selectedAddressId || ""}
                 onValueChange={handleAddressSelect}

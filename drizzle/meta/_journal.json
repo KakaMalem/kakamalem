@@ -57,6 +57,90 @@
       "when": 1769074517137,
       "tag": "0007_yellow_snowbird",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769107243779,
+      "tag": "0008_flaky_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1769163062422,
+      "tag": "0009_eager_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1769167709379,
+      "tag": "0010_late_multiple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1769169427103,
+      "tag": "0011_elite_may_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1769268367917,
+      "tag": "0012_parched_maverick",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1769279180004,
+      "tag": "0013_sticky_steve_rogers",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1769327538874,
+      "tag": "0014_unknown_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1769329651356,
+      "tag": "0015_remarkable_lady_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1769329808603,
+      "tag": "0016_lean_komodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1769331298152,
+      "tag": "0017_true_vindicator",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1769420198246,
+      "tag": "0018_flimsy_vertigo",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1769496929627,
+      "tag": "0019_noisy_reavers",
+      "breakpoints": true
     }
   ]
 }

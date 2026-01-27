@@ -16,12 +16,18 @@ import {
   orders,
   orderItems,
   orderPayments,
+  orderTransactions,
   products,
   media,
   productImages,
+  shipments,
   type Address,
   type CustomerSnapshot,
+  type ShipmentStatus,
+  type OrderChannel,
+  type PaymentStatus,
 } from "@/lib/db/schema";
+import { computePaymentStatus } from "@/lib/utils/payment-status";
 
 // =============================================================================
 // ORDER QUERIES (CUSTOMER VIEW)
@@ -176,14 +182,13 @@ export type OrderStatus =
   | "processing"
   | "shipped"
   | "delivered"
-  | "cancelled"
-  | "refunded"
-  | "partially_refunded";
+  | "returned"
+  | "cancelled";
 
 export type OrderFilters = {
   search?: string;
   status?: OrderStatus | "all";
-  channel?: SalesChannel | "all";
+  channel?: OrderChannel | "all";
   dateFrom?: string;
   dateTo?: string;
 };
@@ -193,7 +198,15 @@ export type OrderSort = {
   direction: "asc" | "desc";
 };
 
-export type SalesChannel = "online" | "offline" | "phone";
+// Re-export types from schema for convenience
+export type { OrderChannel, PaymentStatus } from "@/lib/db/schema";
+
+export type FulfillmentType =
+  | "shipping"
+  | "pickup"
+  | "instant"
+  | "local_delivery"
+  | "curbside";
 
 export type DashboardOrder = {
   id: string;
@@ -206,7 +219,10 @@ export type DashboardOrder = {
   discountTotal: string;
   total: string;
   status: OrderStatus;
-  salesChannel: SalesChannel;
+  channel: OrderChannel;
+  fulfillmentType: FulfillmentType | null;
+  paymentStatus: PaymentStatus;
+  isPaid: boolean;
   customerNotes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -252,7 +268,7 @@ export const getDashboardOrders = cache(
           ? eq(orders.status, filters.status)
           : undefined,
         filters.channel && filters.channel !== "all"
-          ? eq(orders.salesChannel, filters.channel)
+          ? eq(orders.channel, filters.channel)
           : undefined,
         filters.dateFrom ? gte(orders.createdAt, filters.dateFrom) : undefined,
         filters.dateTo
@@ -296,23 +312,35 @@ export const getDashboardOrders = cache(
     });
 
     // Transform to DashboardOrder format with item counts
-    const ordersWithCounts: DashboardOrder[] = ordersList.map((order) => ({
-      id: order.id,
-      orderNumber: order.orderNumber,
-      customerSnapshot: order.customerSnapshot,
-      shippingAddress: order.shippingAddress,
-      subtotal: order.subtotal,
-      shippingTotal: order.shippingTotal,
-      taxTotal: order.taxTotal,
-      discountTotal: order.discountTotal,
-      total: order.total,
-      status: order.status as OrderStatus,
-      salesChannel: order.salesChannel as SalesChannel,
-      customerNotes: order.customerNotes,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-      itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-    }));
+    // Payment status is computed from amounts using the payment-status utility
+    const ordersWithCounts: DashboardOrder[] = ordersList.map((order) => {
+      const paymentInfo = computePaymentStatus({
+        total: order.total,
+        amountPaid: order.amountPaid,
+        amountRefunded: order.amountRefunded,
+      });
+
+      return {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerSnapshot: order.customerSnapshot,
+        shippingAddress: order.shippingAddress,
+        subtotal: order.subtotal,
+        shippingTotal: order.shippingTotal,
+        taxTotal: order.taxTotal,
+        discountTotal: order.discountTotal,
+        total: order.total,
+        status: order.status as OrderStatus,
+        channel: order.channel as OrderChannel,
+        fulfillmentType: order.fulfillmentType as FulfillmentType | null,
+        paymentStatus: paymentInfo.status as PaymentStatus,
+        isPaid: paymentInfo.isPaid,
+        customerNotes: order.customerNotes,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+      };
+    });
 
     // Get total count for pagination
     const [{ count: total }] = await db
@@ -340,6 +368,36 @@ export type OrderPaymentRecord = {
   createdAt: string;
 };
 
+export type ShipmentTrackingEventRecord = {
+  id: string;
+  status: ShipmentStatus;
+  location: string | null;
+  description: string | null;
+  eventTime: string;
+};
+
+export type ShipmentItemRecord = {
+  id: string;
+  orderItemId: string;
+  productName: string;
+  variantName: string | null;
+  quantity: number;
+};
+
+export type ShipmentRecord = {
+  id: string;
+  carrierName: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  status: ShipmentStatus;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  items: ShipmentItemRecord[];
+  trackingEvents: ShipmentTrackingEventRecord[];
+};
+
 export type DashboardOrderDetail = {
   id: string;
   orderNumber: string;
@@ -356,16 +414,27 @@ export type DashboardOrderDetail = {
   discountTotal: string;
   total: string;
   status: OrderStatus;
-  salesChannel: SalesChannel;
+  channel: OrderChannel;
+  fulfillmentType: FulfillmentType;
+  paymentStatus: PaymentStatus;
   paymentMethod: string | null;
   isPaid: boolean;
   paidAt: string | null;
+  // Payment amounts
+  amountPaid: string;
+  amountRefunded: string;
   customerNotes: string | null;
   staffNotes: string | null;
   createdAt: string;
   updatedAt: string;
+  // Lifecycle timestamps
+  placedAt: string | null;
+  confirmedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
   items: OrderItemWithImage[];
   payments: OrderPaymentRecord[];
+  shipments: ShipmentRecord[];
   // Computed payment fields
   totalPaid: string;
   amountRemaining: string;
@@ -373,7 +442,7 @@ export type DashboardOrderDetail = {
 
 export type OrderItemWithImage = {
   id: string;
-  productId: string;
+  productId: string | null; // Nullable if product was deleted but order history preserved
   productName: string;
   variantName: string | null;
   sku: string | null;
@@ -401,46 +470,87 @@ export const getDashboardOrderById = cache(
       return null;
     }
 
-    // Get order items with images and payments in parallel
-    const [items, payments] = await Promise.all([
-      // Get order items with images
-      // Use leftJoin for products in case a product was deleted after the order
-      db
-        .select({
-          id: orderItems.id,
-          productId: orderItems.productId,
-          productName: orderItems.productName,
-          variantName: orderItems.variantName,
-          sku: orderItems.sku,
-          price: orderItems.price,
-          quantity: orderItems.quantity,
-          imageUrl: media.url,
-          imageAlt: media.altText,
-        })
-        .from(orderItems)
-        .leftJoin(products, eq(orderItems.productId, products.id))
-        .leftJoin(
-          productImages,
-          and(
-            eq(productImages.productId, orderItems.productId),
-            eq(productImages.position, 0)
+    // Get order items with images, payments, refund transactions, and shipments in parallel
+    const [items, payments, refundTransactions, shipmentsData] =
+      await Promise.all([
+        // Get order items with images
+        // Use leftJoin for products in case a product was deleted after the order
+        db
+          .select({
+            id: orderItems.id,
+            productId: orderItems.productId,
+            productName: orderItems.productName,
+            variantName: orderItems.variantName,
+            sku: orderItems.sku,
+            price: orderItems.price,
+            quantity: orderItems.quantity,
+            imageUrl: media.url,
+            imageAlt: media.altText,
+          })
+          .from(orderItems)
+          .leftJoin(products, eq(orderItems.productId, products.id))
+          .leftJoin(
+            productImages,
+            and(
+              eq(productImages.productId, orderItems.productId),
+              eq(productImages.position, 0)
+            )
           )
-        )
-        .leftJoin(media, eq(productImages.mediaId, media.id))
-        .where(eq(orderItems.orderId, orderId)),
-      // Get order payments
-      db
-        .select({
-          id: orderPayments.id,
-          amount: orderPayments.amount,
-          paymentMethod: orderPayments.paymentMethod,
-          notes: orderPayments.notes,
-          createdAt: orderPayments.createdAt,
-        })
-        .from(orderPayments)
-        .where(eq(orderPayments.orderId, orderId))
-        .orderBy(desc(orderPayments.createdAt)),
-    ]);
+          .leftJoin(media, eq(productImages.mediaId, media.id))
+          .where(eq(orderItems.orderId, orderId)),
+        // Get order payments
+        db
+          .select({
+            id: orderPayments.id,
+            amount: orderPayments.amount,
+            paymentMethod: orderPayments.paymentMethod,
+            notes: orderPayments.notes,
+            createdAt: orderPayments.createdAt,
+          })
+          .from(orderPayments)
+          .where(eq(orderPayments.orderId, orderId))
+          .orderBy(desc(orderPayments.createdAt)),
+        // Get refund transactions
+        db
+          .select({
+            id: orderTransactions.id,
+            amount: orderTransactions.amount,
+            paymentMethod: orderTransactions.paymentMethod,
+            notes: orderTransactions.notes,
+            createdAt: orderTransactions.createdAt,
+          })
+          .from(orderTransactions)
+          .where(
+            and(
+              eq(orderTransactions.orderId, orderId),
+              eq(orderTransactions.type, "refund"),
+              eq(orderTransactions.status, "completed")
+            )
+          )
+          .orderBy(desc(orderTransactions.createdAt)),
+        // Get shipments with tracking events
+        db.query.shipments.findMany({
+          where: eq(shipments.orderId, orderId),
+          orderBy: [desc(shipments.createdAt)],
+          with: {
+            items: {
+              with: {
+                orderItem: {
+                  columns: {
+                    productName: true,
+                    variantName: true,
+                  },
+                },
+              },
+            },
+            trackingEvents: {
+              orderBy: (events, { desc: descEvents }) => [
+                descEvents(events.eventTime),
+              ],
+            },
+          },
+        }),
+      ]);
 
     const itemsWithImages: OrderItemWithImage[] = items.map((item) => ({
       id: item.id,
@@ -458,24 +568,100 @@ export const getDashboardOrderById = cache(
         : null,
     }));
 
-    // Calculate payment totals
+    // Calculate payment totals using the payment-status utility for consistency
+    // Priority: 1) Sum of payment records, 2) amountPaid field, 3) if isPaid and no payments, assume full total
     const orderTotal = parseFloat(order.total);
-    const totalPaid = payments.reduce(
+    const paymentsSum = payments.reduce(
       (sum, p) => sum + parseFloat(p.amount),
       0
     );
+    const orderAmountPaid = parseFloat(order.amountPaid);
+
+    // Determine actual amount paid (for display purposes)
+    let totalPaid: number;
+    if (paymentsSum > 0) {
+      // Use payment records if available
+      totalPaid = paymentsSum;
+    } else if (orderAmountPaid > 0) {
+      // Use amountPaid field if set
+      totalPaid = orderAmountPaid;
+    } else if (order.isPaid) {
+      // Legacy: if isPaid but no records, assume original total was paid
+      // Note: This is a fallback for legacy orders; new orders should have amountPaid set
+      totalPaid = orderTotal;
+    } else {
+      totalPaid = 0;
+    }
+
     const amountRemaining = Math.max(0, orderTotal - totalPaid);
 
-    return {
-      ...order,
-      items: itemsWithImages,
-      payments: payments.map((p) => ({
+    // Compute payment status using the utility for consistency across the app
+    const paymentInfo = computePaymentStatus({
+      total: order.total,
+      amountPaid: totalPaid.toString(),
+      amountRefunded: order.amountRefunded,
+    });
+
+    // Format shipments data
+    const formattedShipments: ShipmentRecord[] = shipmentsData.map(
+      (shipment) => ({
+        id: shipment.id,
+        carrierName: shipment.carrierName,
+        trackingNumber: shipment.trackingNumber,
+        trackingUrl: shipment.trackingUrl,
+        status: shipment.status,
+        shippedAt: shipment.shippedAt,
+        deliveredAt: shipment.deliveredAt,
+        notes: shipment.notes,
+        createdAt: shipment.createdAt,
+        items: shipment.items.map((item) => ({
+          id: item.id,
+          orderItemId: item.orderItemId,
+          productName: item.orderItem.productName,
+          variantName: item.orderItem.variantName,
+          quantity: item.quantity,
+        })),
+        trackingEvents: shipment.trackingEvents.map((event) => ({
+          id: event.id,
+          status: event.status,
+          location: event.location,
+          description: event.description,
+          eventTime: event.eventTime,
+        })),
+      })
+    );
+
+    // Combine payments and refunds into a unified transaction history
+    // Payments are positive, refunds are shown as negative for display
+    const allTransactions: OrderPaymentRecord[] = [
+      ...payments.map((p) => ({
         id: p.id,
         amount: p.amount,
         paymentMethod: p.paymentMethod,
         notes: p.notes,
         createdAt: p.createdAt,
       })),
+      ...refundTransactions.map((r) => ({
+        id: r.id,
+        // Show refunds as negative amounts in the transaction history
+        amount: `-${r.amount}`,
+        paymentMethod: r.paymentMethod,
+        notes: r.notes,
+        createdAt: r.createdAt,
+      })),
+    ].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    return {
+      ...order,
+      // Override payment status with computed values for consistency
+      paymentStatus: paymentInfo.status as PaymentStatus,
+      isPaid: paymentInfo.isPaid,
+      items: itemsWithImages,
+      payments: allTransactions,
+      shipments: formattedShipments,
       totalPaid: totalPaid.toFixed(2),
       amountRemaining: amountRemaining.toFixed(2),
     } as DashboardOrderDetail;
@@ -489,12 +675,11 @@ export type OrderCounts = {
   processing: number;
   shipped: number;
   delivered: number;
+  returned: number;
   cancelled: number;
-  refunded: number;
   // Channel counts
   online: number;
-  offline: number;
-  phone: number;
+  pos: number;
 };
 
 /**
@@ -514,12 +699,12 @@ export const getOrderCounts = cache(
         .groupBy(orders.status),
       db
         .select({
-          channel: orders.salesChannel,
+          channel: orders.channel,
           count: drizzleCount(),
         })
         .from(orders)
         .where(eq(orders.tenantId, tenantId))
-        .groupBy(orders.salesChannel),
+        .groupBy(orders.channel),
     ]);
 
     // Initialize all counts to 0
@@ -530,18 +715,17 @@ export const getOrderCounts = cache(
       processing: 0,
       shipped: 0,
       delivered: 0,
+      returned: 0,
       cancelled: 0,
-      refunded: 0,
       online: 0,
-      offline: 0,
-      phone: 0,
+      pos: 0,
     };
 
     // Fill in status counts
     statusCounts.forEach(({ status, count }) => {
       const statusKey = status as keyof Omit<
         OrderCounts,
-        "total" | "online" | "offline" | "phone"
+        "total" | "online" | "pos"
       >;
       if (statusKey in result) {
         result[statusKey] = count;
@@ -551,7 +735,7 @@ export const getOrderCounts = cache(
 
     // Fill in channel counts
     channelCounts.forEach(({ channel, count }) => {
-      const channelKey = channel as "online" | "offline" | "phone";
+      const channelKey = channel as "online" | "pos";
       if (channelKey in result) {
         result[channelKey] = count;
       }

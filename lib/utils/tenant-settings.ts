@@ -18,6 +18,7 @@ export function transformTenantToSettings(tenant: {
   onlineCheckoutEnabled: boolean;
   posEnabled: boolean;
   phoneOrdersEnabled: boolean;
+  posScannerMode: string;
   receiptPaperWidth: string;
   receiptShowLogo: boolean;
   receiptShowContact: boolean;
@@ -38,6 +39,7 @@ export function transformTenantToSettings(tenant: {
     onlineCheckoutEnabled: tenant.onlineCheckoutEnabled,
     posEnabled: tenant.posEnabled,
     phoneOrdersEnabled: tenant.phoneOrdersEnabled,
+    posScannerMode: tenant.posScannerMode as "camera" | "usb",
     receiptPaperWidth: tenant.receiptPaperWidth as "80mm" | "58mm",
     receiptShowLogo: tenant.receiptShowLogo,
     receiptShowContact: tenant.receiptShowContact,

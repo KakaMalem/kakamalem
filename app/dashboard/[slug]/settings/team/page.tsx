@@ -1,6 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getUserStoreContext } from "@/lib/auth/context";
+import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { getTeamMembers } from "@/lib/db/queries/team";
 import { TeamSettings } from "./team-settings";
 
@@ -24,9 +27,16 @@ export default async function TeamSettingsPage({
     notFound();
   }
 
-  // Verify ownership (only owner can manage team)
-  if (store.ownerId !== user.id) {
-    notFound();
+  // Role-based access check (owner only)
+  const userContext = await getUserStoreContext(store.id);
+  if (!userContext || !canAccessSettingsPage(userContext.role, "team")) {
+    return (
+      <AccessDenied
+        message="Only the store owner can manage team members."
+        backUrl={`/dashboard/${slug}/settings`}
+        backLabel="Back to Settings"
+      />
+    );
   }
 
   const members = await getTeamMembers(store.id);

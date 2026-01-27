@@ -10,6 +10,7 @@ export type CategoryWithProductCount = Awaited<
 
 /**
  * Get all categories for a tenant with their product counts and image URLs
+ * Only counts active products (consistent with POS and storefront views)
  */
 export async function getCategoriesWithCounts(tenantId: string) {
   const categoriesList = await db
@@ -28,7 +29,10 @@ export async function getCategoriesWithCounts(tenantId: string) {
     })
     .from(categories)
     .leftJoin(media, eq(media.id, categories.imageId))
-    .leftJoin(products, eq(products.categoryId, categories.id))
+    .leftJoin(
+      products,
+      and(eq(products.categoryId, categories.id), eq(products.status, "active"))
+    )
     .where(eq(categories.tenantId, tenantId))
     .groupBy(categories.id, media.url)
     .orderBy(asc(categories.displayOrder), asc(categories.name));

@@ -100,27 +100,10 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   }
 
   // Fetch delivery zones if GPS-based delivery is enabled
+  // Note: If no zones configured, free delivery will be offered as fallback
   const deliveryZones = store.enableDeliveryZones
     ? await getActiveDeliveryZones(store.id)
     : [];
-
-  // Only block checkout if GPS delivery zones are enabled but none are configured
-  // For traditional shipping mode, free shipping is offered as fallback when no zones configured
-  if (store.enableDeliveryZones && deliveryZones.length === 0) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
-        <ShoppingCart className="mx-auto size-16 text-muted-foreground" />
-        <h1 className="mt-4 text-2xl font-bold">Checkout Unavailable</h1>
-        <p className="mt-2 text-muted-foreground">
-          This store is still setting up delivery zones. Please contact the
-          store or try again later.
-        </p>
-        <Button asChild className="mt-6">
-          <Link href={`/store/${slug}/cart`}>Back to Cart</Link>
-        </Button>
-      </div>
-    );
-  }
 
   // Get user's saved addresses and profile phone if logged in
   const [savedAddresses, userProfile] = await Promise.all([

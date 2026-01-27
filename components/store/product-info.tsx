@@ -12,7 +12,6 @@ import {
   Phone,
   Store,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -23,7 +22,7 @@ import { VariantSelector } from "@/components/store/variant-selector";
 import { BulkPricingTiers } from "@/components/store/bulk-pricing-tiers";
 import { cn, formatPrice } from "@/lib/utils";
 import { getDisplayPrices } from "@/lib/utils/pricing-display";
-import { toggleWishlistAction } from "@/lib/actions/wishlists";
+import { useWishlist } from "@/lib/hooks/use-wishlist";
 import { useCart } from "@/lib/hooks/use-cart";
 import type { CartItemProduct, CartItemVariant } from "@/lib/types/cart";
 
@@ -46,8 +45,10 @@ interface ProductInfoProps {
   currency: string;
   reviewStats: ReviewStats;
   priceTiers?: PriceTier[];
-  onVariantChange?: (variantId: string | null) => void;
-  initialIsInWishlist?: boolean;
+  onVariantChange?: (
+    variantId: string | null,
+    selectedOptions: Record<string, string>
+  ) => void;
   /** When true, hides add-to-cart and quantity controls */
   catalogMode?: boolean;
   /** Store mode for appropriate messaging */
@@ -63,7 +64,6 @@ export function ProductInfo({
   reviewStats,
   priceTiers = [],
   onVariantChange,
-  initialIsInWishlist = false,
   catalogMode = false,
   storeMode = "full",
   contactPhone,
@@ -98,8 +98,6 @@ export function ProductInfo({
     }
     return {};
   });
-  const [isInWishlist, setIsInWishlist] = useState(initialIsInWishlist);
-  const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
   const [quantity, setQuantity] = useState(product.minOrderQuantity ?? 1);
   const [isEditingQty, setIsEditingQty] = useState(false);
   const [editingQtyValue, setEditingQtyValue] = useState("");
@@ -138,10 +136,21 @@ export function ProductInfo({
 
   const selectedVariantId = selectedVariant?.id || null;
 
-  // Notify parent when variant changes
+  // Wishlist state with optimistic updates (uses Zustand store)
+  const {
+    isInWishlist,
+    toggleWishlist: handleToggleWishlist,
+    isPending: isTogglingWishlist,
+  } = useWishlist({
+    tenantId,
+    productId: product.id,
+    variantId: selectedVariantId ?? undefined,
+  });
+
+  // Notify parent when variant or options change
   useEffect(() => {
-    onVariantChange?.(selectedVariantId);
-  }, [selectedVariantId, onVariantChange]);
+    onVariantChange?.(selectedVariantId, selectedOptions);
+  }, [selectedVariantId, selectedOptions, onVariantChange]);
 
   // Determine price and stock based on whether product has variants
   const basePrice =
@@ -365,29 +374,6 @@ export function ProductInfo({
     }
   }
 
-  const handleToggleWishlist = async () => {
-    setIsTogglingWishlist(true);
-
-    const result = await toggleWishlistAction(
-      tenantId,
-      product.id,
-      selectedVariantId ?? undefined
-    );
-
-    if (result.error) {
-      toast.error(result.error.message);
-    } else if (result.data) {
-      setIsInWishlist(result.data.action === "added");
-      toast.success(
-        result.data.action === "added"
-          ? "Added to wishlist"
-          : "Removed from wishlist"
-      );
-    }
-
-    setIsTogglingWishlist(false);
-  };
-
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* Product Title */}
@@ -485,20 +471,29 @@ export function ProductInfo({
         )}
       </div>
 
-      {/* Description */}
-      {product.description && <RichTextContent html={product.description} />}
+      {/* Description - show variant description if selected, otherwise product description */}
+      {(selectedVariant?.description || product.description) && (
+        <RichTextContent
+          html={selectedVariant?.description || product.description || ""}
+        />
+      )}
 
       <Separator />
 
       {/* Variant Selectors */}
       {product.hasVariants && variantOptions && (
         <>
-          {Object.entries(variantOptions).map(([optionName, values]) => {
-            const options = values.map((value) => {
+          {Object.entries(variantOptions).map(([optionName, optionValues]) => {
+            // Check if this option has any color swatches
+            const hasColorSwatches = optionValues.some(
+              (v) => v.swatchType === "color" && v.swatchValue
+            );
+
+            const options = optionValues.map((optVal) => {
               // Check if selecting this value would result in a valid variant
               const potentialOptions = {
                 ...selectedOptions,
-                [optionName]: value,
+                [optionName]: optVal.value,
               };
               const matchingVariant = product.variants?.find((variant) => {
                 if (!variant.options || variant.options.length === 0)
@@ -521,12 +516,99 @@ export function ProductInfo({
                   product.allowBackorder);
 
               return {
-                label: value,
-                value,
+                label: optVal.value,
+                value: optVal.value,
                 isAvailable,
+                swatchType: optVal.swatchType,
+                swatchValue: optVal.swatchValue,
               };
             });
 
+            // Use color swatch display for color options
+            if (hasColorSwatches) {
+              return (
+                <div key={optionName} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {optionName}
+                    </span>
+                    {selectedOptions[optionName] && (
+                      <span className="text-sm">
+                        : {selectedOptions[optionName]}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {options.map((option) => {
+                      const isSelected =
+                        selectedOptions[optionName] === option.value;
+                      const isColor =
+                        option.swatchType === "color" && option.swatchValue;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            setSelectedOptions((prev) => ({
+                              ...prev,
+                              [optionName]: option.value,
+                            }))
+                          }
+                          disabled={!option.isAvailable}
+                          className={cn(
+                            "relative rounded-full border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                            isColor ? "h-10 w-10" : "h-10 px-4",
+                            isSelected && "ring-2 ring-primary ring-offset-2",
+                            !option.isAvailable &&
+                              "opacity-40 cursor-not-allowed",
+                            option.isAvailable &&
+                              "hover:scale-110 cursor-pointer"
+                          )}
+                          style={
+                            isColor
+                              ? { backgroundColor: option.swatchValue! }
+                              : undefined
+                          }
+                          title={option.value}
+                          aria-label={`${optionName}: ${option.value}${!option.isAvailable ? " (unavailable)" : ""}`}
+                        >
+                          {isSelected && isColor && (
+                            <span
+                              className={cn(
+                                "absolute inset-0 flex items-center justify-center",
+                                isLightColor(option.swatchValue!)
+                                  ? "text-gray-800"
+                                  : "text-white"
+                              )}
+                            >
+                              ✓
+                            </span>
+                          )}
+                          {!isColor && (
+                            <span
+                              className={cn(
+                                "text-sm font-medium",
+                                isSelected && "text-primary"
+                              )}
+                            >
+                              {option.label}
+                            </span>
+                          )}
+                          {!option.isAvailable && isColor && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-full h-0.5 bg-gray-400 rotate-45 absolute" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+
+            // Use standard selector for non-color options
             return (
               <VariantSelector
                 key={optionName}
@@ -716,11 +798,18 @@ export function ProductInfo({
   );
 }
 
-// Helper to group variants by option type
+// Type for grouped variant option values with swatch data
+type VariantOptionValue = {
+  value: string;
+  swatchType: "text" | "color" | "image";
+  swatchValue?: string | null;
+};
+
+// Helper to group variants by option type with swatch data
 function groupVariantsByOption(
   variants: NonNullable<ProductWithDetails["variants"]>
-): Record<string, string[]> {
-  const groups: Record<string, Set<string>> = {};
+): Record<string, VariantOptionValue[]> {
+  const groups: Record<string, Map<string, VariantOptionValue>> = {};
 
   for (const variant of variants) {
     if (!variant.options) continue;
@@ -730,17 +819,35 @@ function groupVariantsByOption(
       const value = opt.optionValue.value;
 
       if (!groups[optionName]) {
-        groups[optionName] = new Set();
+        groups[optionName] = new Map();
       }
-      groups[optionName].add(value);
+
+      // Only add if not already present (preserve first occurrence's swatch data)
+      if (!groups[optionName].has(value)) {
+        groups[optionName].set(value, {
+          value,
+          swatchType: opt.optionValue.swatchType || "text",
+          swatchValue: opt.optionValue.swatchValue,
+        });
+      }
     }
   }
 
-  // Convert sets to arrays
-  const result: Record<string, string[]> = {};
-  for (const [key, set] of Object.entries(groups)) {
-    result[key] = Array.from(set);
+  // Convert maps to arrays
+  const result: Record<string, VariantOptionValue[]> = {};
+  for (const [key, map] of Object.entries(groups)) {
+    result[key] = Array.from(map.values());
   }
 
   return result;
+}
+
+// Helper to determine if a hex color is light (for contrast)
+function isLightColor(hex: string): boolean {
+  const cleanHex = hex.replace("#", "");
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5;
 }

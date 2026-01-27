@@ -6,32 +6,38 @@ import { ExternalLink } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { DashboardBreadcrumb } from "./dashboard-breadcrumb";
-
-// Reserved dashboard paths that are not store slugs
-const reservedPaths = new Set(["new", "account"]);
-
-// Extract store slug from pathname like /dashboard/my-store/...
-function getStoreSlugFromPath(pathname: string): string | null {
-  const segments = pathname.split("/").filter(Boolean);
-  // Store slug is the second segment (index 1) after "dashboard"
-  if (
-    segments[0] === "dashboard" &&
-    segments[1] &&
-    !reservedPaths.has(segments[1])
-  ) {
-    return segments[1];
-  }
-  return null;
-}
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { useStoreMode } from "@/lib/stores/use-tenant-settings-store";
 
 interface DashboardHeaderProps {
   children?: React.ReactNode;
 }
 
+// Reserved paths that are not store slugs
+const reservedPaths = new Set(["new", "account"]);
+
+// Extract store slug from pathname
+function getStoreSlugFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/dashboard\/([^/]+)/);
+  if (match && !reservedPaths.has(match[1])) {
+    return match[1];
+  }
+  return null;
+}
+
 export function DashboardHeader({ children }: DashboardHeaderProps) {
   const pathname = usePathname();
   const storeSlug = getStoreSlugFromPath(pathname);
+  const storeMode = useStoreMode();
+
+  // Hide "Visit Website" link for POS-only stores (no online storefront)
+  const showVisitWebsiteLink = storeSlug && storeMode !== "offline_only";
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -39,13 +45,21 @@ export function DashboardHeader({ children }: DashboardHeaderProps) {
       <Separator orientation="vertical" className="mr-2 h-4" />
       <DashboardBreadcrumb />
       <div className="flex-1" />
-      {storeSlug && (
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/store/${storeSlug}`} target="_blank">
-            <ExternalLink className="h-4 w-4" />
-            <span className="hidden sm:inline">View Store</span>
-          </Link>
-        </Button>
+      <NotificationBell context="owner" />
+      {showVisitWebsiteLink && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" asChild>
+              <Link href={`/store/${storeSlug}`} target="_blank">
+                <ExternalLink className="h-5 w-5" />
+                <span className="sr-only">View Store</span>
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View Store</p>
+          </TooltipContent>
+        </Tooltip>
       )}
       {children}
     </header>

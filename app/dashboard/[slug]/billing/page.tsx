@@ -1,9 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
-import {
-  getSubscriptionOverview,
-  getPlanFeatures,
-} from "@/lib/db/queries/billing";
+import { getSubscriptionOverview, getInvoices } from "@/lib/db/queries/billing";
 import { BillingPageClient } from "@/components/dashboard/billing/billing-page-client";
 
 interface BillingPageProps {
@@ -18,12 +15,15 @@ export default async function BillingPage({ params }: BillingPageProps) {
     notFound();
   }
 
-  const subscription = await getSubscriptionOverview(store.id);
+  // Fetch billing data in parallel
+  const [subscription, invoicesData] = await Promise.all([
+    getSubscriptionOverview(store.id),
+    getInvoices(store.id, { limit: 20 }),
+  ]);
+
   if (!subscription) {
     notFound();
   }
-
-  const planFeatures = getPlanFeatures(subscription.freeProductLimit);
 
   return (
     <BillingPageClient
@@ -31,7 +31,8 @@ export default async function BillingPage({ params }: BillingPageProps) {
       storeName={store.name}
       currency={store.currency}
       subscription={subscription}
-      planFeatures={planFeatures}
+      invoices={invoicesData.invoices}
+      invoicesTotal={invoicesData.total}
     />
   );
 }

@@ -1,11 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingBag, Check, User, Store, Phone } from "lucide-react";
+import {
+  ShoppingBag,
+  Check,
+  User,
+  Store,
+  CreditCard,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { DashboardOrder, OrderStatus } from "@/lib/db/queries/orders";
+import { getOrderStatusInfoWithContext } from "@/lib/utils/order-status";
+import type {
+  DashboardOrder,
+  FulfillmentType,
+  PaymentStatus,
+} from "@/lib/db/queries/orders";
+import type { OrderChannel } from "@/lib/db/schema";
 
 interface OrdersListProps {
   orders: DashboardOrder[];
@@ -17,21 +31,49 @@ interface OrdersListProps {
   selectionMode: boolean;
 }
 
-const STATUS_STYLES: Record<
-  OrderStatus,
+const BADGE_VARIANTS: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  default: "default",
+  secondary: "secondary",
+  destructive: "destructive",
+  outline: "outline",
+};
+
+const PAYMENT_STATUS_STYLES: Record<
+  PaymentStatus,
   {
     label: string;
-    variant: "default" | "secondary" | "destructive" | "outline";
+    icon: typeof CreditCard;
+    className: string;
   }
 > = {
-  pending: { label: "Pending", variant: "secondary" },
-  confirmed: { label: "Confirmed", variant: "default" },
-  processing: { label: "Processing", variant: "default" },
-  shipped: { label: "Shipped", variant: "default" },
-  delivered: { label: "Delivered", variant: "default" },
-  cancelled: { label: "Cancelled", variant: "destructive" },
-  refunded: { label: "Refunded", variant: "destructive" },
-  partially_refunded: { label: "Partial Refund", variant: "outline" },
+  unpaid: {
+    label: "Unpaid",
+    icon: Clock,
+    className: "text-yellow-600 bg-yellow-50 border-yellow-200",
+  },
+  partial: {
+    label: "Partial",
+    icon: AlertCircle,
+    className: "text-orange-600 bg-orange-50 border-orange-200",
+  },
+  paid: {
+    label: "Paid",
+    icon: CreditCard,
+    className: "text-green-600 bg-green-50 border-green-200",
+  },
+  refunded: {
+    label: "Refunded",
+    icon: CreditCard,
+    className: "text-gray-600 bg-gray-50 border-gray-200",
+  },
+  partial_refund: {
+    label: "Partial Refund",
+    icon: CreditCard,
+    className: "text-gray-600 bg-gray-50 border-gray-200",
+  },
 };
 
 function OrderCard({
@@ -70,7 +112,19 @@ function OrderCard({
     });
   };
 
-  const statusStyle = STATUS_STYLES[order.status];
+  // Get context-aware status label (shows "Completed" for POS, "Picked Up" for pickup, etc.)
+  const statusInfo = getOrderStatusInfoWithContext(
+    order.status,
+    order.fulfillmentType as FulfillmentType | null,
+    order.channel as OrderChannel | null
+  );
+  const statusStyle = {
+    label: statusInfo.label,
+    variant: BADGE_VARIANTS[statusInfo.color] || ("outline" as const),
+  };
+  const paymentStyle =
+    PAYMENT_STATUS_STYLES[order.paymentStatus] || PAYMENT_STATUS_STYLES.unpaid;
+  const PaymentIcon = paymentStyle.icon;
 
   return (
     <Card
@@ -126,21 +180,20 @@ function OrderCard({
             {/* Desktop badges */}
             <div className="hidden items-center gap-1.5 sm:flex">
               <Badge variant={statusStyle.variant}>{statusStyle.label}</Badge>
-              {order.salesChannel !== "online" && (
+              {order.channel === "pos" && (
                 <Badge variant="outline" className="gap-1 text-xs">
-                  {order.salesChannel === "phone" ? (
-                    <>
-                      <Phone className="size-3" />
-                      Phone
-                    </>
-                  ) : (
-                    <>
-                      <Store className="size-3" />
-                      In-Store
-                    </>
-                  )}
+                  <Store className="size-3" />
+                  In-Store
                 </Badge>
               )}
+              {/* Payment status badge */}
+              <Badge
+                variant="outline"
+                className={cn("gap-1 text-xs", paymentStyle.className)}
+              >
+                <PaymentIcon className="size-3" />
+                {paymentStyle.label}
+              </Badge>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
@@ -162,15 +215,17 @@ function OrderCard({
             <Badge variant={statusStyle.variant} className="text-xs">
               {statusStyle.label}
             </Badge>
-            {order.salesChannel !== "online" && (
+            {order.channel === "pos" && (
               <Badge variant="outline" className="gap-1 text-xs">
-                {order.salesChannel === "phone" ? (
-                  <Phone className="size-3" />
-                ) : (
-                  <Store className="size-3" />
-                )}
+                <Store className="size-3" />
               </Badge>
             )}
+            <Badge
+              variant="outline"
+              className={cn("gap-1 text-xs", paymentStyle.className)}
+            >
+              <PaymentIcon className="size-3" />
+            </Badge>
             <span>{order.itemCount} items</span>
           </div>
         </div>

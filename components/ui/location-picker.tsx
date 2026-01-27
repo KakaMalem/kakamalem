@@ -46,6 +46,9 @@ interface DeliveryZoneDisplay {
   centerLng: string | null;
   radiusMeters: number | null;
   color: string | null;
+  deliveryFee?: string | null;
+  freeShippingThreshold?: string | null;
+  estimatedDeliveryTime?: string | null;
 }
 
 interface LocationPickerProps {
@@ -67,12 +70,24 @@ interface SearchResult {
 }
 
 // Check if a point is within any delivery zone
+interface ZoneCheckResult {
+  inZone: boolean;
+  zoneName?: string;
+  deliveryFee?: string | null;
+  freeShippingThreshold?: string | null;
+}
+
 function isPointInDeliveryZones(
   lat: number,
   lng: number,
   zones: DeliveryZoneDisplay[]
-): { inZone: boolean; zoneName?: string } {
-  for (const zone of zones) {
+): ZoneCheckResult {
+  // Sort by radius (smallest first) to return the most specific zone
+  const sortedZones = [...zones].sort(
+    (a, b) => (a.radiusMeters ?? 0) - (b.radiusMeters ?? 0)
+  );
+
+  for (const zone of sortedZones) {
     if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) continue;
 
     const centerLat = parseFloat(zone.centerLat);
@@ -92,7 +107,12 @@ function isPointInDeliveryZones(
     const distance = R * c;
 
     if (distance <= zone.radiusMeters) {
-      return { inZone: true, zoneName: zone.name };
+      return {
+        inZone: true,
+        zoneName: zone.name,
+        deliveryFee: zone.deliveryFee,
+        freeShippingThreshold: zone.freeShippingThreshold,
+      };
     }
   }
   return { inZone: false };
@@ -395,10 +415,7 @@ export function LocationPicker({
   const [isFetchingCity, setIsFetchingCity] = useState(false);
 
   // Zone validation
-  const [zoneStatus, setZoneStatus] = useState<{
-    inZone: boolean;
-    zoneName?: string;
-  } | null>(null);
+  const [zoneStatus, setZoneStatus] = useState<ZoneCheckResult | null>(null);
 
   // Copy feedback
   const [copied, setCopied] = useState(false);
@@ -626,9 +643,13 @@ export function LocationPicker({
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
 
-    // Draw delivery zones
+    // Draw delivery zones - sort by radius (largest first) so smaller zones render on top
     zoneCirclesRef.current = [];
-    deliveryZones.forEach((zone) => {
+    const sortedZones = [...deliveryZones].sort(
+      (a, b) => (b.radiusMeters ?? 0) - (a.radiusMeters ?? 0)
+    );
+
+    sortedZones.forEach((zone) => {
       if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
 
       const circle = L.circle(
@@ -637,19 +658,67 @@ export function LocationPicker({
           radius: zone.radiusMeters,
           color: zone.color || "#3b82f6",
           fillColor: zone.color || "#3b82f6",
-          fillOpacity: 0.1,
+          fillOpacity: 0.12,
           weight: 2,
+          dashArray: "5, 5",
         }
       ).addTo(map);
 
-      circle.bindTooltip(zone.name, {
+      // Build tooltip with zone name and delivery price
+      const fee = parseFloat(zone.deliveryFee || "0");
+      const freeThreshold = zone.freeShippingThreshold
+        ? parseFloat(zone.freeShippingThreshold)
+        : null;
+
+      let tooltipContent = `<div class="zone-tooltip-content">
+        <strong>${zone.name}</strong><br/>`;
+
+      if (fee === 0) {
+        tooltipContent += `<span style="color: #16a34a;">Free delivery</span>`;
+      } else {
+        tooltipContent += `<span>${fee.toLocaleString()} AFN</span>`;
+        if (freeThreshold && freeThreshold > 0) {
+          tooltipContent += `<br/><span style="font-size: 11px; color: #6b7280;">Free over ${freeThreshold.toLocaleString()} AFN</span>`;
+        }
+      }
+
+      if (zone.estimatedDeliveryTime) {
+        tooltipContent += `<br/><span style="font-size: 11px; color: #6b7280;">${zone.estimatedDeliveryTime}</span>`;
+      }
+
+      tooltipContent += `</div>`;
+
+      circle.bindTooltip(tooltipContent, {
         permanent: false,
         direction: "center",
-        className: "zone-tooltip",
+        className: "zone-price-tooltip",
       });
 
       zoneCirclesRef.current.push(circle);
     });
+
+    // Add custom tooltip styles
+    const tooltipStyle = document.createElement("style");
+    tooltipStyle.id = "zone-tooltip-styles";
+    if (!document.getElementById("zone-tooltip-styles")) {
+      tooltipStyle.textContent = `
+        .zone-price-tooltip {
+          background: white !important;
+          border: 1px solid #e5e7eb !important;
+          border-radius: 8px !important;
+          padding: 8px 12px !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+          font-size: 13px !important;
+        }
+        .zone-price-tooltip::before {
+          display: none !important;
+        }
+        .zone-tooltip-content {
+          line-height: 1.4;
+        }
+      `;
+      document.head.appendChild(tooltipStyle);
+    }
 
     // Fit to zones if no initial value
     if (!initialValue && zoneCirclesRef.current.length > 0) {
@@ -789,11 +858,11 @@ export function LocationPicker({
   }, [isLoading, handleGetCurrentLocation]);
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-3 sm:space-y-4", className)}>
       {/* Search Bar - Outside map to avoid zoom button collision */}
       {showMap && leafletLoaded && (
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400 z-10" />
+          <Search className="absolute left-3.5 sm:left-4 top-1/2 size-4 sm:size-5 -translate-y-1/2 text-gray-400 z-10" />
           <input
             type="text"
             value={searchQuery}
@@ -811,16 +880,16 @@ export function LocationPicker({
               }, 300);
             }}
             placeholder="Search landmark, mosque, university..."
-            className="w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full rounded-xl border bg-white py-3 sm:py-3.5 pl-10 sm:pl-12 pr-10 sm:pr-12 text-sm sm:text-base shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             disabled={disabled}
           />
           {isSearching && (
-            <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-gray-400" />
+            <Loader2 className="absolute right-3.5 sm:right-4 top-1/2 size-4 sm:size-5 -translate-y-1/2 animate-spin text-gray-400" />
           )}
 
           {/* Search Results Dropdown */}
           {showSearchResults && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-white shadow-lg border z-1000">
+            <div className="absolute top-full left-0 right-0 mt-1.5 max-h-56 sm:max-h-64 overflow-y-auto rounded-xl bg-white shadow-lg border z-1000">
               {searchResults.map((result) => (
                 <button
                   key={result.place_id}
@@ -834,9 +903,9 @@ export function LocationPicker({
                     // Reset the ref after selection
                     isSelectingResultRef.current = false;
                   }}
-                  className="flex w-full items-start gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl"
+                  className="flex w-full items-start gap-2.5 sm:gap-3 px-3.5 sm:px-4 py-3 sm:py-3.5 text-left text-sm sm:text-base hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl border-b border-gray-100 last:border-b-0"
                 >
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-gray-400" />
+                  <MapPin className="mt-0.5 size-4 sm:size-5 shrink-0 text-gray-400" />
                   <span className="line-clamp-2">{result.display_name}</span>
                 </button>
               ))}
@@ -845,10 +914,10 @@ export function LocationPicker({
         </div>
       )}
 
-      {/* Map Container */}
+      {/* Map Container - isolate creates a new stacking context to prevent z-index leak to navbar */}
       <div
         className={cn(
-          "relative w-full overflow-hidden rounded-2xl border bg-white shadow-sm",
+          "relative isolate w-full overflow-hidden rounded-2xl border bg-white shadow-sm",
           error && "border-destructive",
           disabled && "pointer-events-none opacity-50"
         )}
@@ -858,18 +927,18 @@ export function LocationPicker({
             type="button"
             onClick={handleButtonClick}
             disabled={disabled}
-            className="group relative block w-full min-h-64 sm:min-h-72 cursor-pointer text-left transition-transform active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="group relative block w-full h-72 sm:h-80 md:h-96 lg:h-105 cursor-pointer text-left transition-transform active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <CityIllustration isLoading={isLoading} />
 
-            <div className="absolute inset-x-0 top-0 z-10 bg-linear-to-b from-white/90 via-white/70 to-transparent pb-12 pt-5 px-5">
+            <div className="absolute inset-x-0 top-0 z-10 bg-linear-to-b from-white/90 via-white/70 to-transparent pb-16 pt-6 px-4 sm:px-6 md:pt-8 md:pb-20">
               <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-800">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-800">
                   {isLoading
                     ? "Finding your location..."
                     : "Where should we deliver?"}
                 </h3>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="text-sm sm:text-base text-gray-500 mt-1">
                   {isLoading
                     ? "Please allow access when prompted"
                     : "Tap to share your location"}
@@ -877,10 +946,10 @@ export function LocationPicker({
               </div>
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-white/95 via-white/80 to-transparent pt-12 pb-5 px-5">
+            <div className="absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-white/95 via-white/80 to-transparent pt-16 pb-5 px-4 sm:px-6 md:pb-6">
               <div
                 className={cn(
-                  "flex items-center justify-center gap-2 rounded-xl py-3 px-4 transition-all duration-200 mx-auto max-w-xs",
+                  "flex items-center justify-center gap-2.5 rounded-xl py-3.5 px-5 transition-all duration-200 mx-auto max-w-xs sm:max-w-sm md:py-4",
                   isLoading || isCheckingPermission
                     ? "bg-gray-100 text-gray-600"
                     : permissionState === "denied"
@@ -890,8 +959,8 @@ export function LocationPicker({
               >
                 {isLoading || isCheckingPermission ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" />
-                    <span className="text-sm font-medium">
+                    <Loader2 className="size-5 animate-spin" />
+                    <span className="text-sm sm:text-base font-medium">
                       {isCheckingPermission
                         ? "Checking permissions..."
                         : "Tap to cancel"}
@@ -899,27 +968,29 @@ export function LocationPicker({
                   </>
                 ) : permissionState === "denied" ? (
                   <>
-                    <MapPinOff className="size-4" />
-                    <span className="text-sm font-medium">
+                    <MapPinOff className="size-5" />
+                    <span className="text-sm sm:text-base font-medium">
                       Location blocked - tap to retry
                     </span>
                   </>
                 ) : (
                   <>
-                    <Navigation className="size-4" />
-                    <span className="text-sm font-medium">Use my location</span>
+                    <Navigation className="size-5" />
+                    <span className="text-sm sm:text-base font-medium">
+                      Use my location
+                    </span>
                   </>
                 )}
               </div>
             </div>
           </button>
         ) : !leafletLoaded ? (
-          <div className="relative min-h-64 sm:min-h-72 md:min-h-80 lg:min-h-96">
+          <div className="relative h-72 sm:h-80 md:h-96 lg:h-105">
             <CityIllustration isLoading={true} />
-            <div className="relative z-10 flex min-h-64 sm:min-h-72 md:min-h-80 lg:min-h-96 flex-col items-center justify-center gap-4">
+            <div className="relative z-10 flex h-full flex-col items-center justify-center gap-4">
               <div className="rounded-xl bg-white/90 px-6 py-4 shadow-lg backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                  <Loader2 className="size-4 animate-spin text-primary" />
+                <div className="flex items-center gap-2.5 text-sm sm:text-base font-medium text-gray-600">
+                  <Loader2 className="size-5 animate-spin text-primary" />
                   Loading map...
                 </div>
               </div>
@@ -927,30 +998,38 @@ export function LocationPicker({
           </div>
         ) : (
           <div className="relative">
-            {/* Map - Responsive height */}
-            <div ref={mapRef} className="h-64 sm:h-72 md:h-80 lg:h-96 w-full" />
+            {/* Map - Responsive height: 288px mobile, 320px sm, 360px md/iPad, 400px lg+ */}
+            <div
+              ref={mapRef}
+              className="h-72 sm:h-80 md:h-96 lg:h-105 w-full"
+            />
 
-            {/* Bottom Controls */}
-            <div className="pointer-events-none absolute bottom-4 left-14 right-4 flex items-end justify-between gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-600 shadow-lg backdrop-blur-sm">
-                <MapPin className="size-3.5 text-primary" />
-                {value
-                  ? "Tap to adjust"
-                  : hasDeliveryZones
-                    ? "Tap within highlighted area"
-                    : "Tap to select"}
+            {/* Bottom Controls - improved spacing and touch targets */}
+            <div className="pointer-events-none absolute bottom-3 sm:bottom-4 left-12 sm:left-14 right-3 sm:right-4 z-1000 flex items-end justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium text-gray-600 shadow-lg backdrop-blur-sm">
+                <MapPin className="size-4 text-primary" />
+                <span className="hidden xs:inline">
+                  {value
+                    ? "Tap to adjust"
+                    : hasDeliveryZones
+                      ? "Tap within highlighted area"
+                      : "Tap to select"}
+                </span>
+                <span className="xs:hidden">
+                  {value ? "Tap to adjust" : "Tap to select"}
+                </span>
               </div>
               {!disabled && (
                 <button
                   type="button"
                   onClick={handleButtonClick}
                   disabled={isLoading}
-                  className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow-lg transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-medium text-white shadow-lg transition-colors hover:bg-primary/90 active:scale-95 disabled:opacity-50"
                 >
                   {isLoading ? (
-                    <Loader2 className="size-3.5 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <Navigation className="size-3.5" />
+                    <Navigation className="size-4" />
                   )}
                   {isLoading ? "Getting..." : "Use GPS"}
                 </button>
@@ -962,17 +1041,17 @@ export function LocationPicker({
 
       {/* Location Info Panel - shows after selection */}
       {value && (
-        <div className="rounded-xl border bg-white p-3 shadow-sm space-y-2">
+        <div className="rounded-xl border bg-white p-3 sm:p-4 shadow-sm space-y-2.5 sm:space-y-3">
           {/* GPS Accuracy Notice */}
           {locationHistory.gps?.accuracy &&
             locationHistory.gps.accuracy > 50 && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-sm text-amber-700">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <div className="flex items-start gap-2.5 sm:gap-3 rounded-lg bg-amber-50 p-3 sm:p-3.5 text-amber-700">
+                <AlertTriangle className="mt-0.5 size-4 sm:size-5 shrink-0" />
                 <div>
-                  <p className="font-medium text-xs">
+                  <p className="font-medium text-xs sm:text-sm">
                     GPS accuracy: ~{Math.round(locationHistory.gps.accuracy)}m
                   </p>
-                  <p className="text-xs mt-0.5 opacity-80">
+                  <p className="text-xs sm:text-sm mt-0.5 opacity-80">
                     Tap on the map to refine your exact location
                   </p>
                 </div>
@@ -983,7 +1062,7 @@ export function LocationPicker({
           {hasDeliveryZones && zoneStatus && (
             <div
               className={cn(
-                "flex items-center gap-2 rounded-lg p-2.5 text-sm",
+                "flex items-center gap-2.5 sm:gap-3 rounded-lg p-3 sm:p-3.5",
                 zoneStatus.inZone
                   ? "bg-green-50 text-green-700"
                   : "bg-red-50 text-red-700"
@@ -991,16 +1070,36 @@ export function LocationPicker({
             >
               {zoneStatus.inZone ? (
                 <>
-                  <Check className="size-4 shrink-0" />
-                  <p className="text-xs">
-                    Delivery available in{" "}
-                    <span className="font-medium">{zoneStatus.zoneName}</span>
-                  </p>
+                  <Check className="size-4 sm:size-5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium">
+                      Delivery available - {zoneStatus.zoneName}
+                    </p>
+                    {zoneStatus.deliveryFee !== undefined && (
+                      <p className="text-xs sm:text-sm opacity-80">
+                        {parseFloat(zoneStatus.deliveryFee || "0") === 0
+                          ? "Free delivery"
+                          : `${parseFloat(zoneStatus.deliveryFee || "0").toLocaleString()} AFN delivery fee`}
+                        {zoneStatus.freeShippingThreshold &&
+                          parseFloat(zoneStatus.freeShippingThreshold) > 0 &&
+                          parseFloat(zoneStatus.deliveryFee || "0") > 0 && (
+                            <span>
+                              {" "}
+                              (Free over{" "}
+                              {parseFloat(
+                                zoneStatus.freeShippingThreshold
+                              ).toLocaleString()}{" "}
+                              AFN)
+                            </span>
+                          )}
+                      </p>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="size-4 shrink-0" />
-                  <p className="text-xs">
+                  <AlertTriangle className="size-4 sm:size-5 shrink-0" />
+                  <p className="text-xs sm:text-sm">
                     Outside delivery zones. Please select within highlighted
                     areas.
                   </p>
@@ -1010,10 +1109,10 @@ export function LocationPicker({
           )}
 
           {/* Plus Code Display */}
-          <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-            <div>
-              <p className="text-xs text-gray-500">Location Code</p>
-              <p className="font-mono text-sm font-medium">
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3.5 sm:px-4 py-2.5 sm:py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm text-gray-500">Location Code</p>
+              <p className="font-mono text-sm sm:text-base font-medium truncate">
                 {isFetchingCity ? (
                   <span className="text-gray-400">Loading...</span>
                 ) : (
@@ -1027,13 +1126,13 @@ export function LocationPicker({
             <button
               type="button"
               onClick={handleCopyPlusCode}
-              className="rounded-lg p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              className="ml-2 rounded-lg p-2.5 sm:p-3 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors shrink-0"
               title="Copy location code"
             >
               {copied ? (
-                <Check className="size-4 text-green-600" />
+                <Check className="size-4 sm:size-5 text-green-600" />
               ) : (
-                <Copy className="size-4" />
+                <Copy className="size-4 sm:size-5" />
               )}
             </button>
           </div>
@@ -1042,8 +1141,8 @@ export function LocationPicker({
 
       {/* Error Display */}
       {(gpsError || error) && (
-        <div className="flex items-start gap-2.5 rounded-xl bg-red-50 p-3.5 text-sm text-red-600">
-          <X className="mt-0.5 size-4 shrink-0" />
+        <div className="flex items-start gap-2.5 sm:gap-3 rounded-xl bg-red-50 p-3.5 sm:p-4 text-sm sm:text-base text-red-600">
+          <X className="mt-0.5 size-4 sm:size-5 shrink-0" />
           <p>{gpsError || error}</p>
         </div>
       )}

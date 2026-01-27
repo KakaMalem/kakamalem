@@ -7,7 +7,7 @@ import {
   XCircle,
   Crown,
   Package,
-  Zap,
+  Calendar,
 } from "lucide-react";
 import {
   Card,
@@ -103,7 +103,7 @@ export function BillingStatusCard({
           </div>
         </div>
         <CardDescription>
-          Your subscription status and usage information
+          Your store&apos;s subscription status and usage
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -206,67 +206,29 @@ export function BillingStatusCard({
           </div>
         </div>
 
-        {/* Product Usage */}
-        {subscription.productLimit !== null && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Package className="size-4" />
-                Product usage
-              </span>
-              <span className="font-medium">
-                {subscription.productCount} / {subscription.productLimit}
-              </span>
-            </div>
-            <Progress
-              value={
-                (subscription.productCount / subscription.productLimit) * 100
-              }
-              className={cn(
-                "h-2",
-                subscription.productLimitReached && "[&>div]:bg-red-500",
-                subscription.productCount / subscription.productLimit >= 0.8 &&
-                  !subscription.productLimitReached &&
-                  "[&>div]:bg-amber-500"
-              )}
-            />
-            {subscription.productLimitReached ? (
-              <p className="text-xs text-red-600">
-                You&apos;ve reached your product limit. Upgrade to Pro for
-                unlimited products.
-              </p>
-            ) : subscription.productCount / subscription.productLimit >= 0.8 ? (
-              <p className="text-xs text-amber-600">
-                You&apos;re approaching your product limit. Consider upgrading
-                to Pro.
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {subscription.productLimit - subscription.productCount} products
-                remaining on free plan
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Plan Info Summary */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* Quick Stats Grid */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          {/* Price */}
           <div className="rounded-lg border p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {isPro ? (
                 <Crown className="size-4 text-primary" />
               ) : (
-                <Zap className="size-4" />
+                <Package className="size-4" />
               )}
-              <span>Current Plan</span>
+              <span>Monthly Price</span>
             </div>
-            <p className="mt-1 text-2xl font-bold">{isPro ? "Pro" : "Free"}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 text-2xl font-bold">
               {isPro
-                ? `${formatPrice(subscription.proPlanPriceAfn, currency)}/month`
-                : "No monthly fee"}
+                ? formatPrice(subscription.proPlanPriceAfn, currency)
+                : "0"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {isPro ? "per month" : "Free plan"}
             </p>
           </div>
+
+          {/* Product Usage */}
           <div className="rounded-lg border p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Package className="size-4" />
@@ -277,8 +239,57 @@ export function BillingStatusCard({
                 ? `${subscription.productCount}/${subscription.productLimit}`
                 : subscription.productCount}
             </p>
+            {subscription.productLimit !== null ? (
+              <>
+                <Progress
+                  value={
+                    (subscription.productCount / subscription.productLimit) *
+                    100
+                  }
+                  className={cn(
+                    "mt-2 h-1.5",
+                    subscription.productLimitReached && "[&>div]:bg-red-500",
+                    subscription.productCount / subscription.productLimit >=
+                      0.8 &&
+                      !subscription.productLimitReached &&
+                      "[&>div]:bg-amber-500"
+                  )}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {subscription.productLimitReached
+                    ? "Limit reached"
+                    : `${subscription.productLimit - subscription.productCount} remaining`}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">Unlimited</p>
+            )}
+          </div>
+
+          {/* Next Billing / Trial End */}
+          <div className="rounded-lg border p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Calendar className="size-4" />
+              <span>
+                {subscription.status === "trialing"
+                  ? "Trial Ends"
+                  : "Next Billing"}
+              </span>
+            </div>
+            <p className="mt-1 text-2xl font-bold">
+              {subscription.status === "trialing" &&
+              subscription.daysRemainingInTrial !== null
+                ? `${subscription.daysRemainingInTrial}d`
+                : subscription.daysRemainingInPeriod !== null
+                  ? `${subscription.daysRemainingInPeriod}d`
+                  : "—"}
+            </p>
             <p className="text-xs text-muted-foreground">
-              {isPro ? "Unlimited products" : "Free plan limit"}
+              {subscription.status === "trialing"
+                ? "days left in trial"
+                : subscription.status === "active" && isPro
+                  ? "until renewal"
+                  : "—"}
             </p>
           </div>
         </div>

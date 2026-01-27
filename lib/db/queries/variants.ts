@@ -184,6 +184,8 @@ export type ProductVariantOptionType = {
     id: string;
     value: string;
     displayOrder: number;
+    swatchType?: "text" | "color" | "image";
+    swatchValue?: string | null;
   }[];
 };
 
@@ -217,7 +219,13 @@ export async function getProductVariantOptionTypes(
       option: { id: string; name: string; displayOrder: number };
       valuesMap: Map<
         string,
-        { id: string; value: string; displayOrder: number }
+        {
+          id: string;
+          value: string;
+          displayOrder: number;
+          swatchType?: "text" | "color" | "image";
+          swatchValue?: string | null;
+        }
       >;
     }
   >();
@@ -244,6 +252,8 @@ export async function getProductVariantOptionTypes(
           id: optionValue.id,
           value: optionValue.value,
           displayOrder: optionValue.displayOrder,
+          swatchType: optionValue.swatchType,
+          swatchValue: optionValue.swatchValue,
         });
       }
     }

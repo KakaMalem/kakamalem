@@ -1,13 +1,48 @@
+import { redirect, notFound } from "next/navigation";
+import { getUser } from "@/lib/auth/server";
+import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getUserStoreContext } from "@/lib/auth/context";
+import { canAccessAnySettings } from "@/lib/config/settings-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import {
   SettingsNav,
   SettingsNavTabs,
 } from "@/components/dashboard/settings-nav";
 
-export default function SettingsLayout({
-  children,
-}: {
+interface SettingsLayoutProps {
   children: React.ReactNode;
-}) {
+  params: Promise<{ slug: string }>;
+}
+
+export default async function SettingsLayout({
+  children,
+  params,
+}: SettingsLayoutProps) {
+  const { slug } = await params;
+  const user = await getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const store = await getTenantBySlug(slug);
+
+  if (!store) {
+    notFound();
+  }
+
+  // Check if user can access any settings
+  const userContext = await getUserStoreContext(store.id);
+  if (!userContext || !canAccessAnySettings(userContext.role)) {
+    return (
+      <AccessDenied
+        message="You don't have permission to access store settings. Only store owners and admins can access this area."
+        backUrl={`/dashboard/${slug}`}
+        backLabel="Back to Store Dashboard"
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}

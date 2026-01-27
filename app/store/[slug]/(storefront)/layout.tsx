@@ -6,6 +6,7 @@ import { Store } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
 import { getOrCreateCart } from "@/lib/db/queries/carts";
+import { getWishlistedProductIds } from "@/lib/db/queries/wishlists";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
 import { getUser } from "@/lib/auth/server";
 import { getUserStoreContext } from "@/lib/auth/context";
@@ -14,6 +15,9 @@ import { StoreCategoriesBar } from "@/components/store/store-categories-bar";
 import { StoreFooter } from "@/components/store/store-footer";
 import { CartProvider } from "@/components/store/cart-provider";
 import { CartDrawer } from "@/components/store/cart-drawer";
+import { WishlistHydration } from "@/components/store/wishlist-hydration";
+import { WhatsAppButton } from "@/components/store/whatsapp-button";
+import type { SocialLinks } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { QueryProvider } from "@/lib/providers/query-provider";
 
@@ -43,6 +47,17 @@ export async function generateMetadata({
     ogImageUrl?: string;
   } | null;
 
+  // Helper to make URLs absolute for OG tags (WhatsApp, Facebook, etc. need full URLs)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+  const makeAbsolute = (url: string | null | undefined) => {
+    if (!url) return undefined;
+    if (url.startsWith("http")) return url;
+    return `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
+
+  const ogImageUrl =
+    makeAbsolute(seo?.ogImageUrl) || makeAbsolute(store.logoUrl);
+
   return {
     title: seo?.metaTitle || store.name,
     description:
@@ -57,11 +72,7 @@ export async function generateMetadata({
         store.tagline ||
         store.description ||
         `Shop at ${store.name}`,
-      images: seo?.ogImageUrl
-        ? [{ url: seo.ogImageUrl }]
-        : store.logoUrl
-          ? [{ url: store.logoUrl }]
-          : undefined,
+      images: ogImageUrl ? [{ url: ogImageUrl }] : undefined,
     },
     icons: store.faviconUrl ? { icon: store.faviconUrl } : undefined,
   };
@@ -103,12 +114,38 @@ export default async function StoreLayout({
     );
   }
 
+  // Check if store is POS-only (no online storefront)
+  if (store.storeMode === "offline_only") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center px-6">
+        <div className="mx-auto flex max-w-md flex-col items-center text-center">
+          <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-muted">
+            <Store className="size-10 text-muted-foreground" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">{store.name}</h1>
+          <p className="mt-3 text-muted-foreground">
+            This store operates in-person only and does not have an online
+            storefront.
+          </p>
+          <Button asChild className="mt-6">
+            <Link href="/">Browse Other Stores</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Fetch categories, user, and session data
   const [categories, user, sessionId] = await Promise.all([
     getCategoriesWithCounts(store.id),
     getUser(),
     getCartSessionIdOrNull(),
   ]);
+
+  // Fetch wishlisted product IDs (for hydrating the wishlist store)
+  const wishlistedProductIds = user
+    ? await getWishlistedProductIds(store.id, user.id)
+    : [];
 
   // Get user's relationship to this store (owner/staff/customer)
   const userContext = user ? await getUserStoreContext(store.id) : null;
@@ -130,15 +167,22 @@ export default async function StoreLayout({
     0
   );
 
-  // Check if online cart should be disabled
-  // - catalog: Display only, no checkout anywhere
-  // - offline_only: POS only, no online checkout
-  const isCartDisabled =
-    store.storeMode === "catalog" || store.storeMode === "offline_only";
+  // Check if online cart should be disabled (catalog mode = display only)
+  // Note: offline_only stores already returned early above
+  const isCartDisabled = store.storeMode === "catalog";
+
+  // WhatsApp button settings
+  const socialLinks = store.socialLinks as SocialLinks | null;
+  const showWhatsAppButton = socialLinks?.showWhatsAppButton ?? true;
+  const whatsappNumber = socialLinks?.whatsapp || "";
 
   return (
     <QueryProvider>
       <CartProvider initialCart={cart} storeSlug={slug}>
+        <WishlistHydration
+          tenantId={store.id}
+          initialProductIds={wishlistedProductIds}
+        />
         <div className="flex min-h-screen flex-col bg-background">
           <StoreHeaderWrapper
             store={store}
@@ -184,6 +228,10 @@ export default async function StoreLayout({
           {/* Cart Drawer - Hidden when online cart is disabled */}
           {!isCartDisabled && (
             <CartDrawer storeSlug={slug} currency={store.currency} />
+          )}
+          {/* Floating WhatsApp Button */}
+          {showWhatsAppButton && whatsappNumber && (
+            <WhatsAppButton phoneNumber={whatsappNumber} />
           )}
         </div>
       </CartProvider>

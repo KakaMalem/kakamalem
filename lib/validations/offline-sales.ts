@@ -5,12 +5,6 @@ import { z } from "zod";
 // =============================================================================
 
 /**
- * Sales channel enum schema
- */
-export const salesChannelSchema = z.enum(["online", "offline", "phone"]);
-export type SalesChannel = z.infer<typeof salesChannelSchema>;
-
-/**
  * Payment method enum schema
  */
 export const paymentMethodSchema = z.enum([
@@ -51,9 +45,6 @@ export type OfflineSaleItem = z.infer<typeof offlineSaleItemSchema>;
  */
 export const recordOfflineSaleSchema = z
   .object({
-    // Sales channel (offline or phone)
-    salesChannel: salesChannelSchema.default("offline"),
-
     // Payment: amount received now (0 = pay later)
     amountPaid: z.number().min(0).default(0),
 
@@ -118,7 +109,7 @@ export type RecordOrderPaymentInput = z.infer<typeof recordOrderPaymentSchema>;
  * Filters for offline sales queries
  */
 export const offlineSalesFiltersSchema = z.object({
-  salesChannel: z.enum(["offline", "phone", "all"]).optional(),
+  channel: z.enum(["pos", "all"]).optional(),
   paymentMethod: paymentMethodSchema.optional(),
   isPaid: z.boolean().optional(),
   dateFrom: z.string().optional(),

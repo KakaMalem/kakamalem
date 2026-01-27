@@ -1,6 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getUserStoreContext } from "@/lib/auth/context";
+import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { BrandingSettingsForm } from "./branding-settings-form";
 
 interface BrandingSettingsPageProps {
@@ -23,8 +26,16 @@ export default async function BrandingSettingsPage({
     notFound();
   }
 
-  if (store.ownerId !== user.id) {
-    notFound();
+  // Role-based access check (requires admin or owner)
+  const userContext = await getUserStoreContext(store.id);
+  if (!userContext || !canAccessSettingsPage(userContext.role, "branding")) {
+    return (
+      <AccessDenied
+        message="You need admin or owner access to edit branding settings."
+        backUrl={`/dashboard/${slug}/settings`}
+        backLabel="Back to Settings"
+      />
+    );
   }
 
   return (

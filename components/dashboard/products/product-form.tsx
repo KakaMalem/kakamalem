@@ -22,6 +22,9 @@ import {
   Plus,
   Check,
   Eye,
+  Wand2,
+  Barcode,
+  Camera,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -60,28 +63,18 @@ import {
   type MediaSelection,
 } from "@/components/dashboard/media/unified-media-selector";
 import { useImagePreview } from "@/components/ui/image-preview";
-import {
-  VariantOptionsBuilder,
-  type ExistingOption,
-} from "@/components/dashboard/products/variant-options-builder";
 import { VariantMatrixTable } from "@/components/dashboard/products/variant-matrix-table";
+import { VariantWizard } from "@/components/dashboard/variants/variant-wizard";
+import {
+  OptionValueImageManager,
+  type OptionValueImageAssignment,
+} from "@/components/dashboard/variants/option-value-image-manager";
 import {
   PriceTiersEditor,
   type PriceTierInput,
 } from "@/components/dashboard/products/price-tiers-editor";
-import {
-  GroupPricingEditor,
-  type GroupPriceInput,
-} from "@/components/dashboard/products/group-pricing-editor";
 
-import type {
-  Category,
-  Product,
-  Media,
-  PriceTier,
-  CustomerGroup,
-  CustomerGroupPrice,
-} from "@/lib/db/schema";
+import type { Category, Product, Media, PriceTier } from "@/lib/db/schema";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
 import type {
   InlineOption,
@@ -96,12 +89,11 @@ import {
   updateProductVariantsInBulk,
 } from "@/lib/actions/variants";
 import { savePriceTiers } from "@/lib/actions/price-tiers";
-import { saveGroupPrices } from "@/lib/actions/group-pricing";
+import { useBarcodeScanner } from "@/lib/hooks/use-barcode-scanner";
 import { cn } from "@/lib/utils";
 import { handleFormErrors } from "@/lib/utils/form-errors";
 import {
   generateVariantCombinations,
-  generateSku,
   validateVariantCount,
 } from "@/lib/variants/cartesian";
 import {
@@ -130,18 +122,16 @@ interface ProductFormProps {
     images?: { media: Media; position: number }[];
     productCategories?: { categoryId: string }[];
   };
-  /** Existing variant options for this tenant (for autocomplete) */
-  existingVariantOptions?: ExistingOption[];
   /** Initial variant options if editing a product with variants */
   initialVariantOptions?: InlineOption[];
   /** Initial variants if editing a product with variants */
   initialVariants?: GeneratedVariant[];
   /** Initial price tiers if editing a product */
   initialPriceTiers?: PriceTier[];
-  /** Customer groups for group pricing */
-  customerGroups?: CustomerGroup[];
-  /** Initial group prices if editing a product */
-  initialGroupPrices?: CustomerGroupPrice[];
+  /** Initial option value image assignments if editing a product */
+  initialImageAssignments?: OptionValueImageAssignment[];
+  /** POS scanner mode - 'camera' shows scan button, 'usb' uses keyboard input */
+  posScannerMode?: "camera" | "usb";
 }
 
 type FormErrors = Partial<Record<keyof ProductInput, string>>;
@@ -262,12 +252,11 @@ export function ProductForm({
   categories,
   currency,
   product,
-  existingVariantOptions = [],
   initialVariantOptions = [],
   initialVariants = [],
   initialPriceTiers = [],
-  customerGroups = [],
-  initialGroupPrices = [],
+  initialImageAssignments = [],
+  posScannerMode = "usb",
 }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -350,6 +339,7 @@ export function ProductForm({
     String(product?.lowStockThreshold ?? 0)
   );
   const [showStock, setShowStock] = useState(product?.showStock ?? false);
+  const [barcode, setBarcode] = useState(product?.barcode || "");
   const [weight, setWeight] = useState(product?.weight || "");
   const [length, setLength] = useState(product?.length || "");
   const [width, setWidth] = useState(product?.width || "");
@@ -358,15 +348,35 @@ export function ProductForm({
     product?.status ?? "draft"
   );
 
+  // Channel visibility
+  const [showOnStorefront, setShowOnStorefront] = useState(
+    product?.showOnStorefront ?? true
+  );
+  const [showOnPos, setShowOnPos] = useState(product?.showOnPos ?? true);
+
   // Variant state
   const [hasVariants, setHasVariants] = useState(product?.hasVariants ?? false);
+
+  // USB Barcode scanner - listens globally for rapid keystrokes
+  // Only enabled for simple products (not variants) when using USB scanner mode
+  useBarcodeScanner({
+    onScan: (scannedBarcode) => {
+      setBarcode(scannedBarcode);
+      toast.success(`Barcode scanned: ${scannedBarcode}`);
+    },
+    enabled: posScannerMode === "usb" && !hasVariants,
+    minLength: 4,
+  });
   const [variantOptions, setVariantOptions] = useState<InlineOption[]>(
     initialVariantOptions
   );
   const [variants, setVariants] = useState<GeneratedVariant[]>(initialVariants);
-  const [variantError, setVariantError] = useState<string | null>(null);
   const [showDisableVariantsDialog, setShowDisableVariantsDialog] =
     useState(false);
+  const [showVariantWizard, setShowVariantWizard] = useState(false);
+  const [imageAssignments, setImageAssignments] = useState<
+    OptionValueImageAssignment[]
+  >(initialImageAssignments);
 
   // Price tiers state
   const [priceTiers, setPriceTiers] = useState<PriceTierInput[]>(
@@ -375,15 +385,6 @@ export function ProductForm({
       minQuantity: tier.minQuantity,
       maxQuantity: tier.maxQuantity,
       price: tier.price,
-    }))
-  );
-
-  // Group prices state
-  const [groupPrices, setGroupPrices] = useState<GroupPriceInput[]>(
-    initialGroupPrices.map((gp) => ({
-      customerGroupId: gp.customerGroupId,
-      price: gp.price,
-      compareAtPrice: gp.compareAtPrice,
     }))
   );
 
@@ -815,7 +816,6 @@ export function ProductForm({
   const handleVariantOptionsChange = useCallback(
     (newOptions: InlineOption[]) => {
       setVariantOptions(newOptions);
-      setVariantError(null);
 
       // Check if all options have at least one value
       const validOptions = newOptions.filter(
@@ -824,6 +824,7 @@ export function ProductForm({
 
       if (validOptions.length === 0) {
         setVariants([]);
+        setHasVariants(false); // No options = simple product
         return;
       }
 
@@ -843,7 +844,7 @@ export function ProductForm({
       // Validate count
       const validation = validateVariantCount(combinations.length);
       if (validation.status === "error") {
-        setVariantError(validation.message);
+        toast.error(validation.message);
         return;
       }
 
@@ -872,14 +873,12 @@ export function ProductForm({
         }
 
         // Create new variant with defaults
+        // SKU is auto-generated on the backend
         return {
           tempId: combo.tempId,
           optionValues: combo.optionValues,
           displayName: combo.displayName,
-          sku: generateSku(
-            name || "product",
-            combo.optionValues.map((ov) => ov.value)
-          ),
+          barcode: "", // Barcode can be scanned or entered manually
           price: "", // Empty = use base price
           stock: "0",
           weight: "",
@@ -895,33 +894,14 @@ export function ProductForm({
 
       setVariants(newVariants);
     },
-    [variants, name]
+    [variants]
   );
 
-  // Handle hasVariants toggle
-  const handleHasVariantsChange = useCallback(
-    (enabled: boolean) => {
-      if (!enabled && (variantOptions.length > 0 || variants.length > 0)) {
-        // Show confirmation dialog if there are variants to lose
-        setShowDisableVariantsDialog(true);
-      } else {
-        setHasVariants(enabled);
-        if (!enabled) {
-          setVariantOptions([]);
-          setVariants([]);
-          setVariantError(null);
-        }
-      }
-    },
-    [variantOptions.length, variants.length]
-  );
-
-  // Confirm disabling variants
+  // Confirm disabling variants (used by confirmation dialog)
   const confirmDisableVariants = useCallback(() => {
     setHasVariants(false);
     setVariantOptions([]);
     setVariants([]);
-    setVariantError(null);
     setShowDisableVariantsDialog(false);
   }, []);
 
@@ -931,7 +911,6 @@ export function ProductForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    setVariantError(null);
     setUploadProgress({
       stage: "validating",
       message: "Validating product...",
@@ -945,7 +924,6 @@ export function ProductForm({
       );
       if (validOptions.length === 0) {
         const errorMsg = "Please add at least one variant option with values";
-        setVariantError(errorMsg);
         toast.error(errorMsg);
         scrollToVariantSection();
         setUploadProgress(null);
@@ -956,7 +934,6 @@ export function ProductForm({
       const activeVariants = variants.filter((v) => !v.isExcluded);
       if (activeVariants.length === 0) {
         const errorMsg = "Please include at least one variant";
-        setVariantError(errorMsg);
         toast.error(errorMsg);
         scrollToVariantSection();
         setUploadProgress(null);
@@ -966,7 +943,6 @@ export function ProductForm({
       // Check variant count limit
       const validation = validateVariantCount(activeVariants.length);
       if (validation.status === "error") {
-        setVariantError(validation.message);
         toast.error(validation.message);
         scrollToVariantSection();
         setUploadProgress(null);
@@ -1003,11 +979,14 @@ export function ProductForm({
       allowBackorder,
       lowStockThreshold,
       showStock,
+      barcode: hasVariants ? "" : barcode, // Only for simple products
       weight,
       length,
       width,
       height,
       status,
+      showOnStorefront,
+      showOnPos,
       displayOrder: String(product?.displayOrder ?? 0),
       imageIds, // All images are already uploaded
     };
@@ -1142,10 +1121,12 @@ export function ProductForm({
             ? await updateProductVariantsInBulk(tenantId, productId, {
                 options: validOptions,
                 variants: activeVariants,
+                imageAssignments,
               })
             : await createProductVariantsInBulk(tenantId, productId, {
                 options: validOptions,
                 variants: activeVariants,
+                imageAssignments,
               });
 
           if (!variantResult.success) {
@@ -1190,40 +1171,6 @@ export function ProductForm({
 
           if (!priceTiersResult.success) {
             toast.warning("Failed to clear price tiers");
-          }
-        }
-
-        // Save group prices if any exist
-        if (productId && groupPrices.length > 0) {
-          setUploadProgress({
-            stage: "saving",
-            message: "Saving group prices...",
-          });
-
-          const groupPricesResult = await saveGroupPrices(
-            productId,
-            tenantId,
-            groupPrices
-          );
-
-          if (!groupPricesResult.success) {
-            toast.error(
-              groupPricesResult.error?.message || "Failed to save group prices"
-            );
-            toast.warning(
-              "Product saved, but group prices may not have been created"
-            );
-          }
-        } else if (productId && groupPrices.length === 0 && product) {
-          // If editing and all group prices were removed, clear them
-          const groupPricesResult = await saveGroupPrices(
-            productId,
-            tenantId,
-            []
-          );
-
-          if (!groupPricesResult.success) {
-            toast.warning("Failed to clear group prices");
           }
         }
 
@@ -1694,123 +1641,55 @@ export function ProductForm({
             </CardContent>
           </Card>
 
-          {/* Inventory - for simple products without variants */}
-          {!hasVariants && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Inventory</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Track Inventory</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Enable stock tracking for this product
-                    </p>
-                  </div>
-                  <Switch
-                    checked={trackInventory}
-                    onCheckedChange={setTrackInventory}
-                  />
-                </div>
-
-                {trackInventory && (
-                  <>
-                    <Separator />
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="stock">Stock Quantity</Label>
-                        <Input
-                          id="stock"
-                          type="number"
-                          min="0"
-                          value={stock}
-                          onChange={(e) => setStock(e.target.value)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          placeholder="0"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lowStockThreshold">
-                          Low Stock Alert
-                        </Label>
-                        <Input
-                          id="lowStockThreshold"
-                          type="number"
-                          min="0"
-                          value={lowStockThreshold}
-                          onChange={(e) => setLowStockThreshold(e.target.value)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          placeholder="5"
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Allow Backorders</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Allow orders when out of stock
-                    </p>
-                  </div>
-                  <Switch
-                    checked={allowBackorder}
-                    onCheckedChange={setAllowBackorder}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Show Stock on Storefront</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Display stock quantity to customers
-                    </p>
-                  </div>
-                  <Switch checked={showStock} onCheckedChange={setShowStock} />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Variants */}
           <Card ref={variantSectionRef} className="overflow-hidden">
             <CardHeader>
               <CardTitle>Variants</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6 overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>This product has variants</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable if this product comes in different options like size
-                    or color
+              {!hasVariants ? (
+                /* No variants yet - show wizard button */
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Add variants if this product comes in different options like
+                    size, color, or material
                   </p>
-                </div>
-                <Switch
-                  checked={hasVariants}
-                  onCheckedChange={handleHasVariantsChange}
-                  disabled={isPending}
-                />
-              </div>
-
-              {hasVariants && (
-                <>
-                  <Separator />
-
-                  {/* Variant Options Builder */}
-                  <VariantOptionsBuilder
-                    options={variantOptions}
-                    onChange={handleVariantOptionsChange}
-                    existingOptions={existingVariantOptions}
-                    error={variantError || undefined}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setHasVariants(true);
+                      setShowVariantWizard(true);
+                    }}
                     disabled={isPending}
-                  />
+                  >
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Add Variants
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {/* Wizard Button for existing variants */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">
+                        Variant Options
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Configure size, color, material and other options
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowVariantWizard(true)}
+                      disabled={isPending}
+                    >
+                      <Wand2 className="h-4 w-4 mr-2" />
+                      Open Wizard
+                    </Button>
+                  </div>
 
                   {/* Global Inventory Settings for Variants */}
                   {variants.length > 0 && (
@@ -1904,15 +1783,163 @@ export function ProductForm({
                         currency={currency}
                         productSlug={name || "product"}
                         disabled={isPending}
-                        tenantId={tenantId}
                         trackInventory={trackInventory}
+                        scannerMode={posScannerMode}
                       />
+
+                      {/* Option Value Image Mapping */}
+                      {images.length > 0 && variantOptions.length > 0 && (
+                        <>
+                          <Separator />
+                          <OptionValueImageManager
+                            options={variantOptions}
+                            productImages={images.map((img) => ({
+                              id: img.id,
+                              mediaId: img.id,
+                              url: img.url,
+                              altText: img.altText,
+                              position: 0,
+                            }))}
+                            assignments={imageAssignments}
+                            onAssignmentsChange={setImageAssignments}
+                          />
+                        </>
+                      )}
                     </>
                   )}
                 </>
               )}
             </CardContent>
           </Card>
+
+          {/* Inventory - for simple products without variants */}
+          {!hasVariants && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Inventory</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Barcode */}
+                <div className="space-y-2">
+                  <Label htmlFor="barcode" className="flex items-center gap-2">
+                    <Barcode className="size-4" />
+                    Barcode
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="barcode"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      placeholder={
+                        posScannerMode === "camera"
+                          ? "Tap camera to scan"
+                          : "Scan with USB scanner or enter manually"
+                      }
+                      maxLength={50}
+                      className="flex-1"
+                    />
+                    {posScannerMode === "camera" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          // Camera barcode scanning will be implemented
+                          // For now, show a toast with instructions
+                          toast.info(
+                            "Camera barcode scanning coming soon. Please enter the barcode manually."
+                          );
+                        }}
+                      >
+                        <Camera className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {posScannerMode === "camera"
+                      ? "Tap the camera button to scan, or enter manually"
+                      : "Use your USB/Bluetooth scanner, or enter manually"}
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Track Inventory</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enable stock tracking for this product
+                    </p>
+                  </div>
+                  <Switch
+                    checked={trackInventory}
+                    onCheckedChange={setTrackInventory}
+                  />
+                </div>
+
+                {trackInventory && (
+                  <>
+                    <Separator />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="stock">Stock Quantity</Label>
+                        <Input
+                          id="stock"
+                          type="number"
+                          min="0"
+                          value={stock}
+                          onChange={(e) => setStock(e.target.value)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lowStockThreshold">
+                          Low Stock Alert
+                        </Label>
+                        <Input
+                          id="lowStockThreshold"
+                          type="number"
+                          min="0"
+                          value={lowStockThreshold}
+                          onChange={(e) => setLowStockThreshold(e.target.value)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          placeholder="5"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Allow Backorders</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Allow orders when out of stock
+                    </p>
+                  </div>
+                  <Switch
+                    checked={allowBackorder}
+                    onCheckedChange={setAllowBackorder}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Show Stock on Storefront</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display stock quantity to customers
+                    </p>
+                  </div>
+                  <Switch checked={showStock} onCheckedChange={setShowStock} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Shipping */}
           <Card>
@@ -2004,6 +2031,37 @@ export function ProductForm({
 
         {/* Sidebar - Advanced Options (1 column) */}
         <div className="space-y-8">
+          {/* Sales Channels */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales Channels</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Online Store</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Show on storefront
+                  </p>
+                </div>
+                <Switch
+                  checked={showOnStorefront}
+                  onCheckedChange={setShowOnStorefront}
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Point of Sale</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Show in POS terminal
+                  </p>
+                </div>
+                <Switch checked={showOnPos} onCheckedChange={setShowOnPos} />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Order Limits */}
           <Card>
             <CardHeader>
@@ -2046,16 +2104,6 @@ export function ProductForm({
           <PriceTiersEditor
             tiers={priceTiers}
             onChange={setPriceTiers}
-            basePrice={price}
-            currency={currency}
-            disabled={isPending}
-          />
-
-          {/* Group Pricing */}
-          <GroupPricingEditor
-            customerGroups={customerGroups}
-            prices={groupPrices}
-            onChange={setGroupPrices}
             basePrice={price}
             currency={currency}
             disabled={isPending}
@@ -2156,6 +2204,30 @@ export function ProductForm({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Variant Wizard */}
+      <VariantWizard
+        open={showVariantWizard}
+        onOpenChange={(open) => {
+          if (!open) {
+            // When wizard closes (cancel, escape, or click outside), check if we have valid options
+            // If not, reset hasVariants to false to restore the Inventory section
+            const hasValidOptions = variantOptions.some(
+              (opt) => opt.name.trim() && opt.values.length > 0
+            );
+            if (!hasValidOptions) {
+              setHasVariants(false);
+            }
+          }
+          setShowVariantWizard(open);
+        }}
+        tenantId={tenantId}
+        options={variantOptions}
+        onChange={(newOptions) => {
+          handleVariantOptionsChange(newOptions);
+          setShowVariantWizard(false);
+        }}
+      />
     </form>
   );
 }

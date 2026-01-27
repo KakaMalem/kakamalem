@@ -21,9 +21,11 @@ import {
 } from "drizzle-orm";
 
 // Order statuses that should be excluded from revenue calculations
-const EXCLUDED_REVENUE_STATUSES: ("cancelled" | "refunded")[] = [
+// Note: "returned" orders may still count as revenue if not fully refunded
+// Use payment status for refund-based exclusions
+const EXCLUDED_REVENUE_STATUSES: ("cancelled" | "returned")[] = [
   "cancelled",
-  "refunded",
+  "returned",
 ];
 
 // ============================================================================

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { ProductImageGallery } from "@/components/store/product-image-gallery";
@@ -28,7 +28,6 @@ interface ProductPageContentProps {
   breadcrumbs: Breadcrumb[];
   reviewStats: ReviewStats;
   priceTiers?: PriceTier[];
-  initialIsInWishlist?: boolean;
   /** When true, hides add-to-cart and quantity controls */
   catalogMode?: boolean;
   /** Store mode for appropriate messaging */
@@ -45,7 +44,6 @@ export function ProductPageContent({
   breadcrumbs,
   reviewStats,
   priceTiers = [],
-  initialIsInWishlist = false,
   catalogMode = false,
   storeMode = "full",
   contactPhone,
@@ -53,19 +51,26 @@ export function ProductPageContent({
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
   );
+  const [selectedOptions, setSelectedOptions] = useState<
+    Record<string, string>
+  >({});
 
-  // Get images based on selected variant
+  // Handle variant and options change from ProductInfo
+  const handleVariantChange = useCallback(
+    (variantId: string | null, options: Record<string, string>) => {
+      setSelectedVariantId(variantId);
+      setSelectedOptions(options);
+    },
+    []
+  );
+
+  // Get images based on selected options and option value image mappings
   const images = useMemo(() => {
-    // If a variant is selected and has images, show variant images
+    // If a variant is selected and has specific images, prioritize those
     if (selectedVariantId && product.variants) {
-      const selectedVariant = product.variants.find(
-        (v) => v.id === selectedVariantId
-      );
-
-      // Check if variant has specific images
-      if (selectedVariant?.images && selectedVariant.images.length > 0) {
-        // Variant has specific images, use them
-        return selectedVariant.images.map((img) => ({
+      const variant = product.variants.find((v) => v.id === selectedVariantId);
+      if (variant?.images && variant.images.length > 0) {
+        return variant.images.map((img) => ({
           id: img.mediaId,
           url: img.media?.url || "",
           altText: img.media?.altText || product.name,
@@ -73,7 +78,47 @@ export function ProductPageContent({
       }
     }
 
-    // Fall back to main product images
+    // Check if we have option value image mappings and selected options
+    const hasOptionMappings =
+      product.optionValueImages && product.optionValueImages.length > 0;
+    const hasSelectedOptions = Object.keys(selectedOptions).length > 0;
+
+    if (hasOptionMappings && hasSelectedOptions) {
+      // Get all media IDs mapped to any of the selected option values
+      const mappedMediaIds = new Set<string>();
+
+      for (const mapping of product.optionValueImages!) {
+        const optionName = mapping.optionValue?.option?.name;
+        const optionValue = mapping.optionValue?.value;
+
+        // Check if this mapping matches any selected option
+        if (
+          optionName &&
+          optionValue &&
+          selectedOptions[optionName] === optionValue
+        ) {
+          mappedMediaIds.add(mapping.mediaId);
+        }
+      }
+
+      // If we have mapped images, filter product images to show only those
+      if (mappedMediaIds.size > 0) {
+        const filteredImages =
+          product.images?.filter((img) =>
+            mappedMediaIds.has(img.media?.id || "")
+          ) || [];
+
+        if (filteredImages.length > 0) {
+          return filteredImages.map((img) => ({
+            id: img.id,
+            url: img.media?.url || "",
+            altText: img.media?.altText || product.name,
+          }));
+        }
+      }
+    }
+
+    // Fall back to all product images
     return (
       product.images?.map((img) => ({
         id: img.id,
@@ -81,7 +126,7 @@ export function ProductPageContent({
         altText: img.media?.altText || product.name,
       })) || []
     );
-  }, [selectedVariantId, product]);
+  }, [selectedVariantId, selectedOptions, product]);
 
   return (
     <>
@@ -125,8 +170,7 @@ export function ProductPageContent({
           currency={currency}
           reviewStats={reviewStats}
           priceTiers={priceTiers}
-          onVariantChange={setSelectedVariantId}
-          initialIsInWishlist={initialIsInWishlist}
+          onVariantChange={handleVariantChange}
           catalogMode={catalogMode}
           storeMode={storeMode}
           contactPhone={contactPhone}

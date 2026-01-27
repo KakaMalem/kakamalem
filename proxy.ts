@@ -27,6 +27,15 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon");
 
+  // Helper to create response with pathname header (for layouts to access current path)
+  const nextWithPathname = () => {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+  };
+
   // Skip proxy for API routes (Better Auth handles its own routes)
   if (isApiRoute) {
     return NextResponse.next();
@@ -68,7 +77,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  // Use nextWithPathname for dashboard routes so layouts can determine current store
+  return nextWithPathname();
 }
 
 // -------------------------------------------------------------------------

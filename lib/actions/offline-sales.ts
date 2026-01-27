@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, and, sql, ilike } from "drizzle-orm";
+import { eq, and, sql, ilike, or, inArray } from "drizzle-orm";
 import { db, withTransaction, type Transaction } from "@/lib/db";
 import {
   orders,
@@ -9,6 +9,7 @@ import {
   orderPayments,
   products,
   productVariants,
+  productCategories,
   inventoryMovements,
   storeCustomers,
 } from "@/lib/db/schema";
@@ -22,7 +23,6 @@ import {
   type RecordOrderPaymentInput,
   type PaymentMethod,
 } from "@/lib/validations/offline-sales";
-import { sendOrderNotificationToTenant } from "@/lib/push";
 
 // =============================================================================
 // TYPES
@@ -39,6 +39,12 @@ export type OfflineSaleResult = {
     orderNumber: string;
     receiptNumber: string;
   };
+  /** Updated stock levels for items that track inventory */
+  updatedStock?: Array<{
+    productId: string;
+    variantId: string | null;
+    newStock: number;
+  }>;
 };
 
 export type MarkOrderPaidResult = {
@@ -156,8 +162,76 @@ async function getOrCreateStoreCustomerByPhone(
 // INVENTORY MANAGEMENT
 // =============================================================================
 
+type StockValidationResult = {
+  valid: boolean;
+  insufficientItems?: Array<{
+    productName: string;
+    variantName?: string | null;
+    requested: number;
+    available: number;
+  }>;
+};
+
+/**
+ * Validate that all items have sufficient stock before processing sale
+ */
+async function validateStock(
+  tx: Transaction,
+  items: Array<{
+    productId: string;
+    variantId?: string | null;
+    quantity: number;
+    productName: string;
+    variantName?: string | null;
+    trackInventory: boolean;
+  }>
+): Promise<StockValidationResult> {
+  const insufficientItems: StockValidationResult["insufficientItems"] = [];
+
+  for (const item of items) {
+    // Skip items that don't track inventory
+    if (!item.trackInventory) continue;
+
+    if (item.variantId) {
+      const variant = await tx.query.productVariants.findFirst({
+        where: eq(productVariants.id, item.variantId),
+        columns: { stock: true },
+      });
+      const currentStock = variant?.stock ?? 0;
+      if (currentStock < item.quantity) {
+        insufficientItems.push({
+          productName: item.productName,
+          variantName: item.variantName,
+          requested: item.quantity,
+          available: currentStock,
+        });
+      }
+    } else {
+      const product = await tx.query.products.findFirst({
+        where: eq(products.id, item.productId),
+        columns: { stock: true },
+      });
+      const currentStock = product?.stock ?? 0;
+      if (currentStock < item.quantity) {
+        insufficientItems.push({
+          productName: item.productName,
+          requested: item.quantity,
+          available: currentStock,
+        });
+      }
+    }
+  }
+
+  return {
+    valid: insufficientItems.length === 0,
+    insufficientItems:
+      insufficientItems.length > 0 ? insufficientItems : undefined,
+  };
+}
+
 /**
  * Reduce stock for an item and create inventory movement
+ * Returns the new stock level
  */
 async function reduceStock(
   tx: Transaction,
@@ -170,7 +244,7 @@ async function reduceStock(
   },
   orderId: string,
   orderNumber: string
-): Promise<void> {
+): Promise<number> {
   if (item.variantId) {
     // Get current variant stock
     const variant = await tx.query.productVariants.findFirst({
@@ -208,6 +282,8 @@ async function reduceStock(
       orderId,
       reason: `Offline Sale ${orderNumber}`,
     });
+
+    return newStock;
   } else {
     // Get current product stock
     const product = await tx.query.products.findFirst({
@@ -239,6 +315,8 @@ async function reduceStock(
       orderId,
       reason: `Offline Sale ${orderNumber}`,
     });
+
+    return newStock;
   }
 }
 
@@ -247,8 +325,8 @@ async function reduceStock(
 // =============================================================================
 
 /**
- * Record an offline sale
- * Creates an order with salesChannel set to 'offline' or 'phone'
+ * Record a POS/in-store sale
+ * Creates an order with channel='pos' and fulfillmentType='instant'
  */
 export async function recordOfflineSale(
   tenantId: string,
@@ -280,8 +358,27 @@ export async function recordOfflineSale(
 
     const validatedInput = validation.data;
 
+    // Track updated stock levels to return to client
+    const updatedStock: Array<{
+      productId: string;
+      variantId: string | null;
+      newStock: number;
+    }> = [];
+
     // Execute within transaction
     const order = await withTransaction(async (tx) => {
+      // Validate stock availability BEFORE creating the order
+      const stockValidation = await validateStock(tx, validatedInput.items);
+      if (!stockValidation.valid && stockValidation.insufficientItems) {
+        const firstItem = stockValidation.insufficientItems[0];
+        const itemName = firstItem.variantName
+          ? `${firstItem.productName} (${firstItem.variantName})`
+          : firstItem.productName;
+        throw new Error(
+          `Insufficient stock for "${itemName}": only ${firstItem.available} available, but ${firstItem.requested} requested`
+        );
+      }
+
       // Generate order and receipt numbers
       const orderNumber = await generateOrderNumber(tx, tenantId);
       const receiptNumber = await generateReceiptNumber(tx, tenantId);
@@ -319,6 +416,10 @@ export async function recordOfflineSale(
         amountPaid > 0 ? validatedInput.paymentMethod : null;
 
       // Create order
+      // For POS orders:
+      // - channel = "pos" (identifies it as a point-of-sale transaction)
+      // - fulfillmentType = "instant" (customer takes items immediately)
+      // - status = "delivered" if paid (transaction complete), "pending" if unpaid
       const [newOrder] = await tx
         .insert(orders)
         .values({
@@ -327,19 +428,23 @@ export async function recordOfflineSale(
           receiptNumber,
           userId: null, // Offline sales don't link to platform users
           storeCustomerId,
-          salesChannel: validatedInput.salesChannel,
+          channel: "pos",
+          fulfillmentType: "instant",
           paymentMethod: orderPaymentMethod,
           isPaid: isFullyPaid,
           paidAt: isFullyPaid ? new Date().toISOString() : null,
           customerSnapshot,
-          shippingAddress: null, // No shipping for offline sales
+          shippingAddress: null, // No shipping for POS sales
           billingAddress: null,
           subtotal: subtotal.toFixed(2),
           shippingTotal: "0",
           taxTotal: "0",
           discountTotal: discountTotal.toFixed(2),
           total: total.toFixed(2),
-          status: isFullyPaid ? "confirmed" : "pending",
+          // For instant fulfillment, go directly to "delivered" if paid
+          // (items are immediately handed to customer)
+          status: isFullyPaid ? "delivered" : "pending",
+          completedAt: isFullyPaid ? new Date().toISOString() : null,
           staffNotes: validatedInput.staffNotes || null,
         })
         .returning();
@@ -355,8 +460,9 @@ export async function recordOfflineSale(
         });
       }
 
-      // Create order items
+      // Create order items and reduce stock
       for (const item of validatedInput.items) {
+        const lineSubtotal = item.price * item.quantity;
         await tx.insert(orderItems).values({
           orderId: newOrder.id,
           productId: item.productId,
@@ -365,12 +471,15 @@ export async function recordOfflineSale(
           variantName: item.variantName || null,
           sku: item.sku || null,
           price: item.price.toFixed(2),
+          unitPrice: item.price.toFixed(2),
           quantity: item.quantity,
+          lineSubtotal: lineSubtotal.toFixed(2),
+          lineTotal: lineSubtotal.toFixed(2),
         });
 
         // Reduce stock if product tracks inventory
         if (item.trackInventory) {
-          await reduceStock(
+          const newStock = await reduceStock(
             tx,
             tenantId,
             {
@@ -382,6 +491,12 @@ export async function recordOfflineSale(
             newOrder.id,
             orderNumber
           );
+          // Track updated stock to return to client
+          updatedStock.push({
+            productId: item.productId,
+            variantId: item.variantId || null,
+            newStock,
+          });
         }
       }
 
@@ -408,25 +523,6 @@ export async function recordOfflineSale(
     revalidatePath(`/dashboard/${storeSlug}/inventory`);
     revalidatePath(`/dashboard/${storeSlug}`);
 
-    // Send push notification to store owners/admins (non-blocking)
-    // Calculate total for notification
-    let notificationTotal = 0;
-    for (const item of validatedInput.items) {
-      notificationTotal += item.price * item.quantity;
-    }
-    notificationTotal -= validatedInput.discountAmount || 0;
-
-    sendOrderNotificationToTenant(tenantId, storeSlug, {
-      orderNumber: order.orderNumber,
-      orderId: order.id,
-      customerName: validatedInput.customerName || "Walk-in Customer",
-      total: notificationTotal.toFixed(2),
-      currency: "AFN",
-      isOffline: true,
-    }).catch((error) => {
-      console.error("Failed to send offline sale notification:", error);
-    });
-
     return {
       success: true,
       order: {
@@ -434,12 +530,16 @@ export async function recordOfflineSale(
         orderNumber: order.orderNumber,
         receiptNumber: order.receiptNumber!,
       },
+      updatedStock: updatedStock.length > 0 ? updatedStock : undefined,
     };
   } catch (error) {
     console.error("Failed to record offline sale:", error);
+    // Return meaningful error message (e.g., stock validation errors)
+    const message =
+      error instanceof Error ? error.message : "Failed to record sale";
     return {
       success: false,
-      error: { message: "Failed to record sale", code: "UNKNOWN" },
+      error: { message, code: "UNKNOWN" },
     };
   }
 }
@@ -476,7 +576,7 @@ export async function markOrderPaid(
     // Find and update the order
     const order = await db.query.orders.findFirst({
       where: and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)),
-      columns: { id: true, isPaid: true },
+      columns: { id: true, isPaid: true, fulfillmentType: true, channel: true },
     });
 
     if (!order) {
@@ -487,15 +587,22 @@ export async function markOrderPaid(
       return { success: false, error: { message: "Order is already paid" } };
     }
 
+    // For instant fulfillment (POS), mark as delivered when paid
+    // For other types, mark as confirmed
+    const isPOSOrder =
+      order.channel === "pos" || order.fulfillmentType === "instant";
+    const now = new Date().toISOString();
+
     // Update order
     await db
       .update(orders)
       .set({
         isPaid: true,
-        paidAt: new Date().toISOString(),
+        paidAt: now,
         paymentMethod,
-        status: "confirmed",
-        updatedAt: new Date().toISOString(),
+        status: isPOSOrder ? "delivered" : "confirmed",
+        completedAt: isPOSOrder ? now : null,
+        updatedAt: now,
       })
       .where(eq(orders.id, orderId));
 
@@ -540,7 +647,13 @@ export async function recordOrderPayment(
     // Find the order
     const order = await db.query.orders.findFirst({
       where: and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)),
-      columns: { id: true, total: true, isPaid: true },
+      columns: {
+        id: true,
+        total: true,
+        isPaid: true,
+        fulfillmentType: true,
+        channel: true,
+      },
       with: {
         payments: {
           columns: { amount: true },
@@ -593,15 +706,36 @@ export async function recordOrderPayment(
     const newRemaining = orderTotal - newTotalPaid;
     const isFullyPaid = newRemaining <= 0.01; // Small tolerance for rounding
 
-    // If fully paid, update the order
+    // Update the order with payment info
+    const now = new Date().toISOString();
+
     if (isFullyPaid) {
+      // For instant fulfillment (POS), mark as delivered when paid
+      const isPOSOrder =
+        order.channel === "pos" || order.fulfillmentType === "instant";
+
       await db
         .update(orders)
         .set({
           isPaid: true,
-          paidAt: new Date().toISOString(),
-          status: "confirmed",
-          updatedAt: new Date().toISOString(),
+          paidAt: now,
+          amountPaid: newTotalPaid.toFixed(2),
+          amountDue: "0",
+          paymentStatus: "paid",
+          status: isPOSOrder ? "delivered" : "confirmed",
+          completedAt: isPOSOrder ? now : null,
+          updatedAt: now,
+        })
+        .where(eq(orders.id, orderId));
+    } else {
+      // Partial payment - update amounts but not status
+      await db
+        .update(orders)
+        .set({
+          amountPaid: newTotalPaid.toFixed(2),
+          amountDue: Math.max(0, newRemaining).toFixed(2),
+          paymentStatus: "partial",
+          updatedAt: now,
         })
         .where(eq(orders.id, orderId));
     }
@@ -633,13 +767,16 @@ export async function recordOrderPayment(
  */
 export async function searchProductsForSale(
   tenantId: string,
-  search: string
+  search: string,
+  categoryId?: string | null
 ): Promise<{
   success: boolean;
   products?: Array<{
     id: string;
     name: string;
     price: string;
+    sku: string | null;
+    barcode: string | null;
     stock: number;
     trackInventory: boolean;
     hasVariants: boolean;
@@ -647,6 +784,7 @@ export async function searchProductsForSale(
       id: string;
       displayName: string;
       sku: string | null;
+      barcode: string | null;
       price: string | null;
       stock: number;
     }>;
@@ -655,18 +793,56 @@ export async function searchProductsForSale(
   error?: { message: string };
 }> {
   try {
-    const searchPattern = `%${search}%`;
+    const searchTrimmed = search.trim();
+    const searchPattern = `%${searchTrimmed}%`;
 
+    // Build base conditions
+    const baseConditions = [
+      eq(products.tenantId, tenantId),
+      eq(products.status, "active"),
+      eq(products.showOnPos, true),
+    ];
+
+    // Add category filter if provided
+    // Check both direct categoryId AND productCategories junction table
+    if (categoryId) {
+      // Get product IDs from the many-to-many productCategories table
+      const productIdsInCategory = db
+        .select({ productId: productCategories.productId })
+        .from(productCategories)
+        .where(eq(productCategories.categoryId, categoryId));
+
+      // Filter products that have this category either directly or via junction table
+      baseConditions.push(
+        or(
+          eq(products.categoryId, categoryId),
+          inArray(products.id, productIdsInCategory)
+        )!
+      );
+    }
+
+    // Add search conditions if search term is provided
+    const hasSearch = searchTrimmed.length > 0 && searchTrimmed !== " ";
+    if (hasSearch) {
+      baseConditions.push(
+        or(
+          ilike(products.name, searchPattern),
+          ilike(products.sku, searchPattern),
+          eq(products.barcode, searchTrimmed) // Exact match for barcode
+        )!
+      );
+    }
+
+    // Search by name, SKU, or barcode
+    // For barcodes, prioritize exact matches (scanners send exact codes)
     const result = await db.query.products.findMany({
-      where: and(
-        eq(products.tenantId, tenantId),
-        eq(products.status, "active"),
-        ilike(products.name, searchPattern)
-      ),
+      where: and(...baseConditions),
       columns: {
         id: true,
         name: true,
         price: true,
+        sku: true,
+        barcode: true,
         stock: true,
         trackInventory: true,
         hasVariants: true,
@@ -678,6 +854,7 @@ export async function searchProductsForSale(
             id: true,
             displayName: true,
             sku: true,
+            barcode: true,
             price: true,
             stock: true,
           },
@@ -695,12 +872,96 @@ export async function searchProductsForSale(
       limit: 20,
     });
 
+    // Also search for products where a variant matches the barcode/sku
+    // Only do this if we have a search term (not just browsing by category)
+    let additionalProducts: typeof result = [];
+
+    if (hasSearch) {
+      const variantMatches = await db.query.productVariants.findMany({
+        where: and(
+          eq(productVariants.tenantId, tenantId),
+          eq(productVariants.isActive, true),
+          or(
+            ilike(productVariants.sku, searchPattern),
+            eq(productVariants.barcode, searchTrimmed) // Exact match for barcode
+          )
+        ),
+        columns: { productId: true },
+        limit: 20,
+      });
+
+      // Get unique product IDs from variant matches that aren't already in results
+      const existingIds = new Set(result.map((p) => p.id));
+      const additionalProductIds = [
+        ...new Set(
+          variantMatches
+            .map((v) => v.productId)
+            .filter((id) => !existingIds.has(id))
+        ),
+      ];
+
+      // Fetch additional products if we found variant matches
+      if (additionalProductIds.length > 0) {
+        // Build conditions for additional products query
+        const additionalConditions = [
+          eq(products.tenantId, tenantId),
+          eq(products.status, "active"),
+          inArray(products.id, additionalProductIds),
+        ];
+
+        // Also filter by category if provided
+        if (categoryId) {
+          additionalConditions.push(eq(products.categoryId, categoryId));
+        }
+
+        additionalProducts = await db.query.products.findMany({
+          where: and(...additionalConditions),
+          columns: {
+            id: true,
+            name: true,
+            price: true,
+            sku: true,
+            barcode: true,
+            stock: true,
+            trackInventory: true,
+            hasVariants: true,
+          },
+          with: {
+            variants: {
+              where: eq(productVariants.isActive, true),
+              columns: {
+                id: true,
+                displayName: true,
+                sku: true,
+                barcode: true,
+                price: true,
+                stock: true,
+              },
+            },
+            images: {
+              limit: 1,
+              columns: {},
+              with: {
+                media: {
+                  columns: { url: true },
+                },
+              },
+            },
+          },
+        });
+      }
+    }
+
+    const allProducts = [...result, ...additionalProducts];
+
     return {
       success: true,
-      products: result.map((p) => ({
+      products: allProducts.map((p) => ({
         id: p.id,
         name: p.name,
         price: p.price,
+        sku: p.sku,
+        barcode: p.barcode,
         stock: p.stock,
         trackInventory: p.trackInventory,
         hasVariants: p.hasVariants,
@@ -708,6 +969,7 @@ export async function searchProductsForSale(
           id: v.id,
           displayName: v.displayName || "",
           sku: v.sku,
+          barcode: v.barcode,
           price: v.price,
           stock: v.stock,
         })),

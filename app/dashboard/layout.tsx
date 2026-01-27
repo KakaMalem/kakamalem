@@ -6,14 +6,15 @@ import { getUser, getUserProfile } from "@/lib/auth/server";
 // Force dynamic rendering - auth state must be checked on every request
 export const dynamic = "force-dynamic";
 import { getUserStores } from "@/lib/db/queries/tenants";
-import { getSubscriptionOverview } from "@/lib/db/queries/billing";
+import { getPendingTransferRequestsForUser } from "@/lib/db/queries/store-transfers";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { TransferRequestsBanner } from "@/components/dashboard/transfers/transfer-requests-banner";
 import { ImagePreviewProvider } from "@/components/ui/image-preview";
 import { QueryProvider } from "@/lib/providers/query-provider";
+import { NotificationSoundProvider } from "@/lib/hooks/use-notification-sound";
 import type { StoreInfo } from "@/components/dashboard/store-switcher";
-import type { SubscriptionOverview } from "@/lib/db/queries/billing";
 
 // Extract store slug from pathname like /dashboard/my-store/...
 function getStoreSlugFromPath(pathname: string): string | null {
@@ -87,11 +88,8 @@ export default async function DashboardLayout({
     }
   }
 
-  // Fetch subscription data for current store
-  let subscription: SubscriptionOverview | null = null;
-  if (currentStore) {
-    subscription = await getSubscriptionOverview(currentStore.id);
-  }
+  // Fetch pending transfer requests for this user
+  const pendingTransfers = await getPendingTransferRequestsForUser(user.id);
 
   // Get sidebar state from cookie
   const cookieStore = await cookies();
@@ -100,26 +98,40 @@ export default async function DashboardLayout({
 
   return (
     <QueryProvider>
-      <ImagePreviewProvider>
-        <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar
-            user={{
-              email: user.email || "",
-              fullName: user.name,
-              avatarUrl: user.image || undefined,
-            }}
-            stores={stores}
-            currentStore={currentStore}
-            storeSlug={storeSlug}
-            posEnabled={posEnabled}
-            subscription={subscription}
-          />
-          <SidebarInset>
-            <DashboardHeader />
-            <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
-          </SidebarInset>
-        </SidebarProvider>
-      </ImagePreviewProvider>
+      <NotificationSoundProvider>
+        <ImagePreviewProvider>
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <AppSidebar
+              user={{
+                id: user.id,
+                email: user.email || "",
+                fullName: user.name,
+                avatarUrl: user.image || undefined,
+              }}
+              stores={stores}
+              currentStore={currentStore}
+              storeSlug={storeSlug}
+              posEnabled={posEnabled}
+            />
+            <SidebarInset>
+              <DashboardHeader />
+              <main className="flex-1 overflow-auto p-4 md:p-6">
+                <TransferRequestsBanner
+                  requests={pendingTransfers.map((t) => ({
+                    id: t.id,
+                    tenant: t.tenant,
+                    fromUser: t.fromUser,
+                    message: t.message,
+                    expiresAt: t.expiresAt,
+                    createdAt: t.createdAt,
+                  }))}
+                />
+                {children}
+              </main>
+            </SidebarInset>
+          </SidebarProvider>
+        </ImagePreviewProvider>
+      </NotificationSoundProvider>
     </QueryProvider>
   );
 }

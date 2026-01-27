@@ -1,6 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getUserStoreContext } from "@/lib/auth/context";
+import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { DomainSettings } from "./domain-settings";
 
 interface DomainSettingsPageProps {
@@ -23,8 +26,16 @@ export default async function DomainSettingsPage({
     notFound();
   }
 
-  if (store.ownerId !== user.id) {
-    notFound();
+  // Role-based access check (owner only)
+  const userContext = await getUserStoreContext(store.id);
+  if (!userContext || !canAccessSettingsPage(userContext.role, "domains")) {
+    return (
+      <AccessDenied
+        message="Only the store owner can manage domain settings."
+        backUrl={`/dashboard/${slug}/settings`}
+        backLabel="Back to Settings"
+      />
+    );
   }
 
   return <DomainSettings storeSlug={store.slug} storeName={store.name} />;

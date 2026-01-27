@@ -129,6 +129,35 @@ export const brandingSettingsSchema = z.object({
 
 export type BrandingSettingsInput = z.infer<typeof brandingSettingsSchema>;
 
+// Preferred contact method options
+export const preferredContactMethodOptions = [
+  "phone",
+  "whatsapp",
+  "both",
+] as const;
+export type PreferredContactMethod =
+  (typeof preferredContactMethodOptions)[number];
+
+// Preferred contact method labels for UI
+export const preferredContactMethodLabels: Record<
+  PreferredContactMethod,
+  string
+> = {
+  phone: "Phone Call",
+  whatsapp: "WhatsApp",
+  both: "Show Both",
+};
+
+// Preferred contact method descriptions for UI
+export const preferredContactMethodDescriptions: Record<
+  PreferredContactMethod,
+  string
+> = {
+  phone: "Phone number links open the phone dialer",
+  whatsapp: "Phone number links open WhatsApp chat",
+  both: "Show both phone and WhatsApp icons",
+};
+
 // Social links validation schema
 export const socialLinksSchema = z.object({
   facebook: z
@@ -162,6 +191,11 @@ export const socialLinksSchema = z.object({
     .regex(urlRegex, "Please enter a valid YouTube URL")
     .optional()
     .or(z.literal("")),
+  // WhatsApp settings
+  preferredContactMethod: z
+    .enum(preferredContactMethodOptions)
+    .default("whatsapp"),
+  showWhatsAppButton: z.boolean().default(true),
 });
 
 export type SocialLinksInput = z.infer<typeof socialLinksSchema>;
@@ -180,7 +214,7 @@ export const seoSettingsSchema = z.object({
     .or(z.literal("")),
   ogImageUrl: z
     .string()
-    .regex(urlRegex, "Please enter a valid URL")
+    .regex(imageUrlRegex, "Please enter a valid image URL")
     .optional()
     .or(z.literal("")),
 });
@@ -233,12 +267,31 @@ export const receiptPaperWidthDescriptions: Record<ReceiptPaperWidth, string> =
     "58mm": "Compact mobile printer paper. Good for quick transactions.",
   };
 
+// POS Scanner mode options
+export const posScannerModeOptions = ["camera", "usb"] as const;
+export type PosScannerMode = (typeof posScannerModeOptions)[number];
+
+// POS Scanner mode labels for UI
+export const posScannerModeLabels: Record<PosScannerMode, string> = {
+  camera: "Camera Scanner",
+  usb: "USB/Bluetooth Scanner",
+};
+
+// POS Scanner mode descriptions for UI
+export const posScannerModeDescriptions: Record<PosScannerMode, string> = {
+  camera:
+    "Use your phone or tablet camera to scan barcodes. Best for mobile devices.",
+  usb: "Use an external USB or Bluetooth barcode scanner. Best for dedicated POS setups.",
+};
+
 // Store mode settings validation schema
 export const storeModeSettingsSchema = z.object({
   storeMode: z.enum(storeModeOptions),
   onlineCheckoutEnabled: z.boolean(),
   posEnabled: z.boolean(),
   phoneOrdersEnabled: z.boolean(),
+  // POS settings
+  posScannerMode: z.enum(posScannerModeOptions),
   // Receipt settings
   receiptPaperWidth: z.enum(receiptPaperWidthOptions),
   receiptShowLogo: z.boolean(),

@@ -11,8 +11,6 @@ import {
   Trash2,
   Receipt,
   Loader2,
-  Store,
-  Phone,
   Banknote,
   CreditCard,
   Smartphone,
@@ -22,6 +20,8 @@ import {
   ChevronUp,
   User,
   Package,
+  Percent,
+  Tag,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -51,14 +51,12 @@ import {
 import type {
   OfflineSaleItem,
   PaymentMethod,
-  SalesChannel,
 } from "@/lib/validations/offline-sales";
 
 interface RecordSaleFormProps {
   storeSlug: string;
   tenantId: string;
   currency: string;
-  phoneOrdersEnabled: boolean;
 }
 
 type CartItem = OfflineSaleItem & {
@@ -95,32 +93,16 @@ const PAYMENT_METHODS: Array<{
   { value: "bank_transfer", label: "Transfer", icon: Building2 },
 ];
 
-const ALL_SALES_CHANNELS: Array<{
-  value: SalesChannel;
-  label: string;
-  icon: typeof Store;
-}> = [
-  { value: "offline", label: "In-Store", icon: Store },
-  { value: "phone", label: "Phone", icon: Phone },
-];
-
 export function RecordSaleForm({
   storeSlug,
   tenantId,
   currency,
-  phoneOrdersEnabled,
 }: RecordSaleFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter sales channels based on store settings
-  const salesChannels = ALL_SALES_CHANNELS.filter(
-    (channel) => channel.value !== "phone" || phoneOrdersEnabled
-  );
-
   // Form state
-  const [salesChannel, setSalesChannel] = useState<SalesChannel>("offline");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountReceived, setAmountReceived] = useState<number | null>(null);
   const [customerName, setCustomerName] = useState("");
@@ -142,16 +124,36 @@ export function RecordSaleForm({
   // Customer section collapsed state
   const [customerExpanded, setCustomerExpanded] = useState(false);
 
+  // Discount state
+  const [discountType, setDiscountType] = useState<"amount" | "percent">(
+    "percent"
+  );
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [discountExpanded, setDiscountExpanded] = useState(false);
+
+  // Quick discount presets
+  const DISCOUNT_PRESETS = [5, 10, 15, 20];
+
   // Calculate totals
   const subtotal = items.reduce(
     (sum, item) => sum + item.originalPrice * item.quantity,
     0
   );
-  const discountAmount = items.reduce(
+  const itemLevelDiscount = items.reduce(
     (sum, item) => sum + (item.originalPrice - item.price) * item.quantity,
     0
   );
-  const total = subtotal - discountAmount;
+
+  // Calculate manual discount (either percentage or fixed amount)
+  const manualDiscount =
+    discountType === "percent"
+      ? Math.round(
+          (subtotal - itemLevelDiscount) * (discountValue / 100) * 100
+        ) / 100
+      : Math.min(discountValue, subtotal - itemLevelDiscount); // Can't discount more than subtotal
+
+  const discountAmount = itemLevelDiscount + manualDiscount;
+  const total = Math.max(0, subtotal - discountAmount);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   // Calculate effective amount paid (null = full amount)
@@ -292,14 +294,15 @@ export function RecordSaleForm({
     [items]
   );
 
-  // Set item quantity directly
+  // Set item quantity directly (allows 0 for typing, validated on blur)
   const setQuantity = useCallback(
     (index: number, newQty: number) => {
       const updated = [...items];
       const item = updated[index];
 
-      if (newQty <= 0) {
-        newQty = 1;
+      // Allow 0 temporarily for typing UX, validated on blur
+      if (newQty < 0) {
+        newQty = 0;
       } else if (item.trackInventory && newQty > item.maxStock) {
         newQty = item.maxStock;
       }
@@ -354,7 +357,6 @@ export function RecordSaleForm({
 
     startTransition(async () => {
       const result = await recordOfflineSale(tenantId, storeSlug, {
-        salesChannel,
         amountPaid: effectiveAmountPaid,
         paymentMethod: effectiveAmountPaid > 0 ? paymentMethod : null,
         customerName: customerName || undefined,
@@ -399,13 +401,13 @@ export function RecordSaleForm({
                 type="button"
                 onClick={() => setPaymentMethod(method.value)}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg border p-2 transition-colors min-h-15",
+                  "flex flex-col items-center justify-center gap-1.5 rounded-lg border p-3 transition-colors min-h-16",
                   isSelected
-                    ? "border-primary bg-primary/5 ring-1 ring-primary"
-                    : "hover:bg-muted"
+                    ? "border-primary bg-primary/5 ring-2 ring-primary"
+                    : "hover:bg-muted active:bg-muted/80"
                 )}
               >
-                <Icon className={cn("size-5", isSelected && "text-primary")} />
+                <Icon className={cn("size-6", isSelected && "text-primary")} />
                 <span className="text-xs font-medium">{method.label}</span>
               </button>
             );
@@ -420,8 +422,7 @@ export function RecordSaleForm({
           <Button
             type="button"
             variant={amountReceived === null ? "default" : "outline"}
-            size="sm"
-            className="flex-1"
+            className="flex-1 h-11"
             onClick={() => setAmountReceived(null)}
           >
             Full
@@ -429,11 +430,10 @@ export function RecordSaleForm({
           <Button
             type="button"
             variant={isPayLater ? "default" : "outline"}
-            size="sm"
-            className="flex-1"
+            className="flex-1 h-11"
             onClick={() => setAmountReceived(0)}
           >
-            <Clock className="mr-1 size-3.5" />
+            <Clock className="mr-1.5 size-4" />
             Later
           </Button>
         </div>
@@ -441,6 +441,7 @@ export function RecordSaleForm({
           <div className="relative">
             <Input
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0"
               max={total}
@@ -454,8 +455,9 @@ export function RecordSaleForm({
                   setAmountReceived(isNaN(num) ? null : num);
                 }
               }}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="Custom amount"
-              className="pr-12"
+              className="pr-14 h-11 text-base"
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
               {currency}
@@ -527,19 +529,19 @@ export function RecordSaleForm({
         </div>
       </div>
 
-      {/* Quantity controls */}
-      <div className="flex items-center gap-1">
+      {/* Quantity controls - minimum 40px touch targets */}
+      <div className="flex items-center gap-1.5">
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="size-8"
+          className="size-10"
           onClick={() => updateQuantity(index, -1)}
         >
           {item.quantity === 1 ? (
-            <Trash2 className="size-3.5 text-destructive" />
+            <Trash2 className="size-4 text-destructive" />
           ) : (
-            <Minus className="size-3.5" />
+            <Minus className="size-4" />
           )}
         </Button>
         <Input
@@ -547,9 +549,11 @@ export function RecordSaleForm({
           inputMode="numeric"
           value={item.quantity === 0 ? "" : item.quantity}
           onChange={(e) => {
-            const val = parseInt(e.target.value);
-            if (!isNaN(val)) {
-              setQuantity(index, val);
+            const val = e.target.value;
+            // Allow empty string or valid numbers for better typing UX
+            if (val === "" || /^\d+$/.test(val)) {
+              const num = val === "" ? 0 : parseInt(val);
+              setQuantity(index, num);
             }
           }}
           onBlur={(e) => {
@@ -558,17 +562,17 @@ export function RecordSaleForm({
               setQuantity(index, 1);
             }
           }}
-          className="h-8 w-12 text-center px-1"
+          className="h-10 w-14 text-center px-1 text-base font-medium"
         />
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="size-8"
+          className="size-10"
           onClick={() => updateQuantity(index, 1)}
           disabled={item.trackInventory && item.quantity >= item.maxStock}
         >
-          <Plus className="size-3.5" />
+          <Plus className="size-4" />
         </Button>
       </div>
     </div>
@@ -789,15 +793,171 @@ export function RecordSaleForm({
             {/* Cart summary */}
             {items.length > 0 && (
               <div className="p-4 border-t bg-muted/30">
+                {/* Discount Section */}
+                <Collapsible
+                  open={discountExpanded}
+                  onOpenChange={setDiscountExpanded}
+                >
+                  <CollapsibleTrigger className="flex w-full items-center justify-between py-2 hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Tag className="size-4 text-green-600" />
+                      <span className="font-medium text-sm">Add Discount</span>
+                      {manualDiscount > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-green-100 text-green-700"
+                        >
+                          -
+                          {discountType === "percent"
+                            ? `${discountValue}%`
+                            : formatPrice(discountValue, currency)}
+                        </Badge>
+                      )}
+                    </div>
+                    <ChevronUp
+                      className={cn(
+                        "size-4 transition-transform",
+                        !discountExpanded && "rotate-180"
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="pt-3 pb-2 space-y-3">
+                      {/* Discount Type Toggle */}
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant={
+                            discountType === "percent" ? "default" : "outline"
+                          }
+                          size="sm"
+                          className="flex-1 h-10"
+                          onClick={() => {
+                            setDiscountType("percent");
+                            setDiscountValue(0);
+                          }}
+                        >
+                          <Percent className="mr-1.5 size-4" />
+                          Percentage
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={
+                            discountType === "amount" ? "default" : "outline"
+                          }
+                          size="sm"
+                          className="flex-1 h-10"
+                          onClick={() => {
+                            setDiscountType("amount");
+                            setDiscountValue(0);
+                          }}
+                        >
+                          <Tag className="mr-1.5 size-4" />
+                          Fixed Amount
+                        </Button>
+                      </div>
+
+                      {/* Quick Discount Buttons (Percentage mode only) */}
+                      {discountType === "percent" && (
+                        <div className="grid grid-cols-4 gap-2">
+                          {DISCOUNT_PRESETS.map((preset) => (
+                            <Button
+                              key={preset}
+                              type="button"
+                              variant={
+                                discountValue === preset ? "default" : "outline"
+                              }
+                              size="sm"
+                              className="h-10"
+                              onClick={() =>
+                                setDiscountValue(
+                                  discountValue === preset ? 0 : preset
+                                )
+                              }
+                            >
+                              {preset}%
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Custom Discount Input */}
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step={discountType === "percent" ? "1" : "0.01"}
+                          min="0"
+                          max={
+                            discountType === "percent"
+                              ? 100
+                              : subtotal - itemLevelDiscount
+                          }
+                          value={discountValue || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (isNaN(val) || val < 0) {
+                              setDiscountValue(0);
+                            } else if (
+                              discountType === "percent" &&
+                              val > 100
+                            ) {
+                              setDiscountValue(100);
+                            } else {
+                              setDiscountValue(val);
+                            }
+                          }}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          placeholder={
+                            discountType === "percent"
+                              ? "Custom %"
+                              : "Custom amount"
+                          }
+                          className="pr-12 h-10"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          {discountType === "percent" ? "%" : currency}
+                        </span>
+                      </div>
+
+                      {/* Clear Discount Button */}
+                      {discountValue > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-muted-foreground"
+                          onClick={() => setDiscountValue(0)}
+                        >
+                          Clear Discount
+                        </Button>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <Separator className="my-3" />
+
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>{formatPrice(subtotal, currency)}</span>
                   </div>
-                  {discountAmount > 0 && (
+                  {itemLevelDiscount > 0 && (
                     <div className="flex justify-between text-green-600">
-                      <span>Discount</span>
-                      <span>-{formatPrice(discountAmount, currency)}</span>
+                      <span>Item discounts</span>
+                      <span>-{formatPrice(itemLevelDiscount, currency)}</span>
+                    </div>
+                  )}
+                  {manualDiscount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>
+                        Discount (
+                        {discountType === "percent"
+                          ? `${discountValue}%`
+                          : "fixed"}
+                        )
+                      </span>
+                      <span>-{formatPrice(manualDiscount, currency)}</span>
                     </div>
                   )}
                 </div>
@@ -813,36 +973,6 @@ export function RecordSaleForm({
 
         {/* Right sidebar (desktop only) */}
         <div className="hidden lg:block lg:col-span-2 space-y-4">
-          {/* Sales Channel */}
-          {salesChannels.length > 1 && (
-            <div className="rounded-xl border bg-card p-4">
-              <Label className="text-sm font-medium mb-3 block">Channel</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {salesChannels.map((channel) => {
-                  const Icon = channel.icon;
-                  return (
-                    <button
-                      key={channel.value}
-                      type="button"
-                      onClick={() => setSalesChannel(channel.value)}
-                      className={cn(
-                        "flex items-center justify-center gap-2 rounded-lg border p-3 transition-colors",
-                        salesChannel === channel.value
-                          ? "border-primary bg-primary/5"
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      <Icon className="size-4" />
-                      <span className="text-sm font-medium">
-                        {channel.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Payment */}
           <div className="rounded-xl border bg-card p-4">
             <Label className="text-sm font-medium mb-3 block">Payment</Label>
@@ -952,38 +1082,6 @@ export function RecordSaleForm({
             </SheetHeader>
 
             <div className="space-y-6 overflow-auto max-h-[calc(85vh-140px)]">
-              {/* Sales Channel */}
-              {salesChannels.length > 1 && (
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Channel
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {salesChannels.map((channel) => {
-                      const Icon = channel.icon;
-                      return (
-                        <button
-                          key={channel.value}
-                          type="button"
-                          onClick={() => setSalesChannel(channel.value)}
-                          className={cn(
-                            "flex items-center justify-center gap-2 rounded-lg border p-3 transition-colors",
-                            salesChannel === channel.value
-                              ? "border-primary bg-primary/5"
-                              : "hover:bg-muted"
-                          )}
-                        >
-                          <Icon className="size-4" />
-                          <span className="text-sm font-medium">
-                            {channel.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Payment */}
               {renderPaymentSection(true)}
 
@@ -1029,6 +1127,145 @@ export function RecordSaleForm({
                 </CollapsibleContent>
               </Collapsible>
 
+              {/* Discount Section (Mobile) */}
+              <Collapsible
+                open={discountExpanded}
+                onOpenChange={setDiscountExpanded}
+              >
+                <CollapsibleTrigger className="flex w-full items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <Tag className="size-4 text-green-600" />
+                    <span className="font-medium text-sm">Add Discount</span>
+                    {manualDiscount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="bg-green-100 text-green-700"
+                      >
+                        -
+                        {discountType === "percent"
+                          ? `${discountValue}%`
+                          : formatPrice(discountValue, currency)}
+                      </Badge>
+                    )}
+                  </div>
+                  <ChevronUp
+                    className={cn(
+                      "size-4 transition-transform",
+                      !discountExpanded && "rotate-180"
+                    )}
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="pt-3 pb-2 space-y-3">
+                    {/* Discount Type Toggle */}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={
+                          discountType === "percent" ? "default" : "outline"
+                        }
+                        size="sm"
+                        className="flex-1 h-12"
+                        onClick={() => {
+                          setDiscountType("percent");
+                          setDiscountValue(0);
+                        }}
+                      >
+                        <Percent className="mr-1.5 size-4" />
+                        Percentage
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={
+                          discountType === "amount" ? "default" : "outline"
+                        }
+                        size="sm"
+                        className="flex-1 h-12"
+                        onClick={() => {
+                          setDiscountType("amount");
+                          setDiscountValue(0);
+                        }}
+                      >
+                        <Tag className="mr-1.5 size-4" />
+                        Fixed
+                      </Button>
+                    </div>
+
+                    {/* Quick Discount Buttons */}
+                    {discountType === "percent" && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {DISCOUNT_PRESETS.map((preset) => (
+                          <Button
+                            key={preset}
+                            type="button"
+                            variant={
+                              discountValue === preset ? "default" : "outline"
+                            }
+                            size="sm"
+                            className="h-12"
+                            onClick={() =>
+                              setDiscountValue(
+                                discountValue === preset ? 0 : preset
+                              )
+                            }
+                          >
+                            {preset}%
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Custom Discount Input */}
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step={discountType === "percent" ? "1" : "0.01"}
+                        min="0"
+                        max={
+                          discountType === "percent"
+                            ? 100
+                            : subtotal - itemLevelDiscount
+                        }
+                        value={discountValue || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (isNaN(val) || val < 0) {
+                            setDiscountValue(0);
+                          } else if (discountType === "percent" && val > 100) {
+                            setDiscountValue(100);
+                          } else {
+                            setDiscountValue(val);
+                          }
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        placeholder={
+                          discountType === "percent"
+                            ? "Custom %"
+                            : "Custom amount"
+                        }
+                        className="pr-12 h-12"
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        {discountType === "percent" ? "%" : currency}
+                      </span>
+                    </div>
+
+                    {discountValue > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-muted-foreground"
+                        onClick={() => setDiscountValue(0)}
+                      >
+                        Clear Discount
+                      </Button>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
               {/* Order Summary */}
               <div className="rounded-lg bg-muted/50 p-4">
                 <div className="space-y-2 text-sm">
@@ -1038,10 +1275,22 @@ export function RecordSaleForm({
                     </span>
                     <span>{formatPrice(subtotal, currency)}</span>
                   </div>
-                  {discountAmount > 0 && (
+                  {itemLevelDiscount > 0 && (
                     <div className="flex justify-between text-green-600">
-                      <span>Discount</span>
-                      <span>-{formatPrice(discountAmount, currency)}</span>
+                      <span>Item discounts</span>
+                      <span>-{formatPrice(itemLevelDiscount, currency)}</span>
+                    </div>
+                  )}
+                  {manualDiscount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>
+                        Discount (
+                        {discountType === "percent"
+                          ? `${discountValue}%`
+                          : "fixed"}
+                        )
+                      </span>
+                      <span>-{formatPrice(manualDiscount, currency)}</span>
                     </div>
                   )}
                   <Separator />

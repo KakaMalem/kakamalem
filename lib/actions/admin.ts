@@ -1,11 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { tenants, platformSettings, adminAuditLog } from "@/lib/db/schema";
+import {
+  tenants,
+  platformSettings,
+  adminAuditLog,
+  billingTransactions,
+  invoices,
+  type BillingTransactionType,
+  type PaymentMethod,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/auth/server";
 import { headers } from "next/headers";
+import { generateInvoiceNumber } from "@/lib/db/queries/billing";
 
 // =============================================================================
 // ADMIN SERVER ACTIONS
@@ -325,5 +334,371 @@ export async function updatePlatformSettings(data: {
   } catch (error) {
     console.error("Failed to update settings:", error);
     return { success: false, error: "Failed to update settings" };
+  }
+}
+
+// =============================================================================
+// BILLING ACTIONS
+// =============================================================================
+
+/**
+ * Record a billing transaction (payment, refund, credit, etc.)
+ * This also optionally upgrades the store subscription and creates an invoice
+ */
+export async function recordBillingTransaction(data: {
+  storeId: string;
+  type: BillingTransactionType;
+  amount: number;
+  paymentMethod?: PaymentMethod;
+  paymentReference?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  notes?: string;
+  createInvoice?: boolean;
+  upgradeToProOnPayment?: boolean;
+}): Promise<ActionResult & { transactionId?: string; invoiceId?: string }> {
+  try {
+    const admin = await requirePlatformAdmin();
+
+    const {
+      storeId,
+      type,
+      amount,
+      paymentMethod,
+      paymentReference,
+      periodStart,
+      periodEnd,
+      notes,
+      createInvoice = false,
+      upgradeToProOnPayment = false,
+    } = data;
+
+    // Get store info
+    const store = await db.query.tenants.findFirst({
+      where: eq(tenants.id, storeId),
+      columns: {
+        id: true,
+        name: true,
+        subscriptionPlan: true,
+        subscriptionStatus: true,
+        currency: true,
+      },
+    });
+
+    if (!store) {
+      return { success: false, error: "Store not found" };
+    }
+
+    const now = new Date().toISOString();
+    let invoiceId: string | undefined;
+
+    // Create invoice if requested
+    if (createInvoice && type === "subscription_payment") {
+      const invoiceNumber = await generateInvoiceNumber(storeId);
+      const [newInvoice] = await db
+        .insert(invoices)
+        .values({
+          tenantId: storeId,
+          invoiceNumber,
+          subtotal: amount.toString(),
+          tax: "0",
+          total: amount.toString(),
+          currency: store.currency ?? "AFN",
+          periodStart,
+          periodEnd,
+          dueDate: now,
+          status: "paid",
+          paidAt: now,
+          paidAmount: amount.toString(),
+          items: [
+            {
+              description: "Pro Plan Subscription (Monthly)",
+              quantity: 1,
+              unitPrice: amount,
+              total: amount,
+            },
+          ],
+          notes,
+        })
+        .returning({ id: invoices.id });
+
+      invoiceId = newInvoice.id;
+    }
+
+    // Create billing transaction
+    const [transaction] = await db
+      .insert(billingTransactions)
+      .values({
+        tenantId: storeId,
+        type,
+        amount: amount.toString(),
+        currency: store.currency ?? "AFN",
+        paymentMethod,
+        paymentReference,
+        periodStart,
+        periodEnd,
+        fromPlan:
+          type === "subscription_upgrade" ? store.subscriptionPlan : undefined,
+        toPlan: type === "subscription_upgrade" ? "pro" : undefined,
+        status: "completed",
+        invoiceId,
+        processedBy: admin.id,
+        notes,
+      })
+      .returning({ id: billingTransactions.id });
+
+    // Upgrade to pro if this is a payment and upgrade is requested
+    if (upgradeToProOnPayment && type === "subscription_payment") {
+      // Calculate subscription period (30 days from now)
+      const subscriptionEnd = new Date();
+      subscriptionEnd.setDate(subscriptionEnd.getDate() + 30);
+
+      await db
+        .update(tenants)
+        .set({
+          subscriptionPlan: "pro",
+          subscriptionStatus: "active",
+          subscriptionStartedAt: now,
+          subscriptionEndsAt: subscriptionEnd.toISOString(),
+          updatedAt: now,
+        })
+        .where(eq(tenants.id, storeId));
+    }
+
+    // Log the action
+    await logAdminAction(admin.id, `billing.${type}`, "tenant", storeId, {
+      storeName: store.name,
+      amount,
+      paymentMethod,
+      paymentReference,
+      transactionId: transaction.id,
+      invoiceId,
+      upgradeToProOnPayment,
+    });
+
+    revalidatePath("/admin/stores");
+    revalidatePath(`/admin/stores/${storeId}`);
+    revalidatePath(`/dashboard/${store.name}/billing`);
+
+    return {
+      success: true,
+      message: `Transaction recorded successfully${invoiceId ? " with invoice" : ""}`,
+      transactionId: transaction.id,
+      invoiceId,
+    };
+  } catch (error) {
+    console.error("Failed to record billing transaction:", error);
+    return { success: false, error: "Failed to record billing transaction" };
+  }
+}
+
+/**
+ * Create an invoice for a store (without recording a payment)
+ */
+export async function createInvoice(data: {
+  storeId: string;
+  amount: number;
+  periodStart?: string;
+  periodEnd?: string;
+  dueDate?: string;
+  description?: string;
+  notes?: string;
+}): Promise<ActionResult & { invoiceId?: string; invoiceNumber?: string }> {
+  try {
+    const admin = await requirePlatformAdmin();
+
+    const {
+      storeId,
+      amount,
+      periodStart,
+      periodEnd,
+      dueDate,
+      description = "Pro Plan Subscription (Monthly)",
+      notes,
+    } = data;
+
+    // Get store info
+    const store = await db.query.tenants.findFirst({
+      where: eq(tenants.id, storeId),
+      columns: {
+        id: true,
+        name: true,
+        currency: true,
+      },
+    });
+
+    if (!store) {
+      return { success: false, error: "Store not found" };
+    }
+
+    const invoiceNumber = await generateInvoiceNumber(storeId);
+    const now = new Date().toISOString();
+
+    // Create invoice
+    const [invoice] = await db
+      .insert(invoices)
+      .values({
+        tenantId: storeId,
+        invoiceNumber,
+        subtotal: amount.toString(),
+        tax: "0",
+        total: amount.toString(),
+        currency: store.currency ?? "AFN",
+        periodStart,
+        periodEnd,
+        dueDate: dueDate ?? now,
+        status: "sent",
+        paidAmount: "0",
+        items: [
+          {
+            description,
+            quantity: 1,
+            unitPrice: amount,
+            total: amount,
+          },
+        ],
+        notes,
+        sentAt: now,
+      })
+      .returning({ id: invoices.id });
+
+    // Log the action
+    await logAdminAction(admin.id, "invoice.create", "tenant", storeId, {
+      storeName: store.name,
+      invoiceId: invoice.id,
+      invoiceNumber,
+      amount,
+    });
+
+    revalidatePath(`/admin/stores/${storeId}`);
+    revalidatePath(`/dashboard/${store.name}/billing`);
+
+    return {
+      success: true,
+      message: `Invoice ${invoiceNumber} created`,
+      invoiceId: invoice.id,
+      invoiceNumber,
+    };
+  } catch (error) {
+    console.error("Failed to create invoice:", error);
+    return { success: false, error: "Failed to create invoice" };
+  }
+}
+
+/**
+ * Mark an invoice as paid
+ */
+export async function markInvoicePaid(
+  invoiceId: string,
+  paymentData: {
+    paymentMethod?: PaymentMethod;
+    paymentReference?: string;
+    notes?: string;
+  }
+): Promise<ActionResult> {
+  try {
+    const admin = await requirePlatformAdmin();
+
+    // Get invoice
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    const now = new Date().toISOString();
+
+    // Update invoice status
+    await db
+      .update(invoices)
+      .set({
+        status: "paid",
+        paidAt: now,
+        paidAmount: invoice.total,
+        updatedAt: now,
+      })
+      .where(eq(invoices.id, invoiceId));
+
+    // Create billing transaction for this payment
+    await db.insert(billingTransactions).values({
+      tenantId: invoice.tenantId,
+      type: "subscription_payment",
+      amount: invoice.total,
+      currency: invoice.currency,
+      paymentMethod: paymentData.paymentMethod,
+      paymentReference: paymentData.paymentReference,
+      periodStart: invoice.periodStart,
+      periodEnd: invoice.periodEnd,
+      status: "completed",
+      invoiceId,
+      processedBy: admin.id,
+      notes: paymentData.notes,
+    });
+
+    // Log the action
+    await logAdminAction(admin.id, "invoice.paid", "invoice", invoiceId, {
+      invoiceNumber: invoice.invoiceNumber,
+      amount: invoice.total,
+      ...paymentData,
+    });
+
+    revalidatePath(`/admin/stores/${invoice.tenantId}`);
+
+    return { success: true, message: "Invoice marked as paid" };
+  } catch (error) {
+    console.error("Failed to mark invoice as paid:", error);
+    return { success: false, error: "Failed to mark invoice as paid" };
+  }
+}
+
+/**
+ * Void/cancel an invoice
+ */
+export async function voidInvoice(
+  invoiceId: string,
+  reason?: string
+): Promise<ActionResult> {
+  try {
+    const admin = await requirePlatformAdmin();
+
+    // Get invoice
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (invoice.status === "paid") {
+      return { success: false, error: "Cannot void a paid invoice" };
+    }
+
+    // Update invoice status
+    await db
+      .update(invoices)
+      .set({
+        status: "void",
+        notes: reason
+          ? `${invoice.notes ?? ""}\n\nVoided: ${reason}`.trim()
+          : invoice.notes,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(invoices.id, invoiceId));
+
+    // Log the action
+    await logAdminAction(admin.id, "invoice.void", "invoice", invoiceId, {
+      invoiceNumber: invoice.invoiceNumber,
+      reason,
+    });
+
+    revalidatePath(`/admin/stores/${invoice.tenantId}`);
+
+    return { success: true, message: "Invoice voided" };
+  } catch (error) {
+    console.error("Failed to void invoice:", error);
+    return { success: false, error: "Failed to void invoice" };
   }
 }

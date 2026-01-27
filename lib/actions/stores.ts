@@ -519,6 +519,9 @@ export async function updateSocialLinks(
     telegram: (formData.get("telegram") as string) || "",
     tiktok: (formData.get("tiktok") as string) || "",
     youtube: (formData.get("youtube") as string) || "",
+    preferredContactMethod:
+      (formData.get("preferredContactMethod") as string) || "whatsapp",
+    showWhatsAppButton: formData.get("showWhatsAppButton") === "true",
   };
 
   try {
@@ -544,6 +547,11 @@ export async function updateSocialLinks(
     telegram: formValues.telegram || undefined,
     tiktok: formValues.tiktok || undefined,
     youtube: formValues.youtube || undefined,
+    preferredContactMethod: formValues.preferredContactMethod as
+      | "phone"
+      | "whatsapp"
+      | "both",
+    showWhatsAppButton: formValues.showWhatsAppButton,
   };
 
   try {
@@ -938,6 +946,8 @@ export async function updateStoreModeSettings(
       onlineCheckoutEnabled,
       posEnabled,
       phoneOrdersEnabled,
+      // POS settings
+      posScannerMode: settings.posScannerMode,
       // Receipt settings
       receiptPaperWidth: settings.receiptPaperWidth,
       receiptShowLogo: settings.receiptShowLogo,

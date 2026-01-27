@@ -11,8 +11,9 @@ import {
   ShoppingCart,
   BarChart3,
   Store,
-  Layers,
   Warehouse,
+  Star,
+  Monitor,
 } from "lucide-react";
 
 import {
@@ -32,7 +33,8 @@ import {
 } from "@/components/ui/sidebar";
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
-import type { SubscriptionOverview } from "@/lib/db/queries/billing";
+import { useUserRole } from "@/lib/stores/use-user-role-store";
+import { canAccessAnySettings } from "@/lib/config/settings-permissions";
 
 // NavLink component that closes mobile sidebar on navigation
 // Uses forwardRef to properly work with SidebarMenuButton's asChild prop
@@ -59,6 +61,7 @@ NavLink.displayName = "NavLink";
 
 interface AppSidebarProps {
   user: {
+    id: string;
     email: string;
     fullName?: string;
     avatarUrl?: string;
@@ -67,7 +70,6 @@ interface AppSidebarProps {
   currentStore?: StoreInfo | null;
   storeSlug?: string;
   posEnabled?: boolean;
-  subscription?: SubscriptionOverview | null;
 }
 
 // Reserved paths that are not store slugs
@@ -87,7 +89,7 @@ export function AppSidebar({
   stores = [],
   currentStore,
   storeSlug: initialStoreSlug,
-  subscription,
+  posEnabled = true,
 }: AppSidebarProps) {
   const pathname = usePathname();
 
@@ -130,11 +132,6 @@ export function AppSidebar({
       icon: Warehouse,
     },
     {
-      title: "Variants",
-      href: `${baseUrl}/variants`,
-      icon: Layers,
-    },
-    {
       title: "Media",
       href: `${baseUrl}/media`,
       icon: Image,
@@ -147,6 +144,15 @@ export function AppSidebar({
       href: `${baseUrl}/orders`,
       icon: ShoppingCart,
     },
+    ...(posEnabled
+      ? [
+          {
+            title: "POS",
+            href: `${baseUrl}/pos`,
+            icon: Monitor,
+          },
+        ]
+      : []),
   ];
 
   const insightsNavItems = [
@@ -155,7 +161,16 @@ export function AppSidebar({
       href: `${baseUrl}/analytics`,
       icon: BarChart3,
     },
+    {
+      title: "Reviews",
+      href: `${baseUrl}/reviews`,
+      icon: Star,
+    },
   ];
+
+  // Check if user can access settings (owner or admin only)
+  const userRole = useUserRole();
+  const showSettings = canAccessAnySettings(userRole);
 
   const settingsNavItems = [
     {
@@ -240,31 +255,34 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href)}
-                    tooltip={item.title}
-                  >
-                    <NavLink href={item.href}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Settings section - hidden for staff (no settings access) */}
+        {showSettings && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Settings</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {settingsNavItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.href)}
+                      tooltip={item.title}
+                    >
+                      <NavLink href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
-        <UserNav user={user} subscription={subscription} />
+        <UserNav user={user} />
       </SidebarFooter>
 
       <SidebarRail />

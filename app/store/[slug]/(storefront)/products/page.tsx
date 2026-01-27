@@ -28,6 +28,7 @@ export default async function ProductsPage({
     limit: 12,
     filters: {
       isActive: true,
+      showOnStorefront: true,
       search: search || undefined,
     },
     sort: {
@@ -59,6 +60,7 @@ export default async function ProductsPage({
         basePath={`/store/${slug}/products`}
         filters={{
           isActive: true,
+          showOnStorefront: true,
           search: search || undefined,
         }}
         currentSort={sort || "displayOrder-asc"}

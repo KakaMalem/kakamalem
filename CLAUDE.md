@@ -404,8 +404,8 @@ When `store_mode` is `catalog` or `offline_only`, the storefront disables the ca
 
 Simple subscription model (no transaction fees):
 
-1. **Free Plan**: 7-day trial, 20 product limit, 1 store limit, all features included
-2. **Pro Plan**: 1,100 AFN/month, unlimited products, multiple stores
+1. **Free Plan**: 7-day trial, 20 product limit, all features included
+2. **Pro Plan**: 1,100 AFN/month per store, unlimited products
 
 Settings are configurable from admin panel (`/admin`).
 

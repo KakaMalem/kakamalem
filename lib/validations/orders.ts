@@ -4,15 +4,16 @@ import { z } from "zod";
 // ORDER VALIDATION SCHEMAS
 // =============================================================================
 
+// Order status represents FULFILLMENT/DELIVERY status only
+// Payment status is tracked separately via paymentStatus field
 export const orderStatusSchema = z.enum([
   "pending",
   "confirmed",
   "processing",
   "shipped",
   "delivered",
+  "returned",
   "cancelled",
-  "refunded",
-  "partially_refunded",
 ]);
 
 export type OrderStatusType = z.infer<typeof orderStatusSchema>;
@@ -23,15 +24,14 @@ export const STATUS_LABELS: Record<OrderStatusType, string> = {
   processing: "Processing",
   shipped: "Shipped",
   delivered: "Delivered",
+  returned: "Returned",
   cancelled: "Cancelled",
-  refunded: "Refunded",
-  partially_refunded: "Partial Refund",
 };
 
+// Statuses that require confirmation before changing
 export const DESTRUCTIVE_STATUSES: OrderStatusType[] = [
   "cancelled",
-  "refunded",
-  "partially_refunded",
+  "returned",
 ];
 
 export const ALL_STATUSES: OrderStatusType[] = [
@@ -40,21 +40,20 @@ export const ALL_STATUSES: OrderStatusType[] = [
   "processing",
   "shipped",
   "delivered",
+  "returned",
   "cancelled",
-  "refunded",
-  "partially_refunded",
 ];
 
-// Valid status transitions for basic workflow
+// Valid status transitions for fulfillment workflow
+// Note: Refunds are handled separately via payment status, not order status
 export const STATUS_TRANSITIONS: Record<OrderStatusType, OrderStatusType[]> = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["processing", "cancelled"],
   processing: ["shipped", "cancelled"],
-  shipped: ["delivered", "cancelled"],
-  delivered: ["refunded", "partially_refunded"],
+  shipped: ["delivered", "returned", "cancelled"],
+  delivered: ["returned"], // Can mark as returned after delivery (RTO, return request)
+  returned: [], // Terminal state for fulfillment
   cancelled: [], // Terminal state
-  refunded: [], // Terminal state
-  partially_refunded: ["refunded"],
 };
 
 export function isValidStatusTransition(

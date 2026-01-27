@@ -5,6 +5,7 @@ import {
   text,
   varchar,
   timestamp,
+  time,
   date,
   decimal,
   integer,
@@ -40,6 +41,9 @@ export type Address = {
   notes?: string;
 };
 
+// Preferred contact method for phone links
+export type PreferredContactMethod = "phone" | "whatsapp" | "both";
+
 // Social links structure for storefronts
 export type SocialLinks = {
   facebook?: string;
@@ -49,6 +53,9 @@ export type SocialLinks = {
   telegram?: string;
   tiktok?: string;
   youtube?: string;
+  // WhatsApp settings
+  preferredContactMethod?: PreferredContactMethod; // How phone number links behave
+  showWhatsAppButton?: boolean; // Show floating WhatsApp button on storefront
 };
 
 // SEO metadata structure
@@ -100,15 +107,16 @@ export const productStatusEnum = pgEnum("product_status", [
 ]);
 
 // Order status
+// Order status - Fulfillment/Delivery status (NOT payment status)
+// Payment status is tracked separately in paymentStatusEnum
 export const orderStatusEnum = pgEnum("order_status", [
-  "pending",
-  "confirmed",
-  "processing",
-  "shipped",
-  "delivered",
-  "cancelled",
-  "refunded",
-  "partially_refunded",
+  "pending", // Order received, awaiting confirmation
+  "confirmed", // Order confirmed, preparing
+  "processing", // Being prepared/packed
+  "shipped", // Shipped/out for delivery
+  "delivered", // Successfully delivered
+  "returned", // Package returned (RTO, refused, etc.)
+  "cancelled", // Order cancelled
 ]);
 
 // Inventory & Variant Management Enums
@@ -117,6 +125,13 @@ export const stockStatusEnum = pgEnum("stock_status", [
   "low_stock",
   "out_of_stock",
   "on_backorder",
+]);
+
+// Swatch type for variant option values
+export const swatchTypeEnum = pgEnum("swatch_type", [
+  "text", // Default - just displays the value text
+  "color", // Color circle/square with hex color
+  "image", // Image thumbnail (for patterns, textures, materials)
 ]);
 
 export const inventoryMovementTypeEnum = pgEnum("inventory_movement_type", [
@@ -167,8 +182,8 @@ export const billingStatusEnum = pgEnum("billing_status", [
 
 // Subscription Plan Enum (new subscription model)
 export const subscriptionPlanEnum = pgEnum("subscription_plan", [
-  "free", // Free tier with limitations (20 products, 1 store)
-  "pro", // Pro tier with all features (unlimited products, multiple stores)
+  "free", // Free tier with limitations (20 products per store)
+  "pro", // Pro tier with all features (unlimited products per store)
 ]);
 
 // Subscription Status Enum
@@ -198,6 +213,39 @@ export const commissionTransactionTypeEnum = pgEnum(
   ]
 );
 
+// Billing Transaction Type (subscription payments)
+export const billingTransactionTypeEnum = pgEnum("billing_transaction_type", [
+  "subscription_payment", // Monthly subscription payment
+  "subscription_upgrade", // Upgrade from free to pro
+  "subscription_downgrade", // Downgrade from pro to free
+  "trial_extension", // Admin extended trial
+  "refund", // Refund issued
+  "credit", // Credit applied to account
+  "adjustment", // Manual admin adjustment
+]);
+
+// Billing Transaction Status
+export const billingTransactionStatusEnum = pgEnum(
+  "billing_transaction_status",
+  [
+    "pending", // Payment initiated but not confirmed
+    "completed", // Payment confirmed
+    "failed", // Payment failed
+    "refunded", // Payment refunded
+    "cancelled", // Cancelled before completion
+  ]
+);
+
+// Invoice Status
+export const invoiceStatusEnum = pgEnum("invoice_status", [
+  "draft", // Not yet finalized
+  "sent", // Sent to customer
+  "paid", // Fully paid
+  "overdue", // Past due date
+  "void", // Cancelled/voided
+  "partially_paid", // Partial payment received
+]);
+
 // Analytics Event Types
 export const analyticsEventTypeEnum = pgEnum("analytics_event_type", [
   "add_to_cart",
@@ -219,13 +267,6 @@ export const deliveryModeEnum = pgEnum("delivery_mode", [
   "weight_price_based", // Traditional shipping: weight/price-based rates (like Shopify)
 ]);
 
-// Sales Channel - where the order originated
-export const salesChannelEnum = pgEnum("sales_channel", [
-  "online", // Customer purchased through storefront
-  "offline", // In-person sale at physical location
-  "phone", // Phone order taken by staff
-]);
-
 // Payment Method - how the customer paid (for offline sales tracking)
 export const paymentMethodEnum = pgEnum("payment_method", [
   "cash", // Cash payment
@@ -241,6 +282,144 @@ export const storeModeEnum = pgEnum("store_mode", [
   "online_only", // E-commerce only, no POS
   "offline_only", // POS only, no public storefront checkout
   "catalog", // Showcase only, no checkout anywhere (contact for orders)
+]);
+
+// ============================================================================
+// UNIFIED COMMERCE ENUMS
+// ============================================================================
+
+// Order Channel - where the order originated
+export const orderChannelEnum = pgEnum("order_channel", [
+  "online", // Customer purchased through storefront
+  "pos", // Point of sale / in-store
+  "marketplace", // External marketplace (future)
+  "social", // Social media order (future)
+]);
+
+// Fulfillment Type - how the order is delivered
+export const fulfillmentTypeEnum = pgEnum("fulfillment_type", [
+  "shipping", // Ship to customer address
+  "pickup", // Buy online, pickup in-store (BOPIS)
+  "instant", // POS - customer takes items immediately
+  "local_delivery", // Same-day local delivery
+  "curbside", // Pickup without entering store
+]);
+
+// Payment Status - overall payment state of an order
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "unpaid", // No payments received
+  "partial", // Partially paid
+  "paid", // Fully paid
+  "refunded", // Fully refunded
+  "partial_refund", // Partially refunded
+]);
+
+// Transaction Type - type of financial transaction
+export const transactionTypeEnum = pgEnum("transaction_type", [
+  "payment", // Payment received
+  "refund", // Refund issued
+  "void", // Transaction voided/cancelled
+  "chargeback", // Disputed transaction
+  "adjustment", // Manual adjustment
+]);
+
+// Transaction Status - state of a transaction
+export const transactionStatusEnum = pgEnum("transaction_status", [
+  "pending", // Awaiting processing
+  "completed", // Successfully processed
+  "failed", // Processing failed
+  "cancelled", // Cancelled before completion
+]);
+
+// Refund Type - type of refund
+export const refundTypeEnum = pgEnum("refund_type", [
+  "full", // Full order refund
+  "partial", // Partial refund (some items/amounts)
+  "exchange", // Exchange for different item
+  "store_credit", // Refund as store credit
+  "appeasement", // Goodwill credit without return
+]);
+
+// Refund Status - state of a refund request
+export const refundStatusEnum = pgEnum("refund_status", [
+  "pending", // Awaiting review
+  "approved", // Approved, awaiting processing
+  "processing", // Being processed
+  "completed", // Successfully refunded
+  "rejected", // Refund request rejected
+]);
+
+// Refund Reason - why the refund was requested
+export const refundReasonEnum = pgEnum("refund_reason", [
+  "customer_request", // Customer changed mind
+  "defective", // Product defective
+  "wrong_item", // Wrong item shipped
+  "not_as_described", // Product not as described
+  "arrived_late", // Delivery too late
+  "duplicate_order", // Accidental duplicate
+  "fraud", // Fraudulent order
+  "other", // Other reason
+]);
+
+// Discount Source - where the discount originated
+export const discountSourceEnum = pgEnum("discount_source", [
+  "coupon", // Promo code applied
+  "automatic", // Rule-based automatic discount
+  "manual", // Staff-applied discount
+  "loyalty", // Loyalty/rewards program
+  "employee", // Employee discount
+  "price_match", // Price matching competitor
+  "negotiated", // Negotiated price (common in Afghan markets)
+]);
+
+// Discount Type - how the discount is calculated
+export const discountTypeEnum = pgEnum("discount_type", [
+  "percentage", // Percentage off
+  "fixed_amount", // Fixed amount off
+  "free_shipping", // Free shipping
+  "buy_x_get_y", // Buy X get Y free/discounted
+]);
+
+// Discount Scope - what the discount applies to
+export const discountScopeEnum = pgEnum("discount_scope", [
+  "order", // Entire order
+  "item", // Specific line items
+  "shipping", // Shipping charges only
+]);
+
+// Item Condition - condition of returned items
+export const itemConditionEnum = pgEnum("item_condition", [
+  "sellable", // Can be resold as new
+  "damaged", // Damaged, cannot resell as new
+  "defective", // Manufacturer defect
+  "missing", // Item not returned
+]);
+
+// Reservation Status - inventory reservation state
+export const reservationStatusEnum = pgEnum("reservation_status", [
+  "active", // Currently holding inventory
+  "committed", // Converted to order
+  "released", // Released back to stock
+  "expired", // Auto-released after timeout
+]);
+
+// Store Credit Source - where store credit originated
+export const storeCreditSourceEnum = pgEnum("store_credit_source", [
+  "refund", // From a refund
+  "gift_card", // Gift card purchase
+  "compensation", // Customer service compensation
+  "promotion", // Promotional credit
+  "loyalty", // Loyalty program reward
+]);
+
+// Order Event Category - for filtering events
+export const orderEventCategoryEnum = pgEnum("order_event_category", [
+  "order", // Order lifecycle events
+  "payment", // Payment events
+  "fulfillment", // Fulfillment events
+  "refund", // Refund events
+  "discount", // Discount events
+  "note", // Notes/comments
 ]);
 
 // ============================================================================
@@ -350,6 +529,15 @@ export const deliveryPayoutStatusEnum = pgEnum("delivery_payout_status", [
   "completed",
   "failed",
   "cancelled",
+]);
+
+// Store transfer request status
+export const transferRequestStatusEnum = pgEnum("transfer_request_status", [
+  "pending", // Waiting for new owner to respond
+  "accepted", // Transfer completed
+  "rejected", // New owner declined
+  "cancelled", // Current owner cancelled
+  "expired", // 7 days passed without response
 ]);
 
 // ============================================================================
@@ -558,6 +746,9 @@ export const tenants = pgTable(
       .default(true)
       .notNull(),
     posEnabled: boolean("pos_enabled").default(true).notNull(),
+    posScannerMode: varchar("pos_scanner_mode", { length: 10 })
+      .default("camera")
+      .notNull(), // 'camera' (phone) or 'usb' (external scanner)
     phoneOrdersEnabled: boolean("phone_orders_enabled").default(true).notNull(),
 
     // Receipt Settings
@@ -701,6 +892,67 @@ export const tenantMembers = pgTable(
 );
 
 // ============================================================================
+// STORE TRANSFER REQUESTS (Ownership transfer requests)
+// ============================================================================
+// Tracks ownership transfer requests between users.
+// Flow: Current owner initiates → New owner accepts/rejects → Transfer executes
+// Requests expire after 7 days if not responded to.
+export const storeTransferRequests = pgTable(
+  "store_transfer_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    // Store being transferred
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Current owner initiating the transfer
+    fromUserId: text("from_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // New owner receiving the transfer
+    toUserId: text("to_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // Transfer status
+    status: transferRequestStatusEnum("status").default("pending").notNull(),
+
+    // Optional message from current owner explaining the transfer
+    message: text("message"),
+
+    // Expiration date (7 days from creation)
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    // Timestamps
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    respondedAt: timestamp("responded_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+  },
+  (table) => [
+    // Only one pending request per store at a time
+    uniqueIndex("store_transfer_pending_idx")
+      .on(table.tenantId)
+      .where(sql`status = 'pending'`),
+    // Find all pending requests for a user (as recipient)
+    index("store_transfer_to_user_idx").on(table.toUserId, table.status),
+    // Find pending requests that need expiration
+    index("store_transfer_expires_idx")
+      .on(table.expiresAt)
+      .where(sql`status = 'pending'`),
+  ]
+);
+
+// ============================================================================
 // PUSH SUBSCRIPTIONS (Browser push notification subscriptions)
 // ============================================================================
 // Stores Web Push API subscriptions per user per tenant.
@@ -807,6 +1059,230 @@ export const onboardingChecklists = pgTable(
       .notNull(),
   },
   (table) => [index("onboarding_checklists_tenant_id_idx").on(table.tenantId)]
+);
+
+// ============================================================================
+// NOTIFICATION PREFERENCES (User & Store-level notification settings)
+// ============================================================================
+// Enterprise-grade notification system with granular preferences:
+// - Global user preferences (quiet hours, channel defaults)
+// - Per-store preferences for owners/staff (override globals per store)
+// - Customer notification preferences (order updates, marketing)
+// - Notification history/feed for in-app notification center
+
+// Notification event types for type safety
+export const notificationEventTypes = [
+  // Store owner/staff events
+  "new_order",
+  "order_cancelled",
+  "low_stock",
+  "out_of_stock",
+  "new_review",
+  "payment_received",
+  "refund_processed",
+  "daily_summary",
+  // Customer events
+  "order_confirmed",
+  "order_shipped",
+  "out_for_delivery",
+  "order_delivered",
+  "back_in_stock",
+  "price_drop",
+  "review_reminder",
+  // Store transfer events
+  "store_transfer_request", // Sent to new owner when transfer initiated
+  "store_transfer_accepted", // Sent to old owner when accepted
+  "store_transfer_rejected", // Sent to old owner when rejected
+  "store_transfer_cancelled", // Sent to new owner when cancelled
+  "store_transfer_expired", // Sent to both parties when expired
+] as const;
+
+export type NotificationEventType = (typeof notificationEventTypes)[number];
+
+// User global notification preferences (defaults applied across all stores)
+export const userNotificationPreferences = pgTable(
+  "user_notification_preferences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // Quiet hours (do not disturb)
+    quietHoursEnabled: boolean("quiet_hours_enabled").default(false).notNull(),
+    quietHoursStart: time("quiet_hours_start"), // e.g., '22:00'
+    quietHoursEnd: time("quiet_hours_end"), // e.g., '08:00'
+    timezone: varchar("timezone", { length: 50 }).default("Asia/Kabul"),
+
+    // Default channel preferences (can be overridden per store)
+    inAppEnabled: boolean("in_app_enabled").default(true).notNull(),
+    pushEnabled: boolean("push_enabled").default(true).notNull(),
+    emailEnabled: boolean("email_enabled").default(true).notNull(),
+    smsEnabled: boolean("sms_enabled").default(false).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  }
+);
+
+// Store-specific notification preferences for owners/staff
+// Overrides userNotificationPreferences for a specific store
+export type StoreEventPreferences = Partial<
+  Record<
+    NotificationEventType,
+    {
+      inApp?: boolean;
+      push?: boolean;
+      email?: boolean;
+    }
+  >
+>;
+
+export const storeNotificationPreferences = pgTable(
+  "store_notification_preferences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Master switch for this store's notifications
+    notificationsEnabled: boolean("notifications_enabled")
+      .default(true)
+      .notNull(),
+
+    // Event-specific preferences (JSON for flexibility)
+    // Example: { "new_order": { "push": true, "email": false } }
+    eventPreferences: jsonb("event_preferences")
+      .$type<StoreEventPreferences>()
+      .default({}),
+
+    // Digest preferences (batch notifications)
+    digestEnabled: boolean("digest_enabled").default(false).notNull(),
+    digestFrequency: varchar("digest_frequency", { length: 20 }).default(
+      "daily"
+    ), // 'hourly', 'daily', 'weekly'
+    digestTime: time("digest_time").default("09:00"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("store_notification_prefs_user_tenant_idx").on(
+      table.userId,
+      table.tenantId
+    ),
+    index("store_notification_prefs_tenant_idx").on(table.tenantId),
+  ]
+);
+
+// Customer notification preferences per store
+export const customerNotificationPreferences = pgTable(
+  "customer_notification_preferences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Order update channels
+    orderUpdatesPush: boolean("order_updates_push").default(true).notNull(),
+    orderUpdatesEmail: boolean("order_updates_email").default(true).notNull(),
+    orderUpdatesSms: boolean("order_updates_sms").default(false).notNull(),
+
+    // Promotional/marketing notifications
+    promotionalPush: boolean("promotional_push").default(false).notNull(),
+    promotionalEmail: boolean("promotional_email").default(false).notNull(),
+
+    // Product alerts
+    backInStockEnabled: boolean("back_in_stock_enabled")
+      .default(true)
+      .notNull(),
+    priceDropEnabled: boolean("price_drop_enabled").default(true).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("customer_notification_prefs_user_tenant_idx").on(
+      table.userId,
+      table.tenantId
+    ),
+    index("customer_notification_prefs_tenant_idx").on(table.tenantId),
+  ]
+);
+
+// Notification history/feed for in-app display
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    // Recipient
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id").references(() => tenants.id, {
+      onDelete: "cascade",
+    }), // NULL for platform-level notifications
+
+    // Content
+    type: varchar("type", { length: 50 }).notNull(), // Event type
+    title: varchar("title", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    data: jsonb("data").$type<Record<string, unknown>>().default({}), // Additional payload (order_id, etc.)
+
+    // Actions
+    actionUrl: text("action_url"), // Where to navigate on click
+    actionLabel: varchar("action_label", { length: 50 }), // Button text
+
+    // Avatar/icon (optional)
+    avatarUrl: text("avatar_url"), // e.g., customer avatar, product image
+
+    // State
+    readAt: timestamp("read_at", { withTimezone: true, mode: "string" }),
+    archivedAt: timestamp("archived_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // Delivery tracking
+    channelsSent: jsonb("channels_sent").$type<string[]>().default([]), // ['in_app', 'push', 'email']
+
+    // Novu integration
+    novuMessageId: varchar("novu_message_id", { length: 100 }), // For syncing with Novu
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Unread notifications for a user
+    index("notifications_user_unread_idx").on(table.userId, table.readAt),
+    // Notifications per tenant
+    index("notifications_tenant_idx").on(table.tenantId),
+    // Recent notifications
+    index("notifications_created_at_idx").on(table.createdAt),
+  ]
 );
 
 // ============================================================================
@@ -1014,6 +1490,10 @@ export const products = pgTable(
     // Variant configuration
     hasVariants: boolean("has_variants").default(false).notNull(),
 
+    // Identification (for simple products without variants)
+    sku: varchar("sku", { length: 100 }), // Internal stock keeping unit
+    barcode: varchar("barcode", { length: 50 }), // UPC/EAN/custom barcode for scanning
+
     // Inventory settings
     trackInventory: boolean("track_inventory").default(true).notNull(),
     allowBackorder: boolean("allow_backorder").default(false).notNull(),
@@ -1030,6 +1510,10 @@ export const products = pgTable(
     // Display & status
     displayOrder: integer("display_order").default(0).notNull(),
     status: productStatusEnum("status").default("draft").notNull(),
+
+    // Channel visibility (where the product can be sold)
+    showOnStorefront: boolean("show_on_storefront").default(true).notNull(),
+    showOnPos: boolean("show_on_pos").default(true).notNull(),
 
     // Publishing timestamps
     publishedAt: timestamp("published_at", {
@@ -1053,6 +1537,8 @@ export const products = pgTable(
     index("products_tenant_status_idx").on(table.tenantId, table.status),
     index("products_category_id_idx").on(table.categoryId),
     index("products_published_at_idx").on(table.publishedAt),
+    index("products_tenant_sku_idx").on(table.tenantId, table.sku),
+    index("products_tenant_barcode_idx").on(table.tenantId, table.barcode),
   ]
 );
 
@@ -1180,6 +1666,9 @@ export const variantOptionValues = pgTable(
       .references(() => variantOptions.id, { onDelete: "cascade" }),
     value: varchar("value", { length: 100 }).notNull(), // "S", "M", "L", "Red", "Blue"
     displayOrder: integer("display_order").default(0).notNull(),
+    // Swatch configuration for visual display
+    swatchType: swatchTypeEnum("swatch_type").default("text").notNull(),
+    swatchValue: varchar("swatch_value", { length: 255 }), // Hex color (#FF5733) or media_id for image
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1207,6 +1696,7 @@ export const productVariants = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     sku: varchar("sku", { length: 100 }),
+    barcode: varchar("barcode", { length: 50 }), // UPC/EAN/custom barcode for scanning
     displayName: varchar("display_name", { length: 255 }), // "Blue / XL"
     price: decimal("price", { precision: 12, scale: 2 }), // null = use product price
     compareAtPrice: decimal("compare_at_price", { precision: 12, scale: 2 }), // Original price for sale display
@@ -1238,6 +1728,10 @@ export const productVariants = pgTable(
       table.sku
     ),
     index("product_variants_product_id_idx").on(table.productId),
+    index("product_variants_tenant_barcode_idx").on(
+      table.tenantId,
+      table.barcode
+    ),
   ]
 );
 
@@ -1268,6 +1762,42 @@ export const productVariantImages = pgTable(
       table.variantId,
       table.mediaId
     ),
+  ]
+);
+
+// ============================================================================
+// OPTION VALUE IMAGES (Maps option values to their filter images)
+// When customer selects "Blue" color, gallery shows blue product images
+// ============================================================================
+export const optionValueImages = pgTable(
+  "option_value_images",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    optionValueId: uuid("option_value_id")
+      .notNull()
+      .references(() => variantOptionValues.id, { onDelete: "cascade" }),
+    mediaId: uuid("media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "cascade" }),
+    position: integer("position").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("option_value_images_product_value_media_idx").on(
+      table.productId,
+      table.optionValueId,
+      table.mediaId
+    ),
+    index("option_value_images_product_idx").on(table.productId),
+    index("option_value_images_option_value_idx").on(table.optionValueId),
   ]
 );
 
@@ -1777,7 +2307,7 @@ export const cartItems = pgTable(
 );
 
 // ============================================================================
-// ORDERS (Tenant-isolated)
+// ORDERS (Tenant-isolated) - Unified Commerce Model
 // ============================================================================
 export const orders = pgTable(
   "orders",
@@ -1790,6 +2320,15 @@ export const orders = pgTable(
     // Human-readable order number (e.g., "KM-2025-000001")
     orderNumber: varchar("order_number", { length: 30 }).notNull(),
 
+    // ========== CHANNEL & FULFILLMENT ==========
+    // Where the order originated (online, pos, phone)
+    channel: orderChannelEnum("channel").default("online").notNull(),
+    // How the order is fulfilled (shipping, pickup, instant, local_delivery, curbside)
+    fulfillmentType: fulfillmentTypeEnum("fulfillment_type")
+      .default("shipping")
+      .notNull(),
+
+    // ========== CUSTOMER ==========
     // Link to platform user (nullable for guest checkout)
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
 
@@ -1806,41 +2345,155 @@ export const orders = pgTable(
       .$type<CustomerSnapshot>()
       .notNull(),
 
-    // Structured addresses (shippingAddress nullable for offline sales)
+    // ========== ADDRESSES ==========
+    // Structured addresses (shippingAddress nullable for POS/instant sales)
     shippingAddress: jsonb("shipping_address").$type<Address>(),
     billingAddress: jsonb("billing_address").$type<Address>(),
 
-    // Financial breakdown
-    subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
-    shippingTotal: decimal("shipping_total", { precision: 12, scale: 2 })
+    // ========== FINANCIAL BREAKDOWN (Enhanced) ==========
+    // Original item subtotal (before any discounts)
+    subtotal: decimal("subtotal", { precision: 14, scale: 2 }).notNull(),
+
+    // Shipping & handling
+    shippingTotal: decimal("shipping_total", { precision: 14, scale: 2 })
       .default("0")
       .notNull(),
-    taxTotal: decimal("tax_total", { precision: 12, scale: 2 })
+
+    // Tax
+    taxTotal: decimal("tax_total", { precision: 14, scale: 2 })
       .default("0")
       .notNull(),
-    discountTotal: decimal("discount_total", { precision: 12, scale: 2 })
+
+    // Discount breakdown (for analytics and audit)
+    itemDiscountsTotal: decimal("item_discounts_total", {
+      precision: 14,
+      scale: 2,
+    })
       .default("0")
       .notNull(),
-    total: decimal("total", { precision: 12, scale: 2 }).notNull(),
+    orderDiscountsTotal: decimal("order_discounts_total", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
+    shippingDiscountsTotal: decimal("shipping_discounts_total", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
+    manualDiscountsTotal: decimal("manual_discounts_total", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0")
+      .notNull(),
 
-    // Status
-    status: orderStatusEnum("status").default("pending").notNull(),
+    // Legacy discount total (sum of all discounts, kept for compatibility)
+    discountTotal: decimal("discount_total", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
 
-    // Sales channel (online, offline, phone)
-    salesChannel: salesChannelEnum("sales_channel").default("online").notNull(),
+    // Surcharges (COD fee, handling, etc.)
+    surchargesTotal: decimal("surcharges_total", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
 
-    // Payment tracking (primarily for offline sales)
+    // Gratuity (tip for delivery/service)
+    tipAmount: decimal("tip_amount", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    // Final total (subtotal - discounts + shipping + tax + surcharges + tip)
+    total: decimal("total", { precision: 14, scale: 2 }).notNull(),
+
+    // Currency (ISO 4217 code)
+    currencyCode: varchar("currency_code", { length: 3 })
+      .default("AFN")
+      .notNull(),
+
+    // ========== PAYMENT TRACKING (Enhanced) ==========
+    // Total amount paid so far
+    amountPaid: decimal("amount_paid", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    // Total amount refunded
+    amountRefunded: decimal("amount_refunded", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    // Computed: total - amountPaid + amountRefunded (stored for query performance)
+    // Note: This needs to be maintained by application logic
+    amountDue: decimal("amount_due", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    // Payment status (derived from amounts)
+    paymentStatus: paymentStatusEnum("payment_status")
+      .default("unpaid")
+      .notNull(),
+
+    // Legacy payment fields (kept for backward compatibility)
     paymentMethod: paymentMethodEnum("payment_method"),
     isPaid: boolean("is_paid").default(false).notNull(),
     paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
 
-    // Receipt number for offline sales (e.g., "RCP-2025-000001")
+    // ========== STATUS ==========
+    status: orderStatusEnum("status").default("pending").notNull(),
+
+    // ========== POS SPECIFIC ==========
+    // POS terminal/register identifier
+    registerId: varchar("register_id", { length: 50 }),
+    // Staff member who processed the sale
+    cashierId: text("cashier_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    // Receipt number for offline/POS sales (e.g., "RCP-2025-000001")
     receiptNumber: varchar("receipt_number", { length: 30 }),
 
-    // Notes
+    // ========== LIFECYCLE TIMESTAMPS ==========
+    // When the order was placed (different from createdAt for draft orders)
+    placedAt: timestamp("placed_at", { withTimezone: true, mode: "string" }),
+    // When the order was confirmed
+    confirmedAt: timestamp("confirmed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    // When the order was completed/delivered
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    // When the order was cancelled
+    cancelledAt: timestamp("cancelled_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // ========== NOTES ==========
     customerNotes: text("customer_notes"),
     staffNotes: text("staff_notes"),
+    cancellationReason: text("cancellation_reason"),
 
+    // ========== METADATA & TRACKING ==========
+    // Client IP for fraud detection
+    sourceIp: varchar("source_ip", { length: 45 }), // IPv6 max length
+    // User agent string
+    userAgent: text("user_agent"),
+    // Idempotency key for duplicate prevention
+    idempotencyKey: varchar("idempotency_key", { length: 64 }),
+    // Extensible metadata
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+
+    // ========== VERSIONING & SOFT DELETE ==========
+    // Optimistic locking version
+    version: integer("version").default(1).notNull(),
+    // Soft delete timestamp
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
+
+    // ========== TIMESTAMPS ==========
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1854,6 +2507,10 @@ export const orders = pgTable(
       table.tenantId,
       table.orderNumber
     ),
+    // Idempotency key unique per tenant
+    uniqueIndex("orders_tenant_idempotency_idx")
+      .on(table.tenantId, table.idempotencyKey)
+      .where(sql`idempotency_key IS NOT NULL`),
     // Order history queries
     index("orders_tenant_created_idx").on(table.tenantId, table.createdAt),
     // Status filtering
@@ -1862,14 +2519,46 @@ export const orders = pgTable(
     index("orders_user_id_idx").on(table.userId),
     // Store customer orders
     index("orders_store_customer_id_idx").on(table.storeCustomerId),
-    // Sales channel filtering (online/offline/phone)
-    index("orders_tenant_channel_idx").on(table.tenantId, table.salesChannel),
+    // Channel filtering
+    index("orders_tenant_channel_idx").on(table.tenantId, table.channel),
+    // Payment status filtering
+    index("orders_tenant_payment_status_idx").on(
+      table.tenantId,
+      table.paymentStatus
+    ),
+    // Placed date for reporting
+    index("orders_tenant_placed_idx")
+      .on(table.tenantId, table.placedAt)
+      .where(sql`placed_at IS NOT NULL`),
+    // Soft delete filtering
+    index("orders_tenant_active_idx")
+      .on(table.tenantId, table.status, table.createdAt)
+      .where(sql`deleted_at IS NULL`),
+    // Amount validation
+    check("orders_amount_paid_positive", sql`amount_paid >= 0`),
+    check(
+      "orders_amount_refunded_valid",
+      sql`amount_refunded >= 0 AND amount_refunded <= amount_paid`
+    ),
+    check("orders_total_positive", sql`total >= 0`),
   ]
 );
 
 // ============================================================================
-// ORDER ITEMS
+// ORDER ITEMS (Enhanced with fulfillment tracking)
 // ============================================================================
+
+// Product snapshot structure for order items (immutable at time of purchase)
+export type ProductSnapshot = {
+  name: string;
+  sku?: string;
+  variantName?: string;
+  imageUrl?: string;
+  attributes?: Record<string, string>; // e.g., { "Size": "M", "Color": "Blue" }
+  weight?: number; // Weight in grams
+  weightUnit?: "g" | "kg" | "lb" | "oz";
+};
+
 export const orderItems = pgTable(
   "order_items",
   {
@@ -1877,30 +2566,102 @@ export const orderItems = pgTable(
     orderId: uuid("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
-    productId: uuid("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "restrict" }),
-    variantId: uuid("variant_id").references(() => productVariants.id, {
-      onDelete: "restrict",
+
+    // Product reference (nullable if product deleted, but snapshot preserved)
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "set null",
     }),
-    // Snapshot of product info at time of purchase
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "set null",
+    }),
+
+    // ========== SNAPSHOT (Immutable at time of purchase) ==========
+    // Full product snapshot as JSON (new, preferred)
+    productSnapshot: jsonb("product_snapshot").$type<ProductSnapshot>(),
+
+    // Legacy individual fields (kept for backward compatibility)
     productName: varchar("product_name", { length: 255 }).notNull(),
     variantName: varchar("variant_name", { length: 255 }),
     sku: varchar("sku", { length: 100 }),
-    price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+
+    // ========== PRICING ==========
+    // Unit price at time of purchase
+    unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+    // Original price before any discounts (for showing savings)
+    compareAtPrice: decimal("compare_at_price", { precision: 12, scale: 2 }),
+    // Quantity ordered
     quantity: integer("quantity").notNull(),
+
+    // Legacy price field (kept for backward compatibility, same as unitPrice)
+    price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+
+    // ========== LINE TOTALS ==========
+    // Line subtotal (unitPrice × quantity)
+    lineSubtotal: decimal("line_subtotal", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Discount applied to this line item
+    discountAmount: decimal("discount_amount", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Tax for this line item
+    taxAmount: decimal("tax_amount", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Final line total (lineSubtotal - discountAmount + taxAmount)
+    lineTotal: decimal("line_total", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    // ========== TAX DETAILS ==========
+    // Tax rate applied (e.g., 0.05 for 5%)
+    taxRate: decimal("tax_rate", { precision: 5, scale: 4 }).default("0"),
+    // Tax code for reporting
+    taxCode: varchar("tax_code", { length: 20 }),
+
+    // ========== FULFILLMENT TRACKING ==========
+    // How many units have been fulfilled/shipped
+    quantityFulfilled: integer("quantity_fulfilled").default(0).notNull(),
+    // How many units have been refunded
+    quantityRefunded: integer("quantity_refunded").default(0).notNull(),
+    // Fulfillment status for this line item
+    fulfillmentStatus: varchar("fulfillment_status", { length: 20 })
+      .default("unfulfilled")
+      .notNull(), // unfulfilled, partial, fulfilled
+
+    // ========== NOTES ==========
+    // Special instructions for this item
+    notes: text("notes"),
+
+    // ========== METADATA ==========
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
   },
   (table) => [
     index("order_items_order_id_idx").on(table.orderId),
+    index("order_items_product_id_idx").on(table.productId),
+    index("order_items_variant_id_idx").on(table.variantId),
     check("order_items_quantity_check", sql`quantity > 0`),
+    check(
+      "order_items_fulfillment_valid",
+      sql`quantity_fulfilled >= 0 AND quantity_fulfilled <= quantity`
+    ),
+    check(
+      "order_items_refund_valid",
+      sql`quantity_refunded >= 0 AND quantity_refunded <= quantity`
+    ),
   ]
 );
 
 // ============================================================================
-// ORDER PAYMENTS (Track partial payments for credit/unpaid orders)
+// ORDER PAYMENTS (Legacy - Track partial payments for credit/unpaid orders)
+// NOTE: Use order_transactions for new implementations
 // ============================================================================
 export const orderPayments = pgTable(
   "order_payments",
@@ -1926,6 +2687,774 @@ export const orderPayments = pgTable(
   (table) => [
     index("order_payments_order_id_idx").on(table.orderId),
     check("order_payments_amount_check", sql`amount > 0`),
+  ]
+);
+
+// ============================================================================
+// ORDER TRANSACTIONS (Unified Commerce - Multi-tender payments, refunds, adjustments)
+// ============================================================================
+export const orderTransactions = pgTable(
+  "order_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // ========== TRANSACTION TYPE & AMOUNT ==========
+    // Type of transaction
+    type: transactionTypeEnum("type").notNull(),
+    // Amount (positive for payments, can be negative for adjustments)
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+    // Currency
+    currencyCode: varchar("currency_code", { length: 3 })
+      .default("AFN")
+      .notNull(),
+
+    // ========== PAYMENT METHOD ==========
+    paymentMethod: paymentMethodEnum("payment_method").notNull(),
+
+    // ========== STATUS ==========
+    status: transactionStatusEnum("status").default("pending").notNull(),
+
+    // ========== GATEWAY DETAILS (for card/digital payments) ==========
+    // Payment gateway used
+    gateway: varchar("gateway", { length: 50 }),
+    // Gateway's transaction ID
+    gatewayTransactionId: varchar("gateway_transaction_id", { length: 100 }),
+    // Full gateway response (for debugging)
+    gatewayResponse: jsonb("gateway_response").$type<Record<string, unknown>>(),
+
+    // ========== CARD DETAILS (tokenized, no sensitive data) ==========
+    cardLastFour: varchar("card_last_four", { length: 4 }),
+    cardBrand: varchar("card_brand", { length: 20 }), // visa, mastercard, etc.
+
+    // ========== REFUND SPECIFIC ==========
+    // Link to original payment transaction (for refunds)
+    parentTransactionId: uuid("parent_transaction_id"),
+    // Link to refund record (if this is a refund transaction)
+    refundId: uuid("refund_id"),
+
+    // ========== CASH HANDLING ==========
+    // Amount of cash received (for calculating change)
+    cashReceived: decimal("cash_received", { precision: 14, scale: 2 }),
+    // Change given back to customer
+    cashChange: decimal("cash_change", { precision: 14, scale: 2 }),
+
+    // ========== AUTHORIZATION ==========
+    // Staff who recorded the transaction
+    recordedBy: text("recorded_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    // Manager who authorized (for large transactions)
+    authorizedBy: text("authorized_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+
+    // ========== IDEMPOTENCY ==========
+    idempotencyKey: varchar("idempotency_key", { length: 64 }),
+
+    // ========== TIMESTAMPS ==========
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // ========== NOTES ==========
+    notes: text("notes"),
+    internalNotes: text("internal_notes"),
+
+    // ========== METADATA ==========
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("order_transactions_order_id_idx").on(table.orderId),
+    index("order_transactions_tenant_id_idx").on(table.tenantId),
+    index("order_transactions_type_idx").on(table.type),
+    index("order_transactions_status_idx").on(table.status),
+    index("order_transactions_parent_idx").on(table.parentTransactionId),
+    index("order_transactions_refund_idx").on(table.refundId),
+    uniqueIndex("order_transactions_idempotency_idx")
+      .on(table.tenantId, table.idempotencyKey)
+      .where(sql`idempotency_key IS NOT NULL`),
+  ]
+);
+
+// ============================================================================
+// REFUNDS (Unified Commerce - Full refund workflow)
+// ============================================================================
+export const refunds = pgTable(
+  "refunds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // ========== REFUND NUMBER ==========
+    // Human-readable refund number (e.g., "REF-2026-000001")
+    refundNumber: varchar("refund_number", { length: 30 }).notNull(),
+
+    // ========== TYPE & STATUS ==========
+    type: refundTypeEnum("type").notNull(),
+    status: refundStatusEnum("status").default("pending").notNull(),
+
+    // ========== AMOUNTS ==========
+    // Subtotal of items being refunded
+    subtotal: decimal("subtotal", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Shipping refund amount
+    shippingRefund: decimal("shipping_refund", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Tax refund amount
+    taxRefund: decimal("tax_refund", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Restocking fee deducted
+    restockingFee: decimal("restocking_fee", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Total refund amount (subtotal + shipping + tax - restockingFee)
+    totalAmount: decimal("total_amount", { precision: 14, scale: 2 }).notNull(),
+    // Currency
+    currencyCode: varchar("currency_code", { length: 3 })
+      .default("AFN")
+      .notNull(),
+
+    // ========== REFUND METHOD ==========
+    // How the refund will be issued
+    refundMethod: varchar("refund_method", { length: 30 }).notNull(), // original_payment, cash, store_credit, exchange
+
+    // ========== REASON ==========
+    reasonCode: refundReasonEnum("reason_code").notNull(),
+    reasonDetails: text("reason_details"),
+
+    // ========== CUSTOMER COMMUNICATION ==========
+    customerNotes: text("customer_notes"),
+
+    // ========== STAFF PROCESSING ==========
+    // Who requested the refund (can be customer or staff)
+    requestedBy: text("requested_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    // Manager who approved
+    approvedBy: text("approved_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    // Staff who processed
+    processedBy: text("processed_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    // Staff who rejected
+    rejectedBy: text("rejected_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+
+    // ========== TIMESTAMPS ==========
+    requestedAt: timestamp("requested_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .defaultNow()
+      .notNull(),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    rejectedAt: timestamp("rejected_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // ========== REJECTION ==========
+    rejectionReason: text("rejection_reason"),
+
+    // ========== STORE CREDIT ==========
+    // If refund issued as store credit, link to the credit record
+    storeCreditId: uuid("store_credit_id"),
+
+    // ========== NOTES ==========
+    internalNotes: text("internal_notes"),
+
+    // ========== METADATA ==========
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("refunds_tenant_number_idx").on(
+      table.tenantId,
+      table.refundNumber
+    ),
+    index("refunds_order_id_idx").on(table.orderId),
+    index("refunds_tenant_id_idx").on(table.tenantId),
+    index("refunds_status_idx").on(table.status),
+    index("refunds_requested_at_idx").on(table.requestedAt),
+    check("refunds_total_positive", sql`total_amount >= 0`),
+  ]
+);
+
+// ============================================================================
+// REFUND ITEMS (Items included in a refund)
+// ============================================================================
+export const refundItems = pgTable(
+  "refund_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    refundId: uuid("refund_id")
+      .notNull()
+      .references(() => refunds.id, { onDelete: "cascade" }),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "restrict" }),
+
+    // ========== QUANTITIES ==========
+    // How many units being refunded
+    quantity: integer("quantity").notNull(),
+
+    // ========== AMOUNTS ==========
+    // Refund amount per unit
+    unitRefundAmount: decimal("unit_refund_amount", {
+      precision: 12,
+      scale: 2,
+    }).notNull(),
+    // Total refund for this line (unitRefundAmount × quantity)
+    totalRefundAmount: decimal("total_refund_amount", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+
+    // ========== ITEM CONDITION ==========
+    // Condition of returned item
+    condition: itemConditionEnum("condition").default("sellable").notNull(),
+
+    // ========== INVENTORY ==========
+    // Should this item go back to inventory?
+    restock: boolean("restock").default(true).notNull(),
+    // Specific location to restock to
+    restockLocation: varchar("restock_location", { length: 100 }),
+    // When the item was restocked
+    restockedAt: timestamp("restocked_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // ========== NOTES ==========
+    // Condition notes, damage description
+    notes: text("notes"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("refund_items_refund_id_idx").on(table.refundId),
+    index("refund_items_order_item_id_idx").on(table.orderItemId),
+    check("refund_items_quantity_positive", sql`quantity > 0`),
+  ]
+);
+
+// ============================================================================
+// COUPONS (Promo codes and discounts)
+// ============================================================================
+export const coupons = pgTable(
+  "coupons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // ========== CODE & NAME ==========
+    // The coupon code (e.g., "SAVE20", "FREESHIP")
+    code: varchar("code", { length: 50 }).notNull(),
+    // Human-readable name
+    name: varchar("name", { length: 100 }).notNull(),
+    // Description
+    description: text("description"),
+
+    // ========== TYPE & VALUE ==========
+    // How the discount is calculated
+    type: discountTypeEnum("type").notNull(),
+    // Discount value (percentage or fixed amount)
+    value: decimal("value", { precision: 12, scale: 2 }).notNull(),
+
+    // ========== SCOPE ==========
+    // What the discount applies to
+    scope: discountScopeEnum("scope").default("order").notNull(),
+
+    // ========== LIMITS ==========
+    // Minimum order amount to apply coupon
+    minimumOrderAmount: decimal("minimum_order_amount", {
+      precision: 14,
+      scale: 2,
+    }),
+    // Maximum discount amount (cap)
+    maximumDiscountAmount: decimal("maximum_discount_amount", {
+      precision: 14,
+      scale: 2,
+    }),
+
+    // ========== USAGE LIMITS ==========
+    // Total uses allowed (null = unlimited)
+    usageLimit: integer("usage_limit"),
+    // Uses per customer (null = unlimited)
+    usageLimitPerCustomer: integer("usage_limit_per_customer"),
+    // Current usage count
+    usageCount: integer("usage_count").default(0).notNull(),
+
+    // ========== VALIDITY ==========
+    // When the coupon becomes active
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    // When the coupon expires (null = never)
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+
+    // ========== RESTRICTIONS ==========
+    // Product IDs this coupon applies to (null = all)
+    eligibleProducts: jsonb("eligible_products").$type<string[]>(),
+    // Category IDs this coupon applies to (null = all)
+    eligibleCategories: jsonb("eligible_categories").$type<string[]>(),
+    // Customer group IDs this coupon applies to (null = all)
+    eligibleCustomerGroups: jsonb("eligible_customer_groups").$type<string[]>(),
+    // Products that cannot use this coupon
+    excludedProducts: jsonb("excluded_products").$type<string[]>(),
+    // Only for first-time customers
+    firstOrderOnly: boolean("first_order_only").default(false).notNull(),
+
+    // ========== COMBINATION RULES ==========
+    // Can this coupon be combined with other coupons?
+    combinable: boolean("combinable").default(false).notNull(),
+
+    // ========== STATUS ==========
+    isActive: boolean("is_active").default(true).notNull(),
+
+    // ========== METADATA ==========
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    uniqueIndex("coupons_tenant_code_idx").on(table.tenantId, table.code),
+    index("coupons_tenant_active_idx").on(
+      table.tenantId,
+      table.isActive,
+      table.startsAt,
+      table.expiresAt
+    ),
+    check("coupons_value_positive", sql`value > 0`),
+  ]
+);
+
+// ============================================================================
+// COUPON USAGES (Track coupon redemptions)
+// ============================================================================
+export const couponUsages = pgTable(
+  "coupon_usages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    couponId: uuid("coupon_id")
+      .notNull()
+      .references(() => coupons.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    // Customer who used the coupon (null for guest checkout)
+    customerId: uuid("customer_id").references(() => storeCustomers.id, {
+      onDelete: "set null",
+    }),
+
+    // Amount actually discounted
+    discountAmount: decimal("discount_amount", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("coupon_usages_coupon_order_idx").on(
+      table.couponId,
+      table.orderId
+    ),
+    index("coupon_usages_coupon_id_idx").on(table.couponId),
+    index("coupon_usages_customer_id_idx").on(table.customerId),
+  ]
+);
+
+// ============================================================================
+// ORDER DISCOUNTS (Applied discounts on orders - audit trail)
+// ============================================================================
+export const orderDiscounts = pgTable(
+  "order_discounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    // If discount applies to specific line item (null = order-level)
+    orderItemId: uuid("order_item_id").references(() => orderItems.id, {
+      onDelete: "cascade",
+    }),
+
+    // ========== SOURCE ==========
+    // Where the discount came from
+    source: discountSourceEnum("source").notNull(),
+    // Link to coupon if from coupon
+    couponId: uuid("coupon_id").references(() => coupons.id, {
+      onDelete: "set null",
+    }),
+
+    // ========== TYPE & SCOPE ==========
+    type: discountTypeEnum("type").notNull(),
+    scope: discountScopeEnum("scope").notNull(),
+
+    // ========== VALUE ==========
+    // Original value (percentage or fixed)
+    value: decimal("value", { precision: 12, scale: 2 }).notNull(),
+    // Actual amount discounted
+    appliedAmount: decimal("applied_amount", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+
+    // ========== DESCRIPTION ==========
+    // Display title (e.g., "20% Off Coupon", "Manager Discount")
+    title: varchar("title", { length: 100 }).notNull(),
+    description: text("description"),
+
+    // ========== MANUAL DISCOUNT AUTHORIZATION ==========
+    // Who authorized the discount (for manual discounts)
+    authorizedBy: text("authorized_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    // Reason for the discount
+    authorizationReason: text("authorization_reason"),
+
+    // ========== METADATA ==========
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("order_discounts_order_id_idx").on(table.orderId),
+    index("order_discounts_coupon_id_idx").on(table.couponId),
+  ]
+);
+
+// ============================================================================
+// ORDER EVENTS (Event sourcing / audit trail)
+// ============================================================================
+export const orderEvents = pgTable(
+  "order_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // ========== EVENT TYPE ==========
+    // Event type (e.g., "order.created", "payment.received", "refund.completed")
+    eventType: varchar("event_type", { length: 50 }).notNull(),
+    // Category for filtering
+    eventCategory: orderEventCategoryEnum("event_category"),
+
+    // ========== ACTOR ==========
+    // Who/what triggered the event
+    actorType: varchar("actor_type", { length: 20 }).notNull(), // customer, staff, system, webhook
+    // User ID if applicable
+    actorId: text("actor_id"),
+    // Name snapshot for display
+    actorName: varchar("actor_name", { length: 100 }),
+
+    // ========== EVENT DATA ==========
+    // Event-specific payload
+    data: jsonb("data").$type<Record<string, unknown>>().default({}).notNull(),
+
+    // ========== STATE SNAPSHOTS ==========
+    // State before the event (for reversibility)
+    previousState: jsonb("previous_state").$type<Record<string, unknown>>(),
+    // State after the event
+    newState: jsonb("new_state").$type<Record<string, unknown>>(),
+
+    // ========== IDEMPOTENCY ==========
+    idempotencyKey: varchar("idempotency_key", { length: 64 }),
+
+    // ========== TIMESTAMP ==========
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("order_events_order_id_idx").on(table.orderId, table.occurredAt),
+    index("order_events_tenant_idx").on(table.tenantId, table.occurredAt),
+    index("order_events_type_idx").on(table.eventType),
+    uniqueIndex("order_events_idempotency_idx")
+      .on(table.orderId, table.idempotencyKey)
+      .where(sql`idempotency_key IS NOT NULL`),
+  ]
+);
+
+// ============================================================================
+// ORDER INVOICE TOKENS (Shareable invoice links)
+// ============================================================================
+// Allows customers to share invoice links via WhatsApp, SMS, etc.
+// Token-based access without requiring authentication.
+export const orderInvoiceTokens = pgTable(
+  "order_invoice_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Secure random token (256-bit, URL-safe base64)
+    token: varchar("token", { length: 64 }).notNull().unique(),
+
+    // Optional expiration (null = never expires)
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+
+    // Access tracking
+    accessCount: integer("access_count").default(0).notNull(),
+    lastAccessedAt: timestamp("last_accessed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // Token metadata
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("order_invoice_tokens_order_id_idx").on(table.orderId),
+    index("order_invoice_tokens_tenant_id_idx").on(table.tenantId),
+    uniqueIndex("order_invoice_tokens_token_idx").on(table.token),
+  ]
+);
+
+// ============================================================================
+// INVENTORY RESERVATIONS (Prevent overselling)
+// ============================================================================
+export const inventoryReservations = pgTable(
+  "inventory_reservations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // ========== PRODUCT ==========
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "cascade",
+    }),
+
+    // ========== RESERVATION DETAILS ==========
+    // Quantity reserved
+    quantity: integer("quantity").notNull(),
+
+    // ========== SOURCE ==========
+    // What created this reservation
+    sourceType: varchar("source_type", { length: 20 }).notNull(), // cart, order, draft_order
+    // ID of the source (cart ID, order ID, etc.)
+    sourceId: uuid("source_id").notNull(),
+
+    // ========== STATUS ==========
+    status: reservationStatusEnum("status").default("active").notNull(),
+
+    // ========== EXPIRATION ==========
+    // When this reservation auto-releases
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    // ========== TIMESTAMPS ==========
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    // When reservation was committed to order
+    committedAt: timestamp("committed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    // When reservation was released
+    releasedAt: timestamp("released_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+  },
+  (table) => [
+    index("inventory_reservations_product_idx").on(
+      table.productId,
+      table.variantId
+    ),
+    index("inventory_reservations_source_idx").on(
+      table.sourceType,
+      table.sourceId
+    ),
+    index("inventory_reservations_expires_idx")
+      .on(table.expiresAt)
+      .where(sql`status = 'active'`),
+    index("inventory_reservations_tenant_idx").on(table.tenantId),
+    check("inventory_reservations_quantity_positive", sql`quantity > 0`),
+  ]
+);
+
+// ============================================================================
+// STORE CREDITS (Customer credit balances)
+// ============================================================================
+export const storeCredits = pgTable(
+  "store_credits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => storeCustomers.id, { onDelete: "cascade" }),
+
+    // ========== CODE ==========
+    // Unique code (e.g., "SC-XXXXXX")
+    code: varchar("code", { length: 20 }).notNull(),
+
+    // ========== BALANCE ==========
+    // Original amount issued
+    originalAmount: decimal("original_amount", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    // Current balance
+    balance: decimal("balance", { precision: 14, scale: 2 }).notNull(),
+    // Currency
+    currencyCode: varchar("currency_code", { length: 3 })
+      .default("AFN")
+      .notNull(),
+
+    // ========== SOURCE ==========
+    // Where this credit came from
+    sourceType: storeCreditSourceEnum("source_type").notNull(),
+    // Link to source (refund ID, etc.)
+    sourceId: uuid("source_id"),
+
+    // ========== VALIDITY ==========
+    // When the credit expires (null = never)
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+
+    // ========== STATUS ==========
+    isActive: boolean("is_active").default(true).notNull(),
+
+    // ========== NOTES ==========
+    notes: text("notes"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("store_credits_tenant_code_idx").on(table.tenantId, table.code),
+    index("store_credits_customer_idx").on(table.customerId),
+    index("store_credits_tenant_idx").on(table.tenantId),
+    check(
+      "store_credits_balance_valid",
+      sql`balance >= 0 AND balance <= original_amount`
+    ),
+  ]
+);
+
+// ============================================================================
+// STORE CREDIT TRANSACTIONS (Credit usage ledger)
+// ============================================================================
+export const storeCreditTransactions = pgTable(
+  "store_credit_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeCreditId: uuid("store_credit_id")
+      .notNull()
+      .references(() => storeCredits.id, { onDelete: "cascade" }),
+
+    // ========== TRANSACTION TYPE ==========
+    // credit = adding balance, debit = using balance
+    type: varchar("type", { length: 20 }).notNull(), // credit, debit, refund, expiry
+
+    // ========== AMOUNT ==========
+    // Positive for credit, negative for debit
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+
+    // ========== BALANCE AFTER ==========
+    // Balance after this transaction
+    balanceAfter: decimal("balance_after", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+
+    // ========== REFERENCE ==========
+    // Link to order if used for purchase
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+
+    // ========== NOTES ==========
+    notes: text("notes"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("store_credit_transactions_credit_id_idx").on(table.storeCreditId),
+    index("store_credit_transactions_order_id_idx").on(table.orderId),
   ]
 );
 
@@ -2289,6 +3818,13 @@ export const reviews = pgTable(
       .default(false)
       .notNull(),
 
+    // Edit tracking
+    isEdited: boolean("is_edited").default(false).notNull(),
+
+    // Helpful votes (denormalized for performance)
+    helpfulVotesUp: integer("helpful_votes_up").default(0).notNull(),
+    helpfulVotesDown: integer("helpful_votes_down").default(0).notNull(),
+
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -2301,6 +3837,10 @@ export const reviews = pgTable(
     uniqueIndex("reviews_order_product_idx").on(table.orderId, table.productId),
     index("reviews_product_id_idx").on(table.productId),
     index("reviews_user_id_idx").on(table.userId),
+    index("reviews_tenant_helpful_idx").on(
+      table.tenantId,
+      table.helpfulVotesUp
+    ), // For "most helpful" sorting
     check("reviews_rating_check", sql`rating >= 1 AND rating <= 5`),
   ]
 );
@@ -2332,6 +3872,104 @@ export const reviewMedia = pgTable(
       table.reviewId,
       table.mediaId
     ),
+  ]
+);
+
+// ============================================================================
+// REVIEW VOTES (Track who voted on reviews - prevents duplicates)
+// ============================================================================
+export const reviewVotes = pgTable(
+  "review_votes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    reviewId: uuid("review_id")
+      .notNull()
+      .references(() => reviews.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // Vote type: true = helpful (upvote), false = not helpful (downvote)
+    isHelpful: boolean("is_helpful").notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // One vote per user per review
+    uniqueIndex("review_votes_user_review_idx").on(
+      table.userId,
+      table.reviewId
+    ),
+    index("review_votes_review_id_idx").on(table.reviewId),
+  ]
+);
+
+// ============================================================================
+// REVIEW REQUESTS (Automated review solicitation tracking)
+// ============================================================================
+// Tracks automated emails sent to customers asking for reviews after delivery.
+// Helps measure effectiveness and prevents spam (one request per order item).
+export const reviewRequests = pgTable(
+  "review_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // Email tracking
+    email: varchar("email", { length: 255 }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "string" }),
+    reminderSentAt: timestamp("reminder_sent_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // Engagement tracking
+    clickedAt: timestamp("clicked_at", { withTimezone: true, mode: "string" }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    reviewId: uuid("review_id").references(() => reviews.id, {
+      onDelete: "set null",
+    }),
+
+    // Scheduling
+    scheduledFor: timestamp("scheduled_for", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // One request per order-product combination
+    uniqueIndex("review_requests_order_product_idx").on(
+      table.orderId,
+      table.productId
+    ),
+    index("review_requests_tenant_scheduled_idx").on(
+      table.tenantId,
+      table.scheduledFor
+    ),
+    index("review_requests_user_id_idx").on(table.userId),
   ]
 );
 
@@ -4285,6 +5923,145 @@ export const adminAuditLog = pgTable(
 );
 
 // ============================================================================
+// BILLING TRANSACTIONS (Subscription payment history)
+// ============================================================================
+// Records all billing events for stores - payments, upgrades, refunds, etc.
+export const billingTransactions = pgTable(
+  "billing_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Transaction details
+    type: billingTransactionTypeEnum("type").notNull(),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+
+    // Payment info (for subscription_payment type)
+    paymentMethod: paymentMethodEnum("payment_method"),
+    paymentReference: varchar("payment_reference", { length: 255 }), // Bank ref, mobile money ID
+
+    // Subscription period covered (for subscription_payment type)
+    periodStart: timestamp("period_start", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    periodEnd: timestamp("period_end", { withTimezone: true, mode: "string" }),
+
+    // Plan changes (for upgrade/downgrade types)
+    fromPlan: subscriptionPlanEnum("from_plan"),
+    toPlan: subscriptionPlanEnum("to_plan"),
+
+    // Status tracking
+    status: billingTransactionStatusEnum("status")
+      .default("completed")
+      .notNull(),
+
+    // Invoice link (if generated)
+    invoiceId: uuid("invoice_id"), // Will reference invoices table
+
+    // Admin/processing info
+    processedBy: text("processed_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes"),
+
+    // Timestamps
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("billing_transactions_tenant_id_idx").on(table.tenantId),
+    index("billing_transactions_type_idx").on(table.type),
+    index("billing_transactions_status_idx").on(table.status),
+    index("billing_transactions_created_at_idx").on(table.createdAt),
+    index("billing_transactions_processed_by_idx").on(table.processedBy),
+  ]
+);
+
+// ============================================================================
+// INVOICES (Billing invoices for tax/accounting)
+// ============================================================================
+// Generated invoices for subscription payments
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Invoice identification
+    invoiceNumber: varchar("invoice_number", { length: 50 }).notNull().unique(),
+
+    // Amounts
+    subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+    tax: decimal("tax", { precision: 10, scale: 2 }).default("0").notNull(),
+    total: decimal("total", { precision: 10, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+
+    // Billing period
+    periodStart: timestamp("period_start", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    periodEnd: timestamp("period_end", { withTimezone: true, mode: "string" }),
+
+    // Due date and status
+    dueDate: timestamp("due_date", { withTimezone: true, mode: "string" }),
+    status: invoiceStatusEnum("status").default("draft").notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
+    paidAmount: decimal("paid_amount", { precision: 10, scale: 2 }).default(
+      "0"
+    ),
+
+    // Invoice items (JSON for flexibility)
+    // Structure: [{ description: string, quantity: number, unitPrice: number, total: number }]
+    items: jsonb("items").$type<
+      Array<{
+        description: string;
+        quantity: number;
+        unitPrice: number;
+        total: number;
+      }>
+    >(),
+
+    // Billing details snapshot (immutable at invoice time)
+    billingName: varchar("billing_name", { length: 255 }),
+    billingEmail: varchar("billing_email", { length: 255 }),
+    billingPhone: varchar("billing_phone", { length: 50 }),
+    billingAddress: text("billing_address"),
+
+    // PDF storage (optional)
+    pdfUrl: text("pdf_url"),
+
+    // Notes
+    notes: text("notes"),
+
+    // Timestamps
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    index("invoices_tenant_id_idx").on(table.tenantId),
+    index("invoices_status_idx").on(table.status),
+    index("invoices_due_date_idx").on(table.dueDate),
+    index("invoices_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -4333,6 +6110,34 @@ export const adminAuditLogRelations = relations(adminAuditLog, ({ one }) => ({
   }),
 }));
 
+// Billing Transactions Relations
+export const billingTransactionsRelations = relations(
+  billingTransactions,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [billingTransactions.tenantId],
+      references: [tenants.id],
+    }),
+    invoice: one(invoices, {
+      fields: [billingTransactions.invoiceId],
+      references: [invoices.id],
+    }),
+    processedByUser: one(user, {
+      fields: [billingTransactions.processedBy],
+      references: [user.id],
+    }),
+  })
+);
+
+// Invoices Relations
+export const invoicesRelations = relations(invoices, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [invoices.tenantId],
+    references: [tenants.id],
+  }),
+  transactions: many(billingTransactions),
+}));
+
 // Platform Settings Relations
 export const platformSettingsRelations = relations(
   platformSettings,
@@ -4378,6 +6183,7 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   productVariants: many(productVariants),
   productVariantOptions: many(productVariantOptions),
   productVariantImages: many(productVariantImages),
+  optionValueImages: many(optionValueImages),
   // Pricing
   priceTiers: many(priceTiers),
   customerGroups: many(customerGroups),
@@ -4401,6 +6207,9 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   sellerPayoutMethods: many(sellerPayoutMethods),
   sellerTransactions: many(sellerTransactions),
   sellerPayouts: many(sellerPayouts),
+  // Billing
+  billingTransactions: many(billingTransactions),
+  invoices: many(invoices),
   // Reviews
   reviews: many(reviews),
   reviewMedia: many(reviewMedia),
@@ -4436,6 +6245,26 @@ export const tenantMembersRelations = relations(tenantMembers, ({ one }) => ({
   }),
 }));
 
+export const storeTransferRequestsRelations = relations(
+  storeTransferRequests,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [storeTransferRequests.tenantId],
+      references: [tenants.id],
+    }),
+    fromUser: one(user, {
+      fields: [storeTransferRequests.fromUserId],
+      references: [user.id],
+      relationName: "transferFromUser",
+    }),
+    toUser: one(user, {
+      fields: [storeTransferRequests.toUserId],
+      references: [user.id],
+      relationName: "transferToUser",
+    }),
+  })
+);
+
 export const pushSubscriptionsRelations = relations(
   pushSubscriptions,
   ({ one }) => ({
@@ -4449,6 +6278,55 @@ export const pushSubscriptionsRelations = relations(
     }),
   })
 );
+
+export const userNotificationPreferencesRelations = relations(
+  userNotificationPreferences,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userNotificationPreferences.userId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const storeNotificationPreferencesRelations = relations(
+  storeNotificationPreferences,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [storeNotificationPreferences.userId],
+      references: [user.id],
+    }),
+    tenant: one(tenants, {
+      fields: [storeNotificationPreferences.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
+
+export const customerNotificationPreferencesRelations = relations(
+  customerNotificationPreferences,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [customerNotificationPreferences.userId],
+      references: [user.id],
+    }),
+    tenant: one(tenants, {
+      fields: [customerNotificationPreferences.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(user, {
+    fields: [notifications.userId],
+    references: [user.id],
+  }),
+  tenant: one(tenants, {
+    fields: [notifications.tenantId],
+    references: [tenants.id],
+  }),
+}));
 
 export const storeCustomersRelations = relations(
   storeCustomers,
@@ -4527,6 +6405,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   productCategories: many(productCategories),
   images: many(productImages),
   variants: many(productVariants),
+  optionValueImages: many(optionValueImages),
   inventoryLevels: many(inventoryLevels),
   inventoryMovements: many(inventoryMovements),
   inventoryCountItems: many(inventoryCountItems),
@@ -4558,6 +6437,7 @@ export const mediaRelations = relations(media, ({ one, many }) => ({
   productImages: many(productImages),
   productVariants: many(productVariants),
   productVariantImages: many(productVariantImages),
+  optionValueImages: many(optionValueImages),
   categories: many(categories),
   reviewMedia: many(reviewMedia),
 }));
@@ -4610,6 +6490,29 @@ export const variantOptionValuesRelations = relations(
       references: [variantOptions.id],
     }),
     productVariantOptions: many(productVariantOptions),
+    optionValueImages: many(optionValueImages),
+  })
+);
+
+export const optionValueImagesRelations = relations(
+  optionValueImages,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [optionValueImages.tenantId],
+      references: [tenants.id],
+    }),
+    product: one(products, {
+      fields: [optionValueImages.productId],
+      references: [products.id],
+    }),
+    optionValue: one(variantOptionValues, {
+      fields: [optionValueImages.optionValueId],
+      references: [variantOptionValues.id],
+    }),
+    media: one(media, {
+      fields: [optionValueImages.mediaId],
+      references: [media.id],
+    }),
   })
 );
 
@@ -4826,8 +6729,18 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.storeCustomerId],
     references: [storeCustomers.id],
   }),
+  cashier: one(user, {
+    fields: [orders.cashierId],
+    references: [user.id],
+    relationName: "orderCashier",
+  }),
   items: many(orderItems),
   payments: many(orderPayments),
+  transactions: many(orderTransactions),
+  refunds: many(refunds),
+  discounts: many(orderDiscounts),
+  events: many(orderEvents),
+  couponUsages: many(couponUsages),
   shipments: many(shipments),
   reviews: many(reviews),
   inventoryMovements: many(inventoryMovements),
@@ -4836,7 +6749,27 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   affiliateClicks: many(affiliateClicks),
   affiliateConversions: many(affiliateConversions),
   conversionEvents: many(analyticsConversionEvents),
+  storeCreditTransactions: many(storeCreditTransactions),
+  invoiceTokens: many(orderInvoiceTokens),
 }));
+
+export const orderInvoiceTokensRelations = relations(
+  orderInvoiceTokens,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [orderInvoiceTokens.orderId],
+      references: [orders.id],
+    }),
+    tenant: one(tenants, {
+      fields: [orderInvoiceTokens.tenantId],
+      references: [tenants.id],
+    }),
+    createdByUser: one(user, {
+      fields: [orderInvoiceTokens.createdBy],
+      references: [user.id],
+    }),
+  })
+);
 
 export const orderPaymentsRelations = relations(orderPayments, ({ one }) => ({
   order: one(orders, {
@@ -4864,6 +6797,8 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   }),
   shipmentItems: many(shipmentItems),
   sellerTransactions: many(sellerTransactions),
+  refundItems: many(refundItems),
+  discounts: many(orderDiscounts),
 }));
 
 export const shippingZonesRelations = relations(
@@ -4962,6 +6897,7 @@ export const reviewsRelations = relations(reviews, ({ one, many }) => ({
     references: [user.id],
   }),
   images: many(reviewMedia),
+  votes: many(reviewVotes),
 }));
 
 export const reviewMediaRelations = relations(reviewMedia, ({ one }) => ({
@@ -4976,6 +6912,44 @@ export const reviewMediaRelations = relations(reviewMedia, ({ one }) => ({
   media: one(media, {
     fields: [reviewMedia.mediaId],
     references: [media.id],
+  }),
+}));
+
+export const reviewVotesRelations = relations(reviewVotes, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [reviewVotes.tenantId],
+    references: [tenants.id],
+  }),
+  review: one(reviews, {
+    fields: [reviewVotes.reviewId],
+    references: [reviews.id],
+  }),
+  user: one(user, {
+    fields: [reviewVotes.userId],
+    references: [user.id],
+  }),
+}));
+
+export const reviewRequestsRelations = relations(reviewRequests, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [reviewRequests.tenantId],
+    references: [tenants.id],
+  }),
+  order: one(orders, {
+    fields: [reviewRequests.orderId],
+    references: [orders.id],
+  }),
+  product: one(products, {
+    fields: [reviewRequests.productId],
+    references: [products.id],
+  }),
+  user: one(user, {
+    fields: [reviewRequests.userId],
+    references: [user.id],
+  }),
+  review: one(reviews, {
+    fields: [reviewRequests.reviewId],
+    references: [reviews.id],
   }),
 }));
 
@@ -5622,6 +7596,193 @@ export const deliveryPayoutItemsRelations = relations(
 );
 
 // ============================================================================
+// UNIFIED COMMERCE RELATIONS
+// ============================================================================
+
+export const orderTransactionsRelations = relations(
+  orderTransactions,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [orderTransactions.orderId],
+      references: [orders.id],
+    }),
+    tenant: one(tenants, {
+      fields: [orderTransactions.tenantId],
+      references: [tenants.id],
+    }),
+    recordedByUser: one(user, {
+      fields: [orderTransactions.recordedBy],
+      references: [user.id],
+      relationName: "transactionRecordedBy",
+    }),
+    authorizedByUser: one(user, {
+      fields: [orderTransactions.authorizedBy],
+      references: [user.id],
+      relationName: "transactionAuthorizedBy",
+    }),
+    parentTransaction: one(orderTransactions, {
+      fields: [orderTransactions.parentTransactionId],
+      references: [orderTransactions.id],
+      relationName: "transactionParent",
+    }),
+    refund: one(refunds, {
+      fields: [orderTransactions.refundId],
+      references: [refunds.id],
+    }),
+  })
+);
+
+export const refundsRelations = relations(refunds, ({ one, many }) => ({
+  order: one(orders, {
+    fields: [refunds.orderId],
+    references: [orders.id],
+  }),
+  tenant: one(tenants, {
+    fields: [refunds.tenantId],
+    references: [tenants.id],
+  }),
+  requestedByUser: one(user, {
+    fields: [refunds.requestedBy],
+    references: [user.id],
+    relationName: "refundRequestedBy",
+  }),
+  approvedByUser: one(user, {
+    fields: [refunds.approvedBy],
+    references: [user.id],
+    relationName: "refundApprovedBy",
+  }),
+  processedByUser: one(user, {
+    fields: [refunds.processedBy],
+    references: [user.id],
+    relationName: "refundProcessedBy",
+  }),
+  rejectedByUser: one(user, {
+    fields: [refunds.rejectedBy],
+    references: [user.id],
+    relationName: "refundRejectedBy",
+  }),
+  items: many(refundItems),
+  transactions: many(orderTransactions),
+  storeCredit: one(storeCredits, {
+    fields: [refunds.storeCreditId],
+    references: [storeCredits.id],
+  }),
+}));
+
+export const refundItemsRelations = relations(refundItems, ({ one }) => ({
+  refund: one(refunds, {
+    fields: [refundItems.refundId],
+    references: [refunds.id],
+  }),
+  orderItem: one(orderItems, {
+    fields: [refundItems.orderItemId],
+    references: [orderItems.id],
+  }),
+}));
+
+export const couponsRelations = relations(coupons, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [coupons.tenantId],
+    references: [tenants.id],
+  }),
+  usages: many(couponUsages),
+  orderDiscounts: many(orderDiscounts),
+}));
+
+export const couponUsagesRelations = relations(couponUsages, ({ one }) => ({
+  coupon: one(coupons, {
+    fields: [couponUsages.couponId],
+    references: [coupons.id],
+  }),
+  order: one(orders, {
+    fields: [couponUsages.orderId],
+    references: [orders.id],
+  }),
+  customer: one(storeCustomers, {
+    fields: [couponUsages.customerId],
+    references: [storeCustomers.id],
+  }),
+}));
+
+export const orderDiscountsRelations = relations(orderDiscounts, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderDiscounts.orderId],
+    references: [orders.id],
+  }),
+  orderItem: one(orderItems, {
+    fields: [orderDiscounts.orderItemId],
+    references: [orderItems.id],
+  }),
+  coupon: one(coupons, {
+    fields: [orderDiscounts.couponId],
+    references: [coupons.id],
+  }),
+  authorizedByUser: one(user, {
+    fields: [orderDiscounts.authorizedBy],
+    references: [user.id],
+  }),
+}));
+
+export const orderEventsRelations = relations(orderEvents, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderEvents.orderId],
+    references: [orders.id],
+  }),
+  tenant: one(tenants, {
+    fields: [orderEvents.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const inventoryReservationsRelations = relations(
+  inventoryReservations,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [inventoryReservations.tenantId],
+      references: [tenants.id],
+    }),
+    product: one(products, {
+      fields: [inventoryReservations.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [inventoryReservations.variantId],
+      references: [productVariants.id],
+    }),
+  })
+);
+
+export const storeCreditsRelations = relations(
+  storeCredits,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [storeCredits.tenantId],
+      references: [tenants.id],
+    }),
+    customer: one(storeCustomers, {
+      fields: [storeCredits.customerId],
+      references: [storeCustomers.id],
+    }),
+    transactions: many(storeCreditTransactions),
+    refunds: many(refunds),
+  })
+);
+
+export const storeCreditTransactionsRelations = relations(
+  storeCreditTransactions,
+  ({ one }) => ({
+    storeCredit: one(storeCredits, {
+      fields: [storeCreditTransactions.storeCreditId],
+      references: [storeCredits.id],
+    }),
+    order: one(orders, {
+      fields: [storeCreditTransactions.orderId],
+      references: [orders.id],
+    }),
+  })
+);
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
@@ -5650,6 +7811,8 @@ export type BillingStatus = (typeof billingStatusEnum.enumValues)[number];
 export type SubscriptionPlan = (typeof subscriptionPlanEnum.enumValues)[number];
 export type SubscriptionStatus =
   (typeof subscriptionStatusEnum.enumValues)[number];
+export type PaymentMethod = (typeof paymentMethodEnum.enumValues)[number];
+export type StoreMode = (typeof storeModeEnum.enumValues)[number];
 
 // Tenant member types
 export type TenantMember = typeof tenantMembers.$inferSelect;
@@ -5695,7 +7858,10 @@ export type ProductVariantOption = typeof productVariantOptions.$inferSelect;
 export type NewProductVariantOption = typeof productVariantOptions.$inferInsert;
 export type ProductVariantImage = typeof productVariantImages.$inferSelect;
 export type NewProductVariantImage = typeof productVariantImages.$inferInsert;
+export type OptionValueImage = typeof optionValueImages.$inferSelect;
+export type NewOptionValueImage = typeof optionValueImages.$inferInsert;
 export type StockStatus = (typeof stockStatusEnum.enumValues)[number];
+export type SwatchType = (typeof swatchTypeEnum.enumValues)[number];
 
 // Pricing types
 export type PriceTier = typeof priceTiers.$inferSelect;
@@ -5755,6 +7921,10 @@ export type Review = typeof reviews.$inferSelect;
 export type NewReview = typeof reviews.$inferInsert;
 export type ReviewMedia = typeof reviewMedia.$inferSelect;
 export type NewReviewMedia = typeof reviewMedia.$inferInsert;
+export type ReviewVote = typeof reviewVotes.$inferSelect;
+export type NewReviewVote = typeof reviewVotes.$inferInsert;
+export type ReviewRequest = typeof reviewRequests.$inferSelect;
+export type NewReviewRequest = typeof reviewRequests.$inferInsert;
 
 // Commission types
 export type CommissionTransactionType =
@@ -5895,3 +8065,97 @@ export type NewDeliveryPayoutItem = typeof deliveryPayoutItems.$inferInsert;
 // Push subscription types
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+// Notification preference types
+export type UserNotificationPreference =
+  typeof userNotificationPreferences.$inferSelect;
+export type NewUserNotificationPreference =
+  typeof userNotificationPreferences.$inferInsert;
+export type StoreNotificationPreference =
+  typeof storeNotificationPreferences.$inferSelect;
+export type NewStoreNotificationPreference =
+  typeof storeNotificationPreferences.$inferInsert;
+export type CustomerNotificationPreference =
+  typeof customerNotificationPreferences.$inferSelect;
+export type NewCustomerNotificationPreference =
+  typeof customerNotificationPreferences.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+
+// ============================================================================
+// UNIFIED COMMERCE TYPE EXPORTS
+// ============================================================================
+
+// Order Channel & Fulfillment types
+export type OrderChannel = (typeof orderChannelEnum.enumValues)[number];
+export type FulfillmentType = (typeof fulfillmentTypeEnum.enumValues)[number];
+export type PaymentStatus = (typeof paymentStatusEnum.enumValues)[number];
+
+// Transaction types
+export type TransactionType = (typeof transactionTypeEnum.enumValues)[number];
+export type TransactionStatus =
+  (typeof transactionStatusEnum.enumValues)[number];
+export type OrderTransaction = typeof orderTransactions.$inferSelect;
+export type NewOrderTransaction = typeof orderTransactions.$inferInsert;
+
+// Refund types
+export type RefundType = (typeof refundTypeEnum.enumValues)[number];
+export type RefundStatus = (typeof refundStatusEnum.enumValues)[number];
+export type RefundReason = (typeof refundReasonEnum.enumValues)[number];
+export type Refund = typeof refunds.$inferSelect;
+export type NewRefund = typeof refunds.$inferInsert;
+export type RefundItem = typeof refundItems.$inferSelect;
+export type NewRefundItem = typeof refundItems.$inferInsert;
+
+// Discount types
+export type DiscountSource = (typeof discountSourceEnum.enumValues)[number];
+export type DiscountType = (typeof discountTypeEnum.enumValues)[number];
+export type DiscountScope = (typeof discountScopeEnum.enumValues)[number];
+export type OrderDiscount = typeof orderDiscounts.$inferSelect;
+export type NewOrderDiscount = typeof orderDiscounts.$inferInsert;
+
+// Coupon types
+export type Coupon = typeof coupons.$inferSelect;
+export type NewCoupon = typeof coupons.$inferInsert;
+export type CouponUsage = typeof couponUsages.$inferSelect;
+export type NewCouponUsage = typeof couponUsages.$inferInsert;
+
+// Order event types
+export type OrderEventCategory =
+  (typeof orderEventCategoryEnum.enumValues)[number];
+export type OrderEvent = typeof orderEvents.$inferSelect;
+export type NewOrderEvent = typeof orderEvents.$inferInsert;
+
+// Inventory reservation types
+export type ReservationStatus =
+  (typeof reservationStatusEnum.enumValues)[number];
+export type InventoryReservation = typeof inventoryReservations.$inferSelect;
+export type NewInventoryReservation = typeof inventoryReservations.$inferInsert;
+
+// Store credit types
+export type StoreCreditSource =
+  (typeof storeCreditSourceEnum.enumValues)[number];
+export type StoreCredit = typeof storeCredits.$inferSelect;
+export type NewStoreCredit = typeof storeCredits.$inferInsert;
+export type StoreCreditTransaction =
+  typeof storeCreditTransactions.$inferSelect;
+export type NewStoreCreditTransaction =
+  typeof storeCreditTransactions.$inferInsert;
+
+// Item condition type
+export type ItemCondition = (typeof itemConditionEnum.enumValues)[number];
+
+// Billing types
+export type BillingTransactionType =
+  (typeof billingTransactionTypeEnum.enumValues)[number];
+export type BillingTransactionStatus =
+  (typeof billingTransactionStatusEnum.enumValues)[number];
+export type InvoiceStatus = (typeof invoiceStatusEnum.enumValues)[number];
+export type BillingTransaction = typeof billingTransactions.$inferSelect;
+export type NewBillingTransaction = typeof billingTransactions.$inferInsert;
+export type Invoice = typeof invoices.$inferSelect;
+export type NewInvoice = typeof invoices.$inferInsert;
+
+// Order invoice token types
+export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;
+export type NewOrderInvoiceToken = typeof orderInvoiceTokens.$inferInsert;

@@ -18,11 +18,11 @@ import {
   media,
   productImages,
   type CustomerSnapshot,
+  type OrderChannel,
 } from "@/lib/db/schema";
 import type {
   OfflineSalesFilters,
   PaymentMethod,
-  SalesChannel,
 } from "@/lib/validations/offline-sales";
 
 // =============================================================================
@@ -34,7 +34,7 @@ export type OfflineSale = {
   orderNumber: string;
   receiptNumber: string | null;
   customerSnapshot: CustomerSnapshot;
-  salesChannel: SalesChannel;
+  channel: OrderChannel;
   paymentMethod: PaymentMethod | null;
   isPaid: boolean;
   paidAt: string | null;
@@ -53,7 +53,7 @@ export type OfflineSaleDetail = {
   receiptNumber: string | null;
   tenantId: string;
   customerSnapshot: CustomerSnapshot;
-  salesChannel: SalesChannel;
+  channel: OrderChannel;
   paymentMethod: PaymentMethod | null;
   isPaid: boolean;
   paidAt: string | null;
@@ -76,7 +76,7 @@ export type OfflineSaleDetail = {
 
 export type OfflineSaleItem = {
   id: string;
-  productId: string;
+  productId: string | null; // Nullable if product was deleted but order history preserved
   productName: string;
   variantName: string | null;
   sku: string | null;
@@ -122,13 +122,13 @@ export const getOfflineSales = cache(
     // Build conditions
     const conditions = [
       eq(orders.tenantId, tenantId),
-      // Only offline and phone channels
-      or(eq(orders.salesChannel, "offline"), eq(orders.salesChannel, "phone")),
+      // Only POS channel (in-store sales)
+      eq(orders.channel, "pos"),
     ];
 
     // Add filters
-    if (filters.salesChannel && filters.salesChannel !== "all") {
-      conditions.push(eq(orders.salesChannel, filters.salesChannel));
+    if (filters.channel && filters.channel !== "all") {
+      conditions.push(eq(orders.channel, filters.channel));
     }
 
     if (filters.paymentMethod) {
@@ -148,14 +148,15 @@ export const getOfflineSales = cache(
     }
 
     if (filters.search) {
-      conditions.push(
-        or(
-          ilike(orders.orderNumber, `%${filters.search}%`),
-          ilike(orders.receiptNumber, `%${filters.search}%`),
-          sql`${orders.customerSnapshot}->>'name' ILIKE ${"%" + filters.search + "%"}`,
-          sql`${orders.customerSnapshot}->>'phone' ILIKE ${"%" + filters.search + "%"}`
-        )
+      const searchCondition = or(
+        ilike(orders.orderNumber, `%${filters.search}%`),
+        ilike(orders.receiptNumber, `%${filters.search}%`),
+        sql`${orders.customerSnapshot}->>'name' ILIKE ${"%" + filters.search + "%"}`,
+        sql`${orders.customerSnapshot}->>'phone' ILIKE ${"%" + filters.search + "%"}`
       );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
 
     // Query sales
@@ -177,7 +178,7 @@ export const getOfflineSales = cache(
       orderNumber: order.orderNumber,
       receiptNumber: order.receiptNumber,
       customerSnapshot: order.customerSnapshot,
-      salesChannel: order.salesChannel as SalesChannel,
+      channel: order.channel as OrderChannel,
       paymentMethod: order.paymentMethod as PaymentMethod | null,
       isPaid: order.isPaid,
       paidAt: order.paidAt,
@@ -222,7 +223,7 @@ export const getOfflineSaleById = cache(
       where: and(
         eq(orders.id, orderId),
         eq(orders.tenantId, tenantId),
-        or(eq(orders.salesChannel, "offline"), eq(orders.salesChannel, "phone"))
+        eq(orders.channel, "pos")
       ),
       with: {
         tenant: {
@@ -269,7 +270,7 @@ export const getOfflineSaleById = cache(
       receiptNumber: order.receiptNumber,
       tenantId: order.tenantId,
       customerSnapshot: order.customerSnapshot,
-      salesChannel: order.salesChannel as SalesChannel,
+      channel: order.channel as OrderChannel,
       paymentMethod: order.paymentMethod as PaymentMethod | null,
       isPaid: order.isPaid,
       paidAt: order.paidAt,
@@ -302,7 +303,7 @@ export const getOfflineSaleById = cache(
 );
 
 /**
- * Get counts for offline sales dashboard badges
+ * Get counts for POS/in-store sales dashboard badges
  */
 export const getOfflineSalesCounts = cache(
   async (tenantId: string): Promise<OfflineSalesCounts> => {
@@ -318,10 +319,10 @@ export const getOfflineSalesCounts = cache(
       1
     ).toISOString();
 
-    // Base condition for offline/phone sales
+    // Base condition for POS sales
     const baseCondition = and(
       eq(orders.tenantId, tenantId),
-      or(eq(orders.salesChannel, "offline"), eq(orders.salesChannel, "phone"))
+      eq(orders.channel, "pos")
     );
 
     // Execute all count queries in parallel
@@ -413,7 +414,7 @@ export const getOrderForReceipt = cache(
       receiptNumber: order.receiptNumber,
       tenantId: order.tenantId,
       customerSnapshot: order.customerSnapshot,
-      salesChannel: order.salesChannel as SalesChannel,
+      channel: order.channel as OrderChannel,
       paymentMethod: order.paymentMethod as PaymentMethod | null,
       isPaid: order.isPaid,
       paidAt: order.paidAt,
@@ -461,10 +462,7 @@ export const getTodayOfflineSalesRevenue = cache(
       .where(
         and(
           eq(orders.tenantId, tenantId),
-          or(
-            eq(orders.salesChannel, "offline"),
-            eq(orders.salesChannel, "phone")
-          ),
+          eq(orders.channel, "pos"),
           eq(orders.isPaid, true),
           gte(orders.createdAt, todayStart.toISOString())
         )

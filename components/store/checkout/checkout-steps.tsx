@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, MapPin, Truck, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CheckoutStepsProps {
@@ -14,9 +14,9 @@ interface CheckoutStepsProps {
 }
 
 const steps = [
-  { number: 1 as const, label: "Shipping" },
-  { number: 2 as const, label: "Delivery" },
-  { number: 3 as const, label: "Review" },
+  { number: 1 as const, label: "Shipping", icon: MapPin },
+  { number: 2 as const, label: "Delivery", icon: Truck },
+  { number: 3 as const, label: "Review", icon: ClipboardList },
 ];
 
 export function CheckoutSteps({
@@ -25,76 +25,95 @@ export function CheckoutSteps({
   completedSteps,
 }: CheckoutStepsProps) {
   return (
-    <nav aria-label="Checkout progress">
-      <ol className="flex items-center">
-        {steps.map((step, index) => {
-          const isActive = currentStep === step.number;
-          const isCompleted = completedSteps[step.number];
-          const isClickable =
-            step.number < currentStep ||
-            (step.number === 2 && completedSteps[1]) ||
-            (step.number === 3 && completedSteps[1] && completedSteps[2]);
+    <nav aria-label="Checkout progress" className="w-full">
+      <div className="mx-auto max-w-md">
+        <ol
+          className="grid"
+          style={{ gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}
+        >
+          {steps.map((step, index) => {
+            const isActive = currentStep === step.number;
+            const isCompleted = completedSteps[step.number];
+            const isFirst = index === 0;
+            const isLast = index === steps.length - 1;
+            const isClickable =
+              step.number < currentStep ||
+              (step.number === 2 && completedSteps[1]) ||
+              (step.number === 3 && completedSteps[1] && completedSteps[2]);
 
-          return (
-            <li
-              key={step.number}
-              className={cn("flex items-center", index > 0 && "flex-1")}
-            >
-              {/* Connector line */}
-              {index > 0 && (
-                <div
-                  className={cn(
-                    "h-0.5 w-full",
-                    completedSteps[steps[index - 1].number]
-                      ? "bg-primary"
-                      : "bg-muted"
-                  )}
-                />
-              )}
+            // Connector states
+            const prevCompleted =
+              index > 0 && completedSteps[steps[index - 1].number];
+            const currentCompleted = completedSteps[step.number];
 
-              {/* Step indicator */}
-              <button
-                type="button"
-                onClick={() => isClickable && onStepClick(step.number)}
-                disabled={!isClickable}
-                className={cn(
-                  "relative flex items-center justify-center",
-                  isClickable && "cursor-pointer",
-                  !isClickable && "cursor-default"
-                )}
+            const Icon = step.icon;
+
+            return (
+              <li
+                key={step.number}
+                className="relative flex flex-col items-center"
               >
-                <span
+                {/* Connector line to the left (except first) */}
+                {!isFirst && (
+                  <div
+                    className={cn(
+                      "absolute left-0 top-5 h-0.5 w-[calc(50%-20px)] -translate-y-1/2",
+                      prevCompleted ? "bg-primary" : "bg-muted"
+                    )}
+                  />
+                )}
+
+                {/* Connector line to the right (except last) */}
+                {!isLast && (
+                  <div
+                    className={cn(
+                      "absolute right-0 top-5 h-0.5 w-[calc(50%-20px)] -translate-y-1/2",
+                      currentCompleted ? "bg-primary" : "bg-muted"
+                    )}
+                  />
+                )}
+
+                {/* Circle - always centered */}
+                <button
+                  type="button"
+                  onClick={() => isClickable && onStepClick(step.number)}
+                  disabled={!isClickable}
                   className={cn(
-                    "flex size-10 items-center justify-center rounded-full text-sm font-semibold transition-colors",
-                    isActive && "bg-primary text-primary-foreground",
+                    "relative z-10 flex items-center justify-center size-10 rounded-full border-2 transition-all",
+                    isClickable ? "cursor-pointer" : "cursor-default",
+                    isActive &&
+                      "border-primary bg-primary text-primary-foreground ring-4 ring-primary/20",
                     isCompleted &&
                       !isActive &&
-                      "bg-primary text-primary-foreground",
+                      "border-primary bg-primary text-primary-foreground",
                     !isActive &&
                       !isCompleted &&
-                      "bg-muted text-muted-foreground"
+                      "border-muted-foreground/30 bg-muted text-muted-foreground"
                   )}
                 >
                   {isCompleted && !isActive ? (
                     <Check className="size-5" />
                   ) : (
-                    step.number
+                    <Icon className="size-5" />
                   )}
-                </span>
+                </button>
+
+                {/* Label - always centered */}
                 <span
                   className={cn(
-                    "absolute -bottom-6 whitespace-nowrap text-sm",
+                    "mt-2 text-sm transition-colors text-center",
                     isActive && "font-medium text-foreground",
-                    !isActive && "text-muted-foreground"
+                    isCompleted && !isActive && "text-foreground",
+                    !isActive && !isCompleted && "text-muted-foreground"
                   )}
                 >
                   {step.label}
                 </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
     </nav>
   );
 }

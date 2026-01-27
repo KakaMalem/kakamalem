@@ -18,7 +18,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import type { Tenant, Category, SocialLinks } from "@/lib/db/schema";
+import type {
+  Tenant,
+  Category,
+  SocialLinks,
+  PreferredContactMethod,
+} from "@/lib/db/schema";
 
 // TikTok icon (not in lucide-react)
 function TikTokIcon({ className }: { className?: string }) {
@@ -92,9 +97,33 @@ export function StoreFooter({ store, categories }: StoreFooterProps) {
   // Check if there are any social links
   const hasSocialLinks =
     socialLinks &&
-    Object.values(socialLinks).some((link) => link && link.length > 0);
+    Object.values(socialLinks).some(
+      (link) => typeof link === "string" && link.length > 0
+    );
 
   const hasContactInfo = store.contactEmail || store.contactPhone;
+
+  // WhatsApp settings
+  const preferredContactMethod: PreferredContactMethod =
+    socialLinks?.preferredContactMethod || "whatsapp";
+  const whatsappNumber = socialLinks?.whatsapp?.replace(/[^0-9]/g, "") || "";
+  const hasWhatsApp = !!whatsappNumber;
+
+  // Helper to get the phone link href based on preferred method
+  const getPhoneHref = () => {
+    if (preferredContactMethod === "whatsapp" && hasWhatsApp) {
+      return `https://wa.me/${whatsappNumber}`;
+    }
+    return `tel:${store.contactPhone}`;
+  };
+
+  // Helper to get phone link icon and label based on preferred method
+  const getPhoneDisplay = () => {
+    if (preferredContactMethod === "whatsapp" && hasWhatsApp) {
+      return { Icon: WhatsAppIcon, label: "WhatsApp" };
+    }
+    return { Icon: Phone, label: "Phone" };
+  };
 
   // Determine what to show in the footer based on headerDisplay setting
   const showLogo =
@@ -107,10 +136,10 @@ export function StoreFooter({ store, categories }: StoreFooterProps) {
   return (
     <TooltipProvider>
       <footer className="border-t bg-muted/30">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-12 lg:px-8">
+          <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
             {/* Store Info */}
-            <div className="space-y-4 sm:col-span-2 lg:col-span-1">
+            <div className="space-y-4 sm:col-span-2 md:col-span-1">
               <Link
                 href={storeUrl}
                 className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80"
@@ -128,9 +157,9 @@ export function StoreFooter({ store, categories }: StoreFooterProps) {
                 </p>
               )}
 
-              {/* Social Links - shown in store info section on mobile */}
+              {/* Social Links - shown in store info section on mobile/small screens */}
               {hasSocialLinks && (
-                <div className="flex flex-wrap gap-2 pt-2 lg:hidden">
+                <div className="flex flex-wrap gap-2 pt-2 md:hidden">
                   {socialLinks?.facebook && (
                     <SocialLink href={socialLinks.facebook} label="Facebook">
                       <Facebook className="size-4" />
@@ -248,22 +277,66 @@ export function StoreFooter({ store, categories }: StoreFooterProps) {
                         <span className="truncate">{store.contactEmail}</span>
                       </a>
                     )}
-                    {store.contactPhone && (
+                    {store.contactPhone &&
+                    preferredContactMethod === "both" &&
+                    hasWhatsApp ? (
+                      // Show both phone and WhatsApp
+                      <div className="flex flex-col gap-2">
+                        <a
+                          href={`tel:${store.contactPhone}`}
+                          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <Phone className="size-4 shrink-0" />
+                          <span>{store.contactPhone}</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/${whatsappNumber}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <WhatsAppIcon className="size-4 shrink-0" />
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
+                    ) : store.contactPhone ? (
+                      // Show single preferred contact method
                       <a
-                        href={`tel:${store.contactPhone}`}
+                        href={getPhoneHref()}
+                        target={
+                          preferredContactMethod === "whatsapp" && hasWhatsApp
+                            ? "_blank"
+                            : undefined
+                        }
+                        rel={
+                          preferredContactMethod === "whatsapp" && hasWhatsApp
+                            ? "noopener noreferrer"
+                            : undefined
+                        }
                         className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        <Phone className="size-4 shrink-0" />
-                        <span>{store.contactPhone}</span>
+                        {(() => {
+                          const { Icon, label } = getPhoneDisplay();
+                          return (
+                            <>
+                              <Icon className="size-4 shrink-0" />
+                              <span>
+                                {label === "WhatsApp"
+                                  ? "WhatsApp"
+                                  : store.contactPhone}
+                              </span>
+                            </>
+                          );
+                        })()}
                       </a>
-                    )}
+                    ) : null}
                   </div>
                 </>
               )}
 
-              {/* Social Links - Desktop only */}
+              {/* Social Links - Tablet & Desktop */}
               {hasSocialLinks && (
-                <div className="hidden space-y-3 lg:block">
+                <div className="hidden space-y-3 md:block">
                   <h3 className="text-sm font-semibold uppercase tracking-wider">
                     Follow Us
                   </h3>

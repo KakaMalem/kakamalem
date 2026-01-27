@@ -6,13 +6,17 @@ import { getProductBySlugWithDetails } from "@/lib/db/queries/products";
 import { stripHtml } from "@/lib/utils/html";
 import { getProductReviewStats } from "@/lib/db/queries/reviews";
 import { getProductPriceTiers } from "@/lib/db/queries/pricing";
-import { isProductInWishlist } from "@/lib/db/queries/wishlists";
-import { getUser } from "@/lib/auth/server";
 import { ProductPageContent } from "@/components/store/product-page-content";
 import { ProductReviews } from "@/components/store/product-reviews";
+import { ProductStructuredData } from "@/components/store/product-structured-data";
+import {
+  reviewSortOptions,
+  type ReviewSortOption,
+} from "@/lib/validations/reviews";
 
 interface ProductPageProps {
   params: Promise<{ slug: string; productSlug: string }>;
+  searchParams: Promise<{ sort?: string; rating?: string }>;
 }
 
 export async function generateMetadata({
@@ -69,10 +73,28 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({
+  params,
+  searchParams,
+}: ProductPageProps) {
   const { slug, productSlug } = await params;
+  const { sort, rating } = await searchParams;
   // Decode URL-encoded slugs (handles Persian/Unicode characters)
   const decodedProductSlug = decodeURIComponent(productSlug);
+
+  // Validate sort parameter
+  const sortBy: ReviewSortOption = reviewSortOptions.includes(
+    sort as ReviewSortOption
+  )
+    ? (sort as ReviewSortOption)
+    : "newest";
+
+  // Validate rating filter (1-5)
+  const ratingFilter = rating
+    ? parseInt(rating, 10) >= 1 && parseInt(rating, 10) <= 5
+      ? parseInt(rating, 10)
+      : undefined
+    : undefined;
 
   const store = await getTenantBySlug(slug);
   if (!store) return null;
@@ -81,16 +103,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
     store.id,
     decodedProductSlug
   );
-  if (!product || product.status !== "active") {
+  if (!product || product.status !== "active" || !product.showOnStorefront) {
     notFound();
   }
 
-  // Fetch review statistics, price tiers, and wishlist status in parallel
-  const user = await getUser();
-  const [reviewStats, priceTiers, isInWishlist] = await Promise.all([
+  // Fetch review statistics and price tiers in parallel
+  const [reviewStats, priceTiers] = await Promise.all([
     getProductReviewStats(store.id, product.id),
     getProductPriceTiers(product.id),
-    user ? isProductInWishlist(store.id, user.id, product.id) : false,
   ]);
 
   // Build breadcrumbs
@@ -114,34 +134,49 @@ export default async function ProductPage({ params }: ProductPageProps) {
     store.storeMode === "catalog" || store.storeMode === "offline_only";
 
   return (
-    <section className="py-4 sm:py-8 lg:py-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Product Content Grid */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16">
-          <ProductPageContent
-            product={product}
-            tenantId={store.id}
-            storeSlug={slug}
-            currency={store.currency}
-            breadcrumbs={breadcrumbs}
-            reviewStats={reviewStats}
-            priceTiers={priceTiers}
-            initialIsInWishlist={isInWishlist}
-            catalogMode={isCartDisabled}
-            storeMode={store.storeMode}
-            contactPhone={store.contactPhone}
-          />
-        </div>
+    <>
+      {/* Schema.org Product structured data for SEO */}
+      <ProductStructuredData
+        product={product}
+        storeName={store.name}
+        storeSlug={slug}
+        productSlug={decodedProductSlug}
+        currency={store.currency}
+        reviewStats={reviewStats}
+      />
 
-        {/* Reviews Section */}
-        <section className="mt-12 sm:mt-16 lg:mt-20">
-          <ProductReviews
-            tenantId={store.id}
-            productId={product.id}
-            storeSlug={slug}
-          />
-        </section>
-      </div>
-    </section>
+      <section className="py-4 sm:py-8 lg:py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          {/* Product Content Grid */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:gap-12 xl:gap-16">
+            <ProductPageContent
+              product={product}
+              tenantId={store.id}
+              storeSlug={slug}
+              currency={store.currency}
+              breadcrumbs={breadcrumbs}
+              reviewStats={reviewStats}
+              priceTiers={priceTiers}
+              catalogMode={isCartDisabled}
+              storeMode={store.storeMode}
+              contactPhone={store.contactPhone}
+            />
+          </div>
+
+          {/* Reviews Section */}
+          <section className="mt-12 sm:mt-16 lg:mt-20">
+            <ProductReviews
+              tenantId={store.id}
+              productId={product.id}
+              productSlug={decodedProductSlug}
+              storeSlug={slug}
+              productName={product.name}
+              sortBy={sortBy}
+              ratingFilter={ratingFilter}
+            />
+          </section>
+        </div>
+      </section>
+    </>
   );
 }

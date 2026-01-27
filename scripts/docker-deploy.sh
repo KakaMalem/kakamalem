@@ -214,6 +214,14 @@ deploy() {
         error "Migration failed! Aborting deployment."
     fi
 
+    # Run custom SQL migrations (triggers, functions, etc.)
+    log "Running custom SQL migrations..."
+    if pnpm db:migrate:custom 2>&1 | tee -a "$LOG_FILE"; then
+        log "Custom migrations completed successfully"
+    else
+        error "Custom migration failed! Aborting deployment."
+    fi
+
     # Determine current and target slots
     local current=$(get_current_active)
     local target

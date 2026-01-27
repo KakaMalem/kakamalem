@@ -6,6 +6,7 @@ import {
   tenantMembers,
   orders,
   adminAuditLog,
+  account,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -103,7 +104,14 @@ export async function getAdminUsers(options: {
       storesMemberOf: sql<number>`(
         SELECT COUNT(*)::int
         FROM ${tenantMembers}
+        INNER JOIN ${tenants} ON ${tenantMembers.tenantId} = ${tenants.id}
         WHERE ${tenantMembers.userId} = ${user.id}
+        AND ${tenants.ownerId} != ${user.id}
+      )`,
+      authProviders: sql<string[]>`(
+        SELECT COALESCE(array_agg(DISTINCT ${account.providerId}), ARRAY[]::text[])
+        FROM ${account}
+        WHERE ${account.userId} = ${user.id}
       )`,
     })
     .from(user)

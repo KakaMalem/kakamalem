@@ -11,6 +11,8 @@ import {
   ImageIcon,
   Check,
   Printer,
+  Camera,
+  Usb,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,8 +31,12 @@ import {
   receiptPaperWidthOptions,
   receiptPaperWidthLabels,
   receiptPaperWidthDescriptions,
+  posScannerModeOptions,
+  posScannerModeLabels,
+  posScannerModeDescriptions,
   type StoreMode,
   type ReceiptPaperWidth,
+  type PosScannerMode,
 } from "@/lib/validations/stores";
 
 interface StoreModeSettingsProps {
@@ -40,6 +46,7 @@ interface StoreModeSettingsProps {
   onlineCheckoutEnabled: boolean;
   posEnabled: boolean;
   phoneOrdersEnabled: boolean;
+  posScannerMode: string;
   receiptPaperWidth: string;
   receiptShowLogo: boolean;
   receiptShowContact: boolean;
@@ -60,6 +67,7 @@ export function StoreModeSettings({
   onlineCheckoutEnabled: initialOnlineCheckout,
   posEnabled: initialPosEnabled,
   phoneOrdersEnabled: initialPhoneEnabled,
+  posScannerMode: initialScannerMode,
   receiptPaperWidth: initialPaperWidth,
   receiptShowLogo: initialShowLogo,
   receiptShowContact: initialShowContact,
@@ -78,6 +86,9 @@ export function StoreModeSettings({
   const [posEnabled, setPosEnabled] = useState(initialPosEnabled);
   const [phoneOrdersEnabled, setPhoneOrdersEnabled] =
     useState(initialPhoneEnabled);
+  const [posScannerMode, setPosScannerMode] = useState<PosScannerMode>(
+    initialScannerMode as PosScannerMode
+  );
 
   // Form state - Receipt Settings
   const [receiptPaperWidth, setReceiptPaperWidth] = useState<ReceiptPaperWidth>(
@@ -96,6 +107,7 @@ export function StoreModeSettings({
     initialOnlineCheckout,
     initialPosEnabled,
     initialPhoneEnabled,
+    initialScannerMode,
     initialPaperWidth,
     initialShowLogo,
     initialShowContact,
@@ -106,6 +118,7 @@ export function StoreModeSettings({
     prevProps.initialOnlineCheckout !== initialOnlineCheckout ||
     prevProps.initialPosEnabled !== initialPosEnabled ||
     prevProps.initialPhoneEnabled !== initialPhoneEnabled ||
+    prevProps.initialScannerMode !== initialScannerMode ||
     prevProps.initialPaperWidth !== initialPaperWidth ||
     prevProps.initialShowLogo !== initialShowLogo ||
     prevProps.initialShowContact !== initialShowContact ||
@@ -116,6 +129,7 @@ export function StoreModeSettings({
       initialOnlineCheckout,
       initialPosEnabled,
       initialPhoneEnabled,
+      initialScannerMode,
       initialPaperWidth,
       initialShowLogo,
       initialShowContact,
@@ -125,6 +139,7 @@ export function StoreModeSettings({
     setOnlineCheckoutEnabled(initialOnlineCheckout);
     setPosEnabled(initialPosEnabled);
     setPhoneOrdersEnabled(initialPhoneEnabled);
+    setPosScannerMode(initialScannerMode as PosScannerMode);
     setReceiptPaperWidth(initialPaperWidth as ReceiptPaperWidth);
     setReceiptShowLogo(initialShowLogo);
     setReceiptShowContact(initialShowContact);
@@ -137,6 +152,7 @@ export function StoreModeSettings({
     onlineCheckoutEnabled !== initialOnlineCheckout ||
     posEnabled !== initialPosEnabled ||
     phoneOrdersEnabled !== initialPhoneEnabled ||
+    posScannerMode !== initialScannerMode ||
     receiptPaperWidth !== initialPaperWidth ||
     receiptShowLogo !== initialShowLogo ||
     receiptShowContact !== initialShowContact ||
@@ -179,6 +195,7 @@ export function StoreModeSettings({
         onlineCheckoutEnabled,
         posEnabled,
         phoneOrdersEnabled,
+        posScannerMode,
         receiptPaperWidth,
         receiptShowLogo,
         receiptShowContact,
@@ -356,6 +373,67 @@ export function StoreModeSettings({
                 onCheckedChange={setPhoneOrdersEnabled}
                 disabled={isPhoneDisabled}
               />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* POS Scanner Settings */}
+      {showReceiptSettings && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Camera className="size-5" />
+              Barcode Scanner
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Choose how you want to scan product barcodes in POS mode.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {posScannerModeOptions.map((mode) => {
+                const isSelected = posScannerMode === mode;
+                const Icon = mode === "camera" ? Camera : Usb;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPosScannerMode(mode)}
+                    className={cn(
+                      "relative flex items-center gap-3 rounded-lg border p-4 text-left transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    {isSelected && (
+                      <div className="absolute right-2 top-2">
+                        <Check className="size-4 text-primary" />
+                      </div>
+                    )}
+                    <div
+                      className={cn(
+                        "flex size-10 items-center justify-center rounded-lg",
+                        isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      )}
+                    >
+                      <Icon className="size-5" />
+                    </div>
+                    <div className="flex-1 pr-6">
+                      <div className="font-medium text-sm">
+                        {posScannerModeLabels[mode]}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {posScannerModeDescriptions[mode]}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

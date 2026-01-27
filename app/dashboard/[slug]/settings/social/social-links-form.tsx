@@ -20,12 +20,20 @@ import {
   FieldError,
   FieldDescription,
 } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle, Check } from "lucide-react";
 import {
   socialLinksSchema,
   type SocialLinksInput,
+  preferredContactMethodOptions,
+  preferredContactMethodLabels,
+  preferredContactMethodDescriptions,
+  type PreferredContactMethod,
 } from "@/lib/validations/stores";
 import { updateSocialLinks } from "@/lib/actions/stores";
 import { ZodError } from "zod";
@@ -40,6 +48,8 @@ interface SocialLinksFormProps {
     telegram: string;
     tiktok: string;
     youtube: string;
+    preferredContactMethod: PreferredContactMethod;
+    showWhatsAppButton: boolean;
   };
 }
 
@@ -75,10 +85,19 @@ export function SocialLinksForm({
     }
   }, [fieldErrors]);
 
-  const updateField = (field: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const updateField = (
+    field: keyof typeof formData,
+    value: string | boolean
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]:
+        field === "showWhatsAppButton"
+          ? value === "true" || value === true
+          : value,
+    }));
     setSuccess(false);
-    if (fieldErrors[field]) {
+    if (fieldErrors[field as keyof typeof fieldErrors]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
@@ -111,7 +130,7 @@ export function SocialLinksForm({
       // Create FormData for server action
       const submitData = new FormData();
       Object.entries(formData).forEach(([key, value]) => {
-        submitData.append(key, value);
+        submitData.append(key, String(value));
       });
 
       const result = await updateSocialLinks(storeId, submitData);
@@ -257,6 +276,76 @@ export function SocialLinksForm({
             />
             <FieldError>{fieldErrors.youtube}</FieldError>
           </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>WhatsApp Settings</CardTitle>
+          <CardDescription>
+            Configure how customers contact you via WhatsApp. These settings
+            affect how phone numbers are displayed on your storefront.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Field>
+            <FieldLabel>Phone Number Link Behavior</FieldLabel>
+            <FieldDescription className="mb-3">
+              When customers click your phone number, where should it open?
+            </FieldDescription>
+            <RadioGroup
+              value={formData.preferredContactMethod}
+              onValueChange={(value) =>
+                updateField("preferredContactMethod", value)
+              }
+              disabled={isPending}
+              className="space-y-3"
+            >
+              {preferredContactMethodOptions.map((option) => (
+                <div key={option} className="flex items-start space-x-3">
+                  <RadioGroupItem value={option} id={`contact-${option}`} />
+                  <div className="space-y-0.5">
+                    <Label
+                      htmlFor={`contact-${option}`}
+                      className="font-medium cursor-pointer"
+                    >
+                      {preferredContactMethodLabels[option]}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {preferredContactMethodDescriptions[option]}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </RadioGroup>
+          </Field>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="showWhatsAppButton" className="font-medium">
+                Floating WhatsApp Button
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Show a floating WhatsApp button on all store pages for quick
+                contact
+              </p>
+            </div>
+            <Switch
+              id="showWhatsAppButton"
+              checked={formData.showWhatsAppButton}
+              onCheckedChange={(checked) =>
+                updateField("showWhatsAppButton", String(checked))
+              }
+              disabled={isPending || !formData.whatsapp}
+            />
+          </div>
+          {!formData.whatsapp && (
+            <p className="text-sm text-amber-600">
+              Enter a WhatsApp number above to enable WhatsApp features
+            </p>
+          )}
         </CardContent>
         <CardFooter className="border-t pt-6">
           <Button type="submit" disabled={isPending}>

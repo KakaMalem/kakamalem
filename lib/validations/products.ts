@@ -59,6 +59,13 @@ export const productSchema = z.object({
   categoryId: z.string().uuid().optional().or(z.literal("")),
   categoryIds: z.array(z.string().uuid()).default([]),
 
+  // Barcode for POS scanning (SKU is auto-generated on backend from product name)
+  barcode: z
+    .string()
+    .max(50, "Barcode must be less than 50 characters")
+    .optional()
+    .or(z.literal("")),
+
   // Inventory
   trackInventory: z.boolean().default(true),
   stock: z
@@ -116,6 +123,10 @@ export const productSchema = z.object({
 
   // Status
   status: z.enum(["draft", "active", "archived"]).default("draft"),
+
+  // Channel visibility
+  showOnStorefront: z.boolean().default(true),
+  showOnPos: z.boolean().default(true),
 
   // Display
   displayOrder: z

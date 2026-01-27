@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getTenantCategories } from "@/lib/db/queries/products";
-import { getTenantVariantOptions } from "@/lib/db/queries/variants";
 import { ProductForm } from "@/components/dashboard/products/product-form";
 import { Button } from "@/components/ui/button";
 
@@ -19,17 +18,7 @@ export default async function NewProductPage({ params }: NewProductPageProps) {
     notFound();
   }
 
-  const [categories, tenantVariantOptions] = await Promise.all([
-    getTenantCategories(store.id),
-    getTenantVariantOptions(store.id),
-  ]);
-
-  // Transform existing variant options for autocomplete suggestions
-  const existingVariantOptions = tenantVariantOptions.map((opt) => ({
-    id: opt.id,
-    name: opt.name,
-    values: opt.values.map((v) => ({ id: v.id, value: v.value })),
-  }));
+  const categories = await getTenantCategories(store.id);
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden">
@@ -54,7 +43,7 @@ export default async function NewProductPage({ params }: NewProductPageProps) {
         storeSlug={slug}
         categories={categories}
         currency={store.currency}
-        existingVariantOptions={existingVariantOptions}
+        posScannerMode={store.posScannerMode as "camera" | "usb"}
       />
     </div>
   );

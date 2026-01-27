@@ -91,6 +91,7 @@ export default async function AdminStoresPage({
                 <TableHead>Status</TableHead>
                 <TableHead>Subscription</TableHead>
                 <TableHead>Plan</TableHead>
+                <TableHead>Trial Ends</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -99,7 +100,7 @@ export default async function AdminStoresPage({
               {stores.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No stores found
@@ -134,6 +135,12 @@ export default async function AdminStoresPage({
                       <Badge variant="outline" className="capitalize">
                         {store.subscriptionPlan}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <TrialEndDate
+                        trialEndsAt={store.trialEndsAt}
+                        subscriptionStatus={store.subscriptionStatus}
+                      />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(store.createdAt).toLocaleDateString()}
@@ -261,6 +268,56 @@ function SubscriptionBadge({ status }: { status: string }) {
     <Badge variant={variants[status] || "outline"}>
       {labels[status] || status}
     </Badge>
+  );
+}
+
+function TrialEndDate({
+  trialEndsAt,
+  subscriptionStatus,
+}: {
+  trialEndsAt: string | null;
+  subscriptionStatus: string;
+}) {
+  // Don't show trial date for paid subscriptions
+  if (subscriptionStatus === "active") {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  if (!trialEndsAt) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  const trialEnd = new Date(trialEndsAt);
+  const now = new Date();
+  const isExpired = trialEnd < now;
+  const daysRemaining = Math.ceil(
+    (trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (isExpired) {
+    return (
+      <div className="text-sm">
+        <span className="text-red-600">Expired</span>
+        <p className="text-xs text-muted-foreground">
+          {trialEnd.toLocaleDateString()}
+        </p>
+      </div>
+    );
+  }
+
+  const isEndingSoon = daysRemaining <= 3;
+
+  return (
+    <div className="text-sm">
+      <span
+        className={isEndingSoon ? "text-amber-600" : "text-muted-foreground"}
+      >
+        {daysRemaining} day{daysRemaining !== 1 ? "s" : ""}
+      </span>
+      <p className="text-xs text-muted-foreground">
+        {trialEnd.toLocaleDateString()}
+      </p>
+    </div>
   );
 }
 

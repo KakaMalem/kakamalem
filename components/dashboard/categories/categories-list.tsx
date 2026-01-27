@@ -4,8 +4,15 @@ import { useState, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Reorder } from "framer-motion";
-import { Pencil, Trash2, FolderTree, Package, Loader2 } from "lucide-react";
+import { Reorder, useDragControls } from "framer-motion";
+import {
+  Pencil,
+  Trash2,
+  FolderTree,
+  Package,
+  Loader2,
+  GripVertical,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +35,103 @@ interface CategoriesListProps {
   tenantId: string;
   storeSlug: string;
   categories: CategoryWithProductCount[];
+}
+
+interface CategoryItemProps {
+  category: CategoryWithProductCount;
+  storeSlug: string;
+  isPending: boolean;
+  onDelete: (category: CategoryWithProductCount) => void;
+}
+
+function CategoryItem({
+  category,
+  storeSlug,
+  isPending,
+  onDelete,
+}: CategoryItemProps) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      key={category.id}
+      value={category}
+      dragListener={false}
+      dragControls={dragControls}
+      className="select-none"
+      style={{ position: "relative" }}
+      whileDrag={{ zIndex: 50 }}
+    >
+      <Card>
+        <CardContent className="flex items-center gap-4 p-4">
+          {/* Drag Handle */}
+          <button
+            type="button"
+            className="shrink-0 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+            onPointerDown={(e) => dragControls.start(e)}
+          >
+            <GripVertical className="size-5" />
+            <span className="sr-only">Drag to reorder</span>
+          </button>
+
+          {/* Category Image */}
+          <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
+            {category.imageUrl ? (
+              <Image
+                src={category.imageUrl}
+                alt={category.name}
+                fill
+                className="pointer-events-none object-cover"
+              />
+            ) : (
+              <div className="flex size-full items-center justify-center">
+                <FolderTree className="size-6 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+
+          {/* Category Info */}
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/dashboard/${storeSlug}/categories/${category.id}`}
+              className="font-medium hover:underline"
+            >
+              {category.name}
+            </Link>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="truncate">/{category.slug}</span>
+              <span>•</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <Package className="size-3" />
+                {category.productCount} product
+                {category.productCount !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex shrink-0 gap-1">
+            <Button variant="ghost" size="icon-sm" asChild>
+              <Link href={`/dashboard/${storeSlug}/categories/${category.id}`}>
+                <Pencil className="size-4" />
+                <span className="sr-only">Edit</span>
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="cursor-pointer"
+              onClick={() => onDelete(category)}
+              disabled={isPending}
+            >
+              <Trash2 className="size-4 text-destructive" />
+              <span className="sr-only">Delete</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </Reorder.Item>
+  );
 }
 
 export function CategoriesList({
@@ -113,77 +217,16 @@ export function CategoriesList({
         className="space-y-2"
       >
         {categories.map((category) => (
-          <Reorder.Item
+          <CategoryItem
             key={category.id}
-            value={category}
-            className="cursor-grab active:cursor-grabbing select-none"
-            style={{ position: "relative" }}
-            whileDrag={{ zIndex: 50 }}
-          >
-            <Card>
-              <CardContent className="flex items-center gap-4 p-4">
-                {/* Category Image */}
-                <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
-                  {category.imageUrl ? (
-                    <Image
-                      src={category.imageUrl}
-                      alt={category.name}
-                      fill
-                      className="object-cover pointer-events-none"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center">
-                      <FolderTree className="size-6 text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Category Info */}
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/dashboard/${storeSlug}/categories/${category.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {category.name}
-                  </Link>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="truncate">/{category.slug}</span>
-                    <span>•</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      <Package className="size-3" />
-                      {category.productCount} product
-                      {category.productCount !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex shrink-0 gap-1">
-                  <Button variant="ghost" size="icon-sm" asChild>
-                    <Link
-                      href={`/dashboard/${storeSlug}/categories/${category.id}`}
-                    >
-                      <Pencil className="size-4" />
-                      <span className="sr-only">Edit</span>
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setCategoryToDelete(category);
-                      setDeleteDialogOpen(true);
-                    }}
-                    disabled={isPending}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                    <span className="sr-only">Delete</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </Reorder.Item>
+            category={category}
+            storeSlug={storeSlug}
+            isPending={isPending}
+            onDelete={(cat) => {
+              setCategoryToDelete(cat);
+              setDeleteDialogOpen(true);
+            }}
+          />
         ))}
       </Reorder.Group>
 

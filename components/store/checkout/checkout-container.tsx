@@ -157,6 +157,7 @@ export function CheckoutContainer({
               tenantId={tenantId}
               storeSlug={storeSlug}
               currency={currency}
+              deliveryZones={deliveryZones}
             />
           )}
           {currentStep === 3 && (

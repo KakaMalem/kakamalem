@@ -19,6 +19,9 @@ import {
   CheckCircle,
   XCircle,
   Store,
+  Mail,
+  Chrome,
+  Facebook,
 } from "lucide-react";
 import { UsersFilters } from "./users-filters";
 
@@ -96,6 +99,7 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Auth</TableHead>
                 <TableHead>Verified</TableHead>
                 <TableHead>Stores</TableHead>
                 <TableHead>Joined</TableHead>
@@ -106,7 +110,7 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
               {users.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 text-center text-muted-foreground"
                   >
                     No users found
@@ -143,6 +147,9 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
                     </TableCell>
                     <TableCell>
                       <RoleBadge role={u.profile?.platformRole || "user"} />
+                    </TableCell>
+                    <TableCell>
+                      <AuthProviderBadge providers={u.authProviders || []} />
                     </TableCell>
                     <TableCell>
                       <VerifiedBadge verified={u.emailVerified} />
@@ -255,6 +262,52 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
     <div className="flex items-center gap-1 text-muted-foreground">
       <XCircle className="size-4" />
       <span className="text-xs">Unverified</span>
+    </div>
+  );
+}
+
+function AuthProviderBadge({ providers }: { providers: string[] }) {
+  const getProviderIcon = (provider: string) => {
+    switch (provider) {
+      case "google":
+        return <Chrome className="size-3.5" />;
+      case "facebook":
+        return <Facebook className="size-3.5" />;
+      case "credential":
+        return <Mail className="size-3.5" />;
+      default:
+        return <Mail className="size-3.5" />;
+    }
+  };
+
+  const getProviderLabel = (provider: string) => {
+    switch (provider) {
+      case "google":
+        return "Google";
+      case "facebook":
+        return "Facebook";
+      case "credential":
+        return "Email";
+      default:
+        return provider;
+    }
+  };
+
+  if (providers.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {providers.map((provider) => (
+        <div
+          key={provider}
+          className="flex items-center gap-1 text-muted-foreground"
+          title={getProviderLabel(provider)}
+        >
+          {getProviderIcon(provider)}
+        </div>
+      ))}
     </div>
   );
 }

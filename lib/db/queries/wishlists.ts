@@ -153,3 +153,28 @@ export const getWishlistItemCount = cache(
     return items.length;
   }
 );
+
+/**
+ * Get all product IDs in the user's wishlist at a store.
+ * Used to hydrate the client-side wishlist store.
+ */
+export const getWishlistedProductIds = cache(
+  async (tenantId: string, userId: string) => {
+    const wishlist = await db.query.wishlists.findFirst({
+      where: and(
+        eq(wishlists.tenantId, tenantId),
+        eq(wishlists.userId, userId),
+        eq(wishlists.isDefault, true)
+      ),
+    });
+
+    if (!wishlist) return [];
+
+    const items = await db.query.wishlistItems.findMany({
+      where: eq(wishlistItems.wishlistId, wishlist.id),
+      columns: { productId: true },
+    });
+
+    return items.map((item) => item.productId);
+  }
+);

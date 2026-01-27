@@ -3,21 +3,15 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProductById, getTenantCategories } from "@/lib/db/queries/products";
-import {
-  getTenantVariantOptions,
-  getProductVariantOptionTypes,
-} from "@/lib/db/queries/variants";
-import {
-  getProductPriceTiers,
-  getTenantCustomerGroups,
-  getProductGroupPrices,
-} from "@/lib/db/queries/pricing";
+import { getProductVariantOptionTypes } from "@/lib/db/queries/variants";
+import { getProductPriceTiers } from "@/lib/db/queries/pricing";
 import { ProductForm } from "@/components/dashboard/products/product-form";
 import { Button } from "@/components/ui/button";
 import {
   transformDbOptionsToInlineOptions,
   transformDbVariantsToGeneratedVariants,
 } from "@/lib/validations/variant-form";
+import type { OptionValueImageAssignment } from "@/lib/actions/variants";
 
 interface EditProductPageProps {
   params: Promise<{ slug: string; productId: string }>;
@@ -33,34 +27,17 @@ export default async function EditProductPage({
     notFound();
   }
 
-  const [
-    product,
-    categories,
-    tenantVariantOptions,
-    productOptionTypes,
-    priceTiers,
-    customerGroups,
-    groupPrices,
-  ] = await Promise.all([
-    getProductById(store.id, productId),
-    getTenantCategories(store.id),
-    getTenantVariantOptions(store.id),
-    getProductVariantOptionTypes(store.id, productId),
-    getProductPriceTiers(productId),
-    getTenantCustomerGroups(store.id),
-    getProductGroupPrices(productId),
-  ]);
+  const [product, categories, productOptionTypes, priceTiers] =
+    await Promise.all([
+      getProductById(store.id, productId),
+      getTenantCategories(store.id),
+      getProductVariantOptionTypes(store.id, productId),
+      getProductPriceTiers(productId),
+    ]);
 
   if (!product) {
     notFound();
   }
-
-  // Transform existing variant options for autocomplete suggestions
-  const existingVariantOptions = tenantVariantOptions.map((opt) => ({
-    id: opt.id,
-    name: opt.name,
-    values: opt.values.map((v) => ({ id: v.id, value: v.value })),
-  }));
 
   // Transform product's current variant options and variants for the form
   const initialVariantOptions = product.hasVariants
@@ -71,6 +48,43 @@ export default async function EditProductPage({
     product.hasVariants && product.variants
       ? transformDbVariantsToGeneratedVariants(product.variants)
       : [];
+
+  // Transform option value images to the format expected by the form
+  const initialImageAssignments: OptionValueImageAssignment[] = [];
+  if (product.optionValueImages && product.optionValueImages.length > 0) {
+    // Group by option value
+    const grouped = new Map<
+      string,
+      {
+        optionId: string;
+        optionName: string;
+        valueId: string;
+        value: string;
+        imageIds: string[];
+      }
+    >();
+
+    for (const ovi of product.optionValueImages) {
+      if (!ovi.optionValue) continue;
+
+      const key = ovi.optionValueId;
+      const existing = grouped.get(key);
+
+      if (existing) {
+        existing.imageIds.push(ovi.mediaId);
+      } else {
+        grouped.set(key, {
+          optionId: ovi.optionValue.optionId,
+          optionName: ovi.optionValue.option?.name || "",
+          valueId: ovi.optionValueId,
+          value: ovi.optionValue.value,
+          imageIds: [ovi.mediaId],
+        });
+      }
+    }
+
+    initialImageAssignments.push(...grouped.values());
+  }
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden">
@@ -94,12 +108,11 @@ export default async function EditProductPage({
         categories={categories}
         currency={store.currency}
         product={product}
-        existingVariantOptions={existingVariantOptions}
         initialVariantOptions={initialVariantOptions}
         initialVariants={initialVariants}
         initialPriceTiers={priceTiers}
-        customerGroups={customerGroups}
-        initialGroupPrices={groupPrices}
+        initialImageAssignments={initialImageAssignments}
+        posScannerMode={store.posScannerMode as "camera" | "usb"}
       />
     </div>
   );

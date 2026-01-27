@@ -252,11 +252,25 @@ export async function calculateShippingAction(
 
       const zones = await getActiveDeliveryZones(tenantId);
 
+      // If no delivery zones configured, offer free delivery from anywhere
       if (zones.length === 0) {
         return {
-          success: false,
-          error: {
-            message: "No delivery zones configured. Please contact the store.",
+          success: true,
+          data: {
+            zone: null,
+            deliveryZoneFee: 0,
+            deliveryZonesEnabled: true,
+            methods: [
+              {
+                id: "free-delivery",
+                name: "Free Delivery",
+                description: "Standard delivery to your location",
+                price: 0,
+                basePrice: 0,
+                minDeliveryDays: null,
+                maxDeliveryDays: null,
+              },
+            ],
           },
         };
       }
@@ -764,7 +778,10 @@ export async function createOrderAction(
             variantName: item.variant?.displayName || null,
             sku: null,
             price: effectivePrice.toFixed(2),
+            unitPrice: effectivePrice.toFixed(2),
             quantity: item.quantity,
+            lineSubtotal: (effectivePrice * item.quantity).toFixed(2),
+            lineTotal: (effectivePrice * item.quantity).toFixed(2),
           });
         }
 
@@ -848,6 +865,17 @@ export async function createOrderAction(
       }
 
       // Send push notification to store owners/admins (non-blocking)
+      // Extract product names for notification (up to first 5)
+      const productNames = cart.items
+        .slice(0, 5)
+        .map((item) => item.product.name);
+
+      // Get store name for notification
+      const tenant = await db.query.tenants.findFirst({
+        where: eq(tenants.id, tenantId),
+        columns: { name: true },
+      });
+
       sendOrderNotificationToTenant(tenantId, storeSlug, {
         orderNumber: order.orderNumber,
         orderId: order.id,
@@ -855,6 +883,8 @@ export async function createOrderAction(
         total: order.total,
         currency: "AFN",
         isOffline: false,
+        storeName: tenant?.name,
+        productNames,
       }).catch((error) => {
         console.error("Failed to send order notification:", error);
       });

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronRight, ChevronLeft, Truck, AlertCircle } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronLeft,
+  Truck,
+  AlertCircle,
+  MapPin,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -11,11 +17,14 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/utils";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { calculateShippingAction } from "@/lib/actions/checkout";
+import { OutOfZoneMap } from "./out-of-zone-map";
+import type { DeliveryZone } from "@/lib/db/schema";
 
 interface StepShippingMethodProps {
   tenantId: string;
   storeSlug: string;
   currency: string;
+  deliveryZones: DeliveryZone[];
 }
 
 type ShippingMethodOption = {
@@ -31,6 +40,7 @@ export function StepShippingMethod({
   tenantId,
   storeSlug: _storeSlug,
   currency,
+  deliveryZones,
 }: StepShippingMethodProps) {
   // storeSlug is passed for future use (e.g., revalidation)
   void _storeSlug;
@@ -46,11 +56,13 @@ export function StepShippingMethod({
   const [fetchState, setFetchState] = useState<{
     isLoading: boolean;
     error: string | null;
+    isOutOfZone: boolean;
     zoneName: string | null;
     methods: ShippingMethodOption[];
   }>({
     isLoading: !!shippingAddress, // Only loading if we have an address to fetch
     error: null,
+    isOutOfZone: false,
     zoneName: null,
     methods: [],
   });
@@ -63,6 +75,7 @@ export function StepShippingMethod({
     ? "No shipping address selected"
     : fetchState.error;
   const isLoading = shippingAddress ? fetchState.isLoading : false;
+  const isOutOfZone = fetchState.isOutOfZone;
   const zoneName = fetchState.zoneName;
   const methods = fetchState.methods;
 
@@ -100,8 +113,9 @@ export function StepShippingMethod({
         setFetchState((prev) => ({
           ...prev,
           isLoading: false,
+          isOutOfZone: true,
           error:
-            "Sorry, we don't currently deliver to this address. Please go back and try a different address.",
+            "Your selected address is outside our delivery areas. Please choose a different address within the highlighted zones.",
         }));
         return;
       }
@@ -114,6 +128,7 @@ export function StepShippingMethod({
         setFetchState({
           isLoading: false,
           error: null,
+          isOutOfZone: false,
           zoneName: null,
           methods: [
             {
@@ -146,6 +161,7 @@ export function StepShippingMethod({
       setFetchState({
         isLoading: false,
         error: null,
+        isOutOfZone: false,
         zoneName: result.data?.zone?.name || null,
         methods,
       });
@@ -253,8 +269,45 @@ export function StepShippingMethod({
             </div>
           )}
 
-          {/* Error State */}
-          {!isLoading && error && (
+          {/* Error State - Out of Zone with Map */}
+          {!isLoading && error && isOutOfZone && shippingAddress && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 size-5 text-destructive" />
+                  <div>
+                    <p className="font-medium text-destructive">
+                      Outside Delivery Area
+                    </p>
+                    <p className="mt-1 text-sm text-destructive/80">
+                      Your selected address is outside our delivery zones. The
+                      map below shows our delivery areas - please choose an
+                      address within the highlighted zones.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Show map with zones and user's address */}
+              {deliveryZones.length > 0 && (
+                <OutOfZoneMap
+                  userAddress={{
+                    latitude: shippingAddress.latitude,
+                    longitude: shippingAddress.longitude,
+                  }}
+                  deliveryZones={deliveryZones}
+                />
+              )}
+
+              <Button variant="default" className="w-full" onClick={handleBack}>
+                <MapPin className="mr-2 size-4" />
+                Choose a Different Address
+              </Button>
+            </div>
+          )}
+
+          {/* Error State - Generic Error */}
+          {!isLoading && error && !isOutOfZone && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
               <div className="flex items-start gap-3">
                 <AlertCircle className="mt-0.5 size-5 text-destructive" />

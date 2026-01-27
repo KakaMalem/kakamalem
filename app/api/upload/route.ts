@@ -19,7 +19,14 @@ import { eq } from "drizzle-orm";
 export const runtime = "nodejs";
 
 // Allowed folders for uploads
-const ALLOWED_FOLDERS = ["products", "media", "avatars", "logos", "documents"];
+const ALLOWED_FOLDERS = [
+  "products",
+  "media",
+  "avatars",
+  "logos",
+  "documents",
+  "og-images",
+];
 
 export async function POST(request: NextRequest) {
   let tempFilePath: string | null = null;

@@ -1,6 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getUserStoreContext } from "@/lib/auth/context";
+import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { SocialLinksForm } from "./social-links-form";
 import type { SocialLinks } from "@/lib/db/schema";
 
@@ -24,8 +27,16 @@ export default async function SocialLinksPage({
     notFound();
   }
 
-  if (store.ownerId !== user.id) {
-    notFound();
+  // Role-based access check (requires admin or owner)
+  const userContext = await getUserStoreContext(store.id);
+  if (!userContext || !canAccessSettingsPage(userContext.role, "social")) {
+    return (
+      <AccessDenied
+        message="You need admin or owner access to edit social links."
+        backUrl={`/dashboard/${slug}/settings`}
+        backLabel="Back to Settings"
+      />
+    );
   }
 
   const socialLinks = (store.socialLinks as SocialLinks) || {};
@@ -41,6 +52,9 @@ export default async function SocialLinksPage({
         telegram: socialLinks.telegram || "",
         tiktok: socialLinks.tiktok || "",
         youtube: socialLinks.youtube || "",
+        preferredContactMethod:
+          socialLinks.preferredContactMethod || "whatsapp",
+        showWhatsAppButton: socialLinks.showWhatsAppButton ?? true,
       }}
     />
   );

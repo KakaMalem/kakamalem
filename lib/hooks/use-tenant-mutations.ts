@@ -345,6 +345,7 @@ export function getCurrentSettingsForMutation(
     onlineCheckoutEnabled: settings.onlineCheckoutEnabled,
     posEnabled: settings.posEnabled,
     phoneOrdersEnabled: settings.phoneOrdersEnabled,
+    posScannerMode: settings.posScannerMode,
     receiptPaperWidth: settings.receiptPaperWidth,
     receiptShowLogo: settings.receiptShowLogo,
     receiptShowContact: settings.receiptShowContact,

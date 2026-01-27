@@ -3,7 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, Settings, User, Crown } from "lucide-react";
+import {
+  ChevronsUpDown,
+  LogOut,
+  Settings,
+  User,
+  Crown,
+  CreditCard,
+} from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -24,7 +31,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { signOut } from "@/lib/auth/actions";
-import type { SubscriptionOverview } from "@/lib/db/queries/billing";
+import { useSubscription } from "@/lib/stores/use-subscription-store";
 
 // Reserved paths that are not store slugs
 const reservedPaths = new Set(["new", "account"]);
@@ -40,14 +47,16 @@ function getStoreSlugFromPath(pathname: string): string | null {
 
 interface UserNavProps {
   user: {
+    id: string;
     email: string;
     fullName?: string;
     avatarUrl?: string;
   };
-  subscription?: SubscriptionOverview | null;
 }
 
-export function UserNav({ user, subscription }: UserNavProps) {
+export function UserNav({ user }: UserNavProps) {
+  // Get subscription from Zustand store (hydrated per-store in layout)
+  const subscription = useSubscription();
   const router = useRouter();
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -150,15 +159,8 @@ export function UserNav({ user, subscription }: UserNavProps) {
                 <span className="truncate font-semibold">
                   {user.fullName || "User"}
                 </span>
-                <span className="truncate text-xs text-muted-foreground flex items-center gap-1">
-                  {isPro ? (
-                    <>
-                      <Crown className="size-3 text-primary" />
-                      Pro Plan
-                    </>
-                  ) : (
-                    "Free Plan"
-                  )}
+                <span className="truncate text-xs text-muted-foreground">
+                  {user.email}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
@@ -185,28 +187,33 @@ export function UserNav({ user, subscription }: UserNavProps) {
                   <span className="truncate font-semibold">
                     {user.fullName || "User"}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground flex items-center gap-1">
-                    {isPro ? (
-                      <>
-                        <Crown className="size-3 text-primary" />
-                        Pro Plan
-                      </>
-                    ) : (
-                      "Free Plan"
-                    )}
+                  <span className="truncate text-xs text-muted-foreground">
+                    {user.email}
                   </span>
                 </div>
               </div>
             </DropdownMenuLabel>
 
-            {/* Usage Section */}
+            {/* Store Plan Section */}
             {showUsageSection && (
               <>
                 <DropdownMenuSeparator />
                 <div className="px-2 py-2">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">
-                    Usage
-                  </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Store Plan
+                    </p>
+                    <span className="text-xs font-medium flex items-center gap-1">
+                      {isPro ? (
+                        <>
+                          <Crown className="size-3 text-primary" />
+                          Pro
+                        </>
+                      ) : (
+                        "Free"
+                      )}
+                    </span>
+                  </div>
 
                   {/* Product Limit */}
                   {subscription.productLimit !== null && (
@@ -247,7 +254,7 @@ export function UserNav({ user, subscription }: UserNavProps) {
                         onClick={closeSidebarOnMobile}
                       >
                         <Crown className="mr-1.5 size-3.5" />
-                        Get Pro
+                        Upgrade Store
                       </Link>
                     </Button>
                   )}
@@ -264,12 +271,20 @@ export function UserNav({ user, subscription }: UserNavProps) {
                 </Link>
               </DropdownMenuItem>
               {storeSlug && (
-                <DropdownMenuItem asChild onClick={closeSidebarOnMobile}>
-                  <Link href={`${baseUrl}/settings`}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Store Settings
-                  </Link>
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem asChild onClick={closeSidebarOnMobile}>
+                    <Link href={`${baseUrl}/settings`}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Store Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild onClick={closeSidebarOnMobile}>
+                    <Link href={`${baseUrl}/billing`}>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Billing
+                    </Link>
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

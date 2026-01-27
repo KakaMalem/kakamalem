@@ -21,10 +21,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { formatPrice } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
-import {
-  cartActions,
-  getApplicableTierPrice,
-} from "@/lib/stores/use-cart-store";
+import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import type { Cart } from "@/lib/db/queries/carts";
 import { toast } from "sonner";
@@ -60,7 +57,6 @@ export function StepReview({
     total,
     setCustomerNotes,
     setStep,
-    resetCheckout,
   } = useCheckoutStore();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -125,19 +121,72 @@ export function StepReview({
       });
 
       if (!result.success) {
-        if (result.error?.cartErrors) {
-          setCartErrors(result.error.cartErrors);
+        const errorCode = result.error?.code;
+        const errorMessage = result.error?.message || "Failed to place order";
+
+        // Handle specific error codes
+        switch (errorCode) {
+          case "CART_NOT_FOUND":
+          case "CART_EMPTY":
+            toast.error("Your cart is empty", {
+              description: "Please add items to your cart before checking out.",
+            });
+            router.replace(`/store/${storeSlug}/cart?error=empty`);
+            return;
+
+          case "CART_INVALID":
+            if (result.error?.cartErrors) {
+              setCartErrors(result.error.cartErrors);
+            }
+            toast.error("Some items need attention", {
+              description: "Please review your cart and update quantities.",
+            });
+            setIsSubmitting(false);
+            return;
+
+          case "OUTSIDE_DELIVERY_ZONE":
+            toast.error("Delivery not available", {
+              description: errorMessage,
+            });
+            setStep(1); // Go back to address step
+            setIsSubmitting(false);
+            return;
+
+          case "MIN_ORDER_NOT_MET":
+            toast.error("Minimum order not met", {
+              description: errorMessage,
+            });
+            setIsSubmitting(false);
+            return;
+
+          case "SHIPPING_METHOD_REQUIRED":
+            toast.error("Shipping method required", {
+              description: "Please select a shipping method.",
+            });
+            setStep(2); // Go back to shipping step
+            setIsSubmitting(false);
+            return;
+
+          case "VALIDATION_ERROR":
+            toast.error("Invalid information", {
+              description: errorMessage,
+            });
+            setIsSubmitting(false);
+            return;
+
+          default:
+            if (result.error?.cartErrors) {
+              setCartErrors(result.error.cartErrors);
+            }
+            toast.error(errorMessage);
+            setIsSubmitting(false);
+            return;
         }
-        toast.error(result.error?.message || "Failed to place order");
-        setIsSubmitting(false);
-        return;
       }
 
-      // Success! Clear cart and checkout state, then redirect to confirmation
-      cartActions.clearCart();
-      resetCheckout();
+      // Success! Redirect to confirmation page (cart clearing happens there)
       toast.success("Order placed successfully!");
-      router.push(
+      router.replace(
         `/store/${storeSlug}/checkout/success?order=${result.order?.id}`
       );
     } catch (error) {

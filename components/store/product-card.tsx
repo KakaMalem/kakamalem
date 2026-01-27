@@ -40,8 +40,6 @@ interface ProductCardProps {
   className?: string;
   onAddToCart?: (productId: string) => void;
   isAddingToCart?: boolean;
-  /** Initial wishlist state from server */
-  initialIsInWishlist?: boolean;
   /** When true, hides add-to-cart button (catalog/showcase mode) */
   catalogMode?: boolean;
   /** Set to true for above-the-fold cards to prioritize loading */
@@ -56,7 +54,6 @@ export function ProductCard({
   className,
   onAddToCart,
   isAddingToCart = false,
-  initialIsInWishlist = false,
   catalogMode = false,
   priority = false,
 }: ProductCardProps) {
@@ -71,7 +68,6 @@ export function ProductCard({
   } = useWishlist({
     tenantId,
     productId: product.id,
-    initialState: initialIsInWishlist,
   });
 
   const isOutOfStock = product.trackInventory && product.stock <= 0;

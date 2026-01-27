@@ -115,7 +115,7 @@ export function ProductLightbox({
       }}
       // Carousel settings
       carousel={{
-        finite: false, // Enable infinite loop
+        finite: true, // Disable infinite loop - stop at first and last image
         preload: 2, // Preload adjacent images
         padding: 0,
         spacing: 0,

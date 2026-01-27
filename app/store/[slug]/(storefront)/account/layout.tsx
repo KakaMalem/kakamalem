@@ -1,23 +1,13 @@
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
-import { User, Package, Heart, MapPin, Settings } from "lucide-react";
 
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getUser } from "@/lib/auth/server";
-import { cn } from "@/lib/utils";
+import { AccountNav } from "@/components/store/account/account-nav";
 
 interface AccountLayoutProps {
   children: React.ReactNode;
   params: Promise<{ slug: string }>;
 }
-
-const accountNavItems = [
-  { href: "", label: "Account", icon: User },
-  { href: "/orders", label: "Orders", icon: Package },
-  { href: "/addresses", label: "Addresses", icon: MapPin },
-  { href: "/wishlist", label: "Wishlist", icon: Heart },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
 
 export default async function AccountLayout({
   children,
@@ -49,29 +39,12 @@ export default async function AccountLayout({
         </p>
       </div>
 
-      <div className="flex flex-col gap-8 lg:flex-row">
+      <div className="flex flex-col gap-6 md:flex-row md:gap-8">
         {/* Sidebar Navigation */}
-        <nav className="w-full shrink-0 lg:w-56">
-          <ul className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-x-visible lg:pb-0">
-            {accountNavItems.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={`${baseUrl}${item.href}`}
-                  className={cn(
-                    "flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                    "lg:w-full"
-                  )}
-                >
-                  <item.icon className="size-4" />
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <AccountNav baseUrl={baseUrl} />
 
         {/* Main Content */}
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 min-w-0">{children}</main>
       </div>
     </div>
   );

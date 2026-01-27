@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
   updateStoreSubscription,
   extendStoreTrial,
   addStoreNotes,
+  recordBillingTransaction,
 } from "@/lib/actions/admin";
 import {
   Ban,
@@ -39,7 +41,10 @@ import {
   FileText,
   Loader2,
   AlertTriangle,
+  CreditCard,
+  Receipt,
 } from "lucide-react";
+import type { PaymentMethod } from "@/lib/db/schema";
 
 // =============================================================================
 // STORE ACTIONS CLIENT COMPONENT
@@ -73,6 +78,17 @@ export function StoreActionsClient({
   const [extendDays, setExtendDays] = useState(7);
   const [notes, setNotes] = useState(currentNotes || "");
   const [suspendReason, setSuspendReason] = useState("");
+
+  // Payment recording state
+  const [paymentAmount, setPaymentAmount] = useState(settings.proPlanPriceAfn);
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethod>("bank_transfer");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [createInvoice, setCreateInvoice] = useState(true);
+  const [upgradeOnPayment, setUpgradeOnPayment] = useState(
+    currentPlan === "free"
+  );
 
   const handleStatusChange = (
     status: "pending_review" | "active" | "suspended" | "inactive",
@@ -118,6 +134,43 @@ export function StoreActionsClient({
       const result = await addStoreNotes(storeId, notes);
       if (result.success) {
         toast.success("Notes saved");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleRecordPayment = () => {
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    // Calculate period (30 days from now)
+    const now = new Date();
+    const periodEnd = new Date();
+    periodEnd.setDate(periodEnd.getDate() + 30);
+
+    startTransition(async () => {
+      const result = await recordBillingTransaction({
+        storeId,
+        type: "subscription_payment",
+        amount,
+        paymentMethod,
+        paymentReference: paymentReference || undefined,
+        periodStart: now.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+        notes: paymentNotes || undefined,
+        createInvoice,
+        upgradeToProOnPayment: upgradeOnPayment,
+      });
+
+      if (result.success) {
+        toast.success(result.message || "Payment recorded");
+        // Reset form
+        setPaymentReference("");
+        setPaymentNotes("");
       } else {
         toast.error(result.error);
       }
@@ -284,6 +337,7 @@ export function StoreActionsClient({
                   max={90}
                   value={extendDays}
                   onChange={(e) => setExtendDays(parseInt(e.target.value) || 7)}
+                  onWheel={(e) => e.currentTarget.blur()}
                   className="w-20"
                 />
                 <span className="flex items-center text-sm text-muted-foreground">
@@ -317,6 +371,120 @@ export function StoreActionsClient({
               Restart Trial
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Record Payment */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="size-5" />
+            Record Payment
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="payment-amount">Amount (AFN)</Label>
+              <Input
+                id="payment-amount"
+                type="number"
+                min={0}
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                placeholder="1100"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Payment Method</Label>
+              <Select
+                value={paymentMethod}
+                onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
+              >
+                <SelectTrigger id="payment-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="mobile_money">
+                    Mobile Money (M-Paisa)
+                  </SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="payment-reference">Payment Reference</Label>
+            <Input
+              id="payment-reference"
+              value={paymentReference}
+              onChange={(e) => setPaymentReference(e.target.value)}
+              placeholder="Transaction ID, receipt number, etc."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="payment-notes">Notes (optional)</Label>
+            <Textarea
+              id="payment-notes"
+              value={paymentNotes}
+              onChange={(e) => setPaymentNotes(e.target.value)}
+              placeholder="Additional notes about this payment..."
+              rows={2}
+            />
+          </div>
+
+          <div className="space-y-3 rounded-lg border p-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="create-invoice"
+                checked={createInvoice}
+                onCheckedChange={(checked) =>
+                  setCreateInvoice(checked === true)
+                }
+              />
+              <Label
+                htmlFor="create-invoice"
+                className="cursor-pointer text-sm"
+              >
+                Generate invoice for this payment
+              </Label>
+            </div>
+            {currentPlan === "free" && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="upgrade-on-payment"
+                  checked={upgradeOnPayment}
+                  onCheckedChange={(checked) =>
+                    setUpgradeOnPayment(checked === true)
+                  }
+                />
+                <Label
+                  htmlFor="upgrade-on-payment"
+                  className="cursor-pointer text-sm"
+                >
+                  Upgrade to Pro after payment
+                </Label>
+              </div>
+            )}
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={handleRecordPayment}
+            disabled={isPending || !paymentAmount}
+          >
+            {isPending ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Receipt className="mr-2 size-4" />
+            )}
+            Record Payment
+          </Button>
         </CardContent>
       </Card>
 

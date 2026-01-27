@@ -6,7 +6,7 @@ import {
   type OrderFilters,
   type OrderSort,
   type OrderStatus,
-  type SalesChannel,
+  type OrderChannel,
 } from "@/lib/db/queries/orders";
 import { OrdersPageClient } from "@/components/dashboard/orders/orders-page-client";
 
@@ -18,6 +18,7 @@ interface OrdersPageProps {
     search?: string;
     status?: string;
     channel?: string;
+    dateRange?: string;
     dateFrom?: string;
     dateTo?: string;
     sort?: string;
@@ -45,7 +46,7 @@ export default async function OrdersPage({
   const filters: OrderFilters = {
     search: search.search,
     status: search.status as OrderStatus | "all" | undefined,
-    channel: search.channel as SalesChannel | "all" | undefined,
+    channel: search.channel as OrderChannel | "all" | undefined,
     dateFrom: search.dateFrom,
     dateTo: search.dateTo,
   };

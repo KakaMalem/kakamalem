@@ -1,4 +1,8 @@
-import type { StoreMode, ReceiptPaperWidth } from "@/lib/validations/stores";
+import type {
+  StoreMode,
+  ReceiptPaperWidth,
+  PosScannerMode,
+} from "@/lib/validations/stores";
 
 /**
  * Tenant settings type for client-side state management.
@@ -28,6 +32,9 @@ export type TenantSettings = {
   onlineCheckoutEnabled: boolean;
   posEnabled: boolean;
   phoneOrdersEnabled: boolean;
+
+  // POS Settings
+  posScannerMode: PosScannerMode;
 
   // Receipt Settings
   receiptPaperWidth: ReceiptPaperWidth;

@@ -183,7 +183,7 @@ export async function toggleWishlistAction(
         .where(eq(wishlistItems.id, existingItem.id));
       revalidatePath("/store/[slug]/account/wishlist", "page");
       revalidatePath("/store/[slug]/product/[productSlug]", "page");
-      return { data: { action: "removed" as const } };
+      return { data: { action: "removed" as const, productId } };
     } else {
       // Add it
       await db.insert(wishlistItems).values({
@@ -194,10 +194,49 @@ export async function toggleWishlistAction(
       });
       revalidatePath("/store/[slug]/account/wishlist", "page");
       revalidatePath("/store/[slug]/product/[productSlug]", "page");
-      return { data: { action: "added" as const } };
+      return { data: { action: "added" as const, productId } };
     }
   } catch (error) {
     console.error("Failed to toggle wishlist:", error);
     return { error: { message: "Failed to update wishlist" } };
+  }
+}
+
+/**
+ * Get all product IDs in the user's wishlist for a specific store.
+ * Used to initialize the wishlist store on the client.
+ */
+export async function getWishlistedProductIdsAction(tenantId: string) {
+  const user = await getUser();
+  if (!user) {
+    return { data: { productIds: [] } };
+  }
+
+  try {
+    // Get the default wishlist
+    const wishlist = await db.query.wishlists.findFirst({
+      where: and(
+        eq(wishlists.tenantId, tenantId),
+        eq(wishlists.userId, user.id),
+        eq(wishlists.isDefault, true)
+      ),
+    });
+
+    if (!wishlist) {
+      return { data: { productIds: [] } };
+    }
+
+    // Get all wishlist item product IDs
+    const items = await db.query.wishlistItems.findMany({
+      where: eq(wishlistItems.wishlistId, wishlist.id),
+      columns: { productId: true },
+    });
+
+    const productIds = items.map((item) => item.productId);
+
+    return { data: { productIds } };
+  } catch (error) {
+    console.error("Failed to get wishlisted product IDs:", error);
+    return { data: { productIds: [] } };
   }
 }

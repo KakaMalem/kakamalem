@@ -87,6 +87,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
             onChange={(e) =>
               setFormData({ ...formData, proPlanPriceAfn: e.target.value })
             }
+            onWheel={(e) => e.currentTarget.blur()}
           />
           <p className="text-xs text-muted-foreground">
             Monthly subscription price for Pro plan
@@ -110,6 +111,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 transactionFeePercent: e.target.value,
               })
             }
+            onWheel={(e) => e.currentTarget.blur()}
           />
           <p className="text-xs text-muted-foreground">
             Currently disabled (set to 0)
@@ -142,6 +144,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 freeProductLimit: parseInt(e.target.value) || 20,
               })
             }
+            onWheel={(e) => e.currentTarget.blur()}
           />
           <p className="text-xs text-muted-foreground">
             Maximum products on free plan
@@ -162,6 +165,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 freeStoreLimit: parseInt(e.target.value) || 1,
               })
             }
+            onWheel={(e) => e.currentTarget.blur()}
           />
           <p className="text-xs text-muted-foreground">
             Maximum stores per user on free plan
@@ -194,6 +198,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 trialDurationDays: parseInt(e.target.value) || 7,
               })
             }
+            onWheel={(e) => e.currentTarget.blur()}
           />
           <p className="text-xs text-muted-foreground">
             How long new stores get free trial
@@ -214,6 +219,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 trialWarningDays: parseInt(e.target.value) || 3,
               })
             }
+            onWheel={(e) => e.currentTarget.blur()}
           />
           <p className="text-xs text-muted-foreground">
             Days before trial ends to show in dashboard

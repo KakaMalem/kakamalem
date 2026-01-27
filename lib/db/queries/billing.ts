@@ -1,11 +1,19 @@
 import { cache } from "react";
-import { eq, count as drizzleCount } from "drizzle-orm";
+import { eq, count as drizzleCount, desc, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   tenants,
   products,
+  billingTransactions,
+  invoices,
+  user,
   type SubscriptionPlan,
   type SubscriptionStatus,
+  type BillingTransaction,
+  type Invoice,
+  type BillingTransactionType,
+  type BillingTransactionStatus,
+  type InvoiceStatus,
 } from "@/lib/db/schema";
 
 // =============================================================================
@@ -158,11 +166,6 @@ export function getPlanFeatures(freeProductLimit: number): PlanFeature[] {
       pro: "Unlimited",
     },
     {
-      name: "Stores",
-      free: "1 store",
-      pro: "Multiple stores",
-    },
-    {
       name: "Online checkout",
       free: true,
       pro: true,
@@ -238,49 +241,262 @@ export const canAddProduct = cache(
 );
 
 /**
- * Check if a user can create more stores based on their plan
- * Users with any Pro store can create multiple stores
- * Users on free plan are limited to freeStoreLimit (default: 1)
+ * Check if a user can create more stores
+ * Platform-level limit to prevent abuse (configurable in admin settings)
+ * Each store has its own subscription (per-store billing model)
  */
 export const canAddStore = cache(
   async (userId: string): Promise<{ allowed: boolean; reason?: string }> => {
-    // Fetch user's stores and platform settings in parallel
+    // Fetch user's store count and platform settings in parallel
     const [userStores, settings] = await Promise.all([
       db.query.tenants.findMany({
         where: eq(tenants.ownerId, userId),
-        columns: {
-          id: true,
-          subscriptionPlan: true,
-          subscriptionStatus: true,
-        },
+        columns: { id: true },
       }),
       db.query.platformSettings.findFirst(),
     ]);
 
-    const freeStoreLimit = settings?.freeStoreLimit ?? 1;
+    const maxStoresPerUser = settings?.freeStoreLimit ?? 5;
     const currentStoreCount = userStores.length;
 
-    // Check if user has any active Pro subscription
-    const hasProPlan = userStores.some(
-      (store) =>
-        store.subscriptionPlan === "pro" &&
-        store.subscriptionStatus !== "expired" &&
-        store.subscriptionStatus !== "cancelled"
-    );
-
-    // Pro users can create unlimited stores
-    if (hasProPlan) {
-      return { allowed: true };
-    }
-
-    // Free users are limited to freeStoreLimit
-    if (currentStoreCount >= freeStoreLimit) {
+    // Platform-level limit (not subscription-based)
+    if (currentStoreCount >= maxStoresPerUser) {
       return {
         allowed: false,
-        reason: `You've reached the limit of ${freeStoreLimit} store${freeStoreLimit === 1 ? "" : "s"} on the free plan. Upgrade to Pro for multiple stores.`,
+        reason: `You've reached the maximum of ${maxStoresPerUser} store${maxStoresPerUser === 1 ? "" : "s"} per account. Contact support if you need more.`,
       };
     }
 
     return { allowed: true };
   }
 );
+
+// =============================================================================
+// BILLING HISTORY TYPES
+// =============================================================================
+
+export type BillingTransactionWithAdmin = BillingTransaction & {
+  processedByName: string | null;
+};
+
+export type InvoiceWithStats = Invoice & {
+  amountDue: number;
+};
+
+// =============================================================================
+// BILLING HISTORY QUERIES
+// =============================================================================
+
+/**
+ * Get billing transaction history for a tenant
+ * Returns transactions sorted by date (newest first)
+ */
+export const getBillingTransactions = cache(
+  async (
+    tenantId: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      type?: BillingTransactionType;
+      status?: BillingTransactionStatus;
+    }
+  ): Promise<{
+    transactions: BillingTransactionWithAdmin[];
+    total: number;
+  }> => {
+    const { limit = 20, offset = 0, type, status } = options ?? {};
+
+    // Build where conditions
+    const conditions = [eq(billingTransactions.tenantId, tenantId)];
+    if (type) conditions.push(eq(billingTransactions.type, type));
+    if (status) conditions.push(eq(billingTransactions.status, status));
+
+    // Fetch transactions and total count in parallel
+    const [transactionResults, countResult] = await Promise.all([
+      db
+        .select({
+          id: billingTransactions.id,
+          tenantId: billingTransactions.tenantId,
+          type: billingTransactions.type,
+          amount: billingTransactions.amount,
+          currency: billingTransactions.currency,
+          paymentMethod: billingTransactions.paymentMethod,
+          paymentReference: billingTransactions.paymentReference,
+          periodStart: billingTransactions.periodStart,
+          periodEnd: billingTransactions.periodEnd,
+          fromPlan: billingTransactions.fromPlan,
+          toPlan: billingTransactions.toPlan,
+          status: billingTransactions.status,
+          invoiceId: billingTransactions.invoiceId,
+          processedBy: billingTransactions.processedBy,
+          notes: billingTransactions.notes,
+          createdAt: billingTransactions.createdAt,
+          updatedAt: billingTransactions.updatedAt,
+          processedByName: user.name,
+        })
+        .from(billingTransactions)
+        .leftJoin(user, eq(billingTransactions.processedBy, user.id))
+        .where(and(...conditions))
+        .orderBy(desc(billingTransactions.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: drizzleCount() })
+        .from(billingTransactions)
+        .where(and(...conditions)),
+    ]);
+
+    return {
+      transactions: transactionResults,
+      total: countResult[0]?.count ?? 0,
+    };
+  }
+);
+
+/**
+ * Get invoices for a tenant
+ * Returns invoices sorted by date (newest first)
+ */
+export const getInvoices = cache(
+  async (
+    tenantId: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      status?: InvoiceStatus;
+    }
+  ): Promise<{ invoices: InvoiceWithStats[]; total: number }> => {
+    const { limit = 20, offset = 0, status } = options ?? {};
+
+    // Build where conditions
+    const conditions = [eq(invoices.tenantId, tenantId)];
+    if (status) conditions.push(eq(invoices.status, status));
+
+    // Fetch invoices and total count in parallel
+    const [invoiceResults, countResult] = await Promise.all([
+      db.query.invoices.findMany({
+        where: and(...conditions),
+        orderBy: [desc(invoices.createdAt)],
+        limit,
+        offset,
+      }),
+      db
+        .select({ count: drizzleCount() })
+        .from(invoices)
+        .where(and(...conditions)),
+    ]);
+
+    // Calculate amount due for each invoice
+    const invoicesWithStats: InvoiceWithStats[] = invoiceResults.map(
+      (invoice) => ({
+        ...invoice,
+        amountDue:
+          parseFloat(invoice.total) - parseFloat(invoice.paidAmount ?? "0"),
+      })
+    );
+
+    return {
+      invoices: invoicesWithStats,
+      total: countResult[0]?.count ?? 0,
+    };
+  }
+);
+
+/**
+ * Get a single invoice by ID (for download/detail view)
+ */
+export const getInvoiceById = cache(
+  async (invoiceId: string, tenantId: string): Promise<Invoice | null> => {
+    const invoice = await db.query.invoices.findFirst({
+      where: and(eq(invoices.id, invoiceId), eq(invoices.tenantId, tenantId)),
+    });
+
+    return invoice ?? null;
+  }
+);
+
+/**
+ * Get billing summary stats for a tenant
+ */
+export const getBillingSummary = cache(
+  async (
+    tenantId: string
+  ): Promise<{
+    totalPaid: number;
+    invoicesPending: number;
+    lastPaymentDate: string | null;
+    lastPaymentAmount: number | null;
+  }> => {
+    // Get total paid from completed transactions
+    const [totalPaidResult, pendingInvoicesResult, lastPaymentResult] =
+      await Promise.all([
+        db
+          .select({
+            total: sql<string>`COALESCE(SUM(${billingTransactions.amount}), 0)`,
+          })
+          .from(billingTransactions)
+          .where(
+            and(
+              eq(billingTransactions.tenantId, tenantId),
+              eq(billingTransactions.status, "completed"),
+              eq(billingTransactions.type, "subscription_payment")
+            )
+          ),
+        db
+          .select({ count: drizzleCount() })
+          .from(invoices)
+          .where(
+            and(
+              eq(invoices.tenantId, tenantId),
+              sql`${invoices.status} IN ('sent', 'overdue', 'partially_paid')`
+            )
+          ),
+        db
+          .select({
+            createdAt: billingTransactions.createdAt,
+            amount: billingTransactions.amount,
+          })
+          .from(billingTransactions)
+          .where(
+            and(
+              eq(billingTransactions.tenantId, tenantId),
+              eq(billingTransactions.status, "completed"),
+              eq(billingTransactions.type, "subscription_payment")
+            )
+          )
+          .orderBy(desc(billingTransactions.createdAt))
+          .limit(1),
+      ]);
+
+    return {
+      totalPaid: parseFloat(totalPaidResult[0]?.total ?? "0"),
+      invoicesPending: pendingInvoicesResult[0]?.count ?? 0,
+      lastPaymentDate: lastPaymentResult[0]?.createdAt ?? null,
+      lastPaymentAmount: lastPaymentResult[0]?.amount
+        ? parseFloat(lastPaymentResult[0].amount)
+        : null,
+    };
+  }
+);
+
+/**
+ * Generate next invoice number for a tenant
+ * Format: INV-{YEAR}-{SEQUENCE}
+ */
+export async function generateInvoiceNumber(tenantId: string): Promise<string> {
+  const year = new Date().getFullYear();
+
+  // Get the count of invoices for this tenant this year
+  const result = await db
+    .select({ count: drizzleCount() })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.tenantId, tenantId),
+        sql`EXTRACT(YEAR FROM ${invoices.createdAt}) = ${year}`
+      )
+    );
+
+  const sequence = (result[0]?.count ?? 0) + 1;
+  return `INV-${year}-${String(sequence).padStart(4, "0")}`;
+}

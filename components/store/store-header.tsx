@@ -13,6 +13,7 @@ import {
   Package,
   Crown,
   Shield,
+  Bell,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -124,12 +125,12 @@ export function StoreHeader({
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Desktop Header */}
-        <div className="hidden h-16 items-center gap-6 md:flex">
+        {/* Desktop & Tablet Header */}
+        <div className="hidden h-16 items-center gap-3 md:flex lg:gap-6">
           {/* Left: Logo / Store Name */}
           <Link
             href={storeUrl}
-            className="flex shrink-0 items-center gap-2.5 transition-opacity hover:opacity-80"
+            className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80 lg:gap-2.5"
           >
             {showLogo && (
               <Logo
@@ -140,7 +141,7 @@ export function StoreHeader({
               />
             )}
             {showName && (
-              <span className="text-lg font-semibold tracking-tight">
+              <span className="max-w-32 truncate text-base font-semibold tracking-tight lg:max-w-none lg:text-lg">
                 {store.name}
               </span>
             )}
@@ -148,7 +149,7 @@ export function StoreHeader({
 
           {/* Center: Search Bar */}
           <form onSubmit={handleSearch} className="flex flex-1 justify-center">
-            <div className="relative w-full max-w-lg">
+            <div className="relative w-full max-w-md lg:max-w-lg">
               <Search
                 className={cn(
                   "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
@@ -167,7 +168,7 @@ export function StoreHeader({
           </form>
 
           {/* Right: Actions */}
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 lg:gap-2">
             {/* Cart Button - Hidden in catalog mode */}
             {!isCartDisabled && (
               <Button
@@ -254,6 +255,12 @@ export function StoreHeader({
                       Wishlist
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={`${storeUrl}/account/notifications`}>
+                      <Bell className="mr-2 size-4" />
+                      Notifications
+                    </Link>
+                  </DropdownMenuItem>
                   {/* Owner/Staff Dashboard Link */}
                   {userContext?.isMember && (
                     <>
@@ -281,7 +288,7 @@ export function StoreHeader({
                 <Button variant="outline" size="sm" asChild>
                   <Link href={`${storeUrl}/auth/login`}>Sign in</Link>
                 </Button>
-                <Button size="sm" asChild>
+                <Button size="sm" asChild className="hidden lg:inline-flex">
                   <Link href={`${storeUrl}/auth/signup`}>Register</Link>
                 </Button>
               </>
@@ -313,7 +320,7 @@ export function StoreHeader({
               )}
             </Link>
 
-            {/* Right: Cart & Profile */}
+            {/* Right: Cart, Notifications & Profile */}
             <div className="flex items-center gap-0.5">
               {/* Cart Button - Hidden in catalog mode */}
               {!isCartDisabled && (
@@ -408,6 +415,12 @@ export function StoreHeader({
                         <Link href={`${storeUrl}/account/wishlist`}>
                           <Heart className="mr-2 size-4" />
                           Wishlist
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`${storeUrl}/account/notifications`}>
+                          <Bell className="mr-2 size-4" />
+                          Notifications
                         </Link>
                       </DropdownMenuItem>
                       {/* Owner/Staff Dashboard Link */}

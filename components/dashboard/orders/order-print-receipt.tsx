@@ -385,11 +385,7 @@ export function OrderPrintReceipt({
           </p>
           {!isCompact && (
             <p className="mt-2">
-              {order.salesChannel === "phone"
-                ? "Phone Order"
-                : order.salesChannel === "offline"
-                  ? "In-Store Sale"
-                  : "Online Order"}
+              {order.channel === "pos" ? "In-Store Sale" : "Online Order"}
             </p>
           )}
         </div>

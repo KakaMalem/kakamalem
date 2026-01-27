@@ -72,6 +72,7 @@ export const MAX_SIZES = {
   favicons: 512 * 1024, // 512KB
   avatars: 2 * 1024 * 1024, // 2MB
   documents: 10 * 1024 * 1024, // 10MB
+  "og-images": 5 * 1024 * 1024, // 5MB for social sharing images
   default: 5 * 1024 * 1024, // 5MB fallback
 } as const;
 

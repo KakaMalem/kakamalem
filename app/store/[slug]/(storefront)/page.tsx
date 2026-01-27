@@ -30,7 +30,7 @@ export default async function StorePage({
   const productsResult = await getProducts(store.id, {
     page: 1,
     limit: 20,
-    filters: { isActive: true, search: searchQuery },
+    filters: { isActive: true, showOnStorefront: true, search: searchQuery },
     sort: { field: "displayOrder", direction: "asc" },
   });
 
@@ -76,7 +76,11 @@ export default async function StorePage({
               tenantId={store.id}
               storeSlug={slug}
               currency={store.currency}
-              filters={{ isActive: true, search: searchQuery }}
+              filters={{
+                isActive: true,
+                showOnStorefront: true,
+                search: searchQuery,
+              }}
               sort={{ field: "displayOrder", direction: "asc" }}
               catalogMode={isCartDisabled}
             />

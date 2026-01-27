@@ -7,6 +7,7 @@ import {
   productVariants,
   productVariantOptions,
   productVariantImages,
+  optionValueImages,
   products,
 } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
@@ -24,6 +25,7 @@ import {
   checkVariantOptionNameAvailable,
   checkVariantSkuAvailable,
 } from "@/lib/db/queries/variants";
+import { generateSku } from "@/lib/utils/slug";
 
 type ActionResult<T = void> = {
   success: boolean;
@@ -749,6 +751,18 @@ import type {
 export type BulkVariantCreationInput = {
   options: InlineOption[];
   variants: GeneratedVariant[];
+  imageAssignments?: OptionValueImageAssignment[];
+};
+
+/**
+ * Type for option value to image mapping
+ */
+export type OptionValueImageAssignment = {
+  optionId: string; // ID or tempId of the option
+  optionName: string;
+  valueId: string; // ID or value string for new values
+  value: string;
+  imageIds: string[]; // Media IDs assigned to this value
 };
 
 /**
@@ -763,7 +777,7 @@ export async function createProductVariantsInBulk(
   productId: string,
   input: BulkVariantCreationInput
 ): Promise<ActionResult<{ variantIds: string[] }>> {
-  const { options, variants } = input;
+  const { options, variants, imageAssignments } = input;
 
   // Filter out excluded variants
   const activeVariants = variants.filter((v) => !v.isExcluded);
@@ -784,6 +798,20 @@ export async function createProductVariantsInBulk(
   }
 
   try {
+    // Get product name for SKU generation
+    const product = await db.query.products.findFirst({
+      where: and(eq(products.tenantId, tenantId), eq(products.id, productId)),
+      columns: { name: true },
+    });
+
+    if (!product) {
+      return {
+        success: false,
+        error: { message: "Product not found" },
+      };
+    }
+
+    const productName = product.name;
     // Step 1: Create or find variant options and their values
     // Map: tempId/id -> actualId for options
     const optionIdMap = new Map<string, string>();
@@ -839,6 +867,19 @@ export async function createProductVariantsInBulk(
 
           if (existingValue) {
             valueId = existingValue.id;
+            // Update swatch data if changed
+            if (
+              val.swatchType !== existingValue.swatchType ||
+              val.swatchValue !== existingValue.swatchValue
+            ) {
+              await db
+                .update(variantOptionValues)
+                .set({
+                  swatchType: val.swatchType || "text",
+                  swatchValue: val.swatchValue || null,
+                })
+                .where(eq(variantOptionValues.id, existingValue.id));
+            }
           } else {
             const [newValue] = await db
               .insert(variantOptionValues)
@@ -847,12 +888,24 @@ export async function createProductVariantsInBulk(
                 optionId,
                 value: val.value,
                 displayOrder: option.values.indexOf(val),
+                swatchType: val.swatchType || "text",
+                swatchValue: val.swatchValue || null,
               })
               .returning({ id: variantOptionValues.id });
             valueId = newValue.id;
           }
         } else {
           valueId = val.id;
+          // Update swatch data for existing values if provided
+          if (val.swatchType || val.swatchValue !== undefined) {
+            await db
+              .update(variantOptionValues)
+              .set({
+                swatchType: val.swatchType || "text",
+                swatchValue: val.swatchValue || null,
+              })
+              .where(eq(variantOptionValues.id, valueId));
+          }
         }
 
         // Store mapping: use "optionKey:value" as key
@@ -909,17 +962,22 @@ export async function createProductVariantsInBulk(
 
       const displayName = valuesData.map((v) => v.value).join(" / ");
 
-      // Check SKU uniqueness
-      if (variant.sku) {
+      // Auto-generate SKU from product name + variant display name
+      const variantDisplayName = displayName || variant.displayName;
+      const autoSku = generateSku(`${productName} ${variantDisplayName}`);
+
+      // Check SKU uniqueness and append suffix if needed
+      let skuSuffix = 0;
+      let finalSku = autoSku;
+      while (true) {
         const isSkuAvailable = await checkVariantSkuAvailable(
           tenantId,
           productId,
-          variant.sku
+          finalSku
         );
-        if (!isSkuAvailable) {
-          // Generate a unique SKU by appending index
-          variant.sku = `${variant.sku}-${i + 1}`;
-        }
+        if (isSkuAvailable) break;
+        skuSuffix++;
+        finalSku = `${autoSku}-${skuSuffix}`;
       }
 
       // Create variant
@@ -929,8 +987,9 @@ export async function createProductVariantsInBulk(
         .values({
           tenantId,
           productId,
-          sku: variant.sku || null,
-          displayName: displayName || variant.displayName,
+          sku: finalSku,
+          barcode: variant.barcode || null, // Save barcode from form
+          displayName: variantDisplayName,
           price: variant.price || null,
           weight: variant.weight || null,
           length: variant.length || null,
@@ -987,6 +1046,51 @@ export async function createProductVariantsInBulk(
       })
       .where(and(eq(products.tenantId, tenantId), eq(products.id, productId)));
 
+    // Step 5: Save option value image assignments
+    if (imageAssignments && imageAssignments.length > 0) {
+      // Delete existing image assignments for this product
+      await db
+        .delete(optionValueImages)
+        .where(
+          and(
+            eq(optionValueImages.tenantId, tenantId),
+            eq(optionValueImages.productId, productId)
+          )
+        );
+
+      // Create new image assignments
+      const imagesToInsert: {
+        tenantId: string;
+        productId: string;
+        optionValueId: string;
+        mediaId: string;
+        position: number;
+      }[] = [];
+
+      for (const assignment of imageAssignments) {
+        // Find the actual option value ID using the valueIdMap
+        const optionKey = assignment.optionId;
+        const valueKey = `${optionKey}:${assignment.value}`;
+        const actualValueId = valueIdMap.get(valueKey);
+
+        if (actualValueId && assignment.imageIds.length > 0) {
+          for (let i = 0; i < assignment.imageIds.length; i++) {
+            imagesToInsert.push({
+              tenantId,
+              productId,
+              optionValueId: actualValueId,
+              mediaId: assignment.imageIds[i],
+              position: i,
+            });
+          }
+        }
+      }
+
+      if (imagesToInsert.length > 0) {
+        await db.insert(optionValueImages).values(imagesToInsert);
+      }
+    }
+
     return { success: true, data: { variantIds: createdVariantIds } };
   } catch (error) {
     console.error("Error creating variants in bulk:", error);
@@ -1005,12 +1109,27 @@ export async function updateProductVariantsInBulk(
   productId: string,
   input: BulkVariantCreationInput
 ): Promise<ActionResult> {
-  const { options, variants } = input;
+  const { options, variants, imageAssignments } = input;
 
   // Filter out excluded variants
   const activeVariants = variants.filter((v) => !v.isExcluded);
 
   try {
+    // Get product name for SKU generation
+    const product = await db.query.products.findFirst({
+      where: and(eq(products.tenantId, tenantId), eq(products.id, productId)),
+      columns: { name: true },
+    });
+
+    if (!product) {
+      return {
+        success: false,
+        error: { message: "Product not found" },
+      };
+    }
+
+    const productName = product.name;
+
     // Get existing variants
     const existingVariants = await db.query.productVariants.findMany({
       where: and(
@@ -1104,6 +1223,19 @@ export async function updateProductVariantsInBulk(
 
           if (existingValue) {
             valueId = existingValue.id;
+            // Update swatch data if changed
+            if (
+              val.swatchType !== existingValue.swatchType ||
+              val.swatchValue !== existingValue.swatchValue
+            ) {
+              await db
+                .update(variantOptionValues)
+                .set({
+                  swatchType: val.swatchType || "text",
+                  swatchValue: val.swatchValue || null,
+                })
+                .where(eq(variantOptionValues.id, existingValue.id));
+            }
           } else {
             const [newValue] = await db
               .insert(variantOptionValues)
@@ -1112,12 +1244,24 @@ export async function updateProductVariantsInBulk(
                 optionId,
                 value: val.value,
                 displayOrder: option.values.indexOf(val),
+                swatchType: val.swatchType || "text",
+                swatchValue: val.swatchValue || null,
               })
               .returning({ id: variantOptionValues.id });
             valueId = newValue.id;
           }
         } else {
           valueId = val.id;
+          // Update swatch data for existing values if provided
+          if (val.swatchType || val.swatchValue !== undefined) {
+            await db
+              .update(variantOptionValues)
+              .set({
+                swatchType: val.swatchType || "text",
+                swatchValue: val.swatchValue || null,
+              })
+              .where(eq(variantOptionValues.id, valueId));
+          }
         }
 
         valueIdMap.set(`${optionKey}:${val.value}`, valueId);
@@ -1161,16 +1305,18 @@ export async function updateProductVariantsInBulk(
             })
           : [];
       const displayName = valuesData.map((v) => v.value).join(" / ");
+      const variantDisplayName = displayName || variant.displayName;
 
       const stockNum = parseInt(variant.stock) || 0;
 
       if (variant.existingId && existingIds.has(variant.existingId)) {
-        // Update existing variant
+        // For existing variants, we don't regenerate SKU (they already have one)
+        // Just update barcode and other fields
         await db
           .update(productVariants)
           .set({
-            sku: variant.sku || null,
-            displayName: displayName || variant.displayName,
+            barcode: variant.barcode || null, // Update barcode from form
+            displayName: variantDisplayName,
             price: variant.price || null,
             weight: variant.weight || null,
             length: variant.length || null,
@@ -1222,14 +1368,32 @@ export async function updateProductVariantsInBulk(
           );
         }
       } else {
+        // Auto-generate SKU for new variants
+        const autoSku = generateSku(`${productName} ${variantDisplayName}`);
+
+        // Check SKU uniqueness and append suffix if needed
+        let skuSuffix = 0;
+        let finalSku = autoSku;
+        while (true) {
+          const isSkuAvailable = await checkVariantSkuAvailable(
+            tenantId,
+            productId,
+            finalSku
+          );
+          if (isSkuAvailable) break;
+          skuSuffix++;
+          finalSku = `${autoSku}-${skuSuffix}`;
+        }
+
         // Create new variant
         const [newVariant] = await db
           .insert(productVariants)
           .values({
             tenantId,
             productId,
-            sku: variant.sku || null,
-            displayName: displayName || variant.displayName,
+            sku: finalSku,
+            barcode: variant.barcode || null, // Save barcode from form
+            displayName: variantDisplayName,
             price: variant.price || null,
             weight: variant.weight || null,
             length: variant.length || null,
@@ -1283,12 +1447,246 @@ export async function updateProductVariantsInBulk(
       })
       .where(and(eq(products.tenantId, tenantId), eq(products.id, productId)));
 
+    // Save option value image assignments
+    if (imageAssignments && imageAssignments.length > 0) {
+      // Delete existing image assignments for this product
+      await db
+        .delete(optionValueImages)
+        .where(
+          and(
+            eq(optionValueImages.tenantId, tenantId),
+            eq(optionValueImages.productId, productId)
+          )
+        );
+
+      // Create new image assignments
+      const imagesToInsert: {
+        tenantId: string;
+        productId: string;
+        optionValueId: string;
+        mediaId: string;
+        position: number;
+      }[] = [];
+
+      for (const assignment of imageAssignments) {
+        // Find the actual option value ID using the valueIdMap
+        const optionKey = assignment.optionId;
+        const valueKey = `${optionKey}:${assignment.value}`;
+        const actualValueId = valueIdMap.get(valueKey);
+
+        if (actualValueId && assignment.imageIds.length > 0) {
+          for (let i = 0; i < assignment.imageIds.length; i++) {
+            imagesToInsert.push({
+              tenantId,
+              productId,
+              optionValueId: actualValueId,
+              mediaId: assignment.imageIds[i],
+              position: i,
+            });
+          }
+        }
+      }
+
+      if (imagesToInsert.length > 0) {
+        await db.insert(optionValueImages).values(imagesToInsert);
+      }
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Error updating variants in bulk:", error);
     return {
       success: false,
       error: { message: "Failed to update variants" },
+    };
+  }
+}
+
+// ============================================================================
+// OPTION VALUE IMAGES (Image filtering system)
+// ============================================================================
+
+/**
+ * Save option value image assignments for a product.
+ * This replaces all existing assignments for the product.
+ * Note: Prefer using imageAssignments in createProductVariantsInBulk/updateProductVariantsInBulk
+ * which properly maps tempIds to real IDs.
+ */
+export async function saveOptionValueImages(
+  tenantId: string,
+  productId: string,
+  assignments: OptionValueImageAssignment[]
+): Promise<ActionResult> {
+  try {
+    // Delete all existing assignments for this product
+    await db
+      .delete(optionValueImages)
+      .where(
+        and(
+          eq(optionValueImages.tenantId, tenantId),
+          eq(optionValueImages.productId, productId)
+        )
+      );
+
+    // Insert new assignments
+    const insertValues: {
+      tenantId: string;
+      productId: string;
+      optionValueId: string;
+      mediaId: string;
+      position: number;
+    }[] = [];
+
+    for (const assignment of assignments) {
+      for (let i = 0; i < assignment.imageIds.length; i++) {
+        insertValues.push({
+          tenantId,
+          productId,
+          optionValueId: assignment.valueId,
+          mediaId: assignment.imageIds[i],
+          position: i,
+        });
+      }
+    }
+
+    if (insertValues.length > 0) {
+      await db.insert(optionValueImages).values(insertValues);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving option value images:", error);
+    return {
+      success: false,
+      error: { message: "Failed to save option value images" },
+    };
+  }
+}
+
+/**
+ * Get option value image assignments for a product.
+ */
+export async function getOptionValueImages(
+  tenantId: string,
+  productId: string
+): Promise<ActionResult<OptionValueImageAssignment[]>> {
+  try {
+    const images = await db.query.optionValueImages.findMany({
+      where: and(
+        eq(optionValueImages.tenantId, tenantId),
+        eq(optionValueImages.productId, productId)
+      ),
+      with: {
+        optionValue: {
+          with: {
+            option: true,
+          },
+        },
+        media: true,
+      },
+      orderBy: (ovi, { asc }) => [asc(ovi.position)],
+    });
+
+    // Group by option value
+    const assignmentMap = new Map<string, OptionValueImageAssignment>();
+
+    for (const img of images) {
+      const key = img.optionValueId;
+      const existing = assignmentMap.get(key);
+
+      if (existing) {
+        existing.imageIds.push(img.mediaId);
+      } else {
+        assignmentMap.set(key, {
+          optionId: img.optionValue.option.id,
+          optionName: img.optionValue.option.name,
+          valueId: img.optionValueId,
+          value: img.optionValue.value,
+          imageIds: [img.mediaId],
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: Array.from(assignmentMap.values()),
+    };
+  } catch (error) {
+    console.error("Error getting option value images:", error);
+    return {
+      success: false,
+      error: { message: "Failed to get option value images" },
+    };
+  }
+}
+
+/**
+ * Update swatch configuration for an option value.
+ */
+export async function updateOptionValueSwatch(
+  tenantId: string,
+  valueId: string,
+  swatchType: "text" | "color" | "image",
+  swatchValue?: string
+): Promise<ActionResult> {
+  try {
+    await db
+      .update(variantOptionValues)
+      .set({
+        swatchType,
+        swatchValue: swatchValue || null,
+      })
+      .where(
+        and(
+          eq(variantOptionValues.tenantId, tenantId),
+          eq(variantOptionValues.id, valueId)
+        )
+      );
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating option value swatch:", error);
+    return {
+      success: false,
+      error: { message: "Failed to update swatch" },
+    };
+  }
+}
+
+/**
+ * Bulk update swatch configurations for multiple option values.
+ */
+export async function bulkUpdateOptionValueSwatches(
+  tenantId: string,
+  updates: {
+    valueId: string;
+    swatchType: "text" | "color" | "image";
+    swatchValue?: string;
+  }[]
+): Promise<ActionResult> {
+  try {
+    // Update each value
+    for (const update of updates) {
+      await db
+        .update(variantOptionValues)
+        .set({
+          swatchType: update.swatchType,
+          swatchValue: update.swatchValue || null,
+        })
+        .where(
+          and(
+            eq(variantOptionValues.tenantId, tenantId),
+            eq(variantOptionValues.id, update.valueId)
+          )
+        );
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error bulk updating swatches:", error);
+    return {
+      success: false,
+      error: { message: "Failed to update swatches" },
     };
   }
 }

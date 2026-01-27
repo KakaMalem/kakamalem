@@ -57,9 +57,8 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   processing: "Processing",
   shipped: "Shipped",
   delivered: "Delivered",
+  returned: "Returned",
   cancelled: "Cancelled",
-  refunded: "Refunded",
-  partially_refunded: "Partially Refunded",
 };
 
 export function OrdersPageClient({
@@ -197,8 +196,18 @@ export function OrdersPageClient({
 
     const channelLabels: Record<string, string> = {
       online: "Online",
-      offline: "In-Store",
+      pos: "POS / In-Store",
       phone: "Phone",
+      marketplace: "Marketplace",
+      social: "Social",
+    };
+
+    const paymentStatusLabels: Record<string, string> = {
+      unpaid: "Unpaid",
+      partial: "Partial",
+      paid: "Paid",
+      refunded: "Refunded",
+      partial_refund: "Partial Refund",
     };
 
     // Build data rows
@@ -206,8 +215,10 @@ export function OrdersPageClient({
       "Order Number": order.orderNumber,
       Date: formatDate(order.createdAt),
       Time: formatTime(order.createdAt),
-      Status: STATUS_LABELS[order.status],
-      "Sales Channel": channelLabels[order.salesChannel] || order.salesChannel,
+      Status: STATUS_LABELS[order.status] || order.status,
+      Channel: channelLabels[order.channel] || order.channel,
+      "Payment Status":
+        paymentStatusLabels[order.paymentStatus] || order.paymentStatus,
       "Customer Name": order.customerSnapshot.name || "",
       "Customer Email": order.customerSnapshot.email || "",
       "Customer Phone": formatPhone(order.customerSnapshot.phone),
@@ -293,6 +304,9 @@ export function OrdersPageClient({
           storeSlug={storeSlug}
           orderCounts={orderCounts}
           currentStatus={searchParams.status}
+          currentDateRange={searchParams.dateRange}
+          currentSort={searchParams.sort}
+          currentOrder={searchParams.order}
         />
 
         {/* Orders List */}

@@ -30,6 +30,8 @@ export type ProductFilters = {
   categoryId?: string;
   isActive?: boolean;
   stockStatus?: "in_stock" | "low_stock" | "out_of_stock";
+  showOnStorefront?: boolean;
+  showOnPos?: boolean;
 };
 
 export type ProductSort = {
@@ -100,6 +102,15 @@ export async function getProducts(
         conditions.push(sql`${products.stock} > ${products.lowStockThreshold}`);
         break;
     }
+  }
+
+  // Channel visibility filters
+  if (filters.showOnStorefront !== undefined) {
+    conditions.push(eq(products.showOnStorefront, filters.showOnStorefront));
+  }
+
+  if (filters.showOnPos !== undefined) {
+    conditions.push(eq(products.showOnPos, filters.showOnPos));
   }
 
   // Build order by (with secondary sort by createdAt for stability)
@@ -319,6 +330,17 @@ export async function getProductById(tenantId: string, productId: string) {
         },
         orderBy: (v, { asc }) => [asc(v.displayOrder)],
       },
+      // Option value to image mappings for gallery filtering
+      optionValueImages: {
+        with: {
+          optionValue: {
+            with: {
+              option: true,
+            },
+          },
+        },
+        orderBy: (ovi, { asc }) => [asc(ovi.position)],
+      },
     },
   });
 
@@ -373,6 +395,18 @@ export async function getProductBySlugWithDetails(
           },
         },
         orderBy: (v, { asc }) => [asc(v.displayOrder)],
+      },
+      // Option value to image mappings (for filtering gallery by selected options)
+      optionValueImages: {
+        with: {
+          optionValue: {
+            with: {
+              option: true,
+            },
+          },
+          media: true,
+        },
+        orderBy: (ovi, { asc }) => [asc(ovi.position)],
       },
     },
   });

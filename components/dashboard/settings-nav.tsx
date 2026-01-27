@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useUserRole } from "@/lib/stores/use-user-role-store";
+import {
+  SETTINGS_PAGES,
+  canAccessSettingsPage,
+} from "@/lib/config/settings-permissions";
 
 // Extract store slug from pathname like /dashboard/my-store/settings
 function getStoreSlugFromPath(pathname: string): string | null {
@@ -20,90 +25,47 @@ export function SettingsNav() {
     ? `/dashboard/${storeSlug}/settings`
     : "/dashboard/settings";
 
-  const settingsNavItems = [
-    {
-      title: "General",
-      href: baseUrl,
-      description: "Store name, description, and contact info",
-    },
-    {
-      title: "Branding",
-      href: `${baseUrl}/branding`,
-      description: "Logo, colors, and visual identity",
-    },
-    {
-      title: "Social Links",
-      href: `${baseUrl}/social`,
-      description: "Connect your social media accounts",
-    },
-    {
-      title: "SEO",
-      href: `${baseUrl}/seo`,
-      description: "Search engine optimization settings",
-    },
-    {
-      title: "Domains",
-      href: `${baseUrl}/domains`,
-      description: "Custom domain configuration",
-    },
-    {
-      title: "Team",
-      href: `${baseUrl}/team`,
-      description: "Manage staff and collaborators",
-    },
-    {
-      title: "Delivery & Shipping",
-      href: `${baseUrl}/delivery`,
-      description: "Delivery zones, rates, and shipping options",
-    },
-    {
-      title: "Store Mode",
-      href: `${baseUrl}/store-mode`,
-      description: "Configure how your store operates",
-    },
-    {
-      title: "Notifications",
-      href: `${baseUrl}/notifications`,
-      description: "Order alerts and push notifications",
-    },
-    {
-      title: "Danger Zone",
-      href: `${baseUrl}/danger`,
-      description: "Delete or transfer store",
-    },
-  ];
+  // Get user role and filter settings pages
+  const userRole = useUserRole();
+  const accessiblePages = SETTINGS_PAGES.filter((page) =>
+    canAccessSettingsPage(userRole, page.key)
+  );
 
   const isActive = (href: string) => {
-    if (href === baseUrl) {
+    const fullHref = href ? `${baseUrl}${href}` : baseUrl;
+    if (fullHref === baseUrl) {
       return pathname === baseUrl;
     }
-    return pathname === href;
+    return pathname === fullHref;
   };
 
   return (
     <nav className="flex flex-col space-y-1">
-      {settingsNavItems.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={cn(
-            "flex flex-col rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted/50",
-            isActive(item.href) && "bg-muted"
-          )}
-        >
-          <span
+      {accessiblePages.map((page) => {
+        const fullHref = page.href ? `${baseUrl}${page.href}` : baseUrl;
+        return (
+          <Link
+            key={page.key}
+            href={fullHref}
             className={cn(
-              "font-medium",
-              !isActive(item.href) && "text-foreground/80"
+              "flex flex-col rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted/50",
+              isActive(page.href) && "bg-muted"
             )}
           >
-            {item.title}
-          </span>
-          <span className="text-xs text-muted-foreground font-normal">
-            {item.description}
-          </span>
-        </Link>
-      ))}
+            <span
+              className={cn(
+                "font-medium",
+                !isActive(page.href) && "text-foreground/80"
+              )}
+            >
+              {page.title}
+            </span>
+            <span className="text-xs text-muted-foreground font-normal">
+              {page.description}
+            </span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }
@@ -116,42 +78,39 @@ export function SettingsNavTabs() {
     ? `/dashboard/${storeSlug}/settings`
     : "/dashboard/settings";
 
-  const settingsNavItems = [
-    { title: "General", href: baseUrl },
-    { title: "Branding", href: `${baseUrl}/branding` },
-    { title: "Social Links", href: `${baseUrl}/social` },
-    { title: "SEO", href: `${baseUrl}/seo` },
-    { title: "Domains", href: `${baseUrl}/domains` },
-    { title: "Team", href: `${baseUrl}/team` },
-    { title: "Delivery & Shipping", href: `${baseUrl}/delivery` },
-    { title: "Store Mode", href: `${baseUrl}/store-mode` },
-    { title: "Notifications", href: `${baseUrl}/notifications` },
-    { title: "Danger Zone", href: `${baseUrl}/danger` },
-  ];
+  // Get user role and filter settings pages
+  const userRole = useUserRole();
+  const accessiblePages = SETTINGS_PAGES.filter((page) =>
+    canAccessSettingsPage(userRole, page.key)
+  );
 
   const isActive = (href: string) => {
-    if (href === baseUrl) {
+    const fullHref = href ? `${baseUrl}${href}` : baseUrl;
+    if (fullHref === baseUrl) {
       return pathname === baseUrl;
     }
-    return pathname === href;
+    return pathname === fullHref;
   };
 
   return (
-    <nav className="flex overflow-x-auto border-b pb-px -mb-px">
-      {settingsNavItems.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={cn(
-            "shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-            isActive(item.href)
-              ? "border-primary text-primary"
-              : "border-transparent text-foreground/80 hover:text-foreground hover:border-muted-foreground/30"
-          )}
-        >
-          {item.title}
-        </Link>
-      ))}
+    <nav className="flex overflow-x-auto scrollbar-none border-b pb-px -mb-px">
+      {accessiblePages.map((page) => {
+        const fullHref = page.href ? `${baseUrl}${page.href}` : baseUrl;
+        return (
+          <Link
+            key={page.key}
+            href={fullHref}
+            className={cn(
+              "shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+              isActive(page.href)
+                ? "border-primary text-primary"
+                : "border-transparent text-foreground/80 hover:text-foreground hover:border-muted-foreground/30"
+            )}
+          >
+            {page.title}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

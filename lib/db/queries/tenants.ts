@@ -153,11 +153,12 @@ export async function updateTenant(
     onlineCheckoutEnabled: boolean;
     posEnabled: boolean;
     phoneOrdersEnabled: boolean;
+    posScannerMode: string;
     receiptPaperWidth: string;
     receiptShowLogo: boolean;
     receiptShowContact: boolean;
     receiptFooterText: string | null;
-    socialLinks: Record<string, string | undefined>;
+    socialLinks: Record<string, string | boolean | undefined>;
     seo: Record<string, string | undefined>;
     status: "pending_review" | "active" | "suspended" | "inactive";
   }>

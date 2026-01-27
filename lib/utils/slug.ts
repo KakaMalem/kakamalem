@@ -190,6 +190,39 @@ export function validateSlug(slug: string): {
 }
 
 /**
+ * Generate a SKU from product name
+ * - Normalizes Unicode (NFKC normalization for compatibility)
+ * - Converts to UPPERCASE
+ * - Preserves Unicode letters and numbers (Persian, Arabic, etc.)
+ * - Replaces spaces with hyphens
+ * - Removes special characters
+ * - Truncates to reasonable length
+ */
+export function generateSku(text: string): string {
+  return (
+    text
+      .toString()
+      // Normalize Unicode characters (NFKC for compatibility)
+      .normalize("NFKC")
+      .toUpperCase()
+      .trim()
+      // Replace spaces and underscores with hyphens
+      .replace(/[\s_]+/g, "-")
+      // Keep only Unicode letters, numbers, and hyphens
+      // \p{L} matches any letter (including Persian, Arabic, etc.)
+      // \p{N} matches any number
+      .replace(/[^\p{L}\p{N}-]+/gu, "")
+      // Replace multiple hyphens with single hyphen
+      .replace(/-{2,}/g, "-")
+      // Remove hyphens from start and end
+      .replace(/^-+/, "")
+      .replace(/-+$/, "")
+      // Truncate to 100 characters (schema limit)
+      .substring(0, 100)
+  );
+}
+
+/**
  * Validate ASCII-only slug format (for store URLs)
  * @param slug - The slug to validate
  * @returns Object with isValid and error message

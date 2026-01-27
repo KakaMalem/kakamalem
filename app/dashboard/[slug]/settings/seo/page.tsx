@@ -1,6 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { getUserStoreContext } from "@/lib/auth/context";
+import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { SeoSettingsForm } from "./seo-settings-form";
 import type { SeoMetadata } from "@/lib/db/schema";
 
@@ -24,8 +27,16 @@ export default async function SeoSettingsPage({
     notFound();
   }
 
-  if (store.ownerId !== user.id) {
-    notFound();
+  // Role-based access check (requires admin or owner)
+  const userContext = await getUserStoreContext(store.id);
+  if (!userContext || !canAccessSettingsPage(userContext.role, "seo")) {
+    return (
+      <AccessDenied
+        message="You need admin or owner access to edit SEO settings."
+        backUrl={`/dashboard/${slug}/settings`}
+        backLabel="Back to Settings"
+      />
+    );
   }
 
   const seo = (store.seo as SeoMetadata) || {};
