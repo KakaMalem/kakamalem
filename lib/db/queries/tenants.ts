@@ -14,14 +14,16 @@ export async function getTenantByOwnerId(ownerId: string) {
 
 /**
  * Get all stores a user has access to (owned or as a member)
+ * Includes the user's role at each store for client-side navigation
  */
 export async function getUserStores(userId: string) {
-  // First, get tenant IDs where user is a member
+  // First, get tenant IDs where user is a member (with their role)
   const memberships = await db.query.tenantMembers.findMany({
     where: eq(tenantMembers.userId, userId),
-    columns: { tenantId: true },
+    columns: { tenantId: true, role: true },
   });
 
+  const membershipMap = new Map(memberships.map((m) => [m.tenantId, m.role]));
   const memberTenantIds = memberships.map((m) => m.tenantId);
 
   // Get all tenants where user is owner OR a member
@@ -33,7 +35,17 @@ export async function getUserStores(userId: string) {
     orderBy: (tenants, { desc }) => [desc(tenants.createdAt)],
   });
 
-  return userTenants;
+  // Add user's role for each store
+  return userTenants.map((tenant) => ({
+    ...tenant,
+    userRole: (tenant.ownerId === userId
+      ? "owner"
+      : (membershipMap.get(tenant.id) ?? null)) as
+      | "owner"
+      | "admin"
+      | "staff"
+      | null,
+  }));
 }
 
 export async function getTenantById(tenantId: string) {

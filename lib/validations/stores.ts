@@ -5,8 +5,8 @@ import { slugifyAscii } from "@/lib/utils/slug";
 // Slug validation pattern: lowercase letters, numbers, and hyphens only
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-// URL validation regex
-const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+// URL validation regex (allows @ for TikTok/YouTube style URLs)
+const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .@-]*)*\/?$/i;
 
 // Image URL regex - allows both full URLs and relative paths (like /uploads/...)
 const imageUrlRegex =

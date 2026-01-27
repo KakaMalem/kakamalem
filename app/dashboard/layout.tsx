@@ -51,31 +51,24 @@ export default async function DashboardLayout({
   // Fetch user's stores
   const userStores = await getUserStores(user.id);
 
-  // Transform to StoreInfo format (include posEnabled for client-side navigation)
+  // Transform to StoreInfo format (include posEnabled and userRole for client-side navigation)
   const stores: StoreInfo[] = userStores.map((store) => ({
     id: store.id,
     slug: store.slug,
     name: store.name,
     logoUrl: store.logoUrl,
     posEnabled: store.posEnabled,
+    userRole: store.userRole,
   }));
 
   // Find the current store from URL or fall back to first store
   let currentStore: StoreInfo | null = null;
   let storeSlug: string | undefined;
-  let posEnabled = true; // Default to true
 
   if (urlStoreSlug) {
-    const matchedStore = userStores.find((s) => s.slug === urlStoreSlug);
+    const matchedStore = stores.find((s) => s.slug === urlStoreSlug);
     if (matchedStore) {
-      currentStore = {
-        id: matchedStore.id,
-        slug: matchedStore.slug,
-        name: matchedStore.name,
-        logoUrl: matchedStore.logoUrl,
-        posEnabled: matchedStore.posEnabled,
-      };
-      posEnabled = matchedStore.posEnabled;
+      currentStore = matchedStore;
     }
     storeSlug = urlStoreSlug;
   }
@@ -83,7 +76,6 @@ export default async function DashboardLayout({
   if (!currentStore && stores.length > 0) {
     currentStore = stores[0];
     storeSlug = currentStore.slug;
-    posEnabled = currentStore.posEnabled ?? true;
   }
 
   // Fetch pending transfer requests for this user
@@ -109,7 +101,6 @@ export default async function DashboardLayout({
               stores={stores}
               currentStore={currentStore}
               storeSlug={storeSlug}
-              posEnabled={posEnabled}
             />
             <SidebarInset>
               <DashboardHeader />

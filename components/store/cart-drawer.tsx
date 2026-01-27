@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -48,12 +48,55 @@ function useIsMobile() {
   return isMobile;
 }
 
+// Hook to integrate drawer with browser history for back button support
+function useDrawerHistory(isOpen: boolean, onClose: () => void) {
+  // Track if we pushed history for this drawer open
+  const historyPushedRef = useRef(false);
+
+  // Handle popstate (back button)
+  const handlePopState = useCallback(() => {
+    if (historyPushedRef.current) {
+      historyPushedRef.current = false;
+      onClose();
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Push history state when drawer opens
+      if (!historyPushedRef.current) {
+        window.history.pushState(
+          { cartDrawer: true },
+          "",
+          window.location.href
+        );
+        historyPushedRef.current = true;
+      }
+    } else {
+      // Remove history entry when drawer closes (if we pushed one)
+      if (historyPushedRef.current) {
+        historyPushedRef.current = false;
+        // Go back to remove our history entry
+        window.history.back();
+      }
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [handlePopState]);
+}
+
 export function CartDrawer({ storeSlug, currency }: CartDrawerProps) {
   const { isOpen, close } = useCartDrawer();
   const { items, subtotal, itemCount } = useCart();
   const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtTop, setIsAtTop] = useState(true);
+
+  // Integrate with browser history for back button support (mobile UX)
+  useDrawerHistory(isOpen, close);
 
   // Track scroll position to enable/disable drawer dismissal
   const handleScroll = () => {

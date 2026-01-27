@@ -33,8 +33,6 @@ import {
 } from "@/components/ui/sidebar";
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
-import { useUserRole } from "@/lib/stores/use-user-role-store";
-import { canAccessAnySettings } from "@/lib/config/settings-permissions";
 
 // NavLink component that closes mobile sidebar on navigation
 // Uses forwardRef to properly work with SidebarMenuButton's asChild prop
@@ -69,7 +67,6 @@ interface AppSidebarProps {
   stores?: StoreInfo[];
   currentStore?: StoreInfo | null;
   storeSlug?: string;
-  posEnabled?: boolean;
 }
 
 // Reserved paths that are not store slugs
@@ -89,7 +86,6 @@ export function AppSidebar({
   stores = [],
   currentStore,
   storeSlug: initialStoreSlug,
-  posEnabled: initialPosEnabled = true,
 }: AppSidebarProps) {
   const pathname = usePathname();
 
@@ -99,16 +95,17 @@ export function AppSidebar({
     return urlSlug || initialStoreSlug;
   }, [pathname, initialStoreSlug]);
 
-  // Derive posEnabled from current store for client-side navigation
-  const posEnabled = useMemo(() => {
+  // Derive current store data from stores array for client-side navigation
+  const currentStoreData = useMemo(() => {
     if (storeSlug) {
-      const store = stores.find((s) => s.slug === storeSlug);
-      if (store) {
-        return store.posEnabled ?? true;
-      }
+      return stores.find((s) => s.slug === storeSlug) ?? null;
     }
-    return initialPosEnabled;
-  }, [storeSlug, stores, initialPosEnabled]);
+    return currentStore ?? null;
+  }, [storeSlug, stores, currentStore]);
+
+  // Derive posEnabled and userRole from current store
+  const posEnabled = currentStoreData?.posEnabled ?? true;
+  const userRole = currentStoreData?.userRole ?? null;
 
   // Build store-specific URL prefix
   const baseUrl = storeSlug ? `/dashboard/${storeSlug}` : "/dashboard";
@@ -180,8 +177,7 @@ export function AppSidebar({
   ];
 
   // Check if user can access settings (owner or admin only)
-  const userRole = useUserRole();
-  const showSettings = canAccessAnySettings(userRole);
+  const showSettings = userRole === "owner" || userRole === "admin";
 
   const settingsNavItems = [
     {

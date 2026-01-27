@@ -27,6 +27,7 @@ export type StoreInfo = {
   name: string;
   logoUrl?: string | null;
   posEnabled?: boolean;
+  userRole?: "owner" | "admin" | "staff" | null;
 };
 
 interface StoreSwitcherProps {
