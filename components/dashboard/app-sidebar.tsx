@@ -89,7 +89,7 @@ export function AppSidebar({
   stores = [],
   currentStore,
   storeSlug: initialStoreSlug,
-  posEnabled = true,
+  posEnabled: initialPosEnabled = true,
 }: AppSidebarProps) {
   const pathname = usePathname();
 
@@ -98,6 +98,17 @@ export function AppSidebar({
     const urlSlug = getStoreSlugFromPath(pathname);
     return urlSlug || initialStoreSlug;
   }, [pathname, initialStoreSlug]);
+
+  // Derive posEnabled from current store for client-side navigation
+  const posEnabled = useMemo(() => {
+    if (storeSlug) {
+      const store = stores.find((s) => s.slug === storeSlug);
+      if (store) {
+        return store.posEnabled ?? true;
+      }
+    }
+    return initialPosEnabled;
+  }, [storeSlug, stores, initialPosEnabled]);
 
   // Build store-specific URL prefix
   const baseUrl = storeSlug ? `/dashboard/${storeSlug}` : "/dashboard";

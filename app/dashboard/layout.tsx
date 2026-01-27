@@ -51,12 +51,13 @@ export default async function DashboardLayout({
   // Fetch user's stores
   const userStores = await getUserStores(user.id);
 
-  // Transform to StoreInfo format
+  // Transform to StoreInfo format (include posEnabled for client-side navigation)
   const stores: StoreInfo[] = userStores.map((store) => ({
     id: store.id,
     slug: store.slug,
     name: store.name,
     logoUrl: store.logoUrl,
+    posEnabled: store.posEnabled,
   }));
 
   // Find the current store from URL or fall back to first store
@@ -72,6 +73,7 @@ export default async function DashboardLayout({
         slug: matchedStore.slug,
         name: matchedStore.name,
         logoUrl: matchedStore.logoUrl,
+        posEnabled: matchedStore.posEnabled,
       };
       posEnabled = matchedStore.posEnabled;
     }
@@ -81,11 +83,7 @@ export default async function DashboardLayout({
   if (!currentStore && stores.length > 0) {
     currentStore = stores[0];
     storeSlug = currentStore.slug;
-    // Get posEnabled from the first store
-    const firstStore = userStores.find((s) => s.slug === currentStore!.slug);
-    if (firstStore) {
-      posEnabled = firstStore.posEnabled;
-    }
+    posEnabled = currentStore.posEnabled ?? true;
   }
 
   // Fetch pending transfer requests for this user

@@ -26,6 +26,7 @@ export type StoreInfo = {
   slug: string;
   name: string;
   logoUrl?: string | null;
+  posEnabled?: boolean;
 };
 
 interface StoreSwitcherProps {
