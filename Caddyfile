@@ -56,6 +56,9 @@
 	# Listen on non-standard HTTPS port (Nginx is on 443)
 	# Remove this line if using Caddy as the sole reverse proxy
 	https_port 8443
+
+	# Disable HTTP port (Nginx handles port 80)
+	http_port 0
 }
 
 # Handle all custom domains
@@ -68,9 +71,6 @@
 	reverse_proxy 127.0.0.1:3000 {
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
-		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-Host {host}
 	}
 
 	# Serve uploaded files directly (bypasses Node.js)
