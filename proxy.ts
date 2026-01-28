@@ -1,98 +1,77 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-// =============================================================================
-// PROXY (Next.js 16)
-// =============================================================================
-// Handles route protection and redirects
-// Replaces middleware.ts - runs on Node.js runtime
-// Uses full session validation with database checks
-// =============================================================================
+/**
+ * Proxy for handling custom domain routing
+ *
+ * When a request comes from a custom domain (not kakamalem.com),
+ * we rewrite it to the internal _custom route handler which will
+ * look up the tenant by domain and render the appropriate storefront.
+ */
 
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+// Main domain and its variations that should NOT be treated as custom domains
+const MAIN_DOMAINS = [
+  "kakamalem.com",
+  "www.kakamalem.com",
+  "localhost",
+  "127.0.0.1",
+];
 
-  // -------------------------------------------------------------------------
-  // ROUTE PATTERNS
-  // -------------------------------------------------------------------------
-  const isAuthRoute =
-    pathname.startsWith("/login") || pathname.startsWith("/signup");
-  const isProtectedRoute =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
-  const isApiRoute = pathname.startsWith("/api");
-  const isPublicRoute =
-    pathname === "/" ||
-    pathname.startsWith("/store/") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon");
+// Paths that should never be rewritten (API routes, assets, etc.)
+const EXCLUDED_PATHS = [
+  "/api/",
+  "/_next/",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/uploads/",
+  "/manifest.json",
+  "/sw.js",
+];
 
-  // Helper to create response with pathname header (for layouts to access current path)
-  const nextWithPathname = () => {
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-pathname", pathname);
-    return NextResponse.next({
-      request: { headers: requestHeaders },
-    });
-  };
+export function proxy(request: NextRequest) {
+  const hostname = request.headers.get("host") || "";
+  const pathname = request.nextUrl.pathname;
 
-  // Skip proxy for API routes (Better Auth handles its own routes)
-  if (isApiRoute) {
+  // Extract hostname without port for comparison
+  const hostnameWithoutPort = hostname.split(":")[0];
+
+  // Skip proxy for main domain
+  if (
+    MAIN_DOMAINS.some(
+      (d) => hostnameWithoutPort === d || hostnameWithoutPort.endsWith(`.${d}`)
+    )
+  ) {
     return NextResponse.next();
   }
 
-  // Skip for public routes
-  if (isPublicRoute && !isProtectedRoute && !isAuthRoute) {
+  // Skip excluded paths (API routes, static files, etc.)
+  if (EXCLUDED_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
-  // -------------------------------------------------------------------------
-  // SESSION CHECK (Full validation with database)
-  // -------------------------------------------------------------------------
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  const hasSession = !!session;
+  // This is a custom domain request - rewrite to the _custom route
+  // The _custom route will look up the tenant by domain and render the storefront
+  const url = request.nextUrl.clone();
+  url.pathname = `/store/_custom${pathname}`;
 
-  // -------------------------------------------------------------------------
-  // PROTECTED ROUTES
-  // -------------------------------------------------------------------------
-  if (isProtectedRoute && !hasSession) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
-  }
+  // Pass the original host in a header for the route handler to use
+  const response = NextResponse.rewrite(url);
+  response.headers.set("x-custom-domain", hostnameWithoutPort);
 
-  // -------------------------------------------------------------------------
-  // AUTH ROUTES (login/signup)
-  // -------------------------------------------------------------------------
-  // Redirect authenticated users away from auth pages
-  if (isAuthRoute && hasSession) {
-    const redirectTo =
-      request.nextUrl.searchParams.get("redirect") || "/dashboard";
-    const url = request.nextUrl.clone();
-    url.pathname = redirectTo;
-    url.searchParams.delete("redirect");
-    return NextResponse.redirect(url);
-  }
-
-  // Use nextWithPathname for dashboard routes so layouts can determine current store
-  return nextWithPathname();
+  return response;
 }
 
-// -------------------------------------------------------------------------
-// MATCHER CONFIG
-// -------------------------------------------------------------------------
 export const config = {
+  // Match all paths except static files and images
   matcher: [
     /*
      * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
+     * - public folder files
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

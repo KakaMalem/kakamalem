@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { tenants, tenantMembers } from "@/lib/db/schema";
-import { eq, or, inArray } from "drizzle-orm";
+import { eq, or, inArray, and, isNotNull } from "drizzle-orm";
 
 export async function getTenantByOwnerId(ownerId: string) {
   const tenant = await db.query.tenants.findFirst({
@@ -59,6 +59,22 @@ export async function getTenantById(tenantId: string) {
 export async function getTenantBySlug(slug: string) {
   const tenant = await db.query.tenants.findFirst({
     where: eq(tenants.slug, slug),
+  });
+
+  return tenant;
+}
+
+/**
+ * Get a tenant by custom domain (for custom domain routing)
+ * Only returns tenants with active custom domain configuration
+ */
+export async function getTenantByCustomDomain(domain: string) {
+  const tenant = await db.query.tenants.findFirst({
+    where: and(
+      eq(tenants.customDomain, domain.toLowerCase()),
+      eq(tenants.customDomainStatus, "active"),
+      isNotNull(tenants.customDomain)
+    ),
   });
 
   return tenant;

@@ -148,6 +148,13 @@
       "when": 1769599906697,
       "tag": "0020_plain_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1769613932869,
+      "tag": "0021_lazy_banshee",
+      "breakpoints": true
     }
   ]
 }

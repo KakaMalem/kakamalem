@@ -5,6 +5,7 @@ import { getUserStoreContext } from "@/lib/auth/context";
 import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { DomainSettings } from "./domain-settings";
+import { getDomainConfig, getDnsInstructions } from "@/lib/actions/domains";
 
 interface DomainSettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -38,5 +39,15 @@ export default async function DomainSettingsPage({
     );
   }
 
-  return <DomainSettings storeSlug={store.slug} storeName={store.name} />;
+  // Fetch domain configuration
+  const domainConfig = await getDomainConfig(slug);
+  const dnsInstructions = await getDnsInstructions(slug);
+
+  return (
+    <DomainSettings
+      storeSlug={store.slug}
+      domainConfig={domainConfig}
+      dnsInstructions={dnsInstructions}
+    />
+  );
 }

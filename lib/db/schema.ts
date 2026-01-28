@@ -81,6 +81,37 @@ export type CustomerSnapshot = {
   phone?: string;
 };
 
+// DNS records configuration for custom domains
+export type DomainDnsRecords = {
+  // Required CNAME record
+  cname: {
+    name: string; // e.g., "shop" or "@"
+    target: string; // e.g., "proxy.kakamalem.com"
+    verified: boolean;
+    verifiedAt?: string; // ISO timestamp
+  };
+  // Required TXT verification record
+  txt: {
+    name: string; // e.g., "_kakamalem-verify.shop"
+    value: string; // e.g., "verify=km_abc123xyz"
+    verified: boolean;
+    verifiedAt?: string;
+  };
+  // Optional A record for apex domains
+  aRecord?: {
+    name: string; // Usually "@"
+    ip: string; // Cloudflare IP
+    verified: boolean;
+    verifiedAt?: string;
+  };
+  // Last DNS check result
+  lastCheck?: {
+    timestamp: string;
+    success: boolean;
+    errors?: string[];
+  };
+};
+
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -540,6 +571,29 @@ export const transferRequestStatusEnum = pgEnum("transfer_request_status", [
   "expired", // 7 days passed without response
 ]);
 
+// Custom domain status
+export const domainStatusEnum = pgEnum("domain_status", [
+  "pending", // Domain added, awaiting DNS configuration
+  "dns_verification", // Checking DNS records
+  "ssl_provisioning", // DNS verified, provisioning SSL via Cloudflare
+  "active", // Fully configured and working
+  "error", // Configuration error (see domainError field)
+  "suspended", // Manually suspended by admin
+]);
+
+// SSL certificate status (via Cloudflare for SaaS)
+export const sslStatusEnum = pgEnum("ssl_status", [
+  "pending", // Not yet provisioned
+  "initializing", // Cloudflare hostname created, starting validation
+  "pending_validation", // Waiting for DNS/HTTP validation
+  "pending_issuance", // Validated, certificate being issued
+  "pending_deployment", // Certificate issued, deploying to edge
+  "active", // Valid certificate deployed
+  "expiring_soon", // Certificate expires within 30 days
+  "expired", // Certificate expired
+  "error", // Provisioning failed
+]);
+
 // ============================================================================
 // BETTER AUTH TABLES (Reference definitions - Better Auth manages these)
 // ============================================================================
@@ -825,6 +879,52 @@ export const tenants = pgTable(
       mode: "string",
     }),
 
+    // ==========================================================================
+    // CUSTOM DOMAIN (Cloudflare for SaaS integration)
+    // ==========================================================================
+    // The custom domain configured by the store owner (e.g., "shop.mybrand.com")
+    customDomain: varchar("custom_domain", { length: 255 }).unique(),
+
+    // Domain configuration status
+    customDomainStatus: domainStatusEnum("custom_domain_status").default(
+      "pending"
+    ),
+
+    // Unique verification token for DNS TXT record (e.g., "km_abc123xyz")
+    domainVerificationToken: varchar("domain_verification_token", {
+      length: 64,
+    }),
+
+    // When DNS was successfully verified
+    domainVerifiedAt: timestamp("domain_verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // SSL certificate status (managed by Cloudflare)
+    sslStatus: sslStatusEnum("ssl_status").default("pending"),
+
+    // When SSL certificate was successfully provisioned
+    sslProvisionedAt: timestamp("ssl_provisioned_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // Cloudflare custom hostname ID (for API operations)
+    cloudflareHostnameId: varchar("cloudflare_hostname_id", { length: 64 }),
+
+    // DNS records configuration and verification status
+    domainDnsRecords: jsonb("domain_dns_records").$type<DomainDnsRecords>(),
+
+    // Error message when domain configuration fails
+    domainError: text("domain_error"),
+
+    // Last time the domain health was checked
+    domainLastCheckedAt: timestamp("domain_last_checked_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
     // Analytics (system-managed, read-only for owners)
     analytics: jsonb("analytics").$type<StoreAnalytics>().default({
       totalViews: 0,
@@ -848,6 +948,8 @@ export const tenants = pgTable(
   (table) => [
     index("tenants_owner_id_idx").on(table.ownerId),
     index("tenants_status_idx").on(table.status),
+    // Index for custom domain lookups (partial - only non-null domains)
+    index("tenants_custom_domain_idx").on(table.customDomain),
   ]
 );
 
