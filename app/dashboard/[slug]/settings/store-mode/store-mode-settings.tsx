@@ -13,6 +13,9 @@ import {
   Printer,
   Camera,
   Usb,
+  Ban,
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,9 +37,13 @@ import {
   posScannerModeOptions,
   posScannerModeLabels,
   posScannerModeDescriptions,
+  receiptPrintModeOptions,
+  receiptPrintModeLabels,
+  receiptPrintModeDescriptions,
   type StoreMode,
   type ReceiptPaperWidth,
   type PosScannerMode,
+  type ReceiptPrintMode,
 } from "@/lib/validations/stores";
 
 interface StoreModeSettingsProps {
@@ -51,6 +58,7 @@ interface StoreModeSettingsProps {
   receiptShowLogo: boolean;
   receiptShowContact: boolean;
   receiptFooterText: string | null;
+  receiptPrintMode: string;
 }
 
 const MODE_ICONS: Record<StoreMode, typeof Globe> = {
@@ -72,6 +80,7 @@ export function StoreModeSettings({
   receiptShowLogo: initialShowLogo,
   receiptShowContact: initialShowContact,
   receiptFooterText: initialFooterText,
+  receiptPrintMode: initialPrintMode,
 }: StoreModeSettingsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -100,6 +109,9 @@ export function StoreModeSettings({
   const [receiptFooterText, setReceiptFooterText] = useState(
     initialFooterText || ""
   );
+  const [receiptPrintMode, setReceiptPrintMode] = useState<ReceiptPrintMode>(
+    initialPrintMode as ReceiptPrintMode
+  );
 
   // Track previous props to sync state when props change (e.g., after router.refresh())
   const [prevProps, setPrevProps] = useState({
@@ -112,6 +124,7 @@ export function StoreModeSettings({
     initialShowLogo,
     initialShowContact,
     initialFooterText,
+    initialPrintMode,
   });
   const propsChanged =
     prevProps.currentMode !== currentMode ||
@@ -122,7 +135,8 @@ export function StoreModeSettings({
     prevProps.initialPaperWidth !== initialPaperWidth ||
     prevProps.initialShowLogo !== initialShowLogo ||
     prevProps.initialShowContact !== initialShowContact ||
-    prevProps.initialFooterText !== initialFooterText;
+    prevProps.initialFooterText !== initialFooterText ||
+    prevProps.initialPrintMode !== initialPrintMode;
   if (propsChanged) {
     setPrevProps({
       currentMode,
@@ -134,6 +148,7 @@ export function StoreModeSettings({
       initialShowLogo,
       initialShowContact,
       initialFooterText,
+      initialPrintMode,
     });
     setStoreMode(currentMode as StoreMode);
     setOnlineCheckoutEnabled(initialOnlineCheckout);
@@ -144,6 +159,7 @@ export function StoreModeSettings({
     setReceiptShowLogo(initialShowLogo);
     setReceiptShowContact(initialShowContact);
     setReceiptFooterText(initialFooterText || "");
+    setReceiptPrintMode(initialPrintMode as ReceiptPrintMode);
   }
 
   // Track if form has changes
@@ -156,7 +172,8 @@ export function StoreModeSettings({
     receiptPaperWidth !== initialPaperWidth ||
     receiptShowLogo !== initialShowLogo ||
     receiptShowContact !== initialShowContact ||
-    receiptFooterText !== (initialFooterText || "");
+    receiptFooterText !== (initialFooterText || "") ||
+    receiptPrintMode !== initialPrintMode;
 
   // Handle mode selection
   const handleModeSelect = (mode: StoreMode) => {
@@ -200,6 +217,7 @@ export function StoreModeSettings({
         receiptShowLogo,
         receiptShowContact,
         receiptFooterText: receiptFooterText || undefined,
+        receiptPrintMode,
       });
 
       if (result.success) {
@@ -495,6 +513,80 @@ export function StoreModeSettings({
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {receiptPaperWidthDescriptions[width]}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Print Mode Selection */}
+            <div className="space-y-3">
+              <Label className="font-medium">Auto-Print After Checkout</Label>
+              <p className="text-xs text-muted-foreground">
+                Choose what happens after completing a POS sale.
+              </p>
+              <div className="grid gap-3">
+                {receiptPrintModeOptions.map((mode) => {
+                  const isSelected = receiptPrintMode === mode;
+                  const Icon =
+                    mode === "disabled"
+                      ? Ban
+                      : mode === "prompt"
+                        ? FileText
+                        : Printer;
+                  const isSilentUnsupported =
+                    mode === "silent" &&
+                    typeof navigator !== "undefined" &&
+                    !("serial" in navigator);
+
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() =>
+                        !isSilentUnsupported && setReceiptPrintMode(mode)
+                      }
+                      disabled={isSilentUnsupported}
+                      className={cn(
+                        "relative flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                        isSelected
+                          ? "border-primary bg-primary/5"
+                          : isSilentUnsupported
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:bg-muted/50"
+                      )}
+                    >
+                      {isSelected && (
+                        <div className="absolute right-2 top-2">
+                          <Check className="size-4 text-primary" />
+                        </div>
+                      )}
+                      <div
+                        className={cn(
+                          "flex size-10 items-center justify-center rounded-lg",
+                          isSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
+                        )}
+                      >
+                        <Icon className="size-5" />
+                      </div>
+                      <div className="flex-1 pr-6">
+                        <div className="font-medium text-sm flex items-center gap-2">
+                          {receiptPrintModeLabels[mode]}
+                          {isSilentUnsupported && (
+                            <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-normal">
+                              <AlertTriangle className="size-3" />
+                              Chrome/Edge only
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {receiptPrintModeDescriptions[mode]}
                         </div>
                       </div>
                     </button>

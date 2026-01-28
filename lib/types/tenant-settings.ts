@@ -2,6 +2,7 @@ import type {
   StoreMode,
   ReceiptPaperWidth,
   PosScannerMode,
+  ReceiptPrintMode,
 } from "@/lib/validations/stores";
 
 /**
@@ -41,6 +42,7 @@ export type TenantSettings = {
   receiptShowLogo: boolean;
   receiptShowContact: boolean;
   receiptFooterText: string | null;
+  receiptPrintMode: ReceiptPrintMode;
 
   // Delivery
   enableDeliveryZones: boolean;

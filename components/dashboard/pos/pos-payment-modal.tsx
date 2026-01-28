@@ -32,7 +32,13 @@ import {
 import { cn, formatPrice } from "@/lib/utils";
 import { recordOfflineSale } from "@/lib/actions/offline-sales";
 import { usePOSProductsStore } from "@/lib/stores/use-pos-products-store";
+import {
+  getThermalPrinter,
+  type ReceiptData,
+} from "@/lib/services/thermal-printer";
+import { useIsPrinterConnected } from "@/lib/stores/use-printer-store";
 import type { PaymentMethod } from "@/lib/validations/offline-sales";
+import type { ReceiptPrintMode } from "@/lib/validations/stores";
 import type { POSCartItem } from "./pos-cart";
 
 interface POSPaymentModalProps {
@@ -45,6 +51,12 @@ interface POSPaymentModalProps {
   storeSlug: string;
   currency: string;
   onSuccess: () => void;
+  // Receipt printing settings
+  receiptPrintMode: ReceiptPrintMode;
+  storeName: string;
+  storePhone: string | null;
+  receiptFooterText: string | null;
+  receiptPaperWidth: "58mm" | "80mm";
 }
 
 const PAYMENT_METHODS: Array<{
@@ -68,9 +80,15 @@ export function POSPaymentModal({
   storeSlug,
   currency,
   onSuccess,
+  receiptPrintMode,
+  storeName,
+  storePhone,
+  receiptFooterText,
+  receiptPaperWidth,
 }: POSPaymentModalProps) {
   const [isPending, startTransition] = useTransition();
   const updateStock = usePOSProductsStore((state) => state.updateStock);
+  const isPrinterConnected = useIsPrinterConnected();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [isFullPayment, setIsFullPayment] = useState(true);
@@ -141,40 +159,101 @@ export function POSPaymentModal({
           updateStock(result.updatedStock);
         }
 
-        toast.success(
-          `Sale completed! Receipt: ${result.order.receiptNumber}`,
-          {
-            duration: 8000,
-            action: {
-              label: "Print Receipt",
-              onClick: () => {
-                // Use hidden iframe to print directly without opening new window
-                const printUrl = `/dashboard/${storeSlug}/orders/${result.order!.id}/print`;
-                const iframe = document.createElement("iframe");
-                iframe.style.position = "fixed";
-                iframe.style.right = "0";
-                iframe.style.bottom = "0";
-                iframe.style.width = "0";
-                iframe.style.height = "0";
-                iframe.style.border = "none";
-                iframe.src = printUrl;
+        // Helper to trigger browser print dialog via iframe
+        const triggerBrowserPrint = () => {
+          const printUrl = `/dashboard/${storeSlug}/orders/${result.order!.id}/print`;
+          const iframe = document.createElement("iframe");
+          iframe.style.cssText =
+            "position:fixed;right:0;bottom:0;width:0;height:0;border:none;";
+          iframe.src = printUrl;
+          iframe.onload = () => {
+            setTimeout(() => {
+              iframe.contentWindow?.print();
+              setTimeout(() => document.body.removeChild(iframe), 1000);
+            }, 500);
+          };
+          document.body.appendChild(iframe);
+        };
 
-                iframe.onload = () => {
-                  // Wait for CSS to be fully applied before printing
-                  setTimeout(() => {
-                    iframe.contentWindow?.print();
-                    // Remove iframe after print dialog closes
-                    setTimeout(() => {
-                      document.body.removeChild(iframe);
-                    }, 1000);
-                  }, 500);
-                };
-
-                document.body.appendChild(iframe);
+        // Handle printing based on mode
+        if (receiptPrintMode === "disabled") {
+          // Just show success toast, no print action
+          toast.success(
+            `Sale completed! Receipt: ${result.order.receiptNumber}`,
+            {
+              duration: 5000,
+              action: {
+                label: "Print",
+                onClick: triggerBrowserPrint,
               },
-            },
+            }
+          );
+        } else if (receiptPrintMode === "prompt") {
+          // Auto-trigger browser print dialog
+          toast.success(
+            `Sale completed! Receipt: ${result.order.receiptNumber}`,
+            { duration: 5000 }
+          );
+          triggerBrowserPrint();
+        } else if (receiptPrintMode === "silent") {
+          // Direct thermal printer
+          if (isPrinterConnected) {
+            const printer = getThermalPrinter();
+            const receiptData: ReceiptData = {
+              storeName,
+              storePhone,
+              receiptNumber: result.order.receiptNumber,
+              orderNumber: result.order.orderNumber,
+              date: new Date().toLocaleString(),
+              customerName: customerName || undefined,
+              items: items.map((item) => ({
+                name: item.productName,
+                variantName: item.variantName,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+              subtotal: total + discountAmount,
+              discount: discountAmount,
+              total,
+              amountPaid: effectiveAmount,
+              changeDue:
+                effectiveAmount > total ? effectiveAmount - total : undefined,
+              paymentMethod: effectiveAmount > 0 ? paymentMethod : undefined,
+              currency,
+              footerText: receiptFooterText,
+              paperWidth: receiptPaperWidth,
+            };
+
+            printer
+              .printReceipt(receiptData)
+              .then(() => {
+                toast.success("Sale completed! Receipt printed.", {
+                  duration: 3000,
+                });
+              })
+              .catch(() => {
+                toast.error("Sale completed but printing failed", {
+                  action: {
+                    label: "Print Manually",
+                    onClick: triggerBrowserPrint,
+                  },
+                });
+              });
+          } else {
+            // No printer connected, fallback with warning
+            toast.warning(
+              `Sale completed! Receipt: ${result.order.receiptNumber}`,
+              {
+                description: "No thermal printer connected",
+                action: {
+                  label: "Print",
+                  onClick: triggerBrowserPrint,
+                },
+              }
+            );
           }
-        );
+        }
+
         onOpenChange(false);
         onSuccess();
         // Don't redirect - keep POS flow fast for continuous sales

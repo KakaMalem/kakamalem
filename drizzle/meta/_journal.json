@@ -141,6 +141,13 @@
       "when": 1769496929627,
       "tag": "0019_noisy_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1769599906697,
+      "tag": "0020_plain_obadiah_stane",
+      "breakpoints": true
     }
   ]
 }

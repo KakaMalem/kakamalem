@@ -12,6 +12,7 @@ import { getProductPriceTiers } from "@/lib/db/queries/pricing";
 import { ProductPageContent } from "@/components/store/product-page-content";
 import { ProductReviews } from "@/components/store/product-reviews";
 import { ProductStructuredData } from "@/components/store/product-structured-data";
+import { BreadcrumbStructuredData } from "@/components/store/breadcrumb-structured-data";
 import {
   reviewSortOptions,
   type ReviewSortOption,
@@ -47,15 +48,26 @@ export async function generateMetadata({
   const productUrl = `${appUrl}/store/${slug}/product/${productSlug}`;
   const imageUrl = primaryImage ? `${appUrl}${primaryImage}` : undefined;
 
+  // Truncate description to recommended length
+  const truncatedDescription =
+    plainDescription.length > 160
+      ? `${plainDescription.slice(0, 157)}...`
+      : plainDescription;
+
   return {
     title: `${product.name} | ${store.name}`,
-    description: plainDescription,
+    description: truncatedDescription,
+    // Canonical URL prevents duplicate content issues
+    alternates: {
+      canonical: productUrl,
+    },
     openGraph: {
       type: "website",
       title: product.name,
-      description: plainDescription,
+      description: truncatedDescription,
       url: productUrl,
       siteName: store.name,
+      locale: "en_US",
       images: imageUrl
         ? [
             {
@@ -70,8 +82,14 @@ export async function generateMetadata({
     twitter: {
       card: "summary_large_image",
       title: product.name,
-      description: plainDescription,
+      description: truncatedDescription,
       images: imageUrl ? [imageUrl] : undefined,
+    },
+    // Product-specific meta tags for richer previews
+    other: {
+      "product:price:amount": product.price,
+      "product:price:currency": store.currency,
+      "product:availability": "in stock",
     },
   };
 }
@@ -148,6 +166,8 @@ export default async function ProductPage({
         currency={store.currency}
         reviewStats={reviewStats}
       />
+      {/* Schema.org Breadcrumb structured data for SEO */}
+      <BreadcrumbStructuredData breadcrumbs={breadcrumbs} />
 
       <section className="py-4 sm:py-8 lg:py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

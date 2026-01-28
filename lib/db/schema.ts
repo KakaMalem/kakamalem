@@ -758,6 +758,9 @@ export const tenants = pgTable(
     receiptShowLogo: boolean("receipt_show_logo").default(true).notNull(),
     receiptShowContact: boolean("receipt_show_contact").default(true).notNull(),
     receiptFooterText: varchar("receipt_footer_text", { length: 200 }),
+    receiptPrintMode: varchar("receipt_print_mode", { length: 10 })
+      .default("prompt")
+      .notNull(), // 'disabled' | 'prompt' | 'silent'
 
     // Status (replaces simple isActive)
     status: tenantStatusEnum("status").default("pending_review").notNull(),

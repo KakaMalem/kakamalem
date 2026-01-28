@@ -350,5 +350,6 @@ export function getCurrentSettingsForMutation(
     receiptShowLogo: settings.receiptShowLogo,
     receiptShowContact: settings.receiptShowContact,
     receiptFooterText: settings.receiptFooterText ?? undefined,
+    receiptPrintMode: settings.receiptPrintMode,
   };
 }

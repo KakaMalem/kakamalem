@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getAnalyticsData, type TimeRange } from "@/lib/db/queries/analytics";
-import { AnalyticsPageClient } from "@/components/dashboard/analytics/analytics-page-client";
+import { EnhancedAnalyticsPageClient } from "@/components/dashboard/analytics/enhanced-analytics-page-client";
 
 interface AnalyticsPageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{
     range?: string;
+    start?: string;
+    end?: string;
+    tab?: string;
   }>;
 }
 
@@ -15,8 +18,11 @@ const VALID_RANGES: TimeRange[] = [
   "yesterday",
   "7d",
   "30d",
+  "90d",
   "this_month",
   "last_month",
+  "this_year",
+  "custom",
 ];
 
 export default async function AnalyticsPage({
@@ -32,18 +38,32 @@ export default async function AnalyticsPage({
   }
 
   // Validate and default time range
-  const timeRange = VALID_RANGES.includes(search.range as TimeRange)
+  let timeRange: TimeRange = VALID_RANGES.includes(search.range as TimeRange)
     ? (search.range as TimeRange)
     : "7d";
+
+  // Handle custom date range
+  const customStart = search.start;
+  const customEnd = search.end;
+  if (timeRange === "custom" && customStart && customEnd) {
+    // Validate custom dates
+    const startDate = new Date(customStart);
+    const endDate = new Date(customEnd);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      timeRange = "7d"; // Fall back to 7d if invalid dates
+    }
+  } else if (timeRange === "custom") {
+    timeRange = "7d"; // Fall back if custom but no dates provided
+  }
 
   // Fetch analytics data
   const analyticsData = await getAnalyticsData(store.id, timeRange);
 
   return (
-    <AnalyticsPageClient
+    <EnhancedAnalyticsPageClient
       storeSlug={slug}
+      tenantId={store.id}
       currency={store.currency}
-      timeRange={timeRange}
       data={analyticsData}
     />
   );

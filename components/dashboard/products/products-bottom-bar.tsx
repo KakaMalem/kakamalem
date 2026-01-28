@@ -197,13 +197,7 @@ export function ProductsBottomBar({
                   </div>
 
                   {/* Desktop: inline with pagination row */}
-                  <div className="hidden items-center gap-2 border-t px-4 py-2 sm:flex">
-                    <Button asChild size="sm" className="h-7">
-                      <Link href={`/dashboard/${storeSlug}/products/new`}>
-                        <Plus className="size-3.5" />
-                        Add Product
-                      </Link>
-                    </Button>
+                  <div className="hidden items-center justify-between gap-2 border-t px-4 py-2 sm:flex">
                     <Button
                       variant="outline"
                       size="sm"
@@ -212,6 +206,12 @@ export function ProductsBottomBar({
                     >
                       <CheckCircle className="size-3.5" />
                       Select
+                    </Button>
+                    <Button asChild size="sm" className="h-7">
+                      <Link href={`/dashboard/${storeSlug}/products/new`}>
+                        <Plus className="size-3.5" />
+                        Add Product
+                      </Link>
                     </Button>
                   </div>
                 </motion.div>

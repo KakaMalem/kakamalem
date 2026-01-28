@@ -4,15 +4,26 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Check, Circle, ExternalLink, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { completeOnboardingItemAction } from "@/lib/actions/onboarding";
 import type { OnboardingChecklistItem } from "@/lib/db/schema";
 
 interface ChecklistItemProps {
   item: OnboardingChecklistItem;
   index: number;
+  storeSlug: string;
 }
 
-export function ChecklistItem({ item, index }: ChecklistItemProps) {
+export function ChecklistItem({ item, index, storeSlug }: ChecklistItemProps) {
   const isExternal = item.href.startsWith("/store/");
+
+  const handleClick = () => {
+    // Mark "share_store" as complete when clicked (external link to store page)
+    if (item.id === "share_store" && !item.completed) {
+      completeOnboardingItemAction(storeSlug, item.id).catch(() => {
+        // Silently ignore - onboarding completion is not critical
+      });
+    }
+  };
 
   return (
     <motion.div
@@ -23,6 +34,7 @@ export function ChecklistItem({ item, index }: ChecklistItemProps) {
       <Link
         href={item.href}
         target={isExternal ? "_blank" : undefined}
+        onClick={handleClick}
         className={cn(
           "group flex items-start gap-3 rounded-lg border p-3 transition-all",
           item.completed

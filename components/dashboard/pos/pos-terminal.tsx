@@ -16,6 +16,8 @@ import { formatPrice } from "@/lib/utils";
 import { POSProductGrid } from "./pos-product-grid";
 import { POSCart, calculateCartTotals, type POSCartItem } from "./pos-cart";
 import { POSPaymentModal } from "./pos-payment-modal";
+import { PrinterConnectionButton } from "./printer-connection-button";
+import type { ReceiptPrintMode } from "@/lib/validations/stores";
 
 type Category = {
   id: string;
@@ -47,6 +49,12 @@ interface POSTerminalProps {
   currency: string;
   categories: Category[];
   scannerMode: "camera" | "usb";
+  // Receipt printing settings
+  receiptPrintMode: ReceiptPrintMode;
+  storeName: string;
+  storePhone: string | null;
+  receiptFooterText: string | null;
+  receiptPaperWidth: "58mm" | "80mm";
 }
 
 export function POSTerminal({
@@ -55,6 +63,11 @@ export function POSTerminal({
   currency,
   categories,
   scannerMode,
+  receiptPrintMode,
+  storeName,
+  storePhone,
+  receiptFooterText,
+  receiptPaperWidth,
 }: POSTerminalProps) {
   const [items, setItems] = useState<POSCartItem[]>([]);
   const [discountType, setDiscountType] = useState<"amount" | "percent">(
@@ -218,20 +231,23 @@ export function POSTerminal({
 
         {/* Checkout button - Desktop */}
         <div className="shrink-0 border-t p-4">
-          <Button
-            onClick={() => setPaymentModalOpen(true)}
-            disabled={items.length === 0}
-            className="w-full h-14 text-lg"
-            size="lg"
-          >
-            <Receipt className="mr-2 size-5" />
-            Checkout
-            {total > 0 && (
-              <span className="ml-2 opacity-80">
-                • {formatPrice(total, currency)}
-              </span>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            {receiptPrintMode === "silent" && <PrinterConnectionButton />}
+            <Button
+              onClick={() => setPaymentModalOpen(true)}
+              disabled={items.length === 0}
+              className="flex-1 h-14 text-lg"
+              size="lg"
+            >
+              <Receipt className="mr-2 size-5" />
+              Checkout
+              {total > 0 && (
+                <span className="ml-2 opacity-80">
+                  • {formatPrice(total, currency)}
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -312,6 +328,11 @@ export function POSTerminal({
         storeSlug={storeSlug}
         currency={currency}
         onSuccess={handleSaleSuccess}
+        receiptPrintMode={receiptPrintMode}
+        storeName={storeName}
+        storePhone={storePhone}
+        receiptFooterText={receiptFooterText}
+        receiptPaperWidth={receiptPaperWidth}
       />
     </div>
   );

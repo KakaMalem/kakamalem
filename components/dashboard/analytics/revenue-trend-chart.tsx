@@ -91,9 +91,9 @@ export function RevenueTrendChart({ data, currency }: RevenueTrendChartProps) {
                   if (!active || !payload?.length) return null;
                   const d = payload[0].payload;
                   return (
-                    <div className="rounded-lg border bg-background p-2 shadow-sm">
+                    <div className="rounded-lg border bg-background p-3 shadow-sm">
                       <p className="text-sm font-medium">{d.displayDate}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-primary">
                         Revenue: {d.revenue.toLocaleString()} {currency}
                       </p>
                       <p className="text-sm text-muted-foreground">

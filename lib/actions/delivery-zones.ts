@@ -9,6 +9,7 @@ import {
   type DeliveryZoneInput,
   type ReorderDeliveryZonesInput,
 } from "@/lib/validations/delivery-zones";
+import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
 
 type ActionResult<T = void> = {
   success: boolean;
@@ -100,6 +101,11 @@ export async function createDeliveryZone(
         color: input.color,
       })
       .returning({ id: deliveryZones.id });
+
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(tenantId, "setup_shipping").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
 
     return { success: true, data: { id: zone.id } };
   } catch (error) {

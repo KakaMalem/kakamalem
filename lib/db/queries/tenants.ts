@@ -170,6 +170,7 @@ export async function updateTenant(
     receiptShowLogo: boolean;
     receiptShowContact: boolean;
     receiptFooterText: string | null;
+    receiptPrintMode: string;
     socialLinks: Record<string, string | boolean | undefined>;
     seo: Record<string, string | undefined>;
     status: "pending_review" | "active" | "suspended" | "inactive";

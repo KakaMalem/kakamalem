@@ -17,6 +17,10 @@ import { CartProvider } from "@/components/store/cart-provider";
 import { CartDrawer } from "@/components/store/cart-drawer";
 import { WishlistHydration } from "@/components/store/wishlist-hydration";
 import { WhatsAppButton } from "@/components/store/whatsapp-button";
+import {
+  StoreStructuredData,
+  WebsiteStructuredData,
+} from "@/components/store/store-structured-data";
 import type { SocialLinks } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { QueryProvider } from "@/lib/providers/query-provider";
@@ -58,23 +62,44 @@ export async function generateMetadata({
   const ogImageUrl =
     makeAbsolute(seo?.ogImageUrl) || makeAbsolute(store.logoUrl);
 
+  const title = seo?.metaTitle || store.name;
+  const description =
+    seo?.metaDescription ||
+    store.tagline ||
+    store.description ||
+    `Shop at ${store.name}`;
+  const storeUrl = `${baseUrl}/store/${slug}`;
+
   return {
-    title: seo?.metaTitle || store.name,
-    description:
-      seo?.metaDescription ||
-      store.tagline ||
-      store.description ||
-      `Shop at ${store.name}`,
+    title,
+    description,
+    // Canonical URL prevents duplicate content issues
+    alternates: {
+      canonical: storeUrl,
+    },
     openGraph: {
-      title: seo?.metaTitle || store.name,
-      description:
-        seo?.metaDescription ||
-        store.tagline ||
-        store.description ||
-        `Shop at ${store.name}`,
-      images: ogImageUrl ? [{ url: ogImageUrl }] : undefined,
+      type: "website",
+      title,
+      description,
+      url: storeUrl,
+      siteName: store.name,
+      locale: "en_US",
+      images: ogImageUrl
+        ? [{ url: ogImageUrl, width: 1200, height: 630, alt: store.name }]
+        : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: ogImageUrl ? [ogImageUrl] : undefined,
     },
     icons: store.faviconUrl ? { icon: store.faviconUrl } : undefined,
+    // Additional SEO metadata
+    keywords: store.tagline ? store.tagline.split(" ") : undefined,
+    authors: [{ name: store.name }],
+    creator: store.name,
+    publisher: store.name,
   };
 }
 
@@ -179,6 +204,23 @@ export default async function StoreLayout({
   return (
     <QueryProvider>
       <CartProvider initialCart={cart} storeSlug={slug}>
+        {/* SEO: Organization/Store structured data for Google Knowledge Panel */}
+        <StoreStructuredData
+          store={{
+            name: store.name,
+            slug: slug,
+            tagline: store.tagline,
+            description: store.description,
+            logoUrl: store.logoUrl,
+            contactEmail: store.contactEmail,
+            contactPhone: store.contactPhone,
+            socialLinks: socialLinks,
+            currency: store.currency,
+          }}
+        />
+        {/* SEO: Website structured data for sitelinks searchbox */}
+        <WebsiteStructuredData storeName={store.name} storeSlug={slug} />
+
         <WishlistHydration
           tenantId={store.id}
           initialProductIds={wishlistedProductIds}
@@ -224,6 +266,7 @@ export default async function StoreLayout({
               name: c.name,
               slug: c.slug,
             }))}
+            hideBranding={store.subscriptionPlan === "pro"}
           />
           {/* Cart Drawer - Hidden when online cart is disabled */}
           {!isCartDisabled && (

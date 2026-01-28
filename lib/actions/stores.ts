@@ -21,6 +21,7 @@ import {
   deleteTenant,
 } from "@/lib/db/queries/tenants";
 import { canAddStore } from "@/lib/db/queries/billing";
+import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
 
 export type StoreActionError = {
   message: string;
@@ -333,6 +334,11 @@ export async function updateGeneralSettings(
       currency: formValues.currency,
     });
 
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(storeId, "customize_store").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
+
     revalidatePath("/dashboard/settings", "page");
     return { success: true };
   } catch {
@@ -556,6 +562,12 @@ export async function updateSocialLinks(
 
   try {
     await updateTenant(storeId, { socialLinks });
+
+    // Mark onboarding item as complete (async, don't block)
+    // This completes "add_contact" for catalog mode stores
+    completeOnboardingItem(storeId, "add_contact").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
 
     revalidatePath("/dashboard/settings/social", "page");
     return { success: true };
@@ -953,6 +965,7 @@ export async function updateStoreModeSettings(
       receiptShowLogo: settings.receiptShowLogo,
       receiptShowContact: settings.receiptShowContact,
       receiptFooterText: settings.receiptFooterText || null,
+      receiptPrintMode: settings.receiptPrintMode,
     });
 
     // Revalidate dashboard and store pages

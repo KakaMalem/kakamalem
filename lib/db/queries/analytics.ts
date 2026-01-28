@@ -37,8 +37,11 @@ export type TimeRange =
   | "yesterday"
   | "7d"
   | "30d"
+  | "90d"
   | "this_month"
-  | "last_month";
+  | "last_month"
+  | "this_year"
+  | "custom";
 
 export type DateRange = {
   start: Date;
@@ -80,6 +83,94 @@ export type AnalyticsData = {
   kpis: AnalyticsKPIs;
   dailyData: DailyAnalyticsPoint[];
   topProducts: AnalyticsTopProduct[];
+};
+
+// Enhanced KPIs with additional metrics
+export type EnhancedAnalyticsKPIs = AnalyticsKPIs & {
+  conversionRate: number;
+  conversionRateChange: number;
+  cartAbandonmentRate: number;
+  cartAbandonmentChange: number;
+  averageItemsPerOrder: number;
+  itemsPerOrderChange: number;
+  productViews: number;
+  productViewsChange: number;
+};
+
+// Time series data with optional comparison
+export type TimeSeriesData = {
+  current: DailyAnalyticsPoint[];
+  previous?: DailyAnalyticsPoint[];
+};
+
+// Category performance for donut charts
+export type CategoryPerformance = {
+  categoryId: string;
+  categoryName: string;
+  revenue: number;
+  orders: number;
+  quantitySold: number;
+  percentOfTotal: number;
+};
+
+// Product performance for data tables
+export type ProductPerformanceRow = {
+  id: string;
+  name: string;
+  sku: string | null;
+  category: string | null;
+  quantitySold: number;
+  revenue: number;
+  orders: number;
+  views: number;
+  conversionRate: number;
+  averagePrice: number;
+};
+
+// Traffic source data
+export type TrafficSourceData = {
+  source: string;
+  medium: string | null;
+  campaign: string | null;
+  visitors: number;
+  orders: number;
+  revenue: number;
+  conversionRate: number;
+};
+
+// Conversion funnel stages
+export type ConversionFunnelData = {
+  stage: "product_view" | "add_to_cart" | "checkout_start" | "purchase";
+  label: string;
+  count: number;
+  dropoff: number;
+  dropoffPercent: number;
+};
+
+// Geographic sales data
+export type GeographicData = {
+  countryCode: string;
+  countryName: string;
+  state: string | null;
+  city: string | null;
+  orders: number;
+  revenue: number;
+  uniqueCustomers: number;
+};
+
+// Sales heatmap data (hour x day of week)
+export type HeatmapData = {
+  hour: number; // 0-23
+  dayOfWeek: number; // 0-6 (Sunday = 0)
+  value: number; // Order count or revenue
+};
+
+// Real-time metrics
+export type RealTimeMetrics = {
+  ordersToday: number;
+  revenueToday: number;
+  activeVisitors: number;
+  lastOrderAt: string | null;
 };
 
 // Types for dashboard data
@@ -594,15 +685,58 @@ export function getDateRangeFromTimeRange(range: TimeRange): {
         previous: { start: twoMonthsAgoStart, end: lastMonthStart },
       };
     }
+    case "90d": {
+      const quarterAgo = new Date(today);
+      quarterAgo.setDate(quarterAgo.getDate() - 90);
+      const twoQuartersAgo = new Date(quarterAgo);
+      twoQuartersAgo.setDate(twoQuartersAgo.getDate() - 90);
+      return {
+        current: { start: quarterAgo, end: now },
+        previous: { start: twoQuartersAgo, end: quarterAgo },
+      };
+    }
+    case "this_year": {
+      const yearStart = new Date(today.getFullYear(), 0, 1);
+      const lastYearStart = new Date(today.getFullYear() - 1, 0, 1);
+      const lastYearEnd = new Date(today.getFullYear(), 0, 1);
+      return {
+        current: { start: yearStart, end: now },
+        previous: { start: lastYearStart, end: lastYearEnd },
+      };
+    }
+    case "custom":
+      // For custom, caller must provide dates separately
+      // Default to 7d as fallback
+      return getDateRangeFromTimeRange("7d");
     default:
       return getDateRangeFromTimeRange("7d");
   }
 }
 
 /**
+ * Get date range from custom start/end dates
+ */
+export function getCustomDateRange(
+  startDate: string,
+  endDate: string
+): { current: DateRange; previous: DateRange } {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const durationMs = end.getTime() - start.getTime();
+
+  const previousEnd = new Date(start.getTime());
+  const previousStart = new Date(start.getTime() - durationMs);
+
+  return {
+    current: { start, end },
+    previous: { start: previousStart, end: previousEnd },
+  };
+}
+
+/**
  * Get the number of days in a time range
  */
-function getDaysInRange(range: TimeRange): number {
+export function getDaysInRange(range: TimeRange): number {
   switch (range) {
     case "today":
     case "yesterday":
@@ -611,6 +745,8 @@ function getDaysInRange(range: TimeRange): number {
       return 7;
     case "30d":
       return 30;
+    case "90d":
+      return 90;
     case "this_month": {
       const now = new Date();
       return now.getDate();
@@ -620,9 +756,25 @@ function getDaysInRange(range: TimeRange): number {
       const lastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
       return lastMonth.getDate();
     }
+    case "this_year": {
+      const now = new Date();
+      const yearStart = new Date(now.getFullYear(), 0, 1);
+      return Math.ceil(
+        (now.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
+      );
+    }
+    case "custom":
+      return 7; // Default, caller should calculate
     default:
       return 7;
   }
+}
+
+/**
+ * Get days between two dates
+ */
+export function getDaysBetween(start: Date, end: Date): number {
+  return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 /**
@@ -750,7 +902,7 @@ export async function getAnalyticsData(
           WHERE ${orders.tenantId} = ${tenantId}
             AND ${orders.createdAt} >= ${currentStartStr}
             AND ${orders.createdAt} <= ${currentEndStr}
-            AND ${orders.status} NOT IN ('cancelled', 'refunded')
+            AND ${orders.status} NOT IN ('cancelled', 'returned')
         ) as current_period`
       )
       .innerJoin(
@@ -759,7 +911,7 @@ export async function getAnalyticsData(
           FROM ${orders}
           WHERE ${orders.tenantId} = ${tenantId}
             AND ${orders.createdAt} < ${currentStartStr}
-            AND ${orders.status} NOT IN ('cancelled', 'refunded')
+            AND ${orders.status} NOT IN ('cancelled', 'returned')
         ) as previous_orders`,
         sql`current_period.email = previous_orders.email`
       ),

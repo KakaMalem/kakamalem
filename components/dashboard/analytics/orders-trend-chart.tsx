@@ -60,11 +60,9 @@ export function OrdersTrendChart({ data }: OrdersTrendChartProps) {
                   if (!active || !payload?.length) return null;
                   const d = payload[0].payload;
                   return (
-                    <div className="rounded-lg border bg-background p-2 shadow-sm">
+                    <div className="rounded-lg border bg-background p-3 shadow-sm">
                       <p className="text-sm font-medium">{d.displayDate}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Orders: {d.orders}
-                      </p>
+                      <p className="text-sm text-primary">Orders: {d.orders}</p>
                     </div>
                   );
                 }}

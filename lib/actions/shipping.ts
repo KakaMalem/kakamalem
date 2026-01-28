@@ -15,6 +15,7 @@ import {
   type ShippingZoneInput,
   type ShippingMethodInput,
 } from "@/lib/validations/shipping";
+import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
 
 // =============================================================================
 // TYPES
@@ -130,6 +131,11 @@ export async function createShippingZoneAction(
         isActive: data.isActive,
       })
       .returning({ id: shippingZones.id });
+
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(tenantId, "setup_shipping").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
 
     revalidatePath(`/dashboard/${storeSlug}/shipping`);
     return { success: true, data: { id: newZone.id } };
@@ -321,6 +327,11 @@ export async function createShippingMethodAction(
         isActive: data.isActive,
       })
       .returning({ id: shippingMethods.id });
+
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(tenantId, "setup_shipping").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
 
     revalidatePath(`/dashboard/${storeSlug}/shipping`);
     return { success: true, data: { id: newMethod.id } };

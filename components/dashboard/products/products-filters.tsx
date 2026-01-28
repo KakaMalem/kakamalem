@@ -3,7 +3,13 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Upload, Download } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,11 +21,13 @@ interface ProductsFiltersProps {
     direction: string;
   };
   storeSlug: string;
+  onBulkUploadClick?: () => void;
 }
 
 export function ProductsFilters({
   showArchived,
   storeSlug,
+  onBulkUploadClick,
 }: ProductsFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -107,13 +115,47 @@ export function ProductsFilters({
         </div>
       </div>
 
-      {/* Add Product Button - Desktop */}
-      <Button asChild className="hidden sm:inline-flex">
-        <Link href={`/dashboard/${storeSlug}/products/new`}>
-          <Plus className="size-4" />
-          Add Product
-        </Link>
-      </Button>
+      {/* Add Product + Import/Export Buttons - Desktop */}
+      <div className="hidden sm:flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <Download className="size-4" />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <a
+                href={`/api/dashboard/${storeSlug}/products/export?format=csv${showArchived ? "&status=archived" : ""}`}
+                download
+              >
+                Export as CSV
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a
+                href={`/api/dashboard/${storeSlug}/products/export?format=xlsx${showArchived ? "&status=archived" : ""}`}
+                download
+              >
+                Export as Excel
+              </a>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {onBulkUploadClick && (
+          <Button variant="outline" onClick={onBulkUploadClick}>
+            <Upload className="size-4" />
+            Import
+          </Button>
+        )}
+        <Button asChild>
+          <Link href={`/dashboard/${storeSlug}/products/new`}>
+            <Plus className="size-4" />
+            Add Product
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

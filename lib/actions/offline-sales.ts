@@ -23,6 +23,7 @@ import {
   type RecordOrderPaymentInput,
   type PaymentMethod,
 } from "@/lib/validations/offline-sales";
+import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
 
 // =============================================================================
 // TYPES
@@ -515,6 +516,11 @@ export async function recordOfflineSale(
       }
 
       return newOrder;
+    });
+
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(tenantId, "first_sale").catch(() => {
+      // Silently ignore - onboarding completion is not critical
     });
 
     // Revalidate relevant paths

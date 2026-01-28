@@ -23,6 +23,7 @@ export function transformTenantToSettings(tenant: {
   receiptShowLogo: boolean;
   receiptShowContact: boolean;
   receiptFooterText: string | null;
+  receiptPrintMode: string;
   enableDeliveryZones: boolean;
 }): TenantSettings {
   return {
@@ -44,6 +45,10 @@ export function transformTenantToSettings(tenant: {
     receiptShowLogo: tenant.receiptShowLogo,
     receiptShowContact: tenant.receiptShowContact,
     receiptFooterText: tenant.receiptFooterText,
+    receiptPrintMode: tenant.receiptPrintMode as
+      | "disabled"
+      | "prompt"
+      | "silent",
     enableDeliveryZones: tenant.enableDeliveryZones,
   };
 }

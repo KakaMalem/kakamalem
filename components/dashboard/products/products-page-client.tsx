@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ProductsFilters } from "./products-filters";
 import { ProductsList } from "./products-list";
 import { ProductsBottomBar } from "./products-bottom-bar";
+import { BulkUploadDialog } from "./bulk-upload-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +60,7 @@ export function ProductsPageClient({
   // Dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
   // Handle selection change from ProductsList
   const handleSelectionChange = useCallback((ids: Set<string>) => {
@@ -139,7 +141,11 @@ export function ProductsPageClient({
     <>
       <div className="space-y-4 pb-36">
         {/* Filters */}
-        <ProductsFilters showArchived={showArchived} storeSlug={storeSlug} />
+        <ProductsFilters
+          showArchived={showArchived}
+          storeSlug={storeSlug}
+          onBulkUploadClick={() => setBulkUploadOpen(true)}
+        />
 
         {/* Products List */}
         <ProductsList
@@ -192,6 +198,14 @@ export function ProductsPageClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Upload Dialog */}
+      <BulkUploadDialog
+        open={bulkUploadOpen}
+        onOpenChange={setBulkUploadOpen}
+        storeSlug={storeSlug}
+        tenantId={tenantId}
+      />
     </>
   );
 }

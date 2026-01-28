@@ -97,7 +97,12 @@ export function OnboardingChecklist({
           {/* Checklist items */}
           <div className="space-y-2">
             {checklist.items.map((item, index) => (
-              <ChecklistItem key={item.id} item={item} index={index} />
+              <ChecklistItem
+                key={item.id}
+                item={item}
+                index={index}
+                storeSlug={storeSlug}
+              />
             ))}
           </div>
 

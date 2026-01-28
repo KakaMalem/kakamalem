@@ -284,6 +284,29 @@ export const posScannerModeDescriptions: Record<PosScannerMode, string> = {
   usb: "Use an external USB or Bluetooth barcode scanner. Best for dedicated POS setups.",
 };
 
+// Receipt print mode options
+export const receiptPrintModeOptions = [
+  "disabled",
+  "prompt",
+  "silent",
+] as const;
+export type ReceiptPrintMode = (typeof receiptPrintModeOptions)[number];
+
+// Receipt print mode labels for UI
+export const receiptPrintModeLabels: Record<ReceiptPrintMode, string> = {
+  disabled: "No Auto-Print",
+  prompt: "Print Dialog",
+  silent: "Direct Print (Thermal)",
+};
+
+// Receipt print mode descriptions for UI
+export const receiptPrintModeDescriptions: Record<ReceiptPrintMode, string> = {
+  disabled: "Show success toast only, no printing after checkout.",
+  prompt: "Open browser print dialog automatically after each sale.",
+  silent:
+    "Print directly to connected thermal printer without dialog (Chrome/Edge only).",
+};
+
 // Store mode settings validation schema
 export const storeModeSettingsSchema = z.object({
   storeMode: z.enum(storeModeOptions),
@@ -297,6 +320,7 @@ export const storeModeSettingsSchema = z.object({
   receiptShowLogo: z.boolean(),
   receiptShowContact: z.boolean(),
   receiptFooterText: z.string().max(200).optional(),
+  receiptPrintMode: z.enum(receiptPrintModeOptions),
 });
 
 export type StoreModeSettingsInput = z.infer<typeof storeModeSettingsSchema>;

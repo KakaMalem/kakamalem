@@ -15,6 +15,7 @@ import { generateSku } from "@/lib/utils/slug";
 import { getMaxProductDisplayOrder } from "@/lib/db/queries/products";
 import { getUser } from "@/lib/auth/server";
 import { canAddProduct } from "@/lib/db/queries/billing";
+import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
 
 export type ProductActionResult = {
   success: boolean;
@@ -132,6 +133,11 @@ export async function createProduct(
 
       await db.insert(productCategories).values(categoryValues);
     }
+
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(tenantId, "add_product").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
 
     revalidatePath(`/dashboard`);
 
@@ -406,6 +412,11 @@ export async function createProductWithImages(
       "✅ [createProductWithImages] Transaction successful:",
       newProduct
     );
+
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(tenantId, "add_product").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
 
     revalidatePath(`/dashboard`);
 

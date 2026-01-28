@@ -87,9 +87,14 @@ function SocialLink({ href, label, children }: SocialLinkProps) {
 interface StoreFooterProps {
   store: Tenant;
   categories: Pick<Category, "id" | "name" | "slug">[];
+  hideBranding?: boolean;
 }
 
-export function StoreFooter({ store, categories }: StoreFooterProps) {
+export function StoreFooter({
+  store,
+  categories,
+  hideBranding,
+}: StoreFooterProps) {
   const storeUrl = `/store/${store.slug}`;
   const socialLinks = store.socialLinks as SocialLinks | null;
   const currentYear = new Date().getFullYear();
@@ -401,15 +406,17 @@ export function StoreFooter({ store, categories }: StoreFooterProps) {
             <p className="text-sm text-muted-foreground">
               &copy; {currentYear} {store.name}. All rights reserved.
             </p>
-            <p className="text-sm text-muted-foreground">
-              Powered by{" "}
-              <Link
-                href="/"
-                className="font-medium text-foreground transition-colors hover:text-primary"
-              >
-                Kaka Malem
-              </Link>
-            </p>
+            {!hideBranding && (
+              <p className="text-sm text-muted-foreground">
+                Powered by{" "}
+                <Link
+                  href="/"
+                  className="font-medium text-foreground transition-colors hover:text-primary"
+                >
+                  Kaka Malem
+                </Link>
+              </p>
+            )}
           </div>
         </div>
       </footer>

@@ -49,6 +49,7 @@ export default async function StoreModePage({ params }: StoreModePageProps) {
         receiptShowLogo={store.receiptShowLogo}
         receiptShowContact={store.receiptShowContact}
         receiptFooterText={store.receiptFooterText}
+        receiptPrintMode={store.receiptPrintMode}
       />
     </div>
   );
