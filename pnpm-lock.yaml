@@ -166,9 +166,6 @@ importers:
       libphonenumber-js:
         specifier: ^1.12.33
         version: 1.12.33
-      lightgallery:
-        specifier: ^2.9.0
-        version: 2.9.0
       lucide-react:
         specifier: ^0.562.0
         version: 0.562.0(react@19.2.3)
@@ -6905,13 +6902,6 @@ packages:
       {
         integrity: sha512-r9kw4OA6oDO4dPXkOrXTkArQAafIKAU71hChInV4FxZ69dxCfbwQGDPzqR5/vea94wU705/3AZroEbSoeVWrQw==,
       }
-
-  lightgallery@2.9.0:
-    resolution:
-      {
-        integrity: sha512-58Ud1DyhD2ao58t+kPEqSZrjFxg23tGd5ZKr75erm7q31g5xhUtWUJH3sTUkhHzlyJAKHj5eTrJ37HQRXG4Wbg==,
-      }
-    engines: { node: ">=6.0.0" }
 
   lightningcss-android-arm64@1.30.2:
     resolution:
@@ -13945,8 +13935,6 @@ snapshots:
       type-check: 0.4.0
 
   libphonenumber-js@1.12.33: {}
-
-  lightgallery@2.9.0: {}
 
   lightningcss-android-arm64@1.30.2:
     optional: true

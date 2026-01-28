@@ -67,7 +67,6 @@
     "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
     "libphonenumber-js": "^1.12.33",
-    "lightgallery": "^2.9.0",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "nodemailer": "^7.0.12",

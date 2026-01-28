@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Collapsible,
   CollapsibleContent,
@@ -93,9 +92,9 @@ export function POSCart({
   const displayedNewPrice = maxPriceForFixed - discountValue;
 
   return (
-    <div className="flex h-full flex-col bg-card">
+    <div className="flex flex-1 min-h-0 flex-col bg-card">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-4 py-3">
+      <div className="shrink-0 flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <ShoppingCart className="size-5" />
           <h2 className="font-semibold">Cart</h2>
@@ -122,7 +121,7 @@ export function POSCart({
         </div>
       ) : (
         <>
-          <ScrollArea className="flex-1">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="divide-y px-3">
               {items.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 py-3">
@@ -243,10 +242,10 @@ export function POSCart({
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Summary */}
-          <div className="border-t bg-muted/30 px-4 py-3">
+          <div className="shrink-0 border-t bg-muted/30 px-4 py-3">
             {/* Discount Toggle */}
             <Collapsible
               open={discountExpanded}

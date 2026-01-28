@@ -52,10 +52,11 @@ export function ReviewRatingInput({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="space-y-3">
+      {/* Stars container - stretches full width, stars centered */}
       <div
         className={cn(
-          "inline-flex items-center rounded-lg bg-muted/50",
+          "flex items-center justify-center rounded-lg bg-muted/50",
           containerClasses[size]
         )}
         role="radiogroup"
@@ -126,33 +127,38 @@ export function ReviewRatingInput({
         })}
       </div>
 
-      {/* Rating label with animation */}
-      <AnimatePresence mode="wait">
-        {ratingInfo && (
-          <motion.div
-            key={displayRating}
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 5 }}
-            transition={{ duration: 0.15 }}
-            className="flex items-center gap-2"
-          >
-            <span className={cn("text-sm font-medium", ratingInfo.color)}>
-              {ratingInfo.text}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              ({displayRating}/5)
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Hint text when no rating selected */}
-      {!displayRating && (
-        <p className="text-xs text-muted-foreground">
-          Tap a star to rate this product
-        </p>
-      )}
+      {/* Rating label - centered */}
+      <div className="flex justify-center min-h-5">
+        <AnimatePresence mode="wait">
+          {ratingInfo ? (
+            <motion.div
+              key={displayRating}
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 5 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center gap-2"
+            >
+              <span className={cn("text-sm font-medium", ratingInfo.color)}>
+                {ratingInfo.text}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                ({displayRating}/5)
+              </span>
+            </motion.div>
+          ) : (
+            <motion.p
+              key="hint"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-xs text-muted-foreground"
+            >
+              Tap a star to rate this product
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

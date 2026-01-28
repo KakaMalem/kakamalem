@@ -5,23 +5,54 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useRef,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import LightGallery from "lightgallery/react";
-import type { LightGallery as LightGalleryType } from "lightgallery/lightgallery";
+import Lightbox, { type Slide } from "yet-another-react-lightbox";
+import Zoom from "yet-another-react-lightbox/plugins/zoom";
+import Fullscreen from "yet-another-react-lightbox/plugins/fullscreen";
+import Counter from "yet-another-react-lightbox/plugins/counter";
+import Thumbnails from "yet-another-react-lightbox/plugins/thumbnails";
 
-// Styles
-import "lightgallery/css/lightgallery.css";
-import "lightgallery/css/lg-zoom.css";
-import "lightgallery/css/lg-thumbnail.css";
+// Import YARL styles
+import "yet-another-react-lightbox/styles.css";
+import "yet-another-react-lightbox/plugins/counter.css";
+import "yet-another-react-lightbox/plugins/thumbnails.css";
 
-// Plugins
-import lgZoom from "lightgallery/plugins/zoom";
-import lgThumbnail from "lightgallery/plugins/thumbnail";
+// Class added to body when lightbox is open (for dialog coordination)
+const LIGHTBOX_OPEN_CLASS = "lightgallery-open";
 
-// Class added to body when lightgallery is open
-const LIGHTGALLERY_OPEN_CLASS = "lightgallery-open";
+// =============================================================================
+// PORTAL CONTAINER SINGLETON
+// =============================================================================
+
+let portalContainer: HTMLDivElement | null = null;
+const subscribers = new Set<() => void>();
+
+function getPortalContainer() {
+  return portalContainer;
+}
+
+function subscribe(callback: () => void) {
+  subscribers.add(callback);
+  return () => subscribers.delete(callback);
+}
+
+function ensurePortalContainer() {
+  if (typeof document === "undefined") return null;
+
+  if (!portalContainer) {
+    portalContainer = document.createElement("div");
+    portalContainer.id = "image-preview-portal";
+    portalContainer.style.position = "relative";
+    portalContainer.style.zIndex = "2147483647";
+    document.body.appendChild(portalContainer);
+    subscribers.forEach((cb) => cb());
+  }
+  return portalContainer;
+}
 
 // =============================================================================
 // TYPES
@@ -34,11 +65,6 @@ export interface PreviewImage {
 }
 
 interface ImagePreviewContextValue {
-  /**
-   * Open the image preview gallery
-   * @param images Array of images to display
-   * @param startIndex Index of the image to open initially (0-based)
-   */
   openPreview: (images: PreviewImage[], startIndex?: number) => void;
 }
 
@@ -54,19 +80,6 @@ const ImagePreviewContext = createContext<ImagePreviewContextValue | null>(
 // HOOK
 // =============================================================================
 
-/**
- * Hook to access the image preview functionality.
- * Must be used within an ImagePreviewProvider.
- *
- * @example
- * ```tsx
- * const { openPreview } = useImagePreview();
- *
- * const handleClick = () => {
- *   openPreview([{ src: "/image1.jpg" }, { src: "/image2.jpg" }], 0);
- * };
- * ```
- */
 export function useImagePreview() {
   const context = useContext(ImagePreviewContext);
   if (!context) {
@@ -83,80 +96,169 @@ interface ImagePreviewProviderProps {
   children: ReactNode;
 }
 
-/**
- * Global provider for image preview functionality.
- * Place this at the root of your app (e.g., in layout.tsx).
- * Uses a single LightGallery instance to avoid conflicts.
- */
 export function ImagePreviewProvider({ children }: ImagePreviewProviderProps) {
-  const lightGalleryRef = useRef<LightGalleryType | null>(null);
-  const [images, setImages] = useState<PreviewImage[]>([]);
-  const [startIndex, setStartIndex] = useState(0);
-  const [key, setKey] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const onInit = useCallback((detail: { instance: LightGalleryType }) => {
-    lightGalleryRef.current = detail.instance;
+  // Track if close was triggered by popstate (back button)
+  const closedViaPopstateRef = useRef(false);
+
+  // Use external store pattern for portal container
+  const container = useSyncExternalStore(
+    subscribe,
+    getPortalContainer,
+    () => null // Server snapshot
+  );
+
+  // Ensure portal container exists on mount
+  useEffect(() => {
+    ensurePortalContainer();
   }, []);
 
-  // Add class to body when lightgallery opens (to disable dialog interactions)
-  const onAfterOpen = useCallback(() => {
-    document.body.classList.add(LIGHTGALLERY_OPEN_CLASS);
-  }, []);
+  // Manage body class for dialog coordination
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add(LIGHTBOX_OPEN_CLASS);
+    } else {
+      const timer = setTimeout(() => {
+        document.body.classList.remove(LIGHTBOX_OPEN_CLASS);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
-  // Remove class when lightgallery closes (with delay to prevent parent dialogs from closing)
-  const onAfterClose = useCallback(() => {
-    // Delay removal so parent dialogs can check if preview was open before closing
-    setTimeout(() => {
-      document.body.classList.remove(LIGHTGALLERY_OPEN_CLASS);
-    }, 100);
-  }, []);
+  // Browser history integration + Escape key handler
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Push history state when lightbox opens
+    window.history.pushState({ lightbox: true }, "");
+
+    // Handle back button
+    const handlePopState = () => {
+      closedViaPopstateRef.current = true;
+      setIsOpen(false);
+    };
+
+    // Handle Escape key directly (bypasses any Radix event handling)
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        // Go back to remove history entry, then close
+        window.history.back();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    // Use capture phase to intercept before Radix
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [isOpen]);
 
   const openPreview = useCallback(
-    (newImages: PreviewImage[], index: number = 0) => {
-      // Update images and trigger re-render of LightGallery
-      setImages(newImages);
-      setStartIndex(index);
-      setKey((prev) => prev + 1);
+    (images: PreviewImage[], startIndex: number = 0) => {
+      const newSlides: Slide[] = images.map((img) => ({
+        src: img.src,
+        alt: img.alt || "",
+      }));
 
-      // Use setTimeout to ensure LightGallery has updated with new images
-      setTimeout(() => {
-        lightGalleryRef.current?.openGallery(index);
-      }, 50);
+      setSlides(newSlides);
+      setCurrentIndex(startIndex);
+      setIsOpen(true);
     },
     []
   );
 
-  // Convert images to dynamic source format
-  const dynamicEl = images.map((img) => ({
-    src: img.src,
-    thumb: img.thumb || img.src,
-    alt: img.alt || "",
-    subHtml: img.alt ? `<p>${img.alt}</p>` : undefined,
-  }));
+  // Handle close from YARL (X button, backdrop click)
+  const handleClose = useCallback(() => {
+    if (!closedViaPopstateRef.current) {
+      // Closed via X button or backdrop - go back to remove history entry
+      window.history.back();
+    }
+    closedViaPopstateRef.current = false;
+    setIsOpen(false);
+  }, []);
 
-  // Build plugins array - always include both, thumbnail only shows when multiple images
-  const plugins = [lgZoom, lgThumbnail];
+  const handleView = useCallback(({ index }: { index: number }) => {
+    setCurrentIndex(index);
+  }, []);
 
   return (
     <ImagePreviewContext.Provider value={{ openPreview }}>
       {children}
-      {/* Single global LightGallery instance */}
-      <LightGallery
-        key={key}
-        onInit={onInit}
-        onAfterOpen={onAfterOpen}
-        onAfterClose={onAfterClose}
-        dynamic
-        dynamicEl={dynamicEl}
-        plugins={plugins}
-        mode="lg-fade"
-        download={false}
-        counter={images.length > 1}
-        hideControlOnEnd={false}
-        closable
-        showMaximizeIcon
-        index={startIndex}
-      />
+      {container && (
+        <Lightbox
+          open={isOpen}
+          close={handleClose}
+          index={currentIndex}
+          slides={slides}
+          on={{ view: handleView }}
+          portal={{ root: container }}
+          plugins={[
+            Zoom,
+            Fullscreen,
+            Counter,
+            ...(slides.length > 1 ? [Thumbnails] : []),
+          ]}
+          zoom={{
+            maxZoomPixelRatio: 4,
+            zoomInMultiplier: 2,
+            doubleTapDelay: 300,
+            doubleClickDelay: 300,
+            doubleClickMaxStops: 2,
+            keyboardMoveDistance: 50,
+            wheelZoomDistanceFactor: 100,
+            pinchZoomDistanceFactor: 100,
+            scrollToZoom: true,
+          }}
+          thumbnails={{
+            position: "bottom",
+            width: 80,
+            height: 60,
+            gap: 8,
+            padding: 4,
+            showToggle: false,
+          }}
+          animation={{
+            fade: 250,
+            swipe: 350,
+            easing: {
+              fade: "ease",
+              swipe: "ease-out",
+              navigation: "ease-in-out",
+            },
+          }}
+          carousel={{
+            finite: true,
+            preload: 2,
+            padding: 0,
+            spacing: 0,
+          }}
+          controller={{
+            closeOnBackdropClick: true,
+            closeOnPullDown: true,
+            closeOnPullUp: true,
+          }}
+          render={{
+            buttonPrev: slides.length <= 1 ? () => null : undefined,
+            buttonNext: slides.length <= 1 ? () => null : undefined,
+          }}
+          styles={{
+            container: {
+              backgroundColor: "rgba(0, 0, 0, 0.95)",
+            },
+          }}
+          toolbar={{
+            buttons: ["fullscreen", "zoom", "close"],
+          }}
+        />
+      )}
     </ImagePreviewContext.Provider>
   );
 }

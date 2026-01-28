@@ -34,6 +34,8 @@ interface ProductPageContentProps {
   storeMode?: "full" | "online_only" | "offline_only" | "catalog";
   /** Contact phone for catalog/offline mode */
   contactPhone?: string | null;
+  /** Map of media ID to URL for image swatches */
+  imageSwatchUrls?: Map<string, string>;
 }
 
 export function ProductPageContent({
@@ -47,6 +49,7 @@ export function ProductPageContent({
   catalogMode = false,
   storeMode = "full",
   contactPhone,
+  imageSwatchUrls,
 }: ProductPageContentProps) {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
@@ -174,6 +177,7 @@ export function ProductPageContent({
           catalogMode={catalogMode}
           storeMode={storeMode}
           contactPhone={contactPhone}
+          imageSwatchUrls={imageSwatchUrls}
         />
       </div>
     </>

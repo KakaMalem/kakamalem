@@ -31,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { signOut } from "@/lib/auth/actions";
 
 import type { Tenant } from "@/lib/db/schema";
 import type { StoreRole } from "@/lib/auth/context";
@@ -100,9 +99,8 @@ export function StoreHeader({
     [searchQuery, storeUrl, router]
   );
 
-  const handleSignOut = async () => {
-    await signOut();
-    router.refresh();
+  const handleSignOut = () => {
+    router.push(`${storeUrl}/logout`);
   };
 
   const getInitials = (name?: string, email?: string) => {

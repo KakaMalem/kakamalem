@@ -21,6 +21,7 @@ import { Logo } from "@/components/ui/logo";
 import { StoreOAuthButton } from "./store-oauth-button";
 import { signupSchema, type SignupInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
+import { handleFormErrors } from "@/lib/utils/form-errors";
 
 // Map field names to DOM element IDs for scroll-to-error
 const FIELD_ID_MAP: Record<string, string> = {
@@ -93,7 +94,7 @@ export function StoreSignupForm({ store, redirectTo }: StoreSignupFormProps) {
           }
         });
         setFieldErrors(errors);
-        toast.error(err.issues[0].message);
+        handleFormErrors(errors, FIELD_ID_MAP);
         setIsPending(false);
         return;
       }

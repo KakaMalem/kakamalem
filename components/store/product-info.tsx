@@ -55,6 +55,8 @@ interface ProductInfoProps {
   storeMode?: "full" | "online_only" | "offline_only" | "catalog";
   /** Contact phone for catalog/offline mode */
   contactPhone?: string | null;
+  /** Map of media ID to URL for image swatches */
+  imageSwatchUrls?: Map<string, string>;
 }
 
 export function ProductInfo({
@@ -67,6 +69,7 @@ export function ProductInfo({
   catalogMode = false,
   storeMode = "full",
   contactPhone,
+  imageSwatchUrls,
 }: ProductInfoProps) {
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
   const [selectedOptions, setSelectedOptions] = useState<
@@ -216,7 +219,7 @@ export function ProductInfo({
   // Group variants by option type for variant selector
   const variantOptions =
     product.hasVariants && product.variants
-      ? groupVariantsByOption(product.variants)
+      ? groupVariantsByOption(product.variants, imageSwatchUrls)
       : null;
 
   // Quantity controls (supports unlimited quantities for bulk orders)
@@ -484,9 +487,11 @@ export function ProductInfo({
       {product.hasVariants && variantOptions && (
         <>
           {Object.entries(variantOptions).map(([optionName, optionValues]) => {
-            // Check if this option has any color swatches
-            const hasColorSwatches = optionValues.some(
-              (v) => v.swatchType === "color" && v.swatchValue
+            // Check if this option has any visual swatches (color or image)
+            const hasVisualSwatches = optionValues.some(
+              (v) =>
+                (v.swatchType === "color" && v.swatchValue) ||
+                (v.swatchType === "image" && v.swatchImageUrl)
             );
 
             const options = optionValues.map((optVal) => {
@@ -521,11 +526,12 @@ export function ProductInfo({
                 isAvailable,
                 swatchType: optVal.swatchType,
                 swatchValue: optVal.swatchValue,
+                swatchImageUrl: optVal.swatchImageUrl,
               };
             });
 
-            // Use color swatch display for color options
-            if (hasColorSwatches) {
+            // Use visual swatch display for color or image options
+            if (hasVisualSwatches) {
               return (
                 <div key={optionName} className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -544,6 +550,9 @@ export function ProductInfo({
                         selectedOptions[optionName] === option.value;
                       const isColor =
                         option.swatchType === "color" && option.swatchValue;
+                      const isImage =
+                        option.swatchType === "image" && option.swatchImageUrl;
+                      const isVisualSwatch = isColor || isImage;
 
                       return (
                         <button
@@ -557,8 +566,10 @@ export function ProductInfo({
                           }
                           disabled={!option.isAvailable}
                           className={cn(
-                            "relative rounded-full border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                            isColor ? "h-10 w-10" : "h-10 px-4",
+                            "relative border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 overflow-hidden",
+                            isVisualSwatch
+                              ? "h-10 w-10 rounded-full"
+                              : "h-10 px-4 rounded-full",
                             isSelected && "ring-2 ring-primary ring-offset-2",
                             !option.isAvailable &&
                               "opacity-40 cursor-not-allowed",
@@ -568,7 +579,13 @@ export function ProductInfo({
                           style={
                             isColor
                               ? { backgroundColor: option.swatchValue! }
-                              : undefined
+                              : isImage
+                                ? {
+                                    backgroundImage: `url(${option.swatchImageUrl})`,
+                                    backgroundSize: "cover",
+                                    backgroundPosition: "center",
+                                  }
+                                : undefined
                           }
                           title={option.value}
                           aria-label={`${optionName}: ${option.value}${!option.isAvailable ? " (unavailable)" : ""}`}
@@ -585,7 +602,12 @@ export function ProductInfo({
                               ✓
                             </span>
                           )}
-                          {!isColor && (
+                          {isSelected && isImage && (
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
+                              ✓
+                            </span>
+                          )}
+                          {!isVisualSwatch && (
                             <span
                               className={cn(
                                 "text-sm font-medium",
@@ -595,7 +617,7 @@ export function ProductInfo({
                               {option.label}
                             </span>
                           )}
-                          {!option.isAvailable && isColor && (
+                          {!option.isAvailable && isVisualSwatch && (
                             <div className="absolute inset-0 flex items-center justify-center">
                               <div className="w-full h-0.5 bg-gray-400 rotate-45 absolute" />
                             </div>
@@ -803,11 +825,14 @@ type VariantOptionValue = {
   value: string;
   swatchType: "text" | "color" | "image";
   swatchValue?: string | null;
+  /** Resolved image URL for image swatches */
+  swatchImageUrl?: string | null;
 };
 
 // Helper to group variants by option type with swatch data
 function groupVariantsByOption(
-  variants: NonNullable<ProductWithDetails["variants"]>
+  variants: NonNullable<ProductWithDetails["variants"]>,
+  imageSwatchUrls?: Map<string, string>
 ): Record<string, VariantOptionValue[]> {
   const groups: Record<string, Map<string, VariantOptionValue>> = {};
 
@@ -824,10 +849,20 @@ function groupVariantsByOption(
 
       // Only add if not already present (preserve first occurrence's swatch data)
       if (!groups[optionName].has(value)) {
+        const swatchType = opt.optionValue.swatchType || "text";
+        const swatchValue = opt.optionValue.swatchValue;
+
+        // Resolve image URL for image swatches
+        let swatchImageUrl: string | null = null;
+        if (swatchType === "image" && swatchValue && imageSwatchUrls) {
+          swatchImageUrl = imageSwatchUrls.get(swatchValue) ?? null;
+        }
+
         groups[optionName].set(value, {
           value,
-          swatchType: opt.optionValue.swatchType || "text",
-          swatchValue: opt.optionValue.swatchValue,
+          swatchType,
+          swatchValue,
+          swatchImageUrl,
         });
       }
     }

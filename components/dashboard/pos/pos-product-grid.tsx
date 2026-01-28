@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -239,9 +238,9 @@ export function POSProductGrid({
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 min-h-0 flex-col">
       {/* Search bar */}
-      <div className="border-b p-3">
+      <div className="shrink-0 border-b p-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
@@ -291,7 +290,7 @@ export function POSProductGrid({
       </div>
 
       {/* Category tabs + view toggle */}
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+      <div className="shrink-0 flex items-center gap-2 border-b px-3 py-2">
         <div className="flex-1 overflow-x-auto scrollbar-hide">
           <div className="flex gap-2">
             <Button
@@ -336,7 +335,7 @@ export function POSProductGrid({
       </div>
 
       {/* Product grid */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {isLoading ? (
           <div className="flex h-64 items-center justify-center">
             <Loader2 className="size-8 animate-spin text-muted-foreground" />
@@ -348,7 +347,7 @@ export function POSProductGrid({
             <p className="text-sm">Try a different search term</p>
           </div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 p-3 pb-24 lg:pb-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => {
               const isOutOfStock = product.trackInventory && product.stock <= 0;
               return (
@@ -407,7 +406,7 @@ export function POSProductGrid({
             })}
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y pb-24 lg:pb-0">
             {products.map((product) => {
               const isOutOfStock = product.trackInventory && product.stock <= 0;
               return (
@@ -470,7 +469,7 @@ export function POSProductGrid({
             })}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Variant selection dialog */}
       <Dialog

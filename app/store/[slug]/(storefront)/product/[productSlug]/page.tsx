@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
-import { getProductBySlugWithDetails } from "@/lib/db/queries/products";
+import {
+  getProductBySlugWithDetails,
+  getProductImageSwatchUrls,
+} from "@/lib/db/queries/products";
 import { stripHtml } from "@/lib/utils/html";
 import { getProductReviewStats } from "@/lib/db/queries/reviews";
 import { getProductPriceTiers } from "@/lib/db/queries/pricing";
@@ -107,10 +110,11 @@ export default async function ProductPage({
     notFound();
   }
 
-  // Fetch review statistics and price tiers in parallel
-  const [reviewStats, priceTiers] = await Promise.all([
+  // Fetch review statistics, price tiers, and image swatch URLs in parallel
+  const [reviewStats, priceTiers, imageSwatchUrls] = await Promise.all([
     getProductReviewStats(store.id, product.id),
     getProductPriceTiers(product.id),
+    getProductImageSwatchUrls(product),
   ]);
 
   // Build breadcrumbs
@@ -160,6 +164,7 @@ export default async function ProductPage({
               catalogMode={isCartDisabled}
               storeMode={store.storeMode}
               contactPhone={store.contactPhone}
+              imageSwatchUrls={imageSwatchUrls}
             />
           </div>
 

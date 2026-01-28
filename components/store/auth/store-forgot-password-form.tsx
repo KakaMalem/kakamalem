@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { requestPasswordReset } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,9 @@ export function StoreForgotPasswordForm({
     // Validate email
     const result = forgotPasswordSchema.safeParse({ email });
     if (!result.success) {
-      setEmailError(result.error.issues[0].message);
+      const errorMessage = result.error.issues[0].message;
+      setEmailError(errorMessage);
+      toast.error(errorMessage);
       setIsPending(false);
       return;
     }
@@ -55,7 +58,10 @@ export function StoreForgotPasswordForm({
       const result = await requestPasswordReset(email);
 
       if (result.error) {
-        setError(result.error.message || "Failed to send reset email");
+        const errorMessage =
+          result.error.message || "Failed to send reset email";
+        setError(errorMessage);
+        toast.error(errorMessage);
         setIsPending(false);
         return;
       }
@@ -65,6 +71,7 @@ export function StoreForgotPasswordForm({
     } catch (err) {
       console.error("Forgot password error:", err);
       setError("An unexpected error occurred");
+      toast.error("An unexpected error occurred");
       setIsPending(false);
     }
   }

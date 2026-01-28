@@ -360,6 +360,7 @@ export function transformDbOptionsToInlineOptions(
       displayOrder: number;
       swatchType?: "text" | "color" | "image";
       swatchValue?: string | null;
+      swatchImageUrl?: string | null;
     }[];
   }[]
 ): InlineOption[] {
@@ -372,6 +373,7 @@ export function transformDbOptionsToInlineOptions(
       isNew: false,
       swatchType: val.swatchType || "text",
       swatchValue: val.swatchValue ?? undefined,
+      swatchImageUrl: val.swatchImageUrl ?? undefined,
     })),
     isNew: false,
   }));

@@ -183,10 +183,11 @@ export function POSTerminal({
     // Stock is updated via Zustand store in POSPaymentModal
   }, []);
 
+  // Height: viewport - header(4rem) - vertical padding (2rem mobile, 3rem desktop)
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col lg:flex-row">
+    <div className="h-[calc(100dvh-6rem)] md:h-[calc(100dvh-7rem)] flex flex-col lg:flex-row border overflow-hidden">
       {/* Product Grid - Full width on mobile, 2/3 on desktop */}
-      <div className="flex-1 overflow-hidden lg:border-r">
+      <div className="flex flex-1 min-h-0 flex-col lg:border-r">
         <POSProductGrid
           tenantId={tenantId}
           currency={currency}
@@ -201,7 +202,7 @@ export function POSTerminal({
       </div>
 
       {/* Cart Sidebar - Hidden on mobile, shown on desktop */}
-      <div className="hidden lg:flex lg:w-96 xl:w-105 flex-col">
+      <div className="hidden lg:flex lg:w-96 xl:w-105 shrink-0 flex-col min-h-0">
         <POSCart
           items={items}
           currency={currency}
@@ -216,7 +217,7 @@ export function POSTerminal({
         />
 
         {/* Checkout button - Desktop */}
-        <div className="border-t p-4">
+        <div className="shrink-0 border-t p-4">
           <Button
             onClick={() => setPaymentModalOpen(true)}
             disabled={items.length === 0}
@@ -250,7 +251,7 @@ export function POSTerminal({
                   {itemCount > 0 && (
                     <Badge
                       variant="secondary"
-                      className="bg-primary-foreground/20"
+                      className="bg-white/20 text-white"
                     >
                       {itemCount}
                     </Badge>

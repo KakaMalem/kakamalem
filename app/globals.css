@@ -148,34 +148,10 @@
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
-/* LightGallery z-index and interaction fixes */
-.lg-container {
-  z-index: 2147483647 !important;
-  position: fixed !important;
-  inset: 0 !important;
-}
-
-.lg-backdrop {
-  z-index: 2147483646 !important;
-  pointer-events: auto !important;
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.lg-outer {
+/* YARL Lightbox - ensure it appears above Radix dialogs and receives events */
+.yarl__root {
   z-index: 2147483647 !important;
   pointer-events: auto !important;
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* When LightGallery is open, disable all Radix dialog interactions */
-body.lightgallery-open [data-radix-portal] {
-  pointer-events: none !important;
 }
 
 /* ============================================================================

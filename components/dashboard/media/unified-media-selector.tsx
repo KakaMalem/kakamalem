@@ -458,19 +458,30 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
     }
   };
 
-  // Handle dialog close - prevent closing if image preview is open
-  const handleOpenChange = (newOpen: boolean) => {
-    // If trying to close, check if LightGallery is open
-    if (!newOpen && document.body.classList.contains("lightgallery-open")) {
-      return; // Don't close the dialog while image preview is open
+  // Handle dialog close - prevent closing if lightbox is open
+  const handleOpenChange = useCallback(
+    (newOpen: boolean) => {
+      // If trying to close, check if lightbox is open
+      if (!newOpen && document.body.classList.contains("lightgallery-open")) {
+        return; // Don't close the dialog while lightbox is open
+      }
+      onOpenChange(newOpen);
+    },
+    [onOpenChange]
+  );
+
+  // Prevent Escape key from closing dialog when lightbox is open
+  const handleEscapeKeyDown = useCallback((event: KeyboardEvent) => {
+    if (document.body.classList.contains("lightgallery-open")) {
+      event.preventDefault(); // Prevent dialog from closing
     }
-    onOpenChange(newOpen);
-  };
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn("max-w-4xl max-h-[90vh] flex flex-col gap-4", className)}
+        onEscapeKeyDown={handleEscapeKeyDown}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

@@ -518,3 +518,44 @@ export async function getMaxProductDisplayOrder(
 
   return result[0]?.maxOrder ?? -1;
 }
+
+/**
+ * Resolves image swatch URLs for a product's variant options.
+ * Image swatches store media IDs in swatchValue - this function fetches
+ * the actual URLs from the media table.
+ *
+ * Returns a map of media ID -> URL for all image swatches in the product.
+ */
+export async function getProductImageSwatchUrls(
+  product: ProductWithDetails
+): Promise<Map<string, string>> {
+  if (!product.variants || product.variants.length === 0) {
+    return new Map();
+  }
+
+  // Collect all media IDs from image swatches
+  const mediaIds = new Set<string>();
+  for (const variant of product.variants) {
+    if (!variant.options) continue;
+    for (const opt of variant.options) {
+      if (
+        opt.optionValue?.swatchType === "image" &&
+        opt.optionValue?.swatchValue
+      ) {
+        mediaIds.add(opt.optionValue.swatchValue);
+      }
+    }
+  }
+
+  if (mediaIds.size === 0) {
+    return new Map();
+  }
+
+  // Fetch media URLs in a single query
+  const mediaRecords = await db.query.media.findMany({
+    where: inArray(media.id, Array.from(mediaIds)),
+    columns: { id: true, url: true },
+  });
+
+  return new Map(mediaRecords.map((m) => [m.id, m.url]));
+}

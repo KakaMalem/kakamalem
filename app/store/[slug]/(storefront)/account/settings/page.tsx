@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { getUser } from "@/lib/auth/server";
+import { getUser, userHasPassword } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import {
   UpdateNameForm,
@@ -24,7 +24,11 @@ interface SettingsPageProps {
 
 export default async function SettingsPage({ params }: SettingsPageProps) {
   const { slug } = await params;
-  const [user, store] = await Promise.all([getUser(), getTenantBySlug(slug)]);
+  const [user, store, hasPassword] = await Promise.all([
+    getUser(),
+    getTenantBySlug(slug),
+    userHasPassword(),
+  ]);
 
   if (!store) {
     notFound();
@@ -70,11 +74,13 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
             Security
           </CardTitle>
           <CardDescription>
-            Manage your password and account security
+            {hasPassword
+              ? "Manage your password and account security"
+              : "Set a password for your account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ChangePasswordForm />
+          <ChangePasswordForm hasPassword={hasPassword} />
         </CardContent>
       </Card>
 

@@ -25,10 +25,14 @@ import {
 import {
   updateNameAction,
   changePasswordAction,
+  setPasswordAction,
   deleteAccountAction,
   updateNameSchema,
   changePasswordSchema,
+  setPasswordSchema,
 } from "@/lib/actions/account";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 import { toast } from "sonner";
 
 // =============================================================================
@@ -109,7 +113,11 @@ const PASSWORD_FIELD_ID_MAP: Record<string, string> = {
   confirmPassword: "confirmPassword",
 };
 
-export function ChangePasswordForm() {
+interface ChangePasswordFormProps {
+  hasPassword: boolean;
+}
+
+export function ChangePasswordForm({ hasPassword }: ChangePasswordFormProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -138,68 +146,129 @@ export function ChangePasswordForm() {
     setErrors({});
     setIsPending(true);
 
-    const validation = changePasswordSchema.safeParse({
-      currentPassword,
-      newPassword,
-      confirmPassword,
-    });
-
-    if (!validation.success) {
-      const fieldErrors: Record<string, string> = {};
-      validation.error.issues.forEach((issue) => {
-        const field = issue.path[0] as string;
-        fieldErrors[field] = issue.message;
-      });
-      setErrors(fieldErrors);
-      toast.error(validation.error.issues[0].message);
-      setIsPending(false);
-      return;
-    }
-
-    try {
-      const result = await changePasswordAction({
+    if (hasPassword) {
+      // User has a password, validate with current password
+      const validation = changePasswordSchema.safeParse({
         currentPassword,
         newPassword,
         confirmPassword,
       });
 
-      if (result.error) {
-        setErrors({ currentPassword: result.error.message });
-        toast.error(result.error.message);
+      if (!validation.success) {
+        const fieldErrors: Record<string, string> = {};
+        validation.error.issues.forEach((issue) => {
+          const field = issue.path[0] as string;
+          fieldErrors[field] = issue.message;
+        });
+        setErrors(fieldErrors);
+        toast.error(validation.error.issues[0].message);
         setIsPending(false);
         return;
       }
 
-      toast.success("Password changed successfully");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setIsPending(false);
-    } catch {
-      const errorMsg = "An unexpected error occurred";
-      setErrors({ currentPassword: errorMsg });
-      toast.error(errorMsg);
-      setIsPending(false);
+      try {
+        const result = await changePasswordAction({
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        });
+
+        if (result.error) {
+          setErrors({ currentPassword: result.error.message });
+          toast.error(result.error.message);
+          setIsPending(false);
+          return;
+        }
+
+        toast.success("Password changed successfully");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setIsPending(false);
+      } catch {
+        const errorMsg = "An unexpected error occurred";
+        setErrors({ currentPassword: errorMsg });
+        toast.error(errorMsg);
+        setIsPending(false);
+      }
+    } else {
+      // OAuth user setting password for the first time
+      const validation = setPasswordSchema.safeParse({
+        newPassword,
+        confirmPassword,
+      });
+
+      if (!validation.success) {
+        const fieldErrors: Record<string, string> = {};
+        validation.error.issues.forEach((issue) => {
+          const field = issue.path[0] as string;
+          fieldErrors[field] = issue.message;
+        });
+        setErrors(fieldErrors);
+        toast.error(validation.error.issues[0].message);
+        setIsPending(false);
+        return;
+      }
+
+      try {
+        const result = await setPasswordAction({
+          newPassword,
+          confirmPassword,
+        });
+
+        if (result.error) {
+          setErrors({ newPassword: result.error.message });
+          toast.error(result.error.message);
+          setIsPending(false);
+          return;
+        }
+
+        toast.success("Password set successfully");
+        setNewPassword("");
+        setConfirmPassword("");
+        setIsPending(false);
+        // Reload page to update hasPassword state
+        window.location.reload();
+      } catch {
+        const errorMsg = "An unexpected error occurred";
+        setErrors({ newPassword: errorMsg });
+        toast.error(errorMsg);
+        setIsPending(false);
+      }
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Field>
-        <FieldLabel htmlFor="currentPassword">Current Password</FieldLabel>
-        <Input
-          id="currentPassword"
-          type="password"
-          value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
-          disabled={isPending}
-          aria-invalid={!!errors.currentPassword}
-        />
-        <FieldError>{errors.currentPassword}</FieldError>
-      </Field>
+      {!hasPassword && (
+        <Alert>
+          <Info className="size-4" />
+          <AlertDescription>
+            You signed up using a social login provider. Set a password to also
+            be able to sign in with your email.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {hasPassword && (
+        <Field>
+          <FieldLabel htmlFor="currentPassword">Current Password</FieldLabel>
+          <Input
+            id="currentPassword"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            disabled={isPending}
+            aria-invalid={!!errors.currentPassword}
+          />
+          <FieldError>{errors.currentPassword}</FieldError>
+        </Field>
+      )}
 
       <Field>
-        <FieldLabel htmlFor="newPassword">New Password</FieldLabel>
+        <FieldLabel htmlFor="newPassword">
+          {hasPassword ? "New Password" : "Password"}
+        </FieldLabel>
         <Input
           id="newPassword"
           type="password"
@@ -218,7 +287,7 @@ export function ChangePasswordForm() {
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="confirmPassword">Confirm New Password</FieldLabel>
+        <FieldLabel htmlFor="confirmPassword">Confirm Password</FieldLabel>
         <Input
           id="confirmPassword"
           type="password"
@@ -232,7 +301,7 @@ export function ChangePasswordForm() {
 
       <Button type="submit" disabled={isPending}>
         {isPending && <Spinner />}
-        Change Password
+        {hasPassword ? "Change Password" : "Set Password"}
       </Button>
     </form>
   );

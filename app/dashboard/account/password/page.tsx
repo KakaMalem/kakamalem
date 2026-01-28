@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getUser } from "@/lib/auth/server";
+import { getUser, userHasPassword } from "@/lib/auth/server";
 import {
   Card,
   CardContent,
@@ -10,7 +10,7 @@ import {
 import { ChangePasswordForm } from "@/components/store/account/account-settings-forms";
 
 export default async function PasswordSettingsPage() {
-  const user = await getUser();
+  const [user, hasPassword] = await Promise.all([getUser(), userHasPassword()]);
 
   if (!user) {
     redirect("/login");
@@ -20,10 +20,14 @@ export default async function PasswordSettingsPage() {
     <Card>
       <CardHeader>
         <CardTitle>Password</CardTitle>
-        <CardDescription>Change your password</CardDescription>
+        <CardDescription>
+          {hasPassword
+            ? "Change your password"
+            : "Set a password for your account"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChangePasswordForm />
+        <ChangePasswordForm hasPassword={hasPassword} />
       </CardContent>
     </Card>
   );

@@ -74,7 +74,7 @@ export default async function AdminStoresPage({
         </CardContent>
       </Card>
 
-      {/* Stores Table */}
+      {/* Stores List */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -83,76 +83,37 @@ export default async function AdminStoresPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Store</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Subscription</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Trial Ends</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {stores.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="h-24 text-center text-muted-foreground"
+          {stores.length === 0 ? (
+            <div className="flex h-24 items-center justify-center text-muted-foreground">
+              No stores found
+            </div>
+          ) : (
+            <>
+              {/* Mobile: Card Layout */}
+              <div className="space-y-3 md:hidden">
+                {stores.map((store) => (
+                  <div
+                    key={store.id}
+                    className="rounded-lg border bg-card p-4 space-y-3"
                   >
-                    No stores found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                stores.map((store) => (
-                  <TableRow key={store.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{store.name}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{store.name}</p>
                         <p className="text-xs text-muted-foreground">
                           /{store.slug}
                         </p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm">{store.owner?.name || "—"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {store.owner?.email}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={store.status} />
-                    </TableCell>
-                    <TableCell>
-                      <SubscriptionBadge status={store.subscriptionStatus} />
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {store.subscriptionPlan}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <TrialEndDate
-                        trialEndsAt={store.trialEndsAt}
-                        subscriptionStatus={store.subscriptionStatus}
-                      />
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(store.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex gap-1 shrink-0">
                         <Link
                           href={`/store/${store.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          <Button variant="ghost" size="icon">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                          >
                             <ExternalLink className="size-4" />
                           </Button>
                         </Link>
@@ -162,20 +123,122 @@ export default async function AdminStoresPage({
                           </Button>
                         </Link>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge status={store.status} />
+                      <SubscriptionBadge status={store.subscriptionStatus} />
+                      <Badge variant="outline" className="capitalize">
+                        {store.subscriptionPlan}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Owner</p>
+                        <p className="truncate">{store.owner?.name || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Trial</p>
+                        <TrialEndDate
+                          trialEndsAt={store.trialEndsAt}
+                          subscriptionStatus={store.subscriptionStatus}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: Table Layout */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Store</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Subscription</TableHead>
+                      <TableHead>Plan</TableHead>
+                      <TableHead>Trial Ends</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stores.map((store) => (
+                      <TableRow key={store.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{store.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              /{store.slug}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="text-sm">
+                              {store.owner?.name || "—"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {store.owner?.email}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={store.status} />
+                        </TableCell>
+                        <TableCell>
+                          <SubscriptionBadge
+                            status={store.subscriptionStatus}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {store.subscriptionPlan}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <TrialEndDate
+                            trialEndsAt={store.trialEndsAt}
+                            subscriptionStatus={store.subscriptionStatus}
+                          />
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(store.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/store/${store.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Button variant="ghost" size="icon">
+                                <ExternalLink className="size-4" />
+                              </Button>
+                            </Link>
+                            <Link href={`/admin/stores/${store.id}`}>
+                              <Button variant="outline" size="sm">
+                                Manage
+                              </Button>
+                            </Link>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground text-center sm:text-left">
                 Page {pagination.page} of {pagination.totalPages}
               </p>
-              <div className="flex gap-2">
+              <div className="flex justify-center gap-2">
                 <Link
                   href={buildUrl({
                     page: pagination.page - 1,

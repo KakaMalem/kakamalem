@@ -124,7 +124,7 @@ export function SwatchEditor({
               </div>
             </div>
 
-            <TabsList className="w-full grid grid-cols-3 p-1 m-2 mb-0">
+            <TabsList className="grid w-[calc(100%-1rem)] grid-cols-3 p-1 mx-auto mt-2">
               <TabsTrigger
                 value="text"
                 className="flex items-center gap-1.5 text-xs"

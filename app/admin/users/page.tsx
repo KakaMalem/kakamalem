@@ -85,7 +85,7 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
         </CardContent>
       </Card>
 
-      {/* Users Table */}
+      {/* Users List */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -94,100 +94,165 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Auth</TableHead>
-                <TableHead>Verified</TableHead>
-                <TableHead>Stores</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No users found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((u) => (
-                  <TableRow
+          {users.length === 0 ? (
+            <div className="flex h-24 items-center justify-center text-muted-foreground">
+              No users found
+            </div>
+          ) : (
+            <>
+              {/* Mobile: Card Layout */}
+              <div className="space-y-3 md:hidden">
+                {users.map((u) => (
+                  <div
                     key={u.id}
-                    className={u.profile?.deletedAt ? "opacity-60" : ""}
+                    className={`rounded-lg border bg-card p-4 space-y-3 ${u.profile?.deletedAt ? "opacity-60" : ""}`}
                   >
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="size-9">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Avatar className="size-10 shrink-0">
                           <AvatarImage src={u.image || undefined} />
                           <AvatarFallback>
                             {getInitials(u.name || u.email)}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{u.name || "—"}</p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium truncate">
+                              {u.name || "—"}
+                            </p>
                             {u.profile?.deletedAt && (
                               <Badge variant="destructive" className="text-xs">
                                 Deleted
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground truncate">
                             {u.email}
                           </p>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
+                      <Link href={`/admin/users/${u.id}`} className="shrink-0">
+                        <Button variant="outline" size="sm">
+                          Manage
+                        </Button>
+                      </Link>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <RoleBadge role={u.profile?.platformRole || "user"} />
-                    </TableCell>
-                    <TableCell>
-                      <AuthProviderBadge providers={u.authProviders || []} />
-                    </TableCell>
-                    <TableCell>
                       <VerifiedBadge verified={u.emailVerified} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <AuthProviderBadge providers={u.authProviders || []} />
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-1 text-muted-foreground">
                         <Store className="size-3.5" />
-                        <span>{u.storesOwned + u.storesMemberOf}</span>
+                        <span>{u.storesOwned + u.storesMemberOf} stores</span>
                         {u.storesOwned > 0 && (
                           <span className="text-xs">
                             ({u.storesOwned} owned)
                           </span>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(u.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/admin/users/${u.id}`}>
-                        <Button variant="outline" size="sm">
-                          Manage
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                      <span className="text-muted-foreground text-xs">
+                        {new Date(u.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: Table Layout */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Auth</TableHead>
+                      <TableHead>Verified</TableHead>
+                      <TableHead>Stores</TableHead>
+                      <TableHead>Joined</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((u) => (
+                      <TableRow
+                        key={u.id}
+                        className={u.profile?.deletedAt ? "opacity-60" : ""}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-9">
+                              <AvatarImage src={u.image || undefined} />
+                              <AvatarFallback>
+                                {getInitials(u.name || u.email)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{u.name || "—"}</p>
+                                {u.profile?.deletedAt && (
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-xs"
+                                  >
+                                    Deleted
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {u.email}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <RoleBadge role={u.profile?.platformRole || "user"} />
+                        </TableCell>
+                        <TableCell>
+                          <AuthProviderBadge
+                            providers={u.authProviders || []}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <VerifiedBadge verified={u.emailVerified} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Store className="size-3.5" />
+                            <span>{u.storesOwned + u.storesMemberOf}</span>
+                            {u.storesOwned > 0 && (
+                              <span className="text-xs">
+                                ({u.storesOwned} owned)
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/admin/users/${u.id}`}>
+                            <Button variant="outline" size="sm">
+                              Manage
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground text-center sm:text-left">
                 Page {pagination.page} of {pagination.totalPages}
               </p>
-              <div className="flex gap-2">
+              <div className="flex justify-center gap-2">
                 <Link
                   href={buildUrl({
                     page: pagination.page - 1,

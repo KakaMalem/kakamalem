@@ -7,6 +7,7 @@ import {
   tenantMembers,
   affiliates,
   deliveryProviders,
+  account,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
@@ -266,3 +267,27 @@ export async function createUserProfile(
 
   return profile;
 }
+
+/**
+ * Get the authentication providers for the current user
+ * Returns array of provider IDs (e.g., ["credential"], ["google"], ["google", "credential"])
+ */
+export const getUserAuthProviders = cache(async () => {
+  const user = await getUser();
+  if (!user) return [];
+
+  const accounts = await db.query.account.findMany({
+    where: eq(account.userId, user.id),
+    columns: { providerId: true },
+  });
+
+  return accounts.map((a) => a.providerId);
+});
+
+/**
+ * Check if the current user has a password set (credential provider)
+ */
+export const userHasPassword = cache(async () => {
+  const providers = await getUserAuthProviders();
+  return providers.includes("credential");
+});

@@ -6,8 +6,9 @@ import {
   variantOptionValues,
   productVariants,
   productVariantImages,
+  media,
 } from "@/lib/db/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 
 export type VariantOptionWithValues = Awaited<
   ReturnType<typeof getTenantVariantOptions>
@@ -186,6 +187,8 @@ export type ProductVariantOptionType = {
     displayOrder: number;
     swatchType?: "text" | "color" | "image";
     swatchValue?: string | null;
+    /** Resolved image URL for image swatches (swatchValue contains media ID) */
+    swatchImageUrl?: string | null;
   }[];
 };
 
@@ -225,10 +228,14 @@ export async function getProductVariantOptionTypes(
           displayOrder: number;
           swatchType?: "text" | "color" | "image";
           swatchValue?: string | null;
+          swatchImageUrl?: string | null;
         }
       >;
     }
   >();
+
+  // Collect media IDs from image swatches for batch fetching
+  const imageSwatchMediaIds = new Set<string>();
 
   for (const variant of variants) {
     for (const variantOption of variant.options) {
@@ -254,18 +261,41 @@ export async function getProductVariantOptionTypes(
           displayOrder: optionValue.displayOrder,
           swatchType: optionValue.swatchType,
           swatchValue: optionValue.swatchValue,
+          swatchImageUrl: null,
         });
+
+        // Collect media ID if this is an image swatch
+        if (optionValue.swatchType === "image" && optionValue.swatchValue) {
+          imageSwatchMediaIds.add(optionValue.swatchValue);
+        }
       }
     }
+  }
+
+  // Fetch media URLs for image swatches in a single query
+  let mediaUrlMap = new Map<string, string>();
+  if (imageSwatchMediaIds.size > 0) {
+    const mediaRecords = await db.query.media.findMany({
+      where: inArray(media.id, Array.from(imageSwatchMediaIds)),
+      columns: { id: true, url: true },
+    });
+    mediaUrlMap = new Map(mediaRecords.map((m) => [m.id, m.url]));
   }
 
   // Convert map to array, sorted by option display order
   const result: ProductVariantOptionType[] = [];
 
   for (const [, entry] of optionsMap) {
-    const values = Array.from(entry.valuesMap.values()).sort(
-      (a, b) => a.displayOrder - b.displayOrder
-    );
+    const values = Array.from(entry.valuesMap.values())
+      .map((val) => ({
+        ...val,
+        // Resolve image URL for image swatches
+        swatchImageUrl:
+          val.swatchType === "image" && val.swatchValue
+            ? (mediaUrlMap.get(val.swatchValue) ?? null)
+            : null,
+      }))
+      .sort((a, b) => a.displayOrder - b.displayOrder);
 
     result.push({
       id: entry.option.id,

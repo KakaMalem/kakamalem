@@ -73,6 +73,7 @@ import {
   PriceTiersEditor,
   type PriceTierInput,
 } from "@/components/dashboard/products/price-tiers-editor";
+import { BarcodeScanner } from "@/components/dashboard/pos/barcode-scanner";
 
 import type { Category, Product, Media, PriceTier } from "@/lib/db/schema";
 import { productSchema, type ProductInput } from "@/lib/validations/products";
@@ -340,6 +341,7 @@ export function ProductForm({
   );
   const [showStock, setShowStock] = useState(product?.showStock ?? false);
   const [barcode, setBarcode] = useState(product?.barcode || "");
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
   const [weight, setWeight] = useState(product?.weight || "");
   const [length, setLength] = useState(product?.length || "");
   const [width, setWidth] = useState(product?.width || "");
@@ -1839,20 +1841,24 @@ export function ProductForm({
                       className="flex-1"
                     />
                     {posScannerMode === "camera" && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          // Camera barcode scanning will be implemented
-                          // For now, show a toast with instructions
-                          toast.info(
-                            "Camera barcode scanning coming soon. Please enter the barcode manually."
-                          );
-                        }}
-                      >
-                        <Camera className="size-4" />
-                      </Button>
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setBarcodeScannerOpen(true)}
+                        >
+                          <Camera className="size-4" />
+                        </Button>
+                        <BarcodeScanner
+                          open={barcodeScannerOpen}
+                          onOpenChange={setBarcodeScannerOpen}
+                          onScan={(scannedBarcode) => {
+                            setBarcode(scannedBarcode);
+                            toast.success(`Barcode scanned: ${scannedBarcode}`);
+                          }}
+                        />
+                      </>
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">

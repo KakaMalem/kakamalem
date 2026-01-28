@@ -12,6 +12,41 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+// Hook to integrate dialog with browser history for back button support
+function useDialogHistory(isOpen: boolean, onClose: () => void) {
+  const historyPushedRef = useRef(false);
+
+  const handlePopState = useCallback(() => {
+    if (historyPushedRef.current) {
+      historyPushedRef.current = false;
+      onClose();
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (!historyPushedRef.current) {
+        window.history.pushState(
+          { barcodeScanner: true },
+          "",
+          window.location.href
+        );
+        historyPushedRef.current = true;
+      }
+    } else {
+      if (historyPushedRef.current) {
+        historyPushedRef.current = false;
+        window.history.back();
+      }
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [handlePopState]);
+}
+
 interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
   onClose?: () => void;
@@ -88,9 +123,14 @@ export function BarcodeScanner({
       }
 
       try {
-        // First, explicitly request camera permission
+        // First, explicitly request camera permission - prefer back camera
         try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+          });
+          // IMPORTANT: Stop the stream immediately after permission check
+          // Otherwise the camera stays locked and Html5Qrcode can't access it
+          stream.getTracks().forEach((track) => track.stop());
         } catch (permErr) {
           if (permErr instanceof Error) {
             if (permErr.name === "NotAllowedError") {
@@ -119,19 +159,25 @@ export function BarcodeScanner({
 
         setCameras(devices);
 
-        // Prefer back camera on mobile
-        let selectedCameraId = cameraId;
-        if (!selectedCameraId) {
-          const backCamera = devices.find(
+        // Determine which camera to use
+        let useFacingMode = !cameraId; // Use facingMode for initial start
+        const selectedCameraId = cameraId;
+        let selectedCameraIndex = 0;
+
+        if (!cameraId) {
+          // Find back camera by label for the index tracking
+          const backCameraIndex = devices.findIndex(
             (d) =>
               d.label.toLowerCase().includes("back") ||
               d.label.toLowerCase().includes("rear") ||
               d.label.toLowerCase().includes("environment")
           );
-          selectedCameraId = backCamera?.id || devices[0].id;
-          setCurrentCameraIndex(
-            devices.findIndex((d) => d.id === selectedCameraId)
-          );
+          selectedCameraIndex = backCameraIndex >= 0 ? backCameraIndex : 0;
+          setCurrentCameraIndex(selectedCameraIndex);
+        } else {
+          // When switching cameras, use camera ID
+          useFacingMode = false;
+          selectedCameraIndex = devices.findIndex((d) => d.id === cameraId);
         }
 
         // Initialize scanner
@@ -140,8 +186,13 @@ export function BarcodeScanner({
           verbose: false,
         });
 
+        // Use facingMode for better back camera compatibility, or camera ID when switching
+        const cameraConfig = useFacingMode
+          ? { facingMode: "environment" }
+          : selectedCameraId || devices[selectedCameraIndex].id;
+
         await scannerRef.current.start(
-          selectedCameraId,
+          cameraConfig,
           {
             fps: 10,
             qrbox: { width: 280, height: 150 },
@@ -249,11 +300,14 @@ export function BarcodeScanner({
     };
   }, [open, startScanner, stopScanner]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     stopScanner();
     onClose?.();
     onOpenChange?.(false);
-  };
+  }, [stopScanner, onClose, onOpenChange]);
+
+  // Integrate with browser history for back button support (mobile UX)
+  useDialogHistory(open ?? false, handleClose);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
