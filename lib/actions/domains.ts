@@ -64,6 +64,18 @@ export async function connectDomain(
     };
   }
 
+  // Pro plan required
+  if (store.subscriptionPlan !== "pro") {
+    return {
+      success: false,
+      error: {
+        message:
+          "Custom domains are available on the Pro plan. Upgrade to use this feature.",
+        code: "pro_required",
+      },
+    };
+  }
+
   // Validate domain
   try {
     customDomainSchema.parse({ domain });

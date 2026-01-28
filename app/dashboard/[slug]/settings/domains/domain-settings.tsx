@@ -13,6 +13,7 @@ import {
   Shield,
   X,
   Loader2,
+  Crown,
 } from "lucide-react";
 import {
   Card,
@@ -56,12 +57,14 @@ import {
 
 interface DomainSettingsProps {
   storeSlug: string;
+  isPro: boolean;
   domainConfig: DomainConfig | null;
   dnsInstructions: DnsInstructions | null;
 }
 
 export function DomainSettings({
   storeSlug,
+  isPro,
   domainConfig: initialConfig,
   dnsInstructions: initialInstructions,
 }: DomainSettingsProps) {
@@ -359,7 +362,7 @@ export function DomainSettings({
                 </p>
               )}
             </>
-          ) : (
+          ) : isPro ? (
             <>
               {/* Connect New Domain Form */}
               <div className="space-y-4">
@@ -368,7 +371,7 @@ export function DomainSettings({
                   <div className="flex gap-2">
                     <Input
                       id="customDomain"
-                      placeholder="shop.yourdomain.com"
+                      placeholder="mybrand.com"
                       value={domainInput}
                       onChange={(e) => handleDomainChange(e.target.value)}
                       onKeyDown={(e) => {
@@ -392,119 +395,58 @@ export function DomainSettings({
                     <p className="text-sm text-destructive">{inputError}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Examples: shop.mybrand.com, store.mybrand.com, mybrand.com
+                    e.g. mybrand.com, www.mybrand.com, shop.mybrand.com
                   </p>
                 </div>
+              </div>
+
+              {/* How It Works */}
+              <Separator />
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium">How it works</h4>
+                <ol className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex gap-2">
+                    <span className="font-medium text-foreground">1.</span>
+                    Enter your domain above.
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-medium text-foreground">2.</span>
+                    Add a CNAME record pointing to{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                      proxy.kakamalem.com
+                    </code>{" "}
+                    and a TXT record for verification.
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-medium text-foreground">3.</span>
+                    SSL is provisioned automatically. Your store goes live.
+                  </li>
+                </ol>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Pro Upgrade Prompt */}
+              <div className="flex flex-col items-center gap-4 py-6 text-center">
+                <div className="flex size-12 items-center justify-center rounded-full bg-amber-100">
+                  <Crown className="size-6 text-amber-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium">Pro Feature</h4>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Custom domains are available on the Pro plan. Connect your
+                    own domain like mybrand.com with free SSL.
+                  </p>
+                </div>
+                <Button asChild>
+                  <a href={`/dashboard/${storeSlug}/billing`}>
+                    <Crown className="mr-2 size-4" />
+                    Upgrade to Pro
+                  </a>
+                </Button>
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
-
-      {/* How It Works */}
-      {!hasCustomDomain && (
-        <Card>
-          <CardHeader>
-            <CardTitle>How Custom Domains Work</CardTitle>
-            <CardDescription>
-              Connect your own domain in a few simple steps.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                  1
-                </div>
-                <div>
-                  <h4 className="font-medium">Add your domain</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Enter the domain name you want to use for your store.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                  2
-                </div>
-                <div>
-                  <h4 className="font-medium">Configure DNS records</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Add the required CNAME and TXT records at your domain
-                    registrar (GoDaddy, Namecheap, Cloudflare, etc.).
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                  3
-                </div>
-                <div>
-                  <h4 className="font-medium">SSL certificate provisioning</h4>
-                  <p className="text-sm text-muted-foreground">
-                    We&apos;ll automatically provision a free SSL certificate
-                    for your domain to ensure secure connections.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                  4
-                </div>
-                <div>
-                  <h4 className="font-medium">Go live!</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Once verified, your store will be accessible at your custom
-                    domain. The default subdomain will still work.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Benefits */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Benefits of a Custom Domain</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600" />
-              <span>
-                <strong className="text-foreground">
-                  Professional branding
-                </strong>{" "}
-                - Build trust with a domain that matches your business name.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600" />
-              <span>
-                <strong className="text-foreground">Better SEO</strong> - Custom
-                domains can improve your search engine rankings.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600" />
-              <span>
-                <strong className="text-foreground">Memorable URL</strong> -
-                Easier for customers to remember and share.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-600" />
-              <span>
-                <strong className="text-foreground">Brand ownership</strong> -
-                Your domain, your identity, even if you switch platforms.
-              </span>
-            </li>
-          </ul>
         </CardContent>
       </Card>
     </div>
@@ -524,7 +466,9 @@ function DnsInstructionsCard({
       <div>
         <h4 className="font-medium mb-2">Configure DNS Records</h4>
         <p className="text-sm text-muted-foreground">
-          Add these records at your domain registrar:
+          Log in to your domain registrar (Namecheap, GoDaddy, Cloudflare, etc.)
+          and add the following DNS records for{" "}
+          <strong>{instructions.domain}</strong>:
         </p>
       </div>
 
@@ -534,13 +478,20 @@ function DnsInstructionsCard({
             <Badge variant="outline">{record.type}</Badge>
             <span className="text-sm font-medium">
               {record.purpose === "routing"
-                ? "Point to our servers"
-                : "Verify ownership"}
+                ? "Route traffic to your store"
+                : "Verify domain ownership"}
             </span>
           </div>
+          <p className="text-xs text-muted-foreground">
+            {record.purpose === "routing"
+              ? `Points your domain to our servers at ${instructions.proxyTarget}.`
+              : "Proves you own this domain. Can be removed after verification."}
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Name</Label>
+              <Label className="text-xs text-muted-foreground">
+                Host / Name
+              </Label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-background px-2 py-1 text-sm">
                   {record.name}
@@ -556,7 +507,7 @@ function DnsInstructionsCard({
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                {record.type === "TXT" ? "Value" : "Target"}
+                {record.type === "TXT" ? "Value" : "Target / Value"}
               </Label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-background px-2 py-1 text-sm break-all">
@@ -582,12 +533,27 @@ function DnsInstructionsCard({
 
       <Separator />
 
+      {instructions.isApexDomain && (
+        <Alert>
+          <AlertCircle className="size-4" />
+          <AlertTitle>Apex Domain Note</AlertTitle>
+          <AlertDescription>
+            Some registrars don&apos;t support CNAME records on apex domains
+            (e.g. mybrand.com without www). If your registrar doesn&apos;t allow
+            it, use a subdomain like <strong>shop.{instructions.domain}</strong>{" "}
+            or <strong>www.{instructions.domain}</strong> instead. Namecheap and
+            Cloudflare support CNAME flattening for apex domains.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Alert>
         <Clock className="size-4" />
         <AlertTitle>DNS Propagation</AlertTitle>
         <AlertDescription>
-          DNS changes can take up to 48 hours to propagate globally. We&apos;ll
-          automatically check and notify you when your domain is ready.
+          DNS changes can take up to 48 hours to propagate, but usually complete
+          within 5-30 minutes. Click &quot;Check DNS&quot; to verify your
+          records once you&apos;ve added them.
         </AlertDescription>
       </Alert>
     </div>

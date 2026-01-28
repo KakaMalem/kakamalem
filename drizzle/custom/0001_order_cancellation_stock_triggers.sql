@@ -241,13 +241,13 @@ DECLARE
     current_stock INTEGER;
     new_stock INTEGER;
 BEGIN
-    -- Only proceed if status changed to refunded or partially_refunded
+    -- Only proceed if status changed to returned
     IF OLD.status = NEW.status THEN
         RETURN NEW;
     END IF;
 
-    -- Only handle transition TO refunded states (not FROM)
-    IF NEW.status NOT IN ('refunded', 'partially_refunded') THEN
+    -- Only handle transition TO returned state (not FROM)
+    IF NEW.status != 'returned' THEN
         RETURN NEW;
     END IF;
 
@@ -256,9 +256,8 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- For partial refunds, we'd need a separate refund_items table
-    -- For full refunds, restore all stock
-    IF NEW.status = 'refunded' THEN
+    -- Restore all stock for returned orders
+    IF NEW.status = 'returned' THEN
         FOR item IN
             SELECT
                 oi.product_id,
@@ -323,7 +322,7 @@ BEGIN
                 current_stock,
                 new_stock,
                 NEW.id,
-                format('Order %s refunded', NEW.order_number),
+                format('Order %s returned', NEW.order_number),
                 NOW()
             );
         END LOOP;
@@ -334,14 +333,14 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
--- TRIGGER: Fire on order refunds
+-- TRIGGER: Fire on order returns
 -- ============================================================================
 DROP TRIGGER IF EXISTS order_return_inventory_trigger ON orders;
 
 CREATE TRIGGER order_return_inventory_trigger
     AFTER UPDATE OF status ON orders
     FOR EACH ROW
-    WHEN (NEW.status IN ('refunded', 'partially_refunded'))
+    WHEN (NEW.status = 'returned')
     EXECUTE FUNCTION handle_order_return();
 
 -- ============================================================================

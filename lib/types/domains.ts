@@ -147,7 +147,12 @@ export interface ConnectDomainResult {
   dnsInstructions?: DnsInstructions;
   error?: {
     message: string;
-    code?: "domain_taken" | "invalid_domain" | "unauthorized" | "unknown";
+    code?:
+      | "domain_taken"
+      | "invalid_domain"
+      | "unauthorized"
+      | "pro_required"
+      | "unknown";
   };
 }
 

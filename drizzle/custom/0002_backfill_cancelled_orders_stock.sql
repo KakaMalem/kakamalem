@@ -123,39 +123,39 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- Also fix any fully refunded orders that don't have 'return' movements
+-- Also fix any returned orders that don't have 'return' movements
 -- ============================================================================
 
 DO $$
 DECLARE
-    refunded_order RECORD;
+    returned_order RECORD;
     item RECORD;
     current_stock INTEGER;
     new_stock INTEGER;
     already_processed BOOLEAN;
 BEGIN
-    RAISE NOTICE 'Starting backfill of refunded orders stock...';
+    RAISE NOTICE 'Starting backfill of returned orders stock...';
 
-    -- Find all fully refunded orders (not cancelled - those are handled above)
-    FOR refunded_order IN
+    -- Find all returned orders (not cancelled - those are handled above)
+    FOR returned_order IN
         SELECT o.id, o.tenant_id, o.order_number
         FROM orders o
-        WHERE o.status = 'refunded'
+        WHERE o.status = 'returned'
         ORDER BY o.created_at
     LOOP
         -- Check if this order already has 'return' inventory movements
         SELECT EXISTS(
             SELECT 1 FROM inventory_movements im
-            WHERE im.order_id = refunded_order.id
+            WHERE im.order_id = returned_order.id
             AND im.type = 'return'
         ) INTO already_processed;
 
         IF already_processed THEN
-            RAISE NOTICE 'Order % already processed, skipping', refunded_order.order_number;
+            RAISE NOTICE 'Order % already processed, skipping', returned_order.order_number;
             CONTINUE;
         END IF;
 
-        RAISE NOTICE 'Processing refunded order: %', refunded_order.order_number;
+        RAISE NOTICE 'Processing returned order: %', returned_order.order_number;
 
         -- Process each item in the order
         FOR item IN
@@ -172,7 +172,7 @@ BEGIN
             FROM order_items oi
             JOIN products p ON p.id = oi.product_id
             LEFT JOIN product_variants pv ON pv.id = oi.variant_id
-            WHERE oi.order_id = refunded_order.id
+            WHERE oi.order_id = returned_order.id
         LOOP
             IF NOT item.track_inventory THEN
                 CONTINUE;
@@ -221,19 +221,19 @@ BEGIN
                 reason,
                 created_at
             ) VALUES (
-                refunded_order.tenant_id,
+                returned_order.tenant_id,
                 item.product_id,
                 item.variant_id,
                 'return'::inventory_movement_type,
                 item.quantity,
                 current_stock,
                 new_stock,
-                refunded_order.id,
-                format('Backfill: Order %s was refunded', refunded_order.order_number),
+                returned_order.id,
+                format('Backfill: Order %s was returned', returned_order.order_number),
                 NOW()
             );
         END LOOP;
     END LOOP;
 
-    RAISE NOTICE 'Refund backfill completed!';
+    RAISE NOTICE 'Return backfill completed!';
 END $$;
