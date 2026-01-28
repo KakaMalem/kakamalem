@@ -293,7 +293,7 @@ export function BulkUploadDialog({
               )}
             </div>
 
-            <ScrollArea className="h-[300px] rounded-md border">
+            <ScrollArea className="h-75 rounded-md border">
               <table className="w-full text-sm">
                 <thead className="bg-muted sticky top-0">
                   <tr>
@@ -318,7 +318,7 @@ export function BulkUploadDialog({
                       <td className="p-2">{row.rowNumber}</td>
                       <td className="p-2">
                         <div className="flex items-center gap-2">
-                          <span className="truncate max-w-[200px]">
+                          <span className="truncate max-w-50">
                             {row.data.name}
                           </span>
                           {!row.isValid && (
@@ -382,7 +382,7 @@ export function BulkUploadDialog({
             </div>
 
             {importResult.errors.length > 0 && (
-              <ScrollArea className="h-[200px] rounded-md border p-4">
+              <ScrollArea className="h-50 rounded-md border p-4">
                 <h4 className="font-medium mb-2">Errors:</h4>
                 {importResult.errors.slice(0, 50).map((err, i) => (
                   <div key={i} className="text-sm text-destructive mb-1">
