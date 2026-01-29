@@ -131,6 +131,8 @@ export const bulkUploadRowSchema = z.object({
     .pipe(z.enum(["true", "false", ""]))
     .optional()
     .or(z.literal("")),
+  // Images column for ZIP uploads - semicolon-separated filenames
+  images: z.string().optional().or(z.literal("")),
 });
 
 export type BulkUploadRowInput = z.infer<typeof bulkUploadRowSchema>;
@@ -147,6 +149,8 @@ export type ValidatedRow = {
   isVariant: boolean; // true if this row has a parent_product
   parentProductName?: string; // name of the parent product (for variants)
   optionValues: Record<string, string>; // e.g., { "Size": "M", "Color": "Blue" }
+  // Image support for ZIP uploads
+  imageFilenames: string[]; // Parsed from images column
 };
 
 // Bulk upload result type
@@ -173,6 +177,8 @@ export type ParsePreviewResult = {
   rows?: ValidatedRow[];
   categoryMap?: Record<string, string>;
   productLimitInfo?: ProductLimitInfo;
+  categoriesToCreate?: Record<string, string>; // Map of tempId -> original category name
+  imageCount?: number; // Number of images found in ZIP (for ZIP uploads)
 };
 
 // Expected CSV/Excel headers (base headers + dynamic option_* columns)
@@ -180,6 +186,7 @@ export const EXPECTED_HEADERS = [
   "name",
   "price",
   "category",
+  "images", // For ZIP uploads: semicolon-separated filenames
   "stock",
   "status",
   "description",

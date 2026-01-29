@@ -1,28 +1,69 @@
-// Service Worker for Web Push Notifications
-// Kaka Malem Order Alerts
+import { defaultCache } from "@serwist/next/worker";
+import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
+import { Serwist } from "serwist";
 
-// Install event - skip waiting to activate immediately
-self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+// Type declarations for the service worker global scope
+declare global {
+  interface WorkerGlobalScope extends SerwistGlobalConfig {
+    __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
+  }
+}
+
+declare const self: ServiceWorkerGlobalScope;
+
+// Initialize Serwist with precaching and runtime caching
+const serwist = new Serwist({
+  precacheEntries: self.__SW_MANIFEST,
+  skipWaiting: true,
+  clientsClaim: true,
+  navigationPreload: true,
+  runtimeCaching: defaultCache,
+  fallbacks: {
+    entries: [
+      {
+        url: "/~offline",
+        matcher({ request }) {
+          return request.destination === "document";
+        },
+      },
+    ],
+  },
 });
 
-// Activate event
-self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
-});
+serwist.addEventListeners();
+
+// ============================================================================
+// PUSH NOTIFICATION HANDLERS (migrated from public/sw.js)
+// ============================================================================
+
+interface PushData {
+  title: string;
+  body: string;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  requireInteraction?: boolean;
+  url?: string;
+  orderId?: string;
+  tenantSlug?: string;
+  type?: string;
+  actions?: Array<{ action: string; title: string }>;
+}
 
 // Push event - receives notification from server
-self.addEventListener("push", (event) => {
+self.addEventListener("push", (event: PushEvent) => {
   if (!event.data) return;
 
-  let data;
+  let data: PushData;
   try {
-    data = event.data.json();
+    data = event.data.json() as PushData;
   } catch (e) {
     console.error("Failed to parse push data:", e);
     return;
   }
 
+  // Note: Some notification options (renotify, actions, vibrate, timestamp) are
+  // valid in browsers but not in TypeScript's NotificationOptions type
   const options = {
     body: data.body,
     icon: data.icon || "/icons/icon-192x192.png",
@@ -42,10 +83,10 @@ self.addEventListener("push", (event) => {
     ],
     vibrate: [200, 100, 200],
     timestamp: Date.now(),
-  };
+  } satisfies NotificationOptions & Record<string, unknown>;
 
   // Play custom notification sound via open clients
-  const playSound = clients
+  const playSound = self.clients
     .matchAll({ type: "window", includeUncontrolled: true })
     .then((windowClients) => {
       // Send message to all open windows to play sound
@@ -67,10 +108,16 @@ self.addEventListener("push", (event) => {
 });
 
 // Notification click event
-self.addEventListener("notificationclick", (event) => {
+self.addEventListener("notificationclick", (event: NotificationEvent) => {
   event.notification.close();
 
-  const { url, orderId, tenantSlug } = event.notification.data || {};
+  const notificationData = event.notification.data as {
+    url?: string;
+    orderId?: string;
+    tenantSlug?: string;
+  } | null;
+
+  const { url, orderId, tenantSlug } = notificationData || {};
 
   if (event.action === "dismiss") {
     return;
@@ -80,36 +127,40 @@ self.addEventListener("notificationclick", (event) => {
   const targetUrl = url || `/dashboard/${tenantSlug}/orders/${orderId}`;
 
   event.waitUntil(
-    clients
+    self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((windowClients) => {
         // Check if dashboard is already open
         for (const client of windowClients) {
           if (client.url.includes("/dashboard") && "focus" in client) {
-            client.navigate(targetUrl);
-            return client.focus();
+            (client as WindowClient).navigate(targetUrl);
+            return (client as WindowClient).focus();
           }
         }
         // Open new window
-        if (clients.openWindow) {
-          return clients.openWindow(targetUrl);
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
         }
       })
   );
 });
 
 // Push subscription change event (handles browser subscription refresh)
-self.addEventListener("pushsubscriptionchange", (event) => {
-  event.waitUntil(
+self.addEventListener("pushsubscriptionchange", (event: Event) => {
+  const pushEvent = event as PushSubscriptionChangeEvent;
+
+  (event as ExtendableEvent).waitUntil(
     self.registration.pushManager
-      .subscribe(event.oldSubscription.options)
+      .subscribe(
+        pushEvent.oldSubscription?.options as PushSubscriptionOptionsInit
+      )
       .then((subscription) => {
         // Re-register with server
         return fetch("/api/push/resubscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            oldEndpoint: event.oldSubscription.endpoint,
+            oldEndpoint: pushEvent.oldSubscription?.endpoint,
             newSubscription: subscription.toJSON(),
           }),
         });

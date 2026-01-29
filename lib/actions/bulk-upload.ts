@@ -7,11 +7,14 @@ import {
   products,
   categories,
   productCategories,
+  productImages,
+  media,
   variantOptions,
   variantOptionValues,
   productVariants,
   productVariantOptions,
 } from "@/lib/db/schema";
+import { uploadFile, type StorageOptions } from "@/lib/storage";
 import { eq, and } from "drizzle-orm";
 import {
   bulkUploadRowSchema,
@@ -27,20 +30,23 @@ import { getMaxProductDisplayOrder } from "@/lib/db/queries/products";
 import { getUser } from "@/lib/auth/server";
 import { getSubscriptionOverview } from "@/lib/db/queries/billing";
 import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
+import { createCategory } from "@/lib/actions/categories";
+import { extractProductZip } from "@/lib/upload/zip-extractor";
 
 // Maximum rows allowed per upload
 const MAX_ROWS = 500;
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB for CSV/Excel
+const MAX_ZIP_FILE_SIZE = 50 * 1024 * 1024; // 50MB for ZIP with images
 
 /**
- * Parse CSV/Excel file content and validate each row
+ * Parse CSV/Excel/ZIP file content and validate each row
  * Returns validated rows with errors for preview
+ * For ZIP files: extracts CSV/Excel and images, validates image references
  */
 export async function parseFileForPreview(
   tenantId: string,
   fileContent: ArrayBuffer,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _fileName: string
+  fileName: string
 ): Promise<ParsePreviewResult> {
   try {
     const user = await getUser();
@@ -48,16 +54,52 @@ export async function parseFileForPreview(
       return { success: false, error: "Not authenticated" };
     }
 
-    // Check file size
-    if (fileContent.byteLength > MAX_FILE_SIZE) {
+    const isZipFile = fileName.toLowerCase().endsWith(".zip");
+
+    // Check file size based on type
+    const maxSize = isZipFile ? MAX_ZIP_FILE_SIZE : MAX_FILE_SIZE;
+    if (fileContent.byteLength > maxSize) {
       return {
         success: false,
-        error: "File is too large. Maximum size is 2MB.",
+        error: isZipFile
+          ? "ZIP file is too large. Maximum size is 50MB."
+          : "File is too large. Maximum size is 2MB.",
       };
     }
 
+    // Handle ZIP files - extract CSV and images
+    let csvContent: ArrayBuffer;
+    let zipImages: Map<string, ArrayBuffer> | undefined;
+    let imageCount = 0;
+
+    if (isZipFile) {
+      const extracted = await extractProductZip(fileContent);
+
+      if (extracted.errors.length > 0 && !extracted.csvFile) {
+        return { success: false, error: extracted.errors.join(", ") };
+      }
+
+      if (!extracted.csvFile) {
+        return {
+          success: false,
+          error:
+            "No CSV or Excel file found in ZIP root. Please include a products.csv or products.xlsx file.",
+        };
+      }
+
+      csvContent = extracted.csvFile.data;
+      zipImages = extracted.images;
+      imageCount = extracted.images.size;
+    } else {
+      csvContent = fileContent;
+    }
+
     // Parse file using xlsx (works for both CSV and Excel)
-    const workbook = XLSX.read(fileContent, { type: "array" });
+    // codepage 65001 = UTF-8, ensures proper handling of non-Latin characters (Persian, Arabic, etc.)
+    const workbook = XLSX.read(csvContent, {
+      type: "array",
+      codepage: 65001,
+    });
     const firstSheetName = workbook.SheetNames[0];
 
     if (!firstSheetName) {
@@ -153,6 +195,9 @@ export async function parseFileForPreview(
     // Parse and validate each row
     const validatedRows: ValidatedRow[] = [];
 
+    // Track categories to create: Map<tempId, originalName>
+    const categoriesToCreate: Map<string, string> = new Map();
+
     for (let i = 0; i < dataRows.length; i++) {
       const rowNumber = i + 2; // 1-indexed, accounting for header
       const rowArray = dataRows[i];
@@ -177,6 +222,7 @@ export async function parseFileForPreview(
       }
 
       // Resolve category names to IDs (supports multiple categories separated by semicolon)
+      // Auto-creates new categories if they don't exist
       const categoryIds: string[] = [];
       const categoryField = rowData.category?.trim();
       if (categoryField) {
@@ -185,21 +231,17 @@ export async function parseFileForPreview(
           .split(/[;,]/)
           .map((c) => c.trim())
           .filter(Boolean);
-        const notFoundCategories: string[] = [];
 
         for (const catName of categoryNames) {
           const catId = categoryMap[catName.toLowerCase()];
           if (catId) {
             categoryIds.push(catId);
           } else {
-            notFoundCategories.push(catName);
+            // Category doesn't exist - mark for creation with temp ID
+            const tempId = `temp-cat-${catName.toLowerCase().replace(/\s+/g, "-")}`;
+            categoriesToCreate.set(tempId, catName); // Store original name for creation
+            categoryIds.push(tempId);
           }
-        }
-
-        if (notFoundCategories.length > 0) {
-          warnings.push(
-            `Categories not found: ${notFoundCategories.join(", ")}. Product will be created without these categories.`
-          );
         }
       }
 
@@ -228,6 +270,25 @@ export async function parseFileForPreview(
         }
       }
 
+      // Parse images column (semicolon-separated filenames)
+      const imageFilenames: string[] = [];
+      const imagesField = rowData.images?.trim();
+      if (imagesField) {
+        const filenames = imagesField
+          .split(";")
+          .map((f) => f.trim())
+          .filter(Boolean);
+
+        for (const filename of filenames) {
+          // If ZIP images were provided, validate the image exists
+          if (zipImages && !zipImages.has(filename.toLowerCase())) {
+            warnings.push(`Image not found in ZIP: ${filename}`);
+          } else {
+            imageFilenames.push(filename);
+          }
+        }
+      }
+
       // A row is valid if it has no errors (warnings are acceptable)
       const isValid = errors.length === 0;
 
@@ -243,6 +304,7 @@ export async function parseFileForPreview(
           ? rowData.parent_product.trim()
           : undefined,
         optionValues,
+        imageFilenames,
       });
     }
 
@@ -250,6 +312,7 @@ export async function parseFileForPreview(
       success: true,
       rows: validatedRows,
       categoryMap,
+      categoriesToCreate: Object.fromEntries(categoriesToCreate), // { tempId: originalName }
       productLimitInfo: {
         currentCount: currentProductCount,
         limit: productLimit,
@@ -258,6 +321,7 @@ export async function parseFileForPreview(
           canImportCount === Infinity ? dataRows.length : canImportCount
         ),
       },
+      imageCount, // Number of images found in ZIP
     };
   } catch (error) {
     console.error("File parse error:", error);
@@ -270,14 +334,81 @@ export async function parseFileForPreview(
 }
 
 /**
+ * Upload an image from buffer and create media record
+ */
+async function uploadImageFromBuffer(
+  tenantId: string,
+  imageData: ArrayBuffer,
+  filename: string,
+  uploadedById: string
+): Promise<string | null> {
+  try {
+    // Detect MIME type from extension
+    const ext = filename.toLowerCase().split(".").pop() || "";
+    const mimeTypes: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      gif: "image/gif",
+      avif: "image/avif",
+    };
+    const mimeType = mimeTypes[ext] || "image/jpeg";
+
+    // Upload to storage
+    const options: StorageOptions = {
+      tenantId,
+      folder: "products",
+      generateUniqueName: true,
+      processImage: true,
+      generateThumbnails: true,
+    };
+
+    const result = await uploadFile(
+      Buffer.from(imageData),
+      filename,
+      mimeType,
+      options
+    );
+
+    if (!result.success) {
+      console.error(`Failed to upload image ${filename}:`, result.error);
+      return null;
+    }
+
+    // Create media record
+    const [mediaRecord] = await db
+      .insert(media)
+      .values({
+        tenantId,
+        uploadedById,
+        url: result.url,
+        fileName: result.filename,
+        fileSize: result.size,
+        mimeType: result.mimeType,
+        width: result.width,
+        height: result.height,
+      })
+      .returning({ id: media.id });
+
+    return mediaRecord.id;
+  } catch (error) {
+    console.error(`Error uploading image ${filename}:`, error);
+    return null;
+  }
+}
+
+/**
  * Import validated products in batches with transactions
- * Two-pass approach:
- * 1. First pass: Create main products (rows without parent_product)
- * 2. Second pass: Create variants (rows with parent_product)
+ * Three-pass approach:
+ * 1. First pass: Upload images and build filename -> mediaId map
+ * 2. Second pass: Create main products (rows without parent_product)
+ * 3. Third pass: Create variants (rows with parent_product)
  */
 export async function importProducts(
   tenantId: string,
-  rows: ValidatedRow[]
+  rows: ValidatedRow[],
+  zipFileData?: ArrayBuffer // Optional: raw ZIP file data for image extraction
 ): Promise<BulkUploadResult> {
   const validRows = rows.filter((r) => r.isValid);
 
@@ -327,6 +458,103 @@ export async function importProducts(
     });
     for (const p of existingProducts) {
       createdProducts.set(p.name.toLowerCase(), p.id);
+    }
+
+    // ==========================================
+    // AUTO-CREATE MISSING CATEGORIES
+    // ==========================================
+    // Collect unique category temp IDs from all rows
+    const tempCategoryIds = new Set<string>();
+    for (const row of validRows) {
+      for (const catId of row.categoryIds) {
+        if (catId.startsWith("temp-cat-")) {
+          tempCategoryIds.add(catId);
+        }
+      }
+    }
+
+    // Create missing categories and build mapping of tempId -> realId
+    const createdCategoryMap = new Map<string, string>();
+    for (const tempId of tempCategoryIds) {
+      // Find the original category name from a row that uses this tempId
+      const sampleRow = validRows.find((r) => r.categoryIds.includes(tempId));
+      if (!sampleRow) continue;
+
+      // Parse the original category name from the row data
+      const categoryField = sampleRow.data.category || "";
+      const categoryNames = categoryField
+        .split(/[;,]/)
+        .map((c) => c.trim())
+        .filter(Boolean);
+
+      // Find which category name maps to this tempId
+      let originalName = "";
+      for (const name of categoryNames) {
+        const expectedTempId = `temp-cat-${name.toLowerCase().replace(/\s+/g, "-")}`;
+        if (expectedTempId === tempId) {
+          originalName = name;
+          break;
+        }
+      }
+
+      if (!originalName) continue;
+
+      // Create the category
+      const result = await createCategory(tenantId, {
+        name: originalName,
+        slug: "",
+        description: "",
+        imageId: "",
+        displayOrder: 0,
+      });
+
+      if (result.success && result.data) {
+        createdCategoryMap.set(tempId, result.data.id);
+      }
+    }
+
+    // Replace temp IDs with real IDs in all rows
+    for (const row of validRows) {
+      row.categoryIds = row.categoryIds.map(
+        (id) => createdCategoryMap.get(id) || id
+      );
+    }
+
+    // ==========================================
+    // UPLOAD IMAGES FROM ZIP (if provided)
+    // ==========================================
+    const uploadedImages = new Map<string, string>(); // filename (lowercase) -> mediaId
+
+    if (zipFileData) {
+      // Extract images from ZIP file
+      const extracted = await extractProductZip(zipFileData);
+      const zipImages = extracted.images;
+
+      if (zipImages.size > 0) {
+        // Collect unique image filenames from all rows
+        const neededImages = new Set<string>();
+        for (const row of validRows) {
+          for (const filename of row.imageFilenames) {
+            neededImages.add(filename.toLowerCase());
+          }
+        }
+
+        // Upload only the images that are actually referenced
+        for (const filename of neededImages) {
+          const imageData = zipImages.get(filename);
+          if (imageData) {
+            const mediaId = await uploadImageFromBuffer(
+              tenantId,
+              imageData,
+              filename,
+              user.id
+            );
+            if (mediaId) {
+              uploadedImages.set(filename, mediaId);
+            }
+          }
+        }
+      }
     }
 
     // Process in batches of 50 for transaction efficiency
@@ -402,6 +630,30 @@ export async function importProducts(
                     categoryId,
                   }))
                 );
+              }
+
+              // Link images to product (from ZIP upload)
+              if (row.imageFilenames.length > 0 && uploadedImages.size > 0) {
+                const imageRecords = row.imageFilenames
+                  .map((filename, index) => {
+                    const mediaId = uploadedImages.get(filename.toLowerCase());
+                    return mediaId
+                      ? { productId: newProduct.id, mediaId, position: index }
+                      : null;
+                  })
+                  .filter(
+                    (
+                      rec
+                    ): rec is {
+                      productId: string;
+                      mediaId: string;
+                      position: number;
+                    } => rec !== null
+                  );
+
+                if (imageRecords.length > 0) {
+                  await tx.insert(productImages).values(imageRecords);
+                }
               }
 
               importedCount++;

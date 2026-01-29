@@ -52,6 +52,8 @@ function useIsMobile() {
 function useDrawerHistory(isOpen: boolean, onClose: () => void) {
   // Track if we pushed history for this drawer open
   const historyPushedRef = useRef(false);
+  // Track if closing due to navigation (to avoid calling history.back)
+  const isNavigatingRef = useRef(false);
 
   // Handle popstate (back button)
   const handlePopState = useCallback(() => {
@@ -61,8 +63,25 @@ function useDrawerHistory(isOpen: boolean, onClose: () => void) {
     }
   }, [onClose]);
 
+  // Track navigation events to avoid calling history.back during navigation
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest("a");
+      if (link && link.href && !link.href.startsWith("javascript:")) {
+        // User is navigating via a link, mark as navigating
+        isNavigatingRef.current = true;
+      }
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
+      // Reset navigation flag when drawer opens
+      isNavigatingRef.current = false;
       // Push history state when drawer opens
       if (!historyPushedRef.current) {
         window.history.pushState(
@@ -74,10 +93,13 @@ function useDrawerHistory(isOpen: boolean, onClose: () => void) {
       }
     } else {
       // Remove history entry when drawer closes (if we pushed one)
-      if (historyPushedRef.current) {
+      // But NOT if we're navigating - the navigation will handle history
+      if (historyPushedRef.current && !isNavigatingRef.current) {
         historyPushedRef.current = false;
         // Go back to remove our history entry
         window.history.back();
+      } else {
+        historyPushedRef.current = false;
       }
     }
   }, [isOpen]);

@@ -4,11 +4,12 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Upload,
   Download,
   AlertCircle,
   CheckCircle2,
   FileSpreadsheet,
+  ImageIcon,
+  Archive,
 } from "lucide-react";
 
 import {
@@ -59,13 +60,28 @@ export function BulkUploadDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
+  // ZIP upload state - track image count and original file for import
+  const [imageCount, setImageCount] = useState(0);
+  const [originalFile, setOriginalFile] = useState<ArrayBuffer | null>(null);
+  const [isZipFile, setIsZipFile] = useState(false);
+
   const handleFileSelect = useCallback(
     async (file: File) => {
       setIsLoading(true);
       setParseError(null);
+      setImageCount(0);
+      setOriginalFile(null);
+      setIsZipFile(false);
 
       try {
         const arrayBuffer = await file.arrayBuffer();
+        const isZip = file.name.toLowerCase().endsWith(".zip");
+
+        // Store original file for import (needed for ZIP with images)
+        setOriginalFile(arrayBuffer);
+        setIsZipFile(isZip);
+
+        // Parse file on server (server handles ZIP extraction internally)
         const result = await parseFileForPreview(
           tenantId,
           arrayBuffer,
@@ -75,11 +91,14 @@ export function BulkUploadDialog({
         if (result.success && result.rows) {
           setValidatedRows(result.rows);
           setProductLimitInfo(result.productLimitInfo || null);
+          // Track image count from response (server extracts and counts)
+          setImageCount(result.imageCount || 0);
           setStep("preview");
         } else {
           setParseError(result.error || "Failed to parse file");
         }
-      } catch {
+      } catch (error) {
+        console.error("File select error:", error);
         setParseError("Failed to read file");
       } finally {
         setIsLoading(false);
@@ -99,12 +118,22 @@ export function BulkUploadDialog({
     setImportProgress(0);
 
     // Simulate progress (actual progress would require streaming)
-    const progressInterval = setInterval(() => {
-      setImportProgress((p) => Math.min(p + 10, 90));
-    }, 200);
+    // Slower progress if uploading images
+    const hasImages = imageCount > 0;
+    const progressInterval = setInterval(
+      () => {
+        setImportProgress((p) => Math.min(p + (hasImages ? 5 : 10), 90));
+      },
+      hasImages ? 500 : 200
+    );
 
     try {
-      const result = await importProducts(tenantId, validatedRows);
+      // Pass original ZIP file if it contains images
+      const result = await importProducts(
+        tenantId,
+        validatedRows,
+        isZipFile && imageCount > 0 ? (originalFile ?? undefined) : undefined
+      );
       clearInterval(progressInterval);
       setImportProgress(100);
       setImportResult(result);
@@ -126,7 +155,7 @@ export function BulkUploadDialog({
       toast.error("Import failed");
       setStep("preview");
     }
-  }, [validatedRows, tenantId, router]);
+  }, [validatedRows, tenantId, router, imageCount, isZipFile, originalFile]);
 
   const handleClose = useCallback(() => {
     setStep("upload");
@@ -135,6 +164,9 @@ export function BulkUploadDialog({
     setImportProgress(0);
     setImportResult(null);
     setParseError(null);
+    setImageCount(0);
+    setOriginalFile(null);
+    setIsZipFile(false);
     onOpenChange(false);
   }, [onOpenChange]);
 
@@ -146,11 +178,14 @@ export function BulkUploadDialog({
         droppedFile &&
         (droppedFile.name.endsWith(".csv") ||
           droppedFile.name.endsWith(".xlsx") ||
-          droppedFile.name.endsWith(".xls"))
+          droppedFile.name.endsWith(".xls") ||
+          droppedFile.name.endsWith(".zip"))
       ) {
         handleFileSelect(droppedFile);
       } else {
-        setParseError("Please upload a CSV or Excel file (.csv, .xlsx)");
+        setParseError(
+          "Please upload a CSV, Excel, or ZIP file (.csv, .xlsx, .zip)"
+        );
       }
     },
     [handleFileSelect]
@@ -184,9 +219,13 @@ export function BulkUploadDialog({
           </DialogTitle>
           <DialogDescription>
             {step === "upload" &&
-              "Upload a CSV or Excel file to bulk import products"}
-            {step === "preview" &&
-              `${validCount} valid, ${invalidCount} with errors`}
+              "Upload a CSV, Excel, or ZIP file (with images) to bulk import products"}
+            {step === "preview" && (
+              <>
+                {validCount} valid, {invalidCount} with errors
+                {imageCount > 0 && ` • ${imageCount} images`}
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -202,14 +241,17 @@ export function BulkUploadDialog({
               <input
                 id="file-input"
                 type="file"
-                accept=".csv,.xlsx,.xls"
+                accept=".csv,.xlsx,.xls,.zip"
                 className="hidden"
                 onChange={handleInputChange}
               />
-              <Upload className="mx-auto size-12 text-muted-foreground mb-4" />
+              <Archive className="mx-auto size-12 text-muted-foreground mb-4" />
               <p className="font-medium">Drop file here or click to browse</p>
               <p className="text-sm text-muted-foreground mt-1">
-                CSV or Excel (.xlsx), max 500 products, 2MB
+                CSV, Excel (.xlsx), or ZIP with images
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Max 500 products • ZIP: include images/ folder
               </p>
             </div>
 
@@ -274,7 +316,7 @@ export function BulkUploadDialog({
               </Alert>
             )}
 
-            <div className="flex gap-4 text-sm">
+            <div className="flex flex-wrap gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="size-4 text-green-600" />
                 <span>{validCount} valid</span>
@@ -289,6 +331,12 @@ export function BulkUploadDialog({
                 <div className="flex items-center gap-2">
                   <AlertCircle className="size-4 text-destructive" />
                   <span>{invalidCount} with errors</span>
+                </div>
+              )}
+              {imageCount > 0 && (
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="size-4 text-blue-600" />
+                  <span>{imageCount} images</span>
                 </div>
               )}
             </div>

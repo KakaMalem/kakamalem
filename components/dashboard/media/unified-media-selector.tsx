@@ -759,50 +759,48 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                           variants={itemVariants}
                           initial="hidden"
                           animate="visible"
+                          onClick={() => handleToggleSelection(item.id)}
                           className={cn(
-                            "group relative aspect-square rounded-lg border overflow-hidden transition-all",
+                            "group relative aspect-square rounded-lg border overflow-hidden transition-all cursor-pointer",
                             isSelected && "ring-2 ring-primary"
                           )}
                         >
-                          {/* Image as preview button */}
-                          <button
-                            type="button"
-                            onClick={handlePreview}
-                            className="absolute inset-0 w-full h-full cursor-zoom-in"
-                            title="Preview image"
-                          >
-                            {item.url ? (
-                              <Image
-                                src={item.url}
-                                alt={item.altText || item.fileName || "Image"}
-                                fill
-                                className="object-cover"
-                                sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw"
-                                unoptimized
-                              />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                                <ImageIcon className="size-8 text-muted-foreground" />
-                              </div>
-                            )}
-                            {/* Eye icon overlay on hover */}
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
-                              <Eye className="size-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          {/* Image */}
+                          {item.url ? (
+                            <Image
+                              src={item.url}
+                              alt={item.altText || item.fileName || "Image"}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, 20vw"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                              <ImageIcon className="size-8 text-muted-foreground" />
                             </div>
-                          </button>
+                          )}
 
-                          {/* Selection checkbox */}
+                          {/* Preview button (Eye icon) - appears on hover */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleToggleSelection(item.id);
+                              handlePreview();
                             }}
+                            className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors cursor-zoom-in"
+                            title="Preview image"
+                          >
+                            <Eye className="size-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
+
+                          {/* Selection checkbox */}
+                          <div
                             className={cn(
                               "absolute top-1 right-1 p-0.5 rounded-full transition-all z-10",
                               isSelected
                                 ? "bg-primary"
-                                : "bg-white/80 hover:bg-white border border-gray-300"
+                                : "bg-white/80 group-hover:bg-white border border-gray-300"
                             )}
                             title={isSelected ? "Deselect" : "Select"}
                           >
@@ -814,7 +812,7 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                                   : "text-gray-400"
                               )}
                             />
-                          </button>
+                          </div>
                         </motion.div>
                       );
                     }
@@ -826,15 +824,19 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                         variants={itemVariants}
                         initial="hidden"
                         animate="visible"
+                        onClick={() => handleToggleSelection(item.id)}
                         className={cn(
-                          "group w-full flex items-center gap-3 p-2 rounded-lg border transition-all hover:bg-accent",
+                          "group w-full flex items-center gap-3 p-2 rounded-lg border transition-all hover:bg-accent cursor-pointer",
                           isSelected && "bg-primary/5 border-primary"
                         )}
                       >
                         {/* Image thumbnail as preview button */}
                         <button
                           type="button"
-                          onClick={handlePreview}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreview();
+                          }}
                           className="relative size-16 rounded overflow-hidden shrink-0 border cursor-zoom-in group/thumb"
                           title="Preview image"
                         >
@@ -857,12 +859,8 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                           </div>
                         </button>
 
-                        {/* Info section - clicking selects */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSelection(item.id)}
-                          className="flex-1 min-w-0 text-left"
-                        >
+                        {/* Info section */}
+                        <div className="flex-1 min-w-0 text-left">
                           <p className="font-medium truncate">
                             {item.fileName}
                           </p>
@@ -874,12 +872,10 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                             {" • "}
                             {new Date(item.createdAt).toLocaleDateString()}
                           </p>
-                        </button>
+                        </div>
 
-                        {/* Selection checkbox */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSelection(item.id)}
+                        {/* Selection checkbox indicator */}
+                        <div
                           className={cn(
                             "p-0.5 rounded-full transition-all shrink-0",
                             isSelected
@@ -896,7 +892,7 @@ export function UnifiedMediaSelector(props: UnifiedMediaSelectorProps) {
                                 : "text-gray-400"
                             )}
                           />
-                        </button>
+                        </div>
                       </motion.div>
                     );
                   })}

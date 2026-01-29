@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Kaka Malem",
   description: "Store Building made Right",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -27,6 +28,13 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="color-scheme" content="light only" />
+        {/* PWA Meta Tags */}
+        <meta name="theme-color" content="#000000" />
+        {/* iOS PWA Support */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="KM POS" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} overflow-x-hidden antialiased`}

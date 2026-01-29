@@ -56,3 +56,9 @@ deploy_*.log
 
 # Local config overrides
 *.local
+
+# Serwist generated service worker
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
+public/swe-worker-*.js.map
