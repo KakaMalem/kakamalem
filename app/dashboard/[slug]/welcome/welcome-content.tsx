@@ -191,13 +191,16 @@ export function WelcomeContent({ store }: WelcomeContentProps) {
                     kakamalem.com/store/{store.slug}
                   </p>
                 </div>
-                <Link
-                  href={`/store/${store.slug}`}
-                  target="_blank"
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}/store/${store.slug}`;
+                    window.open(url, "_blank", "");
+                  }}
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
-                </Link>
+                </button>
               </div>
             </CardContent>
           </Card>

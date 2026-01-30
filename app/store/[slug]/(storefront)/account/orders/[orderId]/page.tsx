@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   Package,
@@ -20,7 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getUser } from "@/lib/auth/server";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
-import { getOrderById, getOrderStatusInfo } from "@/lib/db/queries/orders";
+import {
+  getOrderById,
+  getOrderStatusInfo,
+  getOrderItemsWithImages,
+} from "@/lib/db/queries/orders";
 import { formatPrice } from "@/lib/utils";
 import type { Address } from "@/lib/db/schema";
 
@@ -47,6 +52,13 @@ export default async function OrderDetailPage({
   if (!order) {
     notFound();
   }
+
+  // Fetch order items with images (prioritizes variant images)
+  const itemsWithImages = await getOrderItemsWithImages(orderId);
+  // Create a map for quick lookup
+  const itemImageMap = new Map(
+    itemsWithImages.map((item) => [item.id, item.productImage])
+  );
 
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = new Date(order.createdAt);
@@ -106,34 +118,49 @@ export default async function OrderDetailPage({
           <CardTitle className="text-lg">Items</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {order.items.map((item) => (
-            <div key={item.id} className="flex gap-4">
-              {/* Placeholder for product image - would need to join with products table */}
-              <div className="h-16 w-16 shrink-0 rounded-md bg-muted flex items-center justify-center">
-                <Package className="size-6 text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium line-clamp-1">{item.productName}</p>
-                {item.variantName && (
-                  <p className="text-sm text-muted-foreground">
-                    {item.variantName}
-                  </p>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Qty: {item.quantity} &times;{" "}
-                  {formatPrice(parseFloat(item.price), store.currency)}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="font-medium">
-                  {formatPrice(
-                    parseFloat(item.price) * item.quantity,
-                    store.currency
+          {order.items.map((item) => {
+            const itemImage = itemImageMap.get(item.id);
+            return (
+              <div key={item.id} className="flex gap-4">
+                {/* Product/variant image */}
+                <div className="relative h-16 w-16 shrink-0 rounded-md bg-muted overflow-hidden">
+                  {itemImage?.url ? (
+                    <Image
+                      src={itemImage.url}
+                      alt={itemImage.alt || item.productName}
+                      fill
+                      className="object-cover"
+                      sizes="64px"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Package className="size-6 text-muted-foreground" />
+                    </div>
                   )}
-                </p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium line-clamp-1">{item.productName}</p>
+                  {item.variantName && (
+                    <p className="text-sm text-muted-foreground">
+                      {item.variantName}
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Qty: {item.quantity} &times;{" "}
+                    {formatPrice(parseFloat(item.price), store.currency)}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="font-medium">
+                    {formatPrice(
+                      parseFloat(item.price) * item.quantity,
+                      store.currency
+                    )}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <Separator className="my-4" />
 

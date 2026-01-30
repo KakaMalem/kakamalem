@@ -43,6 +43,10 @@ export type CartItemWithProduct = {
     price: string | null;
     stock: number;
     isActive: boolean;
+    image: {
+      url: string;
+      altText: string | null;
+    } | null;
   } | null;
 };
 
@@ -133,7 +137,17 @@ async function findCart(
                 },
               },
             },
-            variant: true,
+            variant: {
+              with: {
+                image: true,
+                // Also fetch variant images from junction table (used when imageId is null)
+                images: {
+                  with: { media: true },
+                  orderBy: (vi, { asc }) => [asc(vi.position)],
+                  limit: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -163,7 +177,17 @@ async function findCart(
               },
             },
           },
-          variant: true,
+          variant: {
+            with: {
+              image: true,
+              // Also fetch variant images from junction table (used when imageId is null)
+              images: {
+                with: { media: true },
+                orderBy: (vi, { asc }) => [asc(vi.position)],
+                limit: 1,
+              },
+            },
+          },
         },
       },
     },
@@ -218,6 +242,18 @@ function transformCartData(rawCart: {
       price: string | null;
       stock: number;
       isActive: boolean;
+      // Direct image reference (productVariants.imageId)
+      image: {
+        url: string;
+        altText: string | null;
+      } | null;
+      // Images from junction table (productVariantImages) - used as fallback
+      images: Array<{
+        media: {
+          url: string;
+          altText: string | null;
+        };
+      }>;
     } | null;
   }>;
 }): Cart {
@@ -266,6 +302,18 @@ function transformCartData(rawCart: {
               price: item.variant.price,
               stock: item.variant.stock,
               isActive: item.variant.isActive,
+              // Prioritize: direct image reference → junction table images → null
+              image: item.variant.image
+                ? {
+                    url: item.variant.image.url,
+                    altText: item.variant.image.altText,
+                  }
+                : item.variant.images?.[0]?.media
+                  ? {
+                      url: item.variant.images[0].media.url,
+                      altText: item.variant.images[0].media.altText,
+                    }
+                  : null,
             }
           : null,
       })),

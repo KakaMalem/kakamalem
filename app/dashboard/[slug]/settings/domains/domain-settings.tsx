@@ -205,15 +205,16 @@ export function DomainSettings({
               Active
             </Badge>
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={`/store/${storeSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink className="mr-2 size-4" />
-              Visit Store
-            </a>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url = `${window.location.origin}/store/${storeSlug}`;
+              window.open(url, "_blank", "");
+            }}
+          >
+            <ExternalLink className="mr-2 size-4" />
+            Visit Store
           </Button>
         </CardContent>
       </Card>

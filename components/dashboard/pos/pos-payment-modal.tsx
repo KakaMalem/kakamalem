@@ -30,8 +30,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn, formatPrice } from "@/lib/utils";
-import { recordOfflineSale } from "@/lib/actions/offline-sales";
+import { recordOfflineSale as recordSaleOnServer } from "@/lib/actions/offline-sales";
+import { recordOfflineSale as recordSaleOffline } from "@/lib/offline/offline-sale";
 import { usePOSProductsStore } from "@/lib/stores/use-pos-products-store";
+import { useIsOffline } from "@/lib/stores/use-connectivity-store";
+import { OFFLINE_POS_ENABLED } from "@/lib/offline/feature-flag";
 import {
   getThermalPrinter,
   type ReceiptData,
@@ -89,6 +92,7 @@ export function POSPaymentModal({
   const [isPending, startTransition] = useTransition();
   const updateStock = usePOSProductsStore((state) => state.updateStock);
   const isPrinterConnected = useIsPrinterConnected();
+  const isOffline = useIsOffline();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [isFullPayment, setIsFullPayment] = useState(true);
@@ -132,26 +136,45 @@ export function POSPaymentModal({
     }
 
     const effectiveAmount = amountReceived;
+    const shouldUseOffline = OFFLINE_POS_ENABLED && isOffline;
 
     startTransition(async () => {
-      const result = await recordOfflineSale(tenantId, storeSlug, {
-        amountPaid: effectiveAmount,
-        paymentMethod: effectiveAmount > 0 ? paymentMethod : null,
-        customerName: customerName || undefined,
-        customerPhone: customerPhone || undefined,
-        items: items.map((item) => ({
-          productId: item.productId,
-          variantId: item.variantId,
-          productName: item.productName,
-          variantName: item.variantName,
-          sku: item.sku,
-          price: item.price,
-          quantity: item.quantity,
-          trackInventory: item.trackInventory,
-        })),
-        discountAmount,
-        staffNotes: staffNotes || undefined,
-      });
+      // Prepare items payload (same for both online and offline)
+      const saleItems = items.map((item) => ({
+        productId: item.productId,
+        variantId: item.variantId,
+        productName: item.productName,
+        variantName: item.variantName,
+        sku: item.sku,
+        price: item.price,
+        quantity: item.quantity,
+        trackInventory: item.trackInventory,
+      }));
+
+      // Use offline handler when offline, server action when online
+      const result = shouldUseOffline
+        ? await recordSaleOffline({
+            tenantId,
+            storeSlug,
+            items: saleItems,
+            discountAmount,
+            amountPaid: effectiveAmount,
+            paymentMethod: effectiveAmount > 0 ? paymentMethod : null,
+            customerName: customerName || undefined,
+            customerPhone: customerPhone || undefined,
+            staffNotes: staffNotes || undefined,
+          })
+        : await recordSaleOnServer(tenantId, storeSlug, {
+            amountPaid: effectiveAmount,
+            paymentMethod: effectiveAmount > 0 ? paymentMethod : null,
+            customerName: customerName || undefined,
+            customerPhone: customerPhone || undefined,
+            items: saleItems,
+            discountAmount,
+            staffNotes: staffNotes || undefined,
+          });
+
+      const isQueued = "isQueued" in result && result.isQueued;
 
       if (result.success && result.order) {
         // Update stock in the store immediately (no need to refetch)
@@ -159,8 +182,15 @@ export function POSPaymentModal({
           updateStock(result.updatedStock);
         }
 
-        // Helper to trigger browser print dialog via iframe
+        // Helper to trigger browser print dialog via iframe (only works when online)
         const triggerBrowserPrint = () => {
+          if (isQueued) {
+            // Can't print via browser when offline - the order doesn't exist on server yet
+            toast.info("Receipt will be available to print after syncing", {
+              duration: 4000,
+            });
+            return;
+          }
           const printUrl = `/dashboard/${storeSlug}/orders/${result.order!.id}/print`;
           const iframe = document.createElement("iframe");
           iframe.style.cssText =
@@ -175,82 +205,113 @@ export function POSPaymentModal({
           document.body.appendChild(iframe);
         };
 
+        // Thermal receipt data (can print even when offline)
+        const receiptData: ReceiptData = {
+          storeName,
+          storePhone,
+          receiptNumber: result.order.receiptNumber,
+          orderNumber: result.order.orderNumber,
+          date: new Date().toLocaleString(),
+          customerName: customerName || undefined,
+          items: items.map((item) => ({
+            name: item.productName,
+            variantName: item.variantName,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          subtotal: total + discountAmount,
+          discount: discountAmount,
+          total,
+          amountPaid: effectiveAmount,
+          changeDue:
+            effectiveAmount > total ? effectiveAmount - total : undefined,
+          paymentMethod: effectiveAmount > 0 ? paymentMethod : undefined,
+          currency,
+          footerText: receiptFooterText,
+          paperWidth: receiptPaperWidth,
+        };
+
+        // Status message differs for queued vs synced sales
+        const statusMessage = isQueued
+          ? `Sale saved offline! Receipt: ${result.order.receiptNumber}`
+          : `Sale completed! Receipt: ${result.order.receiptNumber}`;
+
         // Handle printing based on mode
         if (receiptPrintMode === "disabled") {
-          // Just show success toast, no print action
-          toast.success(
-            `Sale completed! Receipt: ${result.order.receiptNumber}`,
-            {
+          // Just show success toast
+          if (isQueued) {
+            toast.success(statusMessage, {
+              description: "Will sync when back online",
+              duration: 5000,
+            });
+          } else {
+            toast.success(statusMessage, {
               duration: 5000,
               action: {
                 label: "Print",
                 onClick: triggerBrowserPrint,
               },
-            }
-          );
+            });
+          }
         } else if (receiptPrintMode === "prompt") {
-          // Auto-trigger browser print dialog
-          toast.success(
-            `Sale completed! Receipt: ${result.order.receiptNumber}`,
-            { duration: 5000 }
-          );
-          triggerBrowserPrint();
+          // Auto-trigger browser print dialog (only when online)
+          toast.success(statusMessage, {
+            description: isQueued ? "Will sync when back online" : undefined,
+            duration: 5000,
+          });
+          if (!isQueued) {
+            triggerBrowserPrint();
+          }
         } else if (receiptPrintMode === "silent") {
-          // Direct thermal printer
+          // Direct thermal printer (works offline too!)
           if (isPrinterConnected) {
             const printer = getThermalPrinter();
-            const receiptData: ReceiptData = {
-              storeName,
-              storePhone,
-              receiptNumber: result.order.receiptNumber,
-              orderNumber: result.order.orderNumber,
-              date: new Date().toLocaleString(),
-              customerName: customerName || undefined,
-              items: items.map((item) => ({
-                name: item.productName,
-                variantName: item.variantName,
-                quantity: item.quantity,
-                price: item.price,
-              })),
-              subtotal: total + discountAmount,
-              discount: discountAmount,
-              total,
-              amountPaid: effectiveAmount,
-              changeDue:
-                effectiveAmount > total ? effectiveAmount - total : undefined,
-              paymentMethod: effectiveAmount > 0 ? paymentMethod : undefined,
-              currency,
-              footerText: receiptFooterText,
-              paperWidth: receiptPaperWidth,
-            };
-
             printer
               .printReceipt(receiptData)
               .then(() => {
-                toast.success("Sale completed! Receipt printed.", {
-                  duration: 3000,
-                });
+                toast.success(
+                  isQueued
+                    ? "Sale saved offline! Receipt printed."
+                    : "Sale completed! Receipt printed.",
+                  {
+                    description: isQueued
+                      ? "Will sync when back online"
+                      : undefined,
+                    duration: 3000,
+                  }
+                );
               })
               .catch(() => {
-                toast.error("Sale completed but printing failed", {
-                  action: {
-                    label: "Print Manually",
-                    onClick: triggerBrowserPrint,
-                  },
-                });
+                toast.error(
+                  isQueued
+                    ? "Sale saved offline but printing failed"
+                    : "Sale completed but printing failed",
+                  {
+                    description: isQueued
+                      ? "Will sync when back online"
+                      : undefined,
+                    action: isQueued
+                      ? undefined
+                      : {
+                          label: "Print Manually",
+                          onClick: triggerBrowserPrint,
+                        },
+                  }
+                );
               });
           } else {
-            // No printer connected, fallback with warning
-            toast.warning(
-              `Sale completed! Receipt: ${result.order.receiptNumber}`,
-              {
-                description: "No thermal printer connected",
-                action: {
-                  label: "Print",
-                  onClick: triggerBrowserPrint,
-                },
-              }
-            );
+            // No printer connected
+            toast.warning(statusMessage, {
+              description: isQueued
+                ? "No thermal printer connected. Will sync when back online."
+                : "No thermal printer connected",
+              action: isQueued
+                ? undefined
+                : {
+                    label: "Print",
+                    onClick: triggerBrowserPrint,
+                  },
+            });
           }
         }
 

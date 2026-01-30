@@ -832,6 +832,17 @@ export async function createProductVariantsInBulk(
 
         if (existingOption) {
           optionId = existingOption.id;
+          // Update swatch settings if changed
+          if (option.swatchSize || option.swatchShape) {
+            await db
+              .update(variantOptions)
+              .set({
+                swatchSize: option.swatchSize || "md",
+                swatchShape: option.swatchShape || "square",
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(variantOptions.id, existingOption.id));
+          }
         } else {
           const [newOption] = await db
             .insert(variantOptions)
@@ -839,12 +850,25 @@ export async function createProductVariantsInBulk(
               tenantId,
               name: option.name,
               displayOrder: options.indexOf(option),
+              swatchSize: option.swatchSize || "md",
+              swatchShape: option.swatchShape || "square",
             })
             .returning({ id: variantOptions.id });
           optionId = newOption.id;
         }
       } else {
         optionId = option.id;
+        // Update swatch settings for existing option if specified
+        if (option.swatchSize || option.swatchShape) {
+          await db
+            .update(variantOptions)
+            .set({
+              swatchSize: option.swatchSize || "md",
+              swatchShape: option.swatchShape || "square",
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(variantOptions.id, option.id));
+        }
       }
 
       // Store mapping
@@ -982,6 +1006,29 @@ export async function createProductVariantsInBulk(
 
       // Create variant
       const stockNum = parseInt(variant.stock) || 0;
+
+      // Determine primary image: first from imageIds array, fallback to imageId, or inherit from option value assignments
+      let primaryImageId: string | null =
+        variant.imageIds && variant.imageIds.length > 0
+          ? variant.imageIds[0]
+          : variant.imageId || null;
+
+      // If still no primary image, try to inherit from option value assignments
+      if (!primaryImageId && imageAssignments && imageAssignments.length > 0) {
+        for (const ov of variant.optionValues) {
+          const optionKey = ov.optionId;
+          const assignment = imageAssignments.find(
+            (a) =>
+              (a.optionId === optionKey || a.optionName === ov.optionName) &&
+              a.value === ov.value
+          );
+          if (assignment && assignment.imageIds.length > 0) {
+            primaryImageId = assignment.imageIds[0];
+            break;
+          }
+        }
+      }
+
       const [newVariant] = await db
         .insert(productVariants)
         .values({
@@ -996,7 +1043,7 @@ export async function createProductVariantsInBulk(
           width: variant.width || null,
           height: variant.height || null,
           description: variant.description || null,
-          imageId: variant.imageId || null,
+          imageId: primaryImageId,
           stock: stockNum,
           stockStatus: stockNum > 0 ? "in_stock" : "out_of_stock",
           isActive: variant.isActive,
@@ -1018,9 +1065,34 @@ export async function createProductVariantsInBulk(
       }
 
       // Create variant images
-      if (variant.imageIds && variant.imageIds.length > 0) {
+      // If variant has explicit images, use those. Otherwise, inherit from option value assignments.
+      let variantImageIds = variant.imageIds || [];
+
+      // If no explicit images but we have imageAssignments, inherit from option values
+      if (
+        variantImageIds.length === 0 &&
+        imageAssignments &&
+        imageAssignments.length > 0
+      ) {
+        // Find images for this variant's option values
+        for (const ov of variant.optionValues) {
+          const optionKey = ov.optionId;
+          const assignment = imageAssignments.find(
+            (a) =>
+              (a.optionId === optionKey || a.optionName === ov.optionName) &&
+              a.value === ov.value
+          );
+          if (assignment && assignment.imageIds.length > 0) {
+            // Use the first matching option value's images
+            variantImageIds = assignment.imageIds;
+            break;
+          }
+        }
+      }
+
+      if (variantImageIds.length > 0) {
         await db.insert(productVariantImages).values(
-          variant.imageIds.map((mediaId, index) => ({
+          variantImageIds.map((mediaId, index) => ({
             tenantId,
             variantId: newVariant.id,
             mediaId,
@@ -1191,6 +1263,17 @@ export async function updateProductVariantsInBulk(
 
         if (existingOption) {
           optionId = existingOption.id;
+          // Update swatch settings if changed
+          if (option.swatchSize || option.swatchShape) {
+            await db
+              .update(variantOptions)
+              .set({
+                swatchSize: option.swatchSize || "md",
+                swatchShape: option.swatchShape || "square",
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(variantOptions.id, existingOption.id));
+          }
         } else {
           const [newOption] = await db
             .insert(variantOptions)
@@ -1198,12 +1281,25 @@ export async function updateProductVariantsInBulk(
               tenantId,
               name: option.name,
               displayOrder: options.indexOf(option),
+              swatchSize: option.swatchSize || "md",
+              swatchShape: option.swatchShape || "square",
             })
             .returning({ id: variantOptions.id });
           optionId = newOption.id;
         }
       } else {
         optionId = option.id;
+        // Update swatch settings for existing option if specified
+        if (option.swatchSize || option.swatchShape) {
+          await db
+            .update(variantOptions)
+            .set({
+              swatchSize: option.swatchSize || "md",
+              swatchShape: option.swatchShape || "square",
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(variantOptions.id, option.id));
+        }
       }
 
       const optionKey = option.id || option.tempId || option.name;
@@ -1309,6 +1405,32 @@ export async function updateProductVariantsInBulk(
 
       const stockNum = parseInt(variant.stock) || 0;
 
+      // Determine primary image: first from imageIds array, fallback to imageId, or inherit from option value assignments
+      let primaryImageId: string | null =
+        variant.imageIds && variant.imageIds.length > 0
+          ? variant.imageIds[0]
+          : variant.imageId || null;
+
+      // Compute variant images with inheritance
+      let variantImageIds = variant.imageIds || [];
+
+      // If no explicit images, try to inherit from option value assignments
+      if (!primaryImageId && imageAssignments && imageAssignments.length > 0) {
+        for (const ov of variant.optionValues) {
+          const optionKey = ov.optionId;
+          const assignment = imageAssignments.find(
+            (a) =>
+              (a.optionId === optionKey || a.optionName === ov.optionName) &&
+              a.value === ov.value
+          );
+          if (assignment && assignment.imageIds.length > 0) {
+            primaryImageId = assignment.imageIds[0];
+            variantImageIds = assignment.imageIds;
+            break;
+          }
+        }
+      }
+
       if (variant.existingId && existingIds.has(variant.existingId)) {
         // For existing variants, we don't regenerate SKU (they already have one)
         // Just update barcode and other fields
@@ -1323,7 +1445,7 @@ export async function updateProductVariantsInBulk(
             width: variant.width || null,
             height: variant.height || null,
             description: variant.description || null,
-            imageId: variant.imageId || null,
+            imageId: primaryImageId,
             stock: stockNum,
             stockStatus: stockNum > 0 ? "in_stock" : "out_of_stock",
             isActive: variant.isActive,
@@ -1352,14 +1474,14 @@ export async function updateProductVariantsInBulk(
           );
         }
 
-        // Update variant images - delete old and insert new
+        // Update variant images - delete old and insert new (using inherited images if applicable)
         await db
           .delete(productVariantImages)
           .where(eq(productVariantImages.variantId, variant.existingId));
 
-        if (variant.imageIds && variant.imageIds.length > 0) {
+        if (variantImageIds.length > 0) {
           await db.insert(productVariantImages).values(
-            variant.imageIds.map((mediaId, index) => ({
+            variantImageIds.map((mediaId, index) => ({
               tenantId,
               variantId: variant.existingId!,
               mediaId,
@@ -1400,7 +1522,7 @@ export async function updateProductVariantsInBulk(
             width: variant.width || null,
             height: variant.height || null,
             description: variant.description || null,
-            imageId: variant.imageId || null,
+            imageId: primaryImageId,
             stock: stockNum,
             stockStatus: stockNum > 0 ? "in_stock" : "out_of_stock",
             isActive: variant.isActive,
@@ -1418,10 +1540,10 @@ export async function updateProductVariantsInBulk(
           );
         }
 
-        // Create variant images for new variant
-        if (variant.imageIds && variant.imageIds.length > 0) {
+        // Create variant images for new variant (using inherited images if applicable)
+        if (variantImageIds.length > 0) {
           await db.insert(productVariantImages).values(
-            variant.imageIds.map((mediaId, index) => ({
+            variantImageIds.map((mediaId, index) => ({
               tenantId,
               variantId: newVariant.id,
               mediaId,

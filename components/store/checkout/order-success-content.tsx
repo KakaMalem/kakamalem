@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, Package, ArrowRight, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,10 @@ interface OrderItem {
   productName: string;
   variantName: string | null;
   quantity: number;
+  image: {
+    url: string;
+    alt: string | null;
+  } | null;
 }
 
 interface Order {
@@ -203,8 +208,20 @@ export function OrderSuccessContent({
                   <p className="font-medium">Items ({order.items.length})</p>
                   {order.items.slice(0, 3).map((item) => (
                     <div key={item.id} className="flex items-center gap-3">
-                      <div className="flex size-10 items-center justify-center rounded bg-muted">
-                        <Package className="size-5 text-muted-foreground" />
+                      <div className="relative size-10 shrink-0 overflow-hidden rounded bg-muted">
+                        {item.image?.url ? (
+                          <Image
+                            src={item.image.url}
+                            alt={item.image.alt || item.productName}
+                            fill
+                            className="object-cover"
+                            sizes="40px"
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center">
+                            <Package className="size-5 text-muted-foreground" />
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium line-clamp-1">

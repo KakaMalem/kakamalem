@@ -7,7 +7,6 @@ import {
   Globe,
   Store,
   ShoppingBag,
-  Phone,
   ImageIcon,
   Check,
   Printer,
@@ -50,9 +49,6 @@ interface StoreModeSettingsProps {
   storeId: string;
   storeSlug: string;
   currentMode: string;
-  onlineCheckoutEnabled: boolean;
-  posEnabled: boolean;
-  phoneOrdersEnabled: boolean;
   posScannerMode: string;
   receiptPaperWidth: string;
   receiptShowLogo: boolean;
@@ -72,9 +68,6 @@ export function StoreModeSettings({
   storeId,
   storeSlug,
   currentMode,
-  onlineCheckoutEnabled: initialOnlineCheckout,
-  posEnabled: initialPosEnabled,
-  phoneOrdersEnabled: initialPhoneEnabled,
   posScannerMode: initialScannerMode,
   receiptPaperWidth: initialPaperWidth,
   receiptShowLogo: initialShowLogo,
@@ -89,12 +82,6 @@ export function StoreModeSettings({
   const [storeMode, setStoreMode] = useState<StoreMode>(
     currentMode as StoreMode
   );
-  const [onlineCheckoutEnabled, setOnlineCheckoutEnabled] = useState(
-    initialOnlineCheckout
-  );
-  const [posEnabled, setPosEnabled] = useState(initialPosEnabled);
-  const [phoneOrdersEnabled, setPhoneOrdersEnabled] =
-    useState(initialPhoneEnabled);
   const [posScannerMode, setPosScannerMode] = useState<PosScannerMode>(
     initialScannerMode as PosScannerMode
   );
@@ -116,9 +103,6 @@ export function StoreModeSettings({
   // Track previous props to sync state when props change (e.g., after router.refresh())
   const [prevProps, setPrevProps] = useState({
     currentMode,
-    initialOnlineCheckout,
-    initialPosEnabled,
-    initialPhoneEnabled,
     initialScannerMode,
     initialPaperWidth,
     initialShowLogo,
@@ -128,9 +112,6 @@ export function StoreModeSettings({
   });
   const propsChanged =
     prevProps.currentMode !== currentMode ||
-    prevProps.initialOnlineCheckout !== initialOnlineCheckout ||
-    prevProps.initialPosEnabled !== initialPosEnabled ||
-    prevProps.initialPhoneEnabled !== initialPhoneEnabled ||
     prevProps.initialScannerMode !== initialScannerMode ||
     prevProps.initialPaperWidth !== initialPaperWidth ||
     prevProps.initialShowLogo !== initialShowLogo ||
@@ -140,9 +121,6 @@ export function StoreModeSettings({
   if (propsChanged) {
     setPrevProps({
       currentMode,
-      initialOnlineCheckout,
-      initialPosEnabled,
-      initialPhoneEnabled,
       initialScannerMode,
       initialPaperWidth,
       initialShowLogo,
@@ -151,9 +129,6 @@ export function StoreModeSettings({
       initialPrintMode,
     });
     setStoreMode(currentMode as StoreMode);
-    setOnlineCheckoutEnabled(initialOnlineCheckout);
-    setPosEnabled(initialPosEnabled);
-    setPhoneOrdersEnabled(initialPhoneEnabled);
     setPosScannerMode(initialScannerMode as PosScannerMode);
     setReceiptPaperWidth(initialPaperWidth as ReceiptPaperWidth);
     setReceiptShowLogo(initialShowLogo);
@@ -165,9 +140,6 @@ export function StoreModeSettings({
   // Track if form has changes
   const hasChanges =
     storeMode !== currentMode ||
-    onlineCheckoutEnabled !== initialOnlineCheckout ||
-    posEnabled !== initialPosEnabled ||
-    phoneOrdersEnabled !== initialPhoneEnabled ||
     posScannerMode !== initialScannerMode ||
     receiptPaperWidth !== initialPaperWidth ||
     receiptShowLogo !== initialShowLogo ||
@@ -175,43 +147,28 @@ export function StoreModeSettings({
     receiptFooterText !== (initialFooterText || "") ||
     receiptPrintMode !== initialPrintMode;
 
-  // Handle mode selection
-  const handleModeSelect = (mode: StoreMode) => {
-    setStoreMode(mode);
-
-    // Apply mode presets
+  // Derive channel settings from store mode
+  const getChannelSettings = (mode: StoreMode) => {
     switch (mode) {
       case "full":
-        setOnlineCheckoutEnabled(true);
-        setPosEnabled(true);
-        setPhoneOrdersEnabled(true);
-        break;
+        return { onlineCheckoutEnabled: true, posEnabled: true };
       case "online_only":
-        setOnlineCheckoutEnabled(true);
-        setPosEnabled(false);
-        setPhoneOrdersEnabled(false);
-        break;
+        return { onlineCheckoutEnabled: true, posEnabled: false };
       case "offline_only":
-        setOnlineCheckoutEnabled(false);
-        setPosEnabled(true);
-        setPhoneOrdersEnabled(true);
-        break;
+        return { onlineCheckoutEnabled: false, posEnabled: true };
       case "catalog":
-        setOnlineCheckoutEnabled(false);
-        setPosEnabled(false);
-        setPhoneOrdersEnabled(false);
-        break;
+        return { onlineCheckoutEnabled: false, posEnabled: false };
     }
   };
+
+  const channelSettings = getChannelSettings(storeMode);
 
   // Handle save
   const handleSave = () => {
     startTransition(async () => {
       const result = await updateStoreModeSettings(storeId, storeSlug, {
         storeMode,
-        onlineCheckoutEnabled,
-        posEnabled,
-        phoneOrdersEnabled,
+        ...channelSettings,
         posScannerMode,
         receiptPaperWidth,
         receiptShowLogo,
@@ -230,16 +187,9 @@ export function StoreModeSettings({
     });
   };
 
-  // Check if channel toggles are disabled based on mode
-  const isOnlineDisabled =
-    storeMode === "offline_only" || storeMode === "catalog";
-  const isPosDisabled = storeMode === "online_only" || storeMode === "catalog";
-  const isPhoneDisabled =
-    storeMode === "online_only" || storeMode === "catalog";
-
   // Show receipt settings only when POS is available
   const showReceiptSettings =
-    storeMode === "offline_only" || (storeMode === "full" && posEnabled);
+    storeMode === "offline_only" || storeMode === "full";
 
   return (
     <div className="space-y-6">
@@ -267,7 +217,7 @@ export function StoreModeSettings({
                 <button
                   key={mode}
                   type="button"
-                  onClick={() => handleModeSelect(mode)}
+                  onClick={() => setStoreMode(mode)}
                   className={cn(
                     "relative flex flex-col items-start gap-3 rounded-lg border p-4 text-left transition-colors",
                     isSelected
@@ -302,99 +252,6 @@ export function StoreModeSettings({
           </div>
         </CardContent>
       </Card>
-
-      {/* Channel Toggles (for "full" mode customization) */}
-      {storeMode === "full" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Fine-tune Sales Channels
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <p className="text-sm text-muted-foreground">
-              In Full Commerce mode, you can enable or disable specific sales
-              channels. This gives you granular control over how customers can
-              purchase from you.
-            </p>
-
-            <Separator />
-
-            {/* Online Checkout Toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                  <Globe className="size-5" />
-                </div>
-                <div>
-                  <Label htmlFor="online-checkout" className="font-medium">
-                    Online Checkout
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Customers can purchase through your website
-                  </p>
-                </div>
-              </div>
-              <Switch
-                id="online-checkout"
-                checked={onlineCheckoutEnabled}
-                onCheckedChange={setOnlineCheckoutEnabled}
-                disabled={isOnlineDisabled}
-              />
-            </div>
-
-            <Separator />
-
-            {/* POS Toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-lg bg-green-100 text-green-600">
-                  <Store className="size-5" />
-                </div>
-                <div>
-                  <Label htmlFor="pos-enabled" className="font-medium">
-                    In-Store Sales (POS)
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Record in-person sales from your dashboard
-                  </p>
-                </div>
-              </div>
-              <Switch
-                id="pos-enabled"
-                checked={posEnabled}
-                onCheckedChange={setPosEnabled}
-                disabled={isPosDisabled}
-              />
-            </div>
-
-            <Separator />
-
-            {/* Phone Orders Toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
-                  <Phone className="size-5" />
-                </div>
-                <div>
-                  <Label htmlFor="phone-orders" className="font-medium">
-                    Phone Orders
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Record orders taken over the phone
-                  </p>
-                </div>
-              </div>
-              <Switch
-                id="phone-orders"
-                checked={phoneOrdersEnabled}
-                onCheckedChange={setPhoneOrdersEnabled}
-                disabled={isPhoneDisabled}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* POS Scanner Settings */}
       {showReceiptSettings && (
@@ -731,37 +588,15 @@ export function StoreModeSettings({
           <ul className="space-y-2 text-sm text-muted-foreground">
             {storeMode === "full" && (
               <>
-                {onlineCheckoutEnabled && (
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-green-600" />
-                    Customers can browse and checkout on your website
-                  </li>
-                )}
-                {!onlineCheckoutEnabled && (
-                  <li className="flex items-center gap-2 text-amber-600">
-                    <span className="size-4 text-center">-</span>
-                    Website checkout is disabled
-                  </li>
-                )}
-                {posEnabled && (
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-green-600" />
-                    &quot;Offline Sales&quot; appears in your dashboard for
-                    in-store sales
-                  </li>
-                )}
-                {!posEnabled && (
-                  <li className="flex items-center gap-2 text-amber-600">
-                    <span className="size-4 text-center">-</span>
-                    In-store sales recording is hidden
-                  </li>
-                )}
-                {phoneOrdersEnabled && (
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-green-600" />
-                    You can record phone orders in Offline Sales
-                  </li>
-                )}
+                <li className="flex items-center gap-2">
+                  <Check className="size-4 text-green-600" />
+                  Customers can browse and checkout on your website
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="size-4 text-green-600" />
+                  &quot;Offline Sales&quot; appears in your dashboard for
+                  in-store sales
+                </li>
               </>
             )}
             {storeMode === "online_only" && (

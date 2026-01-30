@@ -101,6 +101,8 @@ export function VariantOptionsBuilder({
       name: "",
       values: [],
       isNew: true,
+      swatchSize: "md",
+      swatchShape: "square",
     };
     onChange([...options, newOption]);
   }, [options, onChange]);
@@ -162,6 +164,8 @@ export function VariantOptionsBuilder({
           swatchType: "text" as const,
         })),
         isNew: false,
+        swatchSize: "md",
+        swatchShape: "square",
       };
       onChange(newOptions);
       setOpenCombobox(null);

@@ -203,14 +203,17 @@ function DraggableProductItem({
                 <span className="sr-only">Adjust Stock</span>
               </Button>
             )}
-            <Button variant="ghost" size="icon-sm" asChild>
-              <Link
-                href={`/store/${storeSlug}/product/${product.slug}`}
-                target="_blank"
-              >
-                <Eye className="size-4" />
-                <span className="sr-only">View in Store</span>
-              </Link>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                // Open in external browser for PWA compatibility
+                const url = `${window.location.origin}/store/${storeSlug}/product/${product.slug}`;
+                window.open(url, "_blank", "");
+              }}
+            >
+              <Eye className="size-4" />
+              <span className="sr-only">View in Store</span>
             </Button>
             <Button variant="ghost" size="icon-sm" asChild>
               <Link href={`/dashboard/${storeSlug}/products/${product.id}`}>

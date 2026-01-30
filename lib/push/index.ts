@@ -501,7 +501,7 @@ export async function sendNewReviewNotification(
   }
   const body = bodyParts.join(" • ");
 
-  const actionUrl = `/dashboard/${tenantSlug}/products/${payload.productId}#reviews`;
+  const actionUrl = `/dashboard/${tenantSlug}/reviews?reviewId=${payload.reviewId}`;
 
   // Store in-app notifications for all eligible users (always)
   await Promise.allSettled(

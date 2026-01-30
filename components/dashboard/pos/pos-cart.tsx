@@ -123,7 +123,7 @@ export function POSCart({
         <>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="divide-y px-3">
-              {items.map((item) => (
+              {[...items].reverse().map((item) => (
                 <div key={item.id} className="flex items-center gap-3 py-3">
                   {/* Image */}
                   <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-muted">

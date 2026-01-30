@@ -48,7 +48,10 @@ export async function extractProductZip(
     // Track valid image folders
     const imageFolders = ["images/", "media/", "photos/"];
 
-    for (const [path, file] of Object.entries(zip.files)) {
+    for (const [rawPath, file] of Object.entries(zip.files)) {
+      // Normalize path separators (Windows creates ZIP with backslashes)
+      const path = rawPath.replace(/\\/g, "/");
+
       // Skip directories and macOS metadata
       if (file.dir || path.startsWith("__MACOSX/") || path.startsWith(".")) {
         continue;

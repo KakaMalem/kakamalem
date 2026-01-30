@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { COLOR_PALETTE } from "@/lib/variants/option-templates";
 
 export type SwatchType = "text" | "color" | "image";
+export type SwatchSize = "sm" | "md" | "lg";
+export type SwatchShape = "square" | "circle";
 
 export interface SwatchEditorProps {
   value: string; // The option value text (e.g., "Red", "S")
@@ -42,12 +44,17 @@ export function SwatchEditor({
   tenantId,
 }: SwatchEditorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [customColor, setCustomColor] = useState(swatchValue || "#000000");
+  // Only use swatchValue as initial color if it's a valid hex color
+  const isValidHexColor = (val?: string) =>
+    val ? /^#[0-9A-Fa-f]{6}$/.test(val) : false;
+  const [customColor, setCustomColor] = useState(
+    isValidHexColor(swatchValue) ? swatchValue! : "#000000"
+  );
   const [showMediaSelector, setShowMediaSelector] = useState(false);
 
-  // Sync customColor state when swatchValue prop changes
+  // Sync customColor state when swatchValue prop changes (only if it's a valid hex)
   useEffect(() => {
-    if (swatchValue) {
+    if (swatchValue && isValidHexColor(swatchValue)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCustomColor(swatchValue);
     }
@@ -58,10 +65,21 @@ export function SwatchEditor({
       if (newType === "text") {
         onSwatchChange("text", undefined, undefined);
       } else if (newType === "color") {
-        onSwatchChange("color", customColor, undefined);
+        // Use customColor which is guaranteed to be a valid hex
+        // Reset to default if current value isn't a valid color
+        const colorToUse = isValidHexColor(swatchValue)
+          ? swatchValue!
+          : customColor;
+        onSwatchChange("color", colorToUse, undefined);
       } else if (newType === "image") {
-        // Keep existing image if switching back
-        onSwatchChange("image", swatchValue, swatchImageUrl);
+        // Keep existing image if switching back (only if swatchValue is a media ID, not a hex)
+        const hasExistingImage =
+          swatchImageUrl && !isValidHexColor(swatchValue);
+        onSwatchChange(
+          "image",
+          hasExistingImage ? swatchValue : undefined,
+          hasExistingImage ? swatchImageUrl : undefined
+        );
       }
     },
     [customColor, onSwatchChange, swatchValue, swatchImageUrl]
@@ -88,6 +106,11 @@ export function SwatchEditor({
   const handleRemoveImage = useCallback(() => {
     onSwatchChange("image", undefined, undefined);
   }, [onSwatchChange]);
+
+  // Computed display color - only use swatchValue if it's a valid hex, otherwise use customColor
+  const displayColor = isValidHexColor(swatchValue)
+    ? swatchValue!
+    : customColor;
 
   return (
     <>
@@ -168,7 +191,7 @@ export function SwatchEditor({
               <div className="flex items-center gap-3">
                 <div
                   className="h-10 w-10 rounded-md border shadow-sm"
-                  style={{ backgroundColor: swatchValue || customColor }}
+                  style={{ backgroundColor: displayColor }}
                 />
                 <div className="flex-1">
                   <Label
@@ -181,13 +204,13 @@ export function SwatchEditor({
                     <Input
                       id="custom-color"
                       type="color"
-                      value={swatchValue || customColor}
+                      value={displayColor}
                       onChange={(e) => handleColorSelect(e.target.value)}
                       className="h-8 w-12 p-0.5 cursor-pointer"
                     />
                     <Input
                       type="text"
-                      value={swatchValue || customColor}
+                      value={displayColor}
                       onChange={(e) => handleColorSelect(e.target.value)}
                       placeholder="#000000"
                       className="h-8 font-mono text-xs flex-1"
@@ -209,14 +232,14 @@ export function SwatchEditor({
                       onClick={() => handleColorSelect(color.hex)}
                       className={cn(
                         "h-6 w-6 rounded-md border shadow-sm transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
-                        (swatchValue || customColor) === color.hex &&
+                        displayColor === color.hex &&
                           "ring-2 ring-primary ring-offset-1"
                       )}
                       style={{ backgroundColor: color.hex }}
                       title={color.name}
                       aria-label={`Select ${color.name}`}
                     >
-                      {(swatchValue || customColor) === color.hex && (
+                      {displayColor === color.hex && (
                         <Check
                           className={cn(
                             "h-4 w-4 mx-auto",
@@ -306,7 +329,8 @@ export interface SwatchPreviewProps {
   type: SwatchType;
   value?: string; // Hex color or media ID
   imageUrl?: string;
-  size?: "sm" | "md" | "lg";
+  size?: SwatchSize;
+  shape?: SwatchShape;
   className?: string;
 }
 
@@ -315,20 +339,27 @@ export function SwatchPreview({
   value,
   imageUrl,
   size = "md",
+  shape = "square",
   className,
 }: SwatchPreviewProps) {
-  const sizeClasses = {
+  const sizeClasses: Record<SwatchSize, string> = {
     sm: "h-5 w-5",
     md: "h-6 w-6",
     lg: "h-8 w-8",
+  };
+
+  const shapeClasses: Record<SwatchShape, string> = {
+    square: "rounded-md",
+    circle: "rounded-full",
   };
 
   if (type === "color" && value) {
     return (
       <div
         className={cn(
-          "rounded-md border shadow-sm",
+          "border shadow-sm",
           sizeClasses[size],
+          shapeClasses[shape],
           className
         )}
         style={{ backgroundColor: value }}
@@ -342,8 +373,9 @@ export function SwatchPreview({
     return (
       <div
         className={cn(
-          "relative rounded-md border overflow-hidden",
+          "relative border overflow-hidden",
           sizeClasses[size],
+          shapeClasses[shape],
           className
         )}
       >
@@ -356,8 +388,9 @@ export function SwatchPreview({
   return (
     <div
       className={cn(
-        "flex items-center justify-center rounded-md border bg-muted",
+        "flex items-center justify-center border bg-muted",
         sizeClasses[size],
+        shapeClasses[shape],
         className
       )}
     >

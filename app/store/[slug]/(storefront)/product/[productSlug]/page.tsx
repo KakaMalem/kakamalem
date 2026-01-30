@@ -17,10 +17,12 @@ import {
   reviewSortOptions,
   type ReviewSortOption,
 } from "@/lib/validations/reviews";
+import { parseVariantFromUrl } from "@/lib/utils/variant-url";
 
 interface ProductPageProps {
   params: Promise<{ slug: string; productSlug: string }>;
-  searchParams: Promise<{ sort?: string; rating?: string }>;
+  // Accept any string keys for dynamic option params (size, color, etc.)
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
 export async function generateMetadata({
@@ -99,18 +101,19 @@ export default async function ProductPage({
   searchParams,
 }: ProductPageProps) {
   const { slug, productSlug } = await params;
-  const { sort, rating } = await searchParams;
+  const resolvedSearchParams = await searchParams;
   // Decode URL-encoded slugs (handles Persian/Unicode characters)
   const decodedProductSlug = decodeURIComponent(productSlug);
 
   // Validate sort parameter
   const sortBy: ReviewSortOption = reviewSortOptions.includes(
-    sort as ReviewSortOption
+    resolvedSearchParams.sort as ReviewSortOption
   )
-    ? (sort as ReviewSortOption)
+    ? (resolvedSearchParams.sort as ReviewSortOption)
     : "newest";
 
   // Validate rating filter (1-5)
+  const rating = resolvedSearchParams.rating;
   const ratingFilter = rating
     ? parseInt(rating, 10) >= 1 && parseInt(rating, 10) <= 5
       ? parseInt(rating, 10)
@@ -155,6 +158,11 @@ export default async function ProductPage({
   const isCartDisabled =
     store.storeMode === "catalog" || store.storeMode === "offline_only";
 
+  // Parse variant options from URL (e.g., ?size=large&color=black)
+  // This enables human-readable, SEO-friendly variant URLs
+  const { variantId: initialVariantId, options: initialOptions } =
+    parseVariantFromUrl(resolvedSearchParams, product);
+
   return (
     <>
       {/* Schema.org Product structured data for SEO */}
@@ -185,6 +193,8 @@ export default async function ProductPage({
               storeMode={store.storeMode}
               contactPhone={store.contactPhone}
               imageSwatchUrls={imageSwatchUrls}
+              initialVariantId={initialVariantId}
+              initialOptions={initialOptions}
             />
           </div>
 

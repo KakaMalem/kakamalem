@@ -36,7 +36,12 @@ export function CartItem({ item, currency }: CartItemProps) {
 
   // Disable the mutation-level debounce since we handle debouncing locally
   // This gives us precise control over optimistic updates
-  const { updateQuantity, removeItem } = useCart({ debounce: false });
+  const { updateQuantity, removeItem, isRemovingItem } = useCart({
+    debounce: false,
+  });
+
+  // Track if this specific item is being removed to prevent duplicate calls
+  const isRemoving = isRemovingItem(item.id);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -204,6 +209,8 @@ export function CartItem({ item, currency }: CartItemProps) {
   };
 
   const handleRemove = () => {
+    // Prevent duplicate remove calls when clicking rapidly
+    if (isRemoving) return;
     removeItem(item.id);
   };
 
@@ -212,15 +219,19 @@ export function CartItem({ item, currency }: CartItemProps) {
 
   return (
     <div className="flex gap-4 rounded-lg border p-4">
-      {/* Product Image */}
+      {/* Product Image - prioritize variant image over product image */}
       <Link
         href={`/store/${storeSlug}/product/${item.product.slug}`}
         className="relative aspect-square h-24 w-24 shrink-0 overflow-hidden rounded-md bg-muted"
       >
-        {item.product.image ? (
+        {item.variant?.image || item.product.image ? (
           <Image
-            src={item.product.image.url}
-            alt={item.product.image.altText || item.product.name}
+            src={item.variant?.image?.url || item.product.image?.url || ""}
+            alt={
+              item.variant?.image?.altText ||
+              item.product.image?.altText ||
+              item.product.name
+            }
             fill
             className="object-cover"
             sizes="96px"
@@ -273,6 +284,7 @@ export function CartItem({ item, currency }: CartItemProps) {
             size="icon"
             className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive active:scale-90 transition-transform"
             onClick={handleRemove}
+            disabled={isRemoving}
             aria-label="Remove item"
           >
             <Trash2 className="h-4 w-4" />

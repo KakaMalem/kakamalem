@@ -933,13 +933,11 @@ export async function updateStoreModeSettings(
   // Apply store mode presets with channel overrides
   let onlineCheckoutEnabled = settings.onlineCheckoutEnabled;
   let posEnabled = settings.posEnabled;
-  let phoneOrdersEnabled = settings.phoneOrdersEnabled;
 
   // Store mode determines the defaults, but toggles can override
   switch (settings.storeMode) {
     case "online_only":
       posEnabled = false;
-      phoneOrdersEnabled = false;
       break;
     case "offline_only":
       onlineCheckoutEnabled = false;
@@ -947,7 +945,6 @@ export async function updateStoreModeSettings(
     case "catalog":
       onlineCheckoutEnabled = false;
       posEnabled = false;
-      phoneOrdersEnabled = false;
       break;
     // "full" mode respects all toggles
   }
@@ -957,7 +954,6 @@ export async function updateStoreModeSettings(
       storeMode: settings.storeMode,
       onlineCheckoutEnabled,
       posEnabled,
-      phoneOrdersEnabled,
       // POS settings
       posScannerMode: settings.posScannerMode,
       // Receipt settings

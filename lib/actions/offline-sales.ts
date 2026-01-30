@@ -793,6 +793,7 @@ export async function searchProductsForSale(
       barcode: string | null;
       price: string | null;
       stock: number;
+      image: string | null;
     }>;
     image: string | null;
   }>;
@@ -863,6 +864,11 @@ export async function searchProductsForSale(
             barcode: true,
             price: true,
             stock: true,
+          },
+          with: {
+            image: {
+              columns: { url: true },
+            },
           },
         },
         images: {
@@ -943,6 +949,11 @@ export async function searchProductsForSale(
                 price: true,
                 stock: true,
               },
+              with: {
+                image: {
+                  columns: { url: true },
+                },
+              },
             },
             images: {
               limit: 1,
@@ -978,6 +989,7 @@ export async function searchProductsForSale(
           barcode: v.barcode,
           price: v.price,
           stock: v.stock,
+          image: v.image?.url || null,
         })),
         image: p.images[0]?.media?.url || null,
       })),

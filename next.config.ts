@@ -19,6 +19,13 @@ const nextConfig: NextConfig = {
   // Serwist is disabled in dev anyway, so Turbopack can be used for fast dev builds
   turbopack: {},
 
+  // Increase server actions body size limit for ZIP file uploads (default is 1MB)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
+  },
+
   images: {
     remotePatterns: isDevelopment
       ? [

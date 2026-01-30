@@ -35,6 +35,7 @@ export interface OfflineVariant {
   price: string | null; // Null means use product price
   stock: number;
   isActive: boolean;
+  imageUrl: string | null; // Variant-specific image (falls back to product image if null)
 }
 
 /** Category cached for offline POS use */

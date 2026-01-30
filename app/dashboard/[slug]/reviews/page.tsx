@@ -21,6 +21,7 @@ interface ReviewsPageProps {
     dateTo?: string;
     sort?: string;
     order?: string;
+    reviewId?: string;
   }>;
 }
 

@@ -1,9 +1,11 @@
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { z } from "zod";
-import { slugifyAscii } from "@/lib/utils/slug";
+import { slugify } from "@/lib/utils/slug";
 
-// Slug validation pattern: lowercase letters, numbers, and hyphens only
-const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Slug validation pattern: Unicode lowercase letters, numbers, and hyphens
+// \p{Ll} = lowercase letters (any script including Persian/Arabic)
+// \p{N} = numbers (any script)
+const slugRegex = /^[\p{Ll}\p{N}]+(?:-[\p{Ll}\p{N}]+)*$/u;
 
 // URL validation regex (allows @ for TikTok/YouTube style URLs)
 const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .@-]*)*\/?$/i;
@@ -56,7 +58,7 @@ export const createStoreSchema = z.object({
     .max(63, "Store URL must be less than 63 characters")
     .regex(
       slugRegex,
-      "Store URL can only contain lowercase letters, numbers, and hyphens"
+      "Store URL can only contain lowercase letters (including Persian), numbers, and hyphens"
     ),
   tagline: z
     .string()
@@ -312,7 +314,6 @@ export const storeModeSettingsSchema = z.object({
   storeMode: z.enum(storeModeOptions),
   onlineCheckoutEnabled: z.boolean(),
   posEnabled: z.boolean(),
-  phoneOrdersEnabled: z.boolean(),
   // POS settings
   posScannerMode: z.enum(posScannerModeOptions),
   // Receipt settings
@@ -326,10 +327,9 @@ export const storeModeSettingsSchema = z.object({
 export type StoreModeSettingsInput = z.infer<typeof storeModeSettingsSchema>;
 
 /**
- * Generate ASCII-only slug from store name
- * Store slugs must be ASCII for clean URLs (kakamalem.com/store/[slug])
- * Returns empty string if name has no ASCII characters - user must provide custom slug
+ * Generate slug from store name (supports Unicode including Persian)
+ * Modern browsers display Unicode URLs nicely in the address bar
  */
 export function generateSlug(name: string): string {
-  return slugifyAscii(name);
+  return slugify(name);
 }

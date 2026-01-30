@@ -77,6 +77,9 @@ export function BulkUploadDialog({
         const arrayBuffer = await file.arrayBuffer();
         const isZip = file.name.toLowerCase().endsWith(".zip");
 
+        // Convert to Uint8Array for reliable serialization to server action
+        const uint8Array = new Uint8Array(arrayBuffer);
+
         // Store original file for import (needed for ZIP with images)
         setOriginalFile(arrayBuffer);
         setIsZipFile(isZip);
@@ -84,7 +87,7 @@ export function BulkUploadDialog({
         // Parse file on server (server handles ZIP extraction internally)
         const result = await parseFileForPreview(
           tenantId,
-          arrayBuffer,
+          uint8Array,
           file.name
         );
 
@@ -128,12 +131,12 @@ export function BulkUploadDialog({
     );
 
     try {
-      // Pass original ZIP file if it contains images
-      const result = await importProducts(
-        tenantId,
-        validatedRows,
-        isZipFile && imageCount > 0 ? (originalFile ?? undefined) : undefined
-      );
+      // Pass original ZIP file if it contains images (as Uint8Array for serialization)
+      const zipData =
+        isZipFile && imageCount > 0 && originalFile
+          ? new Uint8Array(originalFile)
+          : undefined;
+      const result = await importProducts(tenantId, validatedRows, zipData);
       clearInterval(progressInterval);
       setImportProgress(100);
       setImportResult(result);
@@ -279,7 +282,7 @@ export function BulkUploadDialog({
                   download
                 >
                   <Download className="mr-2 size-4" />
-                  CSV Template
+                  CSV
                 </a>
               </Button>
               <Button variant="outline" className="flex-1" asChild>
@@ -288,7 +291,16 @@ export function BulkUploadDialog({
                   download
                 >
                   <FileSpreadsheet className="mr-2 size-4" />
-                  Excel Template
+                  Excel
+                </a>
+              </Button>
+              <Button variant="outline" className="flex-1" asChild>
+                <a
+                  href={`/api/dashboard/${storeSlug}/products/bulk-upload/template?format=zip`}
+                  download
+                >
+                  <Archive className="mr-2 size-4" />
+                  ZIP + Images
                 </a>
               </Button>
             </div>

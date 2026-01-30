@@ -22,9 +22,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, formatPrice } from "@/lib/utils";
-import { searchProductsForSale } from "@/lib/actions/offline-sales";
 import { BarcodeScanner } from "./barcode-scanner";
 import { useBarcodeScanner } from "@/lib/hooks/use-barcode-scanner";
+import { useOfflinePOSProducts } from "@/lib/hooks/use-offline-pos-products";
 import {
   usePOSProductsStore,
   type POSProduct,
@@ -71,6 +71,10 @@ export function POSProductGrid({
     setSearchQuery,
   } = usePOSProductsStore();
 
+  // Offline-aware product loading
+  const { loadProducts: loadProductsFromSource, searchByBarcode } =
+    useOfflinePOSProducts({ tenantId });
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [variantDialogProduct, setVariantDialogProduct] =
     useState<SearchProduct | null>(null);
@@ -97,21 +101,17 @@ export function POSProductGrid({
   const loadProducts = useCallback(
     async (query: string, categoryId: string | null) => {
       setIsLoading(true);
-      // Pass search query and category filter to the search function
-      const result = await searchProductsForSale(
-        tenantId,
-        query || "",
-        categoryId
-      );
+      // Use offline-aware loading (server when online, IndexedDB when offline)
+      const result = await loadProductsFromSource(query || "", categoryId);
 
-      if (result.success && result.products) {
+      if (result.success) {
         setProducts(result.products);
       } else {
         setProducts([]);
       }
       setIsLoading(false);
     },
-    [tenantId, setIsLoading, setProducts]
+    [loadProductsFromSource, setIsLoading, setProducts]
   );
 
   // Load products on mount
@@ -187,9 +187,10 @@ export function POSProductGrid({
       setSearchQuery(barcode);
       setIsLoading(true);
 
-      const result = await searchProductsForSale(tenantId, barcode, null);
+      // Use offline-aware barcode search
+      const result = await searchByBarcode(barcode);
 
-      if (result.success && result.products && result.products.length > 0) {
+      if (result.success && result.products.length > 0) {
         const product = result.products[0];
 
         // If exact barcode match on a variant, add that variant
@@ -234,7 +235,13 @@ export function POSProductGrid({
 
       setIsLoading(false);
     },
-    [tenantId, onProductSelect, setSearchQuery, setIsLoading, setProducts]
+    [
+      searchByBarcode,
+      onProductSelect,
+      setSearchQuery,
+      setIsLoading,
+      setProducts,
+    ]
   );
 
   return (
@@ -485,12 +492,15 @@ export function POSProductGrid({
               {variantDialogProduct?.variants.map((variant) => {
                 const isOutOfStock =
                   variantDialogProduct.trackInventory && variant.stock <= 0;
+                // Prioritize variant image, fallback to product image
+                const displayImage =
+                  variant.image || variantDialogProduct.image;
                 return (
                   <button
                     key={variant.id}
                     type="button"
                     className={cn(
-                      "flex items-center justify-between rounded-lg border p-4 text-left transition-colors",
+                      "flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
                       isOutOfStock
                         ? "cursor-not-allowed opacity-50"
                         : "hover:border-primary hover:bg-muted active:bg-muted/80"
@@ -498,7 +508,23 @@ export function POSProductGrid({
                     onClick={() => handleVariantSelect(variant)}
                     disabled={isOutOfStock}
                   >
-                    <div>
+                    {/* Variant/Product image */}
+                    <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+                      {displayImage ? (
+                        <Image
+                          src={displayImage}
+                          alt={variant.displayName}
+                          width={56}
+                          height={56}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center">
+                          <Package className="size-6 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-medium">{variant.displayName}</p>
                       {variant.sku && (
                         <p className="text-xs text-muted-foreground">
@@ -506,7 +532,7 @@ export function POSProductGrid({
                         </p>
                       )}
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <p className="font-bold">
                         {formatPrice(
                           parseFloat(

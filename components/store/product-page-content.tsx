@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { ProductImageGallery } from "@/components/store/product-image-gallery";
 import { ProductInfo } from "@/components/store/product-info";
+import { buildVariantUrlParams } from "@/lib/utils/variant-url";
 
 import type { ProductWithDetails } from "@/lib/db/queries/products";
 import type { PriceTier } from "@/lib/db/schema";
@@ -36,6 +38,74 @@ interface ProductPageContentProps {
   contactPhone?: string | null;
   /** Map of media ID to URL for image swatches */
   imageSwatchUrls?: Map<string, string>;
+  /** Initial variant ID from URL param (for shareable links) */
+  initialVariantId?: string;
+  /** Initial options from URL params (e.g., {Size: "Large", Color: "Black"}) */
+  initialOptions?: Record<string, string>;
+}
+
+/**
+ * Compute the default variant and options for a product.
+ * This is extracted so both parent and child can use the same logic,
+ * ensuring server-render matches client-render (no jitter).
+ *
+ * @param product - The product with variants
+ * @param initialVariantId - Optional variant ID from URL (for shareable links)
+ * @param initialOptions - Optional options from URL (e.g., {Size: "Large"})
+ */
+function computeDefaultVariantState(
+  product: ProductWithDetails,
+  initialVariantId?: string,
+  initialOptions?: Record<string, string>
+): {
+  variantId: string | null;
+  options: Record<string, string>;
+} {
+  if (!product.hasVariants || !product.variants?.length) {
+    return { variantId: null, options: {} };
+  }
+
+  // If initialVariantId is provided and valid, use that variant
+  let variantToUse = initialVariantId
+    ? product.variants.find((v) => v.id === initialVariantId)
+    : undefined;
+
+  // If no initial variant or not found, find first available variant
+  if (!variantToUse) {
+    const firstAvailableVariant = product.variants.find((variant) => {
+      if (!variant.isActive) return false;
+      // Available if: not tracking inventory, allows backorder, or has stock
+      return (
+        !product.trackInventory || product.allowBackorder || variant.stock > 0
+      );
+    });
+
+    // Fall back to first variant if none are available
+    variantToUse = firstAvailableVariant || product.variants[0];
+  }
+
+  if (!variantToUse?.options) {
+    return { variantId: variantToUse?.id || null, options: {} };
+  }
+
+  const options: Record<string, string> = {};
+  for (const opt of variantToUse.options) {
+    if (opt.optionValue?.option?.name && opt.optionValue?.value) {
+      options[opt.optionValue.option.name] = opt.optionValue.value;
+    }
+  }
+
+  // If initialOptions were provided, merge them (they take precedence)
+  // This handles partial URL params where only some options are specified
+  if (initialOptions && Object.keys(initialOptions).length > 0) {
+    for (const [key, value] of Object.entries(initialOptions)) {
+      if (value) {
+        options[key] = value;
+      }
+    }
+  }
+
+  return { variantId: variantToUse.id, options };
 }
 
 export function ProductPageContent({
@@ -50,19 +120,65 @@ export function ProductPageContent({
   storeMode = "full",
   contactPhone,
   imageSwatchUrls,
+  initialVariantId,
+  initialOptions,
 }: ProductPageContentProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Track if this is the initial render to avoid URL update on mount
+  const isInitialRender = useRef(true);
+
+  // Compute default state once during initialization (same on server & client)
+  // Uses URL options if provided, otherwise selects first available variant
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    null
+    () =>
+      computeDefaultVariantState(product, initialVariantId, initialOptions)
+        .variantId
   );
   const [selectedOptions, setSelectedOptions] = useState<
     Record<string, string>
-  >({});
+  >(
+    () =>
+      computeDefaultVariantState(product, initialVariantId, initialOptions)
+        .options
+  );
+
+  // Sync URL when options change (after initial render)
+  // Uses human-readable format: ?size=large&color=black
+  useEffect(() => {
+    // Skip on initial render - URL already has the correct state
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+
+    // Build new URL with slugified option params
+    const params = buildVariantUrlParams(selectedOptions, searchParams);
+
+    // Use replace to avoid adding to history on every variant change
+    const queryString = params.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+    router.replace(newUrl, { scroll: false });
+  }, [selectedOptions, pathname, searchParams, router]);
 
   // Handle variant and options change from ProductInfo
+  // Only update state if values actually changed (avoids unnecessary re-renders)
   const handleVariantChange = useCallback(
     (variantId: string | null, options: Record<string, string>) => {
-      setSelectedVariantId(variantId);
-      setSelectedOptions(options);
+      setSelectedVariantId((prev) => (prev === variantId ? prev : variantId));
+      setSelectedOptions((prev) => {
+        // Quick shallow compare for options object
+        const keys = Object.keys(options);
+        const prevKeys = Object.keys(prev);
+        if (keys.length !== prevKeys.length) return options;
+        for (const key of keys) {
+          if (prev[key] !== options[key]) return options;
+        }
+        return prev; // Same content, keep reference to avoid re-render
+      });
     },
     []
   );
@@ -178,6 +294,8 @@ export function ProductPageContent({
           storeMode={storeMode}
           contactPhone={contactPhone}
           imageSwatchUrls={imageSwatchUrls}
+          initialVariantId={initialVariantId}
+          initialOptions={initialOptions}
         />
       </div>
     </>

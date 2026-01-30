@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Star,
@@ -77,6 +77,39 @@ export function ReviewsPageClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [searchValue, setSearchValue] = useState(searchParams.search || "");
+
+  // Highlighted review (from notification click)
+  const [highlightedReviewId, setHighlightedReviewId] = useState<string | null>(
+    searchParams.reviewId || null
+  );
+  const reviewRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Scroll to and highlight the review from notification
+  useEffect(() => {
+    if (highlightedReviewId) {
+      const reviewElement = reviewRefs.current.get(highlightedReviewId);
+      if (reviewElement) {
+        // Scroll to the review with some offset for header
+        setTimeout(() => {
+          reviewElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+
+        // Clear highlight and URL param after animation
+        const timer = setTimeout(() => {
+          setHighlightedReviewId(null);
+          // Remove reviewId from URL without navigation
+          const params = new URLSearchParams(window.location.search);
+          params.delete("reviewId");
+          const newUrl = params.toString()
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+          window.history.replaceState({}, "", newUrl);
+        }, 3000);
+
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [highlightedReviewId]);
 
   // Reply dialog state
   const [replyDialogOpen, setReplyDialogOpen] = useState(false);
@@ -323,7 +356,21 @@ export function ReviewsPageClient({
       ) : (
         <div className="space-y-4">
           {reviews.map((review) => (
-            <Card key={review.id}>
+            <Card
+              key={review.id}
+              ref={(el) => {
+                if (el) {
+                  reviewRefs.current.set(review.id, el);
+                } else {
+                  reviewRefs.current.delete(review.id);
+                }
+              }}
+              className={cn(
+                "transition-all duration-500",
+                highlightedReviewId === review.id &&
+                  "ring-2 ring-primary ring-offset-2 bg-primary/5"
+              )}
+            >
               <CardContent className="p-4">
                 {/* Review header */}
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">

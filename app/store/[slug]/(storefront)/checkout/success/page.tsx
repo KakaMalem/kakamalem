@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
-import { getOrderById } from "@/lib/db/queries/orders";
+import { getOrderById, getOrderItemsWithImages } from "@/lib/db/queries/orders";
 import { getUser } from "@/lib/auth/server";
 import { OrderSuccessContent } from "@/components/store/checkout/order-success-content";
 import type { Address } from "@/lib/db/schema";
@@ -62,18 +62,28 @@ export default async function CheckoutSuccessPage({
     redirect(`/store/${slug}`);
   }
 
+  // Fetch order items with images (prioritizes variant images)
+  const itemsWithImages = order ? await getOrderItemsWithImages(orderId) : [];
+  const itemImageMap = new Map(
+    itemsWithImages.map((item) => [item.id, item.productImage])
+  );
+
   // Transform order data for client component
   const orderData = order
     ? {
         id: order.id,
         orderNumber: order.orderNumber,
         createdAt: order.createdAt,
-        items: order.items.map((item) => ({
-          id: item.id,
-          productName: item.productName,
-          variantName: item.variantName,
-          quantity: item.quantity,
-        })),
+        items: order.items.map((item) => {
+          const image = itemImageMap.get(item.id);
+          return {
+            id: item.id,
+            productName: item.productName,
+            variantName: item.variantName,
+            quantity: item.quantity,
+            image: image ? { url: image.url, alt: image.alt } : null,
+          };
+        }),
         total: order.total,
         shippingAddress: order.shippingAddress as Address | undefined,
       }

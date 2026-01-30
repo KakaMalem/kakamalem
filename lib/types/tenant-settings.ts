@@ -32,7 +32,6 @@ export type TenantSettings = {
   storeMode: StoreMode;
   onlineCheckoutEnabled: boolean;
   posEnabled: boolean;
-  phoneOrdersEnabled: boolean;
 
   // POS Settings
   posScannerMode: PosScannerMode;

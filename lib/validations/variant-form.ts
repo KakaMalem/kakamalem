@@ -5,6 +5,8 @@ import { z } from "zod";
 // ============================================================================
 
 export const swatchTypeSchema = z.enum(["text", "color", "image"]);
+export const swatchSizeSchema = z.enum(["sm", "md", "lg"]);
+export const swatchShapeSchema = z.enum(["square", "circle"]);
 
 // ============================================================================
 // INLINE OPTION TYPES
@@ -57,6 +59,10 @@ export const inlineOptionSchema = z.object({
     .min(1, "At least one value is required"),
   /** True if this option is being created inline (not from global options) */
   isNew: z.boolean().default(false),
+  /** Swatch display size for this option's values */
+  swatchSize: swatchSizeSchema.default("md"),
+  /** Swatch display shape for this option's values */
+  swatchShape: swatchShapeSchema.default("square"),
 });
 
 export type InlineOption = z.infer<typeof inlineOptionSchema>;
@@ -354,6 +360,8 @@ export function transformDbOptionsToInlineOptions(
     id: string;
     name: string;
     displayOrder: number;
+    swatchSize?: "sm" | "md" | "lg";
+    swatchShape?: "square" | "circle";
     values: {
       id: string;
       value: string;
@@ -376,6 +384,8 @@ export function transformDbOptionsToInlineOptions(
       swatchImageUrl: val.swatchImageUrl ?? undefined,
     })),
     isNew: false,
+    swatchSize: opt.swatchSize || "md",
+    swatchShape: opt.swatchShape || "square",
   }));
 }
 

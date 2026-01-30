@@ -16,6 +16,7 @@ export type POSProduct = {
     barcode: string | null;
     price: string | null;
     stock: number;
+    image: string | null;
   }>;
   image: string | null;
 };

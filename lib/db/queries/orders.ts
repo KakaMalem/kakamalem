@@ -11,6 +11,7 @@ import {
   sql,
   count as drizzleCount,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   orders,
@@ -18,6 +19,7 @@ import {
   orderPayments,
   orderTransactions,
   products,
+  productVariants,
   media,
   productImages,
   shipments,
@@ -112,24 +114,31 @@ export const getOrderById = cache(
 );
 
 /**
- * Get order items with product images for display
+ * Get order items with product/variant images for display
+ * Prioritizes variant image over product image
  */
 export const getOrderItemsWithImages = cache(async (orderId: string) => {
+  const variantMedia = alias(media, "variant_media");
+
   const items = await db
     .select({
       id: orderItems.id,
       productId: orderItems.productId,
+      variantId: orderItems.variantId,
       productName: orderItems.productName,
       variantName: orderItems.variantName,
       sku: orderItems.sku,
       price: orderItems.price,
       quantity: orderItems.quantity,
       productSlug: products.slug,
-      productImage: {
-        id: media.id,
-        url: media.url,
-        alt: media.altText,
-      },
+      // Product image (fallback)
+      productImageId: media.id,
+      productImageUrl: media.url,
+      productImageAlt: media.altText,
+      // Variant image (priority)
+      variantImageId: variantMedia.id,
+      variantImageUrl: variantMedia.url,
+      variantImageAlt: variantMedia.altText,
     })
     .from(orderItems)
     .innerJoin(products, eq(orderItems.productId, products.id))
@@ -141,9 +150,37 @@ export const getOrderItemsWithImages = cache(async (orderId: string) => {
       )
     )
     .leftJoin(media, eq(productImages.mediaId, media.id))
+    // Join for variant image
+    .leftJoin(productVariants, eq(orderItems.variantId, productVariants.id))
+    .leftJoin(variantMedia, eq(productVariants.imageId, variantMedia.id))
     .where(eq(orderItems.orderId, orderId));
 
-  return items;
+  // Transform to prioritize variant image over product image
+  return items.map((item) => {
+    const imageUrl = item.variantImageUrl || item.productImageUrl;
+    const imageId = item.variantImageId || item.productImageId;
+    const imageAlt = item.variantImageUrl
+      ? item.variantImageAlt
+      : item.productImageAlt;
+
+    return {
+      id: item.id,
+      productId: item.productId,
+      productName: item.productName,
+      variantName: item.variantName,
+      sku: item.sku,
+      price: item.price,
+      quantity: item.quantity,
+      productSlug: item.productSlug,
+      productImage: imageUrl
+        ? {
+            id: imageId,
+            url: imageUrl,
+            alt: imageAlt,
+          }
+        : null,
+    };
+  });
 });
 
 /**
@@ -473,31 +510,50 @@ export const getDashboardOrderById = cache(
     // Get order items with images, payments, refund transactions, and shipments in parallel
     const [items, payments, refundTransactions, shipmentsData] =
       await Promise.all([
-        // Get order items with images
-        // Use leftJoin for products in case a product was deleted after the order
-        db
-          .select({
-            id: orderItems.id,
-            productId: orderItems.productId,
-            productName: orderItems.productName,
-            variantName: orderItems.variantName,
-            sku: orderItems.sku,
-            price: orderItems.price,
-            quantity: orderItems.quantity,
-            imageUrl: media.url,
-            imageAlt: media.altText,
-          })
-          .from(orderItems)
-          .leftJoin(products, eq(orderItems.productId, products.id))
-          .leftJoin(
-            productImages,
-            and(
-              eq(productImages.productId, orderItems.productId),
-              eq(productImages.position, 0)
-            )
-          )
-          .leftJoin(media, eq(productImages.mediaId, media.id))
-          .where(eq(orderItems.orderId, orderId)),
+        // Get order items with images (prioritize variant image over product image)
+        // Use leftJoin for products/variants in case they were deleted after the order
+        (async () => {
+          const variantMedia = alias(media, "variant_media");
+          return (
+            db
+              .select({
+                id: orderItems.id,
+                productId: orderItems.productId,
+                variantId: orderItems.variantId,
+                productName: orderItems.productName,
+                variantName: orderItems.variantName,
+                sku: orderItems.sku,
+                price: orderItems.price,
+                quantity: orderItems.quantity,
+                // Product image (fallback)
+                productImageUrl: media.url,
+                productImageAlt: media.altText,
+                // Variant image (priority)
+                variantImageUrl: variantMedia.url,
+                variantImageAlt: variantMedia.altText,
+              })
+              .from(orderItems)
+              .leftJoin(products, eq(orderItems.productId, products.id))
+              .leftJoin(
+                productImages,
+                and(
+                  eq(productImages.productId, orderItems.productId),
+                  eq(productImages.position, 0)
+                )
+              )
+              .leftJoin(media, eq(productImages.mediaId, media.id))
+              // Join for variant image
+              .leftJoin(
+                productVariants,
+                eq(orderItems.variantId, productVariants.id)
+              )
+              .leftJoin(
+                variantMedia,
+                eq(productVariants.imageId, variantMedia.id)
+              )
+              .where(eq(orderItems.orderId, orderId))
+          );
+        })(),
         // Get order payments
         db
           .select({
@@ -552,21 +608,29 @@ export const getDashboardOrderById = cache(
         }),
       ]);
 
-    const itemsWithImages: OrderItemWithImage[] = items.map((item) => ({
-      id: item.id,
-      productId: item.productId,
-      productName: item.productName,
-      variantName: item.variantName,
-      sku: item.sku,
-      price: item.price,
-      quantity: item.quantity,
-      image: item.imageUrl
-        ? {
-            url: item.imageUrl,
-            alt: item.imageAlt,
-          }
-        : null,
-    }));
+    const itemsWithImages: OrderItemWithImage[] = items.map((item) => {
+      // Prioritize variant image over product image
+      const imageUrl = item.variantImageUrl || item.productImageUrl;
+      const imageAlt = item.variantImageUrl
+        ? item.variantImageAlt
+        : item.productImageAlt;
+
+      return {
+        id: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        variantName: item.variantName,
+        sku: item.sku,
+        price: item.price,
+        quantity: item.quantity,
+        image: imageUrl
+          ? {
+              url: imageUrl,
+              alt: imageAlt,
+            }
+          : null,
+      };
+    });
 
     // Calculate payment totals using the payment-status utility for consistency
     // Priority: 1) Sum of payment records, 2) amountPaid field, 3) if isPaid and no payments, assume full total

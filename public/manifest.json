@@ -5,7 +5,11 @@
   "display": "standalone",
   "orientation": "any",
   "start_url": "/dashboard",
-  "scope": "/",
+  "scope": "/dashboard",
+  "capture_links": "none",
+  "launch_handler": {
+    "client_mode": "navigate-new"
+  },
   "theme_color": "#000000",
   "background_color": "#ffffff",
   "categories": ["business", "shopping"],

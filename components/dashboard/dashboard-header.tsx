@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -49,12 +47,20 @@ export function DashboardHeader({ children }: DashboardHeaderProps) {
       {showVisitWebsiteLink && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" asChild>
-              <Link href={`/store/${storeSlug}`} target="_blank">
-                <ExternalLink className="h-5 w-5" />
-                <span className="sr-only">View Store</span>
-              </Link>
-            </Button>
+            <button
+              type="button"
+              onClick={() => {
+                // Open in external browser - empty features string is the recommended
+                // workaround for PWAs to open links outside the app context
+                // See: https://github.com/pwa-builder/PWABuilder-CLI/issues/261
+                const url = `${window.location.origin}/store/${storeSlug}`;
+                window.open(url, "_blank", "");
+              }}
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-9 w-9"
+            >
+              <ExternalLink className="h-5 w-5" />
+              <span className="sr-only">View Store</span>
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View Store</p>

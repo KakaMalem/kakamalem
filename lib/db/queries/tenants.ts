@@ -110,12 +110,10 @@ export async function createTenant(data: {
   // Determine channel settings based on store mode
   let onlineCheckoutEnabled = true;
   let posEnabled = true;
-  let phoneOrdersEnabled = true;
 
   switch (data.storeMode) {
     case "online_only":
       posEnabled = false;
-      phoneOrdersEnabled = false;
       break;
     case "offline_only":
       onlineCheckoutEnabled = false;
@@ -123,7 +121,6 @@ export async function createTenant(data: {
     case "catalog":
       onlineCheckoutEnabled = false;
       posEnabled = false;
-      phoneOrdersEnabled = false;
       break;
     // "full" mode keeps all channels enabled
   }
@@ -143,7 +140,6 @@ export async function createTenant(data: {
       storeMode: data.storeMode || "full",
       onlineCheckoutEnabled,
       posEnabled,
-      phoneOrdersEnabled,
       status: "active", // New stores are active by default
     })
     .returning();

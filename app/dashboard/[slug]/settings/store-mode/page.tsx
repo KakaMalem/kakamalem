@@ -41,9 +41,6 @@ export default async function StoreModePage({ params }: StoreModePageProps) {
         storeId={store.id}
         storeSlug={slug}
         currentMode={store.storeMode}
-        onlineCheckoutEnabled={store.onlineCheckoutEnabled}
-        posEnabled={store.posEnabled}
-        phoneOrdersEnabled={store.phoneOrdersEnabled}
         posScannerMode={store.posScannerMode}
         receiptPaperWidth={store.receiptPaperWidth}
         receiptShowLogo={store.receiptShowLogo}

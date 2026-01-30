@@ -13,6 +13,8 @@ import {
   variantOptionValues,
   productVariants,
   productVariantOptions,
+  productVariantImages,
+  optionValueImages,
 } from "@/lib/db/schema";
 import { uploadFile, type StorageOptions } from "@/lib/storage";
 import { eq, and } from "drizzle-orm";
@@ -45,7 +47,7 @@ const MAX_ZIP_FILE_SIZE = 50 * 1024 * 1024; // 50MB for ZIP with images
  */
 export async function parseFileForPreview(
   tenantId: string,
-  fileContent: ArrayBuffer,
+  fileContent: Uint8Array | ArrayBuffer,
   fileName: string
 ): Promise<ParsePreviewResult> {
   try {
@@ -67,13 +69,22 @@ export async function parseFileForPreview(
       };
     }
 
+    // Convert Uint8Array to ArrayBuffer if needed
+    const contentBuffer =
+      fileContent instanceof Uint8Array
+        ? (fileContent.buffer.slice(
+            fileContent.byteOffset,
+            fileContent.byteOffset + fileContent.byteLength
+          ) as ArrayBuffer)
+        : fileContent;
+
     // Handle ZIP files - extract CSV and images
     let csvContent: ArrayBuffer;
     let zipImages: Map<string, ArrayBuffer> | undefined;
     let imageCount = 0;
 
     if (isZipFile) {
-      const extracted = await extractProductZip(fileContent);
+      const extracted = await extractProductZip(contentBuffer);
 
       if (extracted.errors.length > 0 && !extracted.csvFile) {
         return { success: false, error: extracted.errors.join(", ") };
@@ -91,7 +102,7 @@ export async function parseFileForPreview(
       zipImages = extracted.images;
       imageCount = extracted.images.size;
     } else {
-      csvContent = fileContent;
+      csvContent = contentBuffer;
     }
 
     // Parse file using xlsx (works for both CSV and Excel)
@@ -408,7 +419,7 @@ async function uploadImageFromBuffer(
 export async function importProducts(
   tenantId: string,
   rows: ValidatedRow[],
-  zipFileData?: ArrayBuffer // Optional: raw ZIP file data for image extraction
+  zipFileData?: Uint8Array | ArrayBuffer // Optional: raw ZIP file data for image extraction
 ): Promise<BulkUploadResult> {
   const validRows = rows.filter((r) => r.isValid);
 
@@ -526,8 +537,17 @@ export async function importProducts(
     const uploadedImages = new Map<string, string>(); // filename (lowercase) -> mediaId
 
     if (zipFileData) {
+      // Convert Uint8Array to ArrayBuffer if needed
+      const zipBuffer =
+        zipFileData instanceof Uint8Array
+          ? (zipFileData.buffer.slice(
+              zipFileData.byteOffset,
+              zipFileData.byteOffset + zipFileData.byteLength
+            ) as ArrayBuffer)
+          : zipFileData;
+
       // Extract images from ZIP file
-      const extracted = await extractProductZip(zipFileData);
+      const extracted = await extractProductZip(zipBuffer);
       const zipImages = extracted.images;
 
       if (zipImages.size > 0) {
@@ -796,6 +816,7 @@ export async function importProducts(
                     tenantId,
                     productId: parentId,
                     displayName: row.data.name,
+                    description: row.data.description || null,
                     sku: row.data.sku || null,
                     barcode: row.data.barcode || null,
                     price: row.data.price || null,
@@ -809,6 +830,64 @@ export async function importProducts(
                     displayOrder: variantDisplayOrder,
                   })
                   .returning({ id: productVariants.id });
+
+                // Link variant images to junction table (frontend uses variant.images)
+                // Also create optionValueImages for gallery filtering (maps option values to images)
+                if (row.imageFilenames.length > 0 && uploadedImages.size > 0) {
+                  const variantImageRecords = row.imageFilenames
+                    .map((filename, index) => {
+                      const mediaId = uploadedImages.get(
+                        filename.toLowerCase()
+                      );
+                      return mediaId
+                        ? {
+                            tenantId,
+                            variantId: newVariant.id,
+                            mediaId,
+                            position: index,
+                          }
+                        : null;
+                    })
+                    .filter(
+                      (rec): rec is NonNullable<typeof rec> => rec !== null
+                    );
+
+                  if (variantImageRecords.length > 0) {
+                    await tx
+                      .insert(productVariantImages)
+                      .values(variantImageRecords);
+
+                    // Also create optionValueImages for each option value + image combination
+                    // This enables the "Variant Image Mapping" feature in dashboard
+                    if (resolvedOptionValueIds.length > 0) {
+                      const optionValueImageRecords: {
+                        tenantId: string;
+                        productId: string;
+                        optionValueId: string;
+                        mediaId: string;
+                        position: number;
+                      }[] = [];
+
+                      for (const optionValueId of resolvedOptionValueIds) {
+                        for (const record of variantImageRecords) {
+                          optionValueImageRecords.push({
+                            tenantId,
+                            productId: parentId,
+                            optionValueId,
+                            mediaId: record.mediaId,
+                            position: record.position,
+                          });
+                        }
+                      }
+
+                      if (optionValueImageRecords.length > 0) {
+                        await tx
+                          .insert(optionValueImages)
+                          .values(optionValueImageRecords);
+                      }
+                    }
+                  }
+                }
 
                 // Link variant to option values
                 if (resolvedOptionValueIds.length > 0) {

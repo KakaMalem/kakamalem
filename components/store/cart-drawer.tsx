@@ -427,17 +427,20 @@ function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
     removeItem(item.id);
   };
 
+  // Prioritize: variant image → product image → placeholder
+  const displayImage = item.variant?.image || item.product.image;
+
   return (
     <div className="flex gap-4">
-      {/* Product Image */}
+      {/* Product Image (prioritizes variant image) */}
       <Link
         href={`/store/${storeSlug}/product/${item.product.slug}`}
         className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-muted"
       >
-        {item.product.image ? (
+        {displayImage ? (
           <Image
-            src={item.product.image.url}
-            alt={item.product.image.altText || item.product.name}
+            src={displayImage.url}
+            alt={displayImage.altText || item.product.name}
             fill
             className="object-cover transition-transform hover:scale-105"
             sizes="80px"

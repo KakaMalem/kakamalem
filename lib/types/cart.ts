@@ -39,6 +39,10 @@ export type CartItemVariant = {
   price: string | null;
   stock: number;
   isActive: boolean;
+  image: {
+    url: string;
+    altText: string | null;
+  } | null;
 } | null;
 
 export type CartItem = {

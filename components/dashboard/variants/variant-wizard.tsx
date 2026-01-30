@@ -13,7 +13,6 @@ import {
   Check,
   ChevronRight,
   ChevronLeft,
-  Sparkles,
   GripVertical,
   AlertCircle,
   Copy,
@@ -26,13 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -67,17 +60,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SwatchEditor, SwatchPreview, type SwatchType } from "./swatch-editor";
+import {
+  SwatchEditor,
+  SwatchPreview,
+  type SwatchType,
+  type SwatchSize,
+  type SwatchShape,
+} from "./swatch-editor";
 import { cn } from "@/lib/utils";
 import type {
   InlineOption,
   InlineOptionValue,
 } from "@/lib/validations/variant-form";
-import {
-  OPTION_TEMPLATES,
-  TEMPLATE_CATEGORIES,
-  type OptionTemplate,
-} from "@/lib/variants/option-templates";
 import {
   calculateVariantCount,
   validateVariantCount,
@@ -102,17 +96,8 @@ const slideInRight = {
   exit: { opacity: 0, x: -40 },
 };
 
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.05,
-    },
-  },
-};
-
 // Wizard steps
 const WIZARD_STEPS = [
-  { id: "template", title: "Choose Template", icon: Sparkles },
   { id: "options", title: "Configure Options", icon: Settings2 },
   { id: "values", title: "Set Values", icon: Layers },
   { id: "swatches", title: "Style Swatches", icon: Palette },
@@ -160,28 +145,27 @@ export function VariantWizard({
   // error is available for future use
   void _error;
   // Current step in wizard
-  const [currentStep, setCurrentStep] = useState<WizardStep>("template");
+  const [currentStep, setCurrentStep] = useState<WizardStep>("options");
+
+  // Track whether dialog was previously open to detect open transitions
+  const wasOpen = useRef(open);
 
   // Local draft of options being edited
-  const [draftOptions, setDraftOptions] = useState<InlineOption[]>(options);
+  const [draftOptions, setDraftOptions] = useState<InlineOption[]>(() =>
+    options.length > 0 ? [...options] : []
+  );
 
-  // Selected template (null for custom)
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-
-  // Template filter category
-  const [templateCategory, setTemplateCategory] = useState<string>("all");
-
-  // Sync draft with props when dialog opens
+  // Sync draft with props when dialog opens (not on every render)
+  // Using queueMicrotask to defer setState and avoid cascading render warnings
   useEffect(() => {
-    if (open) {
-      // Defer state updates to avoid synchronous setState in effect
-      const timeoutId = setTimeout(() => {
-        setDraftOptions(options.length > 0 ? options : []);
-        setCurrentStep(options.length > 0 ? "options" : "template");
-        setSelectedTemplate(null);
-      }, 0);
-      return () => clearTimeout(timeoutId);
+    // Only sync when transitioning from closed to open
+    if (open && !wasOpen.current) {
+      queueMicrotask(() => {
+        setDraftOptions(options.length > 0 ? [...options] : []);
+        setCurrentStep("options");
+      });
     }
+    wasOpen.current = open;
   }, [open, options]);
 
   // Calculate variant count for preview
@@ -201,24 +185,6 @@ export function VariantWizard({
   const generateTempId = () =>
     `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-  // Apply template
-  const applyTemplate = useCallback((template: OptionTemplate) => {
-    const newOptions: InlineOption[] = template.options.map((opt) => ({
-      tempId: generateTempId(),
-      name: opt.name,
-      values: opt.values.map((val) => ({
-        value: val.value,
-        swatchType: val.swatchType,
-        swatchValue: val.swatchValue,
-        isNew: true,
-      })),
-      isNew: true,
-    }));
-    setDraftOptions(newOptions);
-    setSelectedTemplate(template.id);
-    setCurrentStep("options");
-  }, []);
-
   // Add new option
   const addOption = useCallback(() => {
     const newOption: InlineOption = {
@@ -226,6 +192,8 @@ export function VariantWizard({
       name: "",
       values: [],
       isNew: true,
+      swatchSize: "md",
+      swatchShape: "square",
     };
     setDraftOptions([...draftOptions, newOption]);
   }, [draftOptions]);
@@ -323,6 +291,22 @@ export function VariantWizard({
     [draftOptions]
   );
 
+  // Update option swatch display settings (size, shape)
+  const updateOptionSwatchSettings = useCallback(
+    (
+      optionIndex: number,
+      settings: { swatchSize?: SwatchSize; swatchShape?: SwatchShape }
+    ) => {
+      const newOptions = [...draftOptions];
+      newOptions[optionIndex] = {
+        ...newOptions[optionIndex],
+        ...settings,
+      };
+      setDraftOptions(newOptions);
+    },
+    [draftOptions]
+  );
+
   // Reorder values within an option
   const reorderValues = useCallback(
     (optionIndex: number, newValues: InlineOptionValue[]) => {
@@ -372,8 +356,6 @@ export function VariantWizard({
   // Navigation
   const canGoNext = useMemo(() => {
     switch (currentStep) {
-      case "template":
-        return true; // Can always skip template
       case "options":
         return (
           draftOptions.length > 0 &&
@@ -415,26 +397,6 @@ export function VariantWizard({
     onChange(validOptions);
     onOpenChange(false);
   }, [draftOptions, onChange, onOpenChange]);
-
-  // Start from scratch
-  const startCustom = useCallback(() => {
-    setSelectedTemplate(null);
-    setDraftOptions([
-      {
-        tempId: generateTempId(),
-        name: "",
-        values: [],
-        isNew: true,
-      },
-    ]);
-    setCurrentStep("options");
-  }, []);
-
-  // Filtered templates
-  const filteredTemplates = useMemo(() => {
-    if (templateCategory === "all") return OPTION_TEMPLATES;
-    return OPTION_TEMPLATES.filter((t) => t.category === templateCategory);
-  }, [templateCategory]);
 
   const currentStepIndex = WIZARD_STEPS.findIndex((s) => s.id === currentStep);
 
@@ -524,127 +486,7 @@ export function VariantWizard({
         {/* Main content area */}
         <div className="flex-1 min-h-0 overflow-hidden">
           <AnimatePresence mode="wait">
-            {/* Step 1: Template Selection */}
-            {currentStep === "template" && (
-              <motion.div
-                key="template"
-                variants={slideInRight}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={{ duration: 0.3 }}
-                className="h-full overflow-hidden"
-              >
-                <div className="flex flex-col h-full p-6">
-                  <div className="flex items-center justify-between mb-4 shrink-0">
-                    <div>
-                      <h3 className="text-lg font-semibold">
-                        Choose a Template
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Start with a pre-built template or create from scratch
-                      </p>
-                    </div>
-                    <Select
-                      value={templateCategory}
-                      onValueChange={setTemplateCategory}
-                    >
-                      <SelectTrigger className="w-40">
-                        <SelectValue placeholder="All categories" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {TEMPLATE_CATEGORIES.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <ScrollArea className="flex-1 min-h-0 -mx-6">
-                    <motion.div
-                      variants={staggerContainer}
-                      initial="initial"
-                      animate="animate"
-                      className="grid grid-cols-2 md:grid-cols-3 gap-3 p-6 pt-1"
-                    >
-                      {/* Custom option */}
-                      <motion.div variants={fadeInUp}>
-                        <Card
-                          className={cn(
-                            "cursor-pointer transition-all hover:border-primary hover:shadow-md",
-                            selectedTemplate === null &&
-                              draftOptions.length === 0 &&
-                              "ring-2 ring-primary"
-                          )}
-                          onClick={startCustom}
-                        >
-                          <CardHeader className="pb-2">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                              <Plus className="h-5 w-5 text-primary" />
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <CardTitle className="text-base">
-                              Start from Scratch
-                            </CardTitle>
-                            <CardDescription className="text-xs mt-1">
-                              Create custom variant options
-                            </CardDescription>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-
-                      {/* Templates */}
-                      {filteredTemplates.map((template) => (
-                        <motion.div key={template.id} variants={fadeInUp}>
-                          <Card
-                            className={cn(
-                              "cursor-pointer transition-all hover:border-primary hover:shadow-md",
-                              selectedTemplate === template.id &&
-                                "ring-2 ring-primary"
-                            )}
-                            onClick={() => applyTemplate(template)}
-                          >
-                            <CardHeader className="pb-2">
-                              <Badge
-                                variant="secondary"
-                                className="w-fit text-xs"
-                              >
-                                {template.category}
-                              </Badge>
-                            </CardHeader>
-                            <CardContent>
-                              <CardTitle className="text-base">
-                                {template.name}
-                              </CardTitle>
-                              <CardDescription className="text-xs mt-1">
-                                {template.description}
-                              </CardDescription>
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {template.options.map((opt) => (
-                                  <Badge
-                                    key={opt.name}
-                                    variant="outline"
-                                    className="text-xs"
-                                  >
-                                    {opt.name}: {opt.values.length}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  </ScrollArea>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Step 2: Configure Options */}
+            {/* Step 1: Configure Options */}
             {currentStep === "options" && (
               <motion.div
                 key="options"
@@ -718,7 +560,7 @@ export function VariantWizard({
               </motion.div>
             )}
 
-            {/* Step 3: Set Values */}
+            {/* Step 2: Set Values */}
             {currentStep === "values" && (
               <motion.div
                 key="values"
@@ -774,7 +616,7 @@ export function VariantWizard({
               </motion.div>
             )}
 
-            {/* Step 4: Style Swatches */}
+            {/* Step 3: Style Swatches */}
             {currentStep === "swatches" && (
               <motion.div
                 key="swatches"
@@ -797,10 +639,61 @@ export function VariantWizard({
                     <div className="space-y-6 px-6 pb-6 pt-1">
                       {draftOptions.map((option, optionIndex) => (
                         <Card key={option.id || option.tempId}>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-base">
-                              {option.name}
-                            </CardTitle>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-base">
+                                {option.name}
+                              </CardTitle>
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs text-muted-foreground">
+                                    Size
+                                  </Label>
+                                  <Select
+                                    value={option.swatchSize || "md"}
+                                    onValueChange={(value: SwatchSize) =>
+                                      updateOptionSwatchSettings(optionIndex, {
+                                        swatchSize: value,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 w-20">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="sm">Small</SelectItem>
+                                      <SelectItem value="md">Medium</SelectItem>
+                                      <SelectItem value="lg">Large</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs text-muted-foreground">
+                                    Shape
+                                  </Label>
+                                  <Select
+                                    value={option.swatchShape || "square"}
+                                    onValueChange={(value: SwatchShape) =>
+                                      updateOptionSwatchSettings(optionIndex, {
+                                        swatchShape: value,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 w-24">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="square">
+                                        Square
+                                      </SelectItem>
+                                      <SelectItem value="circle">
+                                        Circle
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </div>
                           </CardHeader>
                           <CardContent>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -816,7 +709,8 @@ export function VariantWizard({
                                     type={value.swatchType || "text"}
                                     value={value.swatchValue}
                                     imageUrl={value.swatchImageUrl}
-                                    size="md"
+                                    size={option.swatchSize || "md"}
+                                    shape={option.swatchShape || "square"}
                                   />
                                   <span className="flex-1 text-sm truncate">
                                     {value.value}

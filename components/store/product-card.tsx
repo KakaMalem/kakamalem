@@ -16,6 +16,7 @@ import {
 import { cn, formatPrice } from "@/lib/utils";
 import { getDisplayPrices } from "@/lib/utils/pricing-display";
 import { useWishlist } from "@/lib/hooks/use-wishlist";
+import { buildVariantUrl } from "@/lib/utils/variant-url";
 
 interface ProductCardProps {
   product: {
@@ -44,6 +45,8 @@ interface ProductCardProps {
   catalogMode?: boolean;
   /** Set to true for above-the-fold cards to prioritize loading */
   priority?: boolean;
+  /** Optional variant options for direct variant linking (e.g., {Size: "Large", Color: "Black"}) */
+  variantOptions?: Record<string, string>;
 }
 
 export function ProductCard({
@@ -56,9 +59,18 @@ export function ProductCard({
   isAddingToCart = false,
   catalogMode = false,
   priority = false,
+  variantOptions,
 }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  // Build product URL with optional variant options for direct variant linking
+  // Uses human-readable format: ?size=large&color=black
+  const basePath = `/store/${storeSlug}/product/${product.slug}`;
+  const productUrl =
+    variantOptions && Object.keys(variantOptions).length > 0
+      ? buildVariantUrl(basePath, variantOptions)
+      : basePath;
 
   // Wishlist state with optimistic updates
   const {
@@ -87,7 +99,7 @@ export function ProductCard({
     if (onAddToCart) {
       onAddToCart(product.id);
     } else {
-      window.location.href = `/store/${storeSlug}/product/${product.slug}`;
+      window.location.href = productUrl;
     }
   };
 
@@ -116,7 +128,7 @@ export function ProductCard({
     >
       {/* Image Container - 1:1 aspect ratio (square, industry standard) */}
       <Link
-        href={`/store/${storeSlug}/product/${product.slug}`}
+        href={productUrl}
         className="relative aspect-square overflow-hidden bg-muted/30"
       >
         {/* Shimmer loading placeholder */}
@@ -210,7 +222,7 @@ export function ProductCard({
         {/* Product Name */}
         <h3 className="mt-1.5 line-clamp-2 text-xs font-medium leading-snug text-foreground/90 sm:text-sm">
           <Link
-            href={`/store/${storeSlug}/product/${product.slug}`}
+            href={productUrl}
             className="transition-colors hover:text-foreground"
           >
             {product.name}
@@ -266,7 +278,7 @@ export function ProductCard({
           {/* Cart/View Button */}
           {catalogMode ? (
             <Link
-              href={`/store/${storeSlug}/product/${product.slug}`}
+              href={productUrl}
               className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:scale-[0.98]"
             >
               <Eye className="size-3.5" />

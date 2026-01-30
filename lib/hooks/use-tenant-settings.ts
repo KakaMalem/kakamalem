@@ -5,7 +5,6 @@ import {
   useStoreMode,
   useOnlineCheckoutEnabled,
   usePosEnabled,
-  usePhoneOrdersEnabled,
   useReceiptSettings,
   useTenantCurrency,
   useTenantBranding,
@@ -14,7 +13,6 @@ import {
 } from "@/lib/stores/use-tenant-settings-store";
 import {
   useUpdateStoreModeMutation,
-  useTogglePhoneOrdersMutation,
   useTogglePosMutation,
   useToggleOnlineCheckoutMutation,
   useUpdateReceiptSettingsMutation,
@@ -38,16 +36,16 @@ import type { StoreMode, ReceiptPaperWidth } from "@/lib/validations/stores";
  *   const {
  *     settings,
  *     storeMode,
- *     phoneOrdersEnabled,
+ *     posEnabled,
  *     setStoreMode,
- *     togglePhoneOrders,
+ *     togglePos,
  *     isUpdating,
  *   } = useTenantSettingsWithMutations();
  *
  *   return (
  *     <Switch
- *       checked={phoneOrdersEnabled}
- *       onCheckedChange={(enabled) => togglePhoneOrders(enabled)}
+ *       checked={posEnabled}
+ *       onCheckedChange={(enabled) => togglePos(enabled)}
  *       disabled={isUpdating}
  *     />
  *   );
@@ -60,7 +58,6 @@ export function useTenantSettingsWithMutations() {
   const storeMode = useStoreMode();
   const onlineCheckoutEnabled = useOnlineCheckoutEnabled();
   const posEnabled = usePosEnabled();
-  const phoneOrdersEnabled = usePhoneOrdersEnabled();
   const receiptSettings = useReceiptSettings();
   const currency = useTenantCurrency();
   const branding = useTenantBranding();
@@ -68,7 +65,6 @@ export function useTenantSettingsWithMutations() {
 
   // TanStack Query mutations
   const updateStoreModeMutation = useUpdateStoreModeMutation();
-  const togglePhoneOrdersMutation = useTogglePhoneOrdersMutation();
   const togglePosMutation = useTogglePosMutation();
   const toggleOnlineCheckoutMutation = useToggleOnlineCheckoutMutation();
   const updateReceiptSettingsMutation = useUpdateReceiptSettingsMutation();
@@ -76,7 +72,6 @@ export function useTenantSettingsWithMutations() {
   // Combined updating state
   const isUpdating =
     updateStoreModeMutation.isPending ||
-    togglePhoneOrdersMutation.isPending ||
     togglePosMutation.isPending ||
     toggleOnlineCheckoutMutation.isPending ||
     updateReceiptSettingsMutation.isPending;
@@ -91,19 +86,6 @@ export function useTenantSettingsWithMutations() {
       storeId: settings.id,
       storeSlug: settings.slug,
       settings: { ...currentSettings, storeMode: mode },
-    });
-  };
-
-  const togglePhoneOrders = (enabled: boolean) => {
-    if (!settings) return;
-    const currentSettings = getCurrentSettingsForMutation(settings);
-    if (!currentSettings) return;
-
-    togglePhoneOrdersMutation.mutate({
-      storeId: settings.id,
-      storeSlug: settings.slug,
-      enabled,
-      currentSettings,
     });
   };
 
@@ -157,7 +139,6 @@ export function useTenantSettingsWithMutations() {
     storeMode,
     onlineCheckoutEnabled,
     posEnabled,
-    phoneOrdersEnabled,
     receiptSettings,
     currency,
     branding,
@@ -165,7 +146,6 @@ export function useTenantSettingsWithMutations() {
 
     // Mutation functions (with optimistic updates)
     setStoreMode,
-    togglePhoneOrders,
     togglePos,
     toggleOnlineCheckout,
     updateReceiptSettings,
@@ -173,14 +153,12 @@ export function useTenantSettingsWithMutations() {
     // Loading states
     isUpdating,
     isUpdatingStoreMode: updateStoreModeMutation.isPending,
-    isUpdatingPhoneOrders: togglePhoneOrdersMutation.isPending,
     isUpdatingPos: togglePosMutation.isPending,
     isUpdatingOnlineCheckout: toggleOnlineCheckoutMutation.isPending,
     isUpdatingReceiptSettings: updateReceiptSettingsMutation.isPending,
 
     // Error states (if needed for UI)
     storeModeError: updateStoreModeMutation.error,
-    phoneOrdersError: togglePhoneOrdersMutation.error,
     posError: togglePosMutation.error,
     onlineCheckoutError: toggleOnlineCheckoutMutation.error,
     receiptSettingsError: updateReceiptSettingsMutation.error,
@@ -188,7 +166,6 @@ export function useTenantSettingsWithMutations() {
     // Direct access to mutations (for advanced use cases)
     mutations: {
       updateStoreMode: updateStoreModeMutation,
-      togglePhoneOrders: togglePhoneOrdersMutation,
       togglePos: togglePosMutation,
       toggleOnlineCheckout: toggleOnlineCheckoutMutation,
       updateReceiptSettings: updateReceiptSettingsMutation,
@@ -209,7 +186,6 @@ export {
   useStoreMode,
   useOnlineCheckoutEnabled,
   usePosEnabled,
-  usePhoneOrdersEnabled,
   useReceiptSettings,
   useTenantCurrency,
   useTenantBranding,

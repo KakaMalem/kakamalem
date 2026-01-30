@@ -58,7 +58,6 @@ export function useUpdateStoreModeMutation() {
         storeMode: settings.storeMode,
         onlineCheckoutEnabled: settings.onlineCheckoutEnabled,
         posEnabled: settings.posEnabled,
-        phoneOrdersEnabled: settings.phoneOrdersEnabled,
         receiptPaperWidth: settings.receiptPaperWidth,
         receiptShowLogo: settings.receiptShowLogo,
         receiptShowContact: settings.receiptShowContact,
@@ -82,65 +81,6 @@ export function useUpdateStoreModeMutation() {
     },
 
     // Always refetch after error or success to ensure consistency
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: tenantKeys.settings(variables.storeId),
-      });
-    },
-  });
-}
-
-// ============================================================================
-// MUTATION: Toggle Phone Orders
-// ============================================================================
-
-type TogglePhoneOrdersVariables = {
-  storeId: string;
-  storeSlug: string;
-  enabled: boolean;
-  currentSettings: StoreModeSettingsInput;
-};
-
-export function useTogglePhoneOrdersMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      storeId,
-      storeSlug,
-      enabled,
-      currentSettings,
-    }: TogglePhoneOrdersVariables) => {
-      const result = await updateStoreModeSettings(storeId, storeSlug, {
-        ...currentSettings,
-        phoneOrdersEnabled: enabled,
-      });
-
-      if (result.error) {
-        throw new Error(result.error.message);
-      }
-
-      return result;
-    },
-
-    // Optimistic update
-    onMutate: async ({ enabled }) => {
-      const previousSettings =
-        tenantSettingsActions.setPhoneOrdersEnabled(enabled);
-      return { previousSettings };
-    },
-
-    onSuccess: (_data, { enabled }) => {
-      toast.success(`Phone orders ${enabled ? "enabled" : "disabled"}`);
-    },
-
-    onError: (error, _variables, context) => {
-      if (context?.previousSettings) {
-        tenantSettingsActions.rollback(context.previousSettings);
-      }
-      toast.error(error.message || "Failed to update phone orders setting");
-    },
-
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: tenantKeys.settings(variables.storeId),
@@ -344,7 +284,6 @@ export function getCurrentSettingsForMutation(
     storeMode: settings.storeMode,
     onlineCheckoutEnabled: settings.onlineCheckoutEnabled,
     posEnabled: settings.posEnabled,
-    phoneOrdersEnabled: settings.phoneOrdersEnabled,
     posScannerMode: settings.posScannerMode,
     receiptPaperWidth: settings.receiptPaperWidth,
     receiptShowLogo: settings.receiptShowLogo,

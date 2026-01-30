@@ -57,6 +57,10 @@ interface ProductInfoProps {
   contactPhone?: string | null;
   /** Map of media ID to URL for image swatches */
   imageSwatchUrls?: Map<string, string>;
+  /** Initial variant ID from URL param (for shareable links) */
+  initialVariantId?: string;
+  /** Initial options from URL params (e.g., {Size: "Large", Color: "Black"}) */
+  initialOptions?: Record<string, string>;
 }
 
 export function ProductInfo({
@@ -70,14 +74,24 @@ export function ProductInfo({
   storeMode = "full",
   contactPhone,
   imageSwatchUrls,
+  initialVariantId,
+  initialOptions: initialOptionsProp,
 }: ProductInfoProps) {
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
   const [selectedOptions, setSelectedOptions] = useState<
     Record<string, string>
   >(() => {
-    // Initialize with first available variant's options
-    if (product.hasVariants && product.variants?.length) {
-      // Find first available variant (active and in stock)
+    if (!product.hasVariants || !product.variants?.length) {
+      return {};
+    }
+
+    // If initialVariantId is provided and valid, use that variant
+    let variantToUse = initialVariantId
+      ? product.variants.find((v) => v.id === initialVariantId)
+      : undefined;
+
+    // If no initial variant, find first available variant (active and in stock)
+    if (!variantToUse) {
       const firstAvailableVariant = product.variants.find((variant) => {
         if (!variant.isActive) return false;
         // Available if: not tracking inventory, allows backorder, or has stock
@@ -87,19 +101,29 @@ export function ProductInfo({
       });
 
       // Fall back to first variant if none are available
-      const variantToUse = firstAvailableVariant || product.variants[0];
+      variantToUse = firstAvailableVariant || product.variants[0];
+    }
 
-      if (variantToUse?.options) {
-        const initialOptions: Record<string, string> = {};
-        for (const opt of variantToUse.options) {
-          if (opt.optionValue?.option?.name && opt.optionValue?.value) {
-            initialOptions[opt.optionValue.option.name] = opt.optionValue.value;
-          }
+    // Build options from the variant
+    const options: Record<string, string> = {};
+    if (variantToUse?.options) {
+      for (const opt of variantToUse.options) {
+        if (opt.optionValue?.option?.name && opt.optionValue?.value) {
+          options[opt.optionValue.option.name] = opt.optionValue.value;
         }
-        return initialOptions;
       }
     }
-    return {};
+
+    // If initialOptions were provided from URL, merge them (they take precedence)
+    if (initialOptionsProp && Object.keys(initialOptionsProp).length > 0) {
+      for (const [key, value] of Object.entries(initialOptionsProp)) {
+        if (value) {
+          options[key] = value;
+        }
+      }
+    }
+
+    return options;
   });
   const [quantity, setQuantity] = useState(product.minOrderQuantity ?? 1);
   const [isEditingQty, setIsEditingQty] = useState(false);
@@ -355,6 +379,12 @@ export function ProductInfo({
           price: selectedVariant.price,
           stock: selectedVariant.stock,
           isActive: selectedVariant.isActive,
+          image: selectedVariant.image
+            ? {
+                url: selectedVariant.image.url,
+                altText: selectedVariant.image.altText,
+              }
+            : null,
         }
       : null;
 
@@ -486,166 +516,181 @@ export function ProductInfo({
       {/* Variant Selectors */}
       {product.hasVariants && variantOptions && (
         <>
-          {Object.entries(variantOptions).map(([optionName, optionValues]) => {
-            // Check if this option has any visual swatches (color or image)
-            const hasVisualSwatches = optionValues.some(
-              (v) =>
-                (v.swatchType === "color" && v.swatchValue) ||
-                (v.swatchType === "image" && v.swatchImageUrl)
-            );
+          {Object.entries(variantOptions).map(
+            ([optionName, { values: optionValues, displaySettings }]) => {
+              // Check if this option has any visual swatches (color or image)
+              const hasVisualSwatches = optionValues.some(
+                (v) =>
+                  (v.swatchType === "color" && v.swatchValue) ||
+                  (v.swatchType === "image" && v.swatchImageUrl)
+              );
 
-            const options = optionValues.map((optVal) => {
-              // Check if selecting this value would result in a valid variant
-              const potentialOptions = {
-                ...selectedOptions,
-                [optionName]: optVal.value,
+              // Get size classes based on displaySettings
+              const sizeClasses = {
+                sm: "h-8 w-8",
+                md: "h-10 w-10",
+                lg: "h-12 w-12",
               };
-              const matchingVariant = product.variants?.find((variant) => {
-                if (!variant.options || variant.options.length === 0)
-                  return false;
-                return Object.entries(potentialOptions).every(
-                  ([optName, optValue]) => {
-                    return variant.options?.some(
-                      (opt) =>
-                        opt.optionValue?.option?.name === optName &&
-                        opt.optionValue?.value === optValue
-                    );
-                  }
-                );
+              const swatchSizeClass = sizeClasses[displaySettings.swatchSize];
+              const shapeClass =
+                displaySettings.swatchShape === "circle"
+                  ? "rounded-full"
+                  : "rounded-md";
+
+              const options = optionValues.map((optVal) => {
+                // Check if selecting this value would result in a valid variant
+                const potentialOptions = {
+                  ...selectedOptions,
+                  [optionName]: optVal.value,
+                };
+                const matchingVariant = product.variants?.find((variant) => {
+                  if (!variant.options || variant.options.length === 0)
+                    return false;
+                  return Object.entries(potentialOptions).every(
+                    ([optName, optValue]) => {
+                      return variant.options?.some(
+                        (opt) =>
+                          opt.optionValue?.option?.name === optName &&
+                          opt.optionValue?.value === optValue
+                      );
+                    }
+                  );
+                });
+
+                const isAvailable =
+                  !!matchingVariant?.isActive &&
+                  (matchingVariant.stock > 0 ||
+                    !product.trackInventory ||
+                    product.allowBackorder);
+
+                return {
+                  label: optVal.value,
+                  value: optVal.value,
+                  isAvailable,
+                  swatchType: optVal.swatchType,
+                  swatchValue: optVal.swatchValue,
+                  swatchImageUrl: optVal.swatchImageUrl,
+                };
               });
 
-              const isAvailable =
-                !!matchingVariant?.isActive &&
-                (matchingVariant.stock > 0 ||
-                  !product.trackInventory ||
-                  product.allowBackorder);
-
-              return {
-                label: optVal.value,
-                value: optVal.value,
-                isAvailable,
-                swatchType: optVal.swatchType,
-                swatchValue: optVal.swatchValue,
-                swatchImageUrl: optVal.swatchImageUrl,
-              };
-            });
-
-            // Use visual swatch display for color or image options
-            if (hasVisualSwatches) {
-              return (
-                <div key={optionName} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {optionName}
-                    </span>
-                    {selectedOptions[optionName] && (
-                      <span className="text-sm">
-                        : {selectedOptions[optionName]}
+              // Use visual swatch display for color or image options
+              if (hasVisualSwatches) {
+                return (
+                  <div key={optionName} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {optionName}
                       </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {options.map((option) => {
-                      const isSelected =
-                        selectedOptions[optionName] === option.value;
-                      const isColor =
-                        option.swatchType === "color" && option.swatchValue;
-                      const isImage =
-                        option.swatchType === "image" && option.swatchImageUrl;
-                      const isVisualSwatch = isColor || isImage;
+                      {selectedOptions[optionName] && (
+                        <span className="text-sm">
+                          : {selectedOptions[optionName]}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {options.map((option) => {
+                        const isSelected =
+                          selectedOptions[optionName] === option.value;
+                        const isColor =
+                          option.swatchType === "color" && option.swatchValue;
+                        const isImage =
+                          option.swatchType === "image" &&
+                          option.swatchImageUrl;
+                        const isVisualSwatch = isColor || isImage;
 
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() =>
-                            setSelectedOptions((prev) => ({
-                              ...prev,
-                              [optionName]: option.value,
-                            }))
-                          }
-                          disabled={!option.isAvailable}
-                          className={cn(
-                            "relative border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 overflow-hidden",
-                            isVisualSwatch
-                              ? "h-10 w-10 rounded-full"
-                              : "h-10 px-4 rounded-full",
-                            isSelected && "ring-2 ring-primary ring-offset-2",
-                            !option.isAvailable &&
-                              "opacity-40 cursor-not-allowed",
-                            option.isAvailable &&
-                              "hover:scale-110 cursor-pointer"
-                          )}
-                          style={
-                            isColor
-                              ? { backgroundColor: option.swatchValue! }
-                              : isImage
-                                ? {
-                                    backgroundImage: `url(${option.swatchImageUrl})`,
-                                    backgroundSize: "cover",
-                                    backgroundPosition: "center",
-                                  }
-                                : undefined
-                          }
-                          title={option.value}
-                          aria-label={`${optionName}: ${option.value}${!option.isAvailable ? " (unavailable)" : ""}`}
-                        >
-                          {isSelected && isColor && (
-                            <span
-                              className={cn(
-                                "absolute inset-0 flex items-center justify-center",
-                                isLightColor(option.swatchValue!)
-                                  ? "text-gray-800"
-                                  : "text-white"
-                              )}
-                            >
-                              ✓
-                            </span>
-                          )}
-                          {isSelected && isImage && (
-                            <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
-                              ✓
-                            </span>
-                          )}
-                          {!isVisualSwatch && (
-                            <span
-                              className={cn(
-                                "text-sm font-medium",
-                                isSelected && "text-primary"
-                              )}
-                            >
-                              {option.label}
-                            </span>
-                          )}
-                          {!option.isAvailable && isVisualSwatch && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="w-full h-0.5 bg-gray-400 rotate-45 absolute" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              setSelectedOptions((prev) => ({
+                                ...prev,
+                                [optionName]: option.value,
+                              }))
+                            }
+                            disabled={!option.isAvailable}
+                            className={cn(
+                              "relative border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 overflow-hidden",
+                              isVisualSwatch
+                                ? cn(swatchSizeClass, shapeClass)
+                                : cn("h-10 px-4", shapeClass),
+                              isSelected && "ring-2 ring-primary ring-offset-2",
+                              !option.isAvailable &&
+                                "opacity-40 cursor-not-allowed",
+                              option.isAvailable &&
+                                "hover:scale-110 cursor-pointer"
+                            )}
+                            style={
+                              isColor
+                                ? { backgroundColor: option.swatchValue! }
+                                : isImage
+                                  ? {
+                                      backgroundImage: `url(${option.swatchImageUrl})`,
+                                      backgroundSize: "cover",
+                                      backgroundPosition: "center",
+                                    }
+                                  : undefined
+                            }
+                            title={option.value}
+                            aria-label={`${optionName}: ${option.value}${!option.isAvailable ? " (unavailable)" : ""}`}
+                          >
+                            {isSelected && isColor && (
+                              <span
+                                className={cn(
+                                  "absolute inset-0 flex items-center justify-center",
+                                  isLightColor(option.swatchValue!)
+                                    ? "text-gray-800"
+                                    : "text-white"
+                                )}
+                              >
+                                ✓
+                              </span>
+                            )}
+                            {isSelected && isImage && (
+                              <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
+                                ✓
+                              </span>
+                            )}
+                            {!isVisualSwatch && (
+                              <span
+                                className={cn(
+                                  "text-sm font-medium",
+                                  isSelected && "text-primary"
+                                )}
+                              >
+                                {option.label}
+                              </span>
+                            )}
+                            {!option.isAvailable && isVisualSwatch && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-full h-0.5 bg-gray-400 rotate-45 absolute" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                );
+              }
+
+              // Use standard selector for non-color options
+              return (
+                <VariantSelector
+                  key={optionName}
+                  label={optionName}
+                  options={options}
+                  selectedValue={selectedOptions[optionName] || ""}
+                  onValueChange={(value) => {
+                    setSelectedOptions((prev) => ({
+                      ...prev,
+                      [optionName]: value,
+                    }));
+                  }}
+                />
               );
             }
-
-            // Use standard selector for non-color options
-            return (
-              <VariantSelector
-                key={optionName}
-                label={optionName}
-                options={options}
-                selectedValue={selectedOptions[optionName] || ""}
-                onValueChange={(value) => {
-                  setSelectedOptions((prev) => ({
-                    ...prev,
-                    [optionName]: value,
-                  }));
-                }}
-              />
-            );
-          })}
+          )}
         </>
       )}
 
@@ -829,12 +874,30 @@ type VariantOptionValue = {
   swatchImageUrl?: string | null;
 };
 
+// Type for option-level display settings
+type OptionDisplaySettings = {
+  swatchSize: "sm" | "md" | "lg";
+  swatchShape: "square" | "circle";
+};
+
+// Type for grouped options with their values and display settings
+type GroupedVariantOption = {
+  values: VariantOptionValue[];
+  displaySettings: OptionDisplaySettings;
+};
+
 // Helper to group variants by option type with swatch data
 function groupVariantsByOption(
   variants: NonNullable<ProductWithDetails["variants"]>,
   imageSwatchUrls?: Map<string, string>
-): Record<string, VariantOptionValue[]> {
-  const groups: Record<string, Map<string, VariantOptionValue>> = {};
+): Record<string, GroupedVariantOption> {
+  const groups: Record<
+    string,
+    {
+      values: Map<string, VariantOptionValue>;
+      displaySettings: OptionDisplaySettings;
+    }
+  > = {};
 
   for (const variant of variants) {
     if (!variant.options) continue;
@@ -842,13 +905,21 @@ function groupVariantsByOption(
       if (!opt.optionValue?.option?.name || !opt.optionValue?.value) continue;
       const optionName = opt.optionValue.option.name;
       const value = opt.optionValue.value;
+      const option = opt.optionValue.option;
 
       if (!groups[optionName]) {
-        groups[optionName] = new Map();
+        groups[optionName] = {
+          values: new Map(),
+          displaySettings: {
+            swatchSize: (option.swatchSize as "sm" | "md" | "lg") || "md",
+            swatchShape:
+              (option.swatchShape as "square" | "circle") || "square",
+          },
+        };
       }
 
       // Only add if not already present (preserve first occurrence's swatch data)
-      if (!groups[optionName].has(value)) {
+      if (!groups[optionName].values.has(value)) {
         const swatchType = opt.optionValue.swatchType || "text";
         const swatchValue = opt.optionValue.swatchValue;
 
@@ -858,7 +929,7 @@ function groupVariantsByOption(
           swatchImageUrl = imageSwatchUrls.get(swatchValue) ?? null;
         }
 
-        groups[optionName].set(value, {
+        groups[optionName].values.set(value, {
           value,
           swatchType,
           swatchValue,
@@ -869,9 +940,12 @@ function groupVariantsByOption(
   }
 
   // Convert maps to arrays
-  const result: Record<string, VariantOptionValue[]> = {};
-  for (const [key, map] of Object.entries(groups)) {
-    result[key] = Array.from(map.values());
+  const result: Record<string, GroupedVariantOption> = {};
+  for (const [key, group] of Object.entries(groups)) {
+    result[key] = {
+      values: Array.from(group.values.values()),
+      displaySettings: group.displaySettings,
+    };
   }
 
   return result;

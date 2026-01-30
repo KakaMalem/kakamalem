@@ -78,12 +78,20 @@ export function CheckoutSummary({ cart, currency }: CheckoutSummaryProps) {
 
             return (
               <div key={item.id} className="flex gap-3">
-                {/* Image */}
+                {/* Image - prioritize variant image over product image */}
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-md bg-muted">
-                  {item.product.image?.url ? (
+                  {item.variant?.image?.url || item.product.image?.url ? (
                     <Image
-                      src={item.product.image.url}
-                      alt={item.product.image.altText || item.product.name}
+                      src={
+                        item.variant?.image?.url ||
+                        item.product.image?.url ||
+                        ""
+                      }
+                      alt={
+                        item.variant?.image?.altText ||
+                        item.product.image?.altText ||
+                        item.product.name
+                      }
                       fill
                       className="object-cover"
                       sizes="64px"

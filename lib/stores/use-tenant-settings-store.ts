@@ -37,7 +37,6 @@ type TenantSettingsState = {
   setStoreMode: (mode: StoreMode) => TenantSettings | null;
   setOnlineCheckoutEnabled: (enabled: boolean) => TenantSettings | null;
   setPosEnabled: (enabled: boolean) => TenantSettings | null;
-  setPhoneOrdersEnabled: (enabled: boolean) => TenantSettings | null;
   setReceiptSettings: (settings: {
     receiptPaperWidth?: ReceiptPaperWidth;
     receiptShowLogo?: boolean;
@@ -110,7 +109,6 @@ export const useTenantSettingsStore = create<TenantSettingsState>()(
             updates = {
               ...updates,
               posEnabled: false,
-              phoneOrdersEnabled: false,
             };
             break;
           case "offline_only":
@@ -124,7 +122,6 @@ export const useTenantSettingsStore = create<TenantSettingsState>()(
               ...updates,
               onlineCheckoutEnabled: false,
               posEnabled: false,
-              phoneOrdersEnabled: false,
             };
             break;
           // "full" mode respects all toggles
@@ -157,18 +154,6 @@ export const useTenantSettingsStore = create<TenantSettingsState>()(
 
         set({
           settings: { ...previous, posEnabled: enabled },
-          lastUpdated: Date.now(),
-        });
-
-        return previous;
-      },
-
-      setPhoneOrdersEnabled: (enabled) => {
-        const previous = get().settings;
-        if (!previous) return null;
-
-        set({
-          settings: { ...previous, phoneOrdersEnabled: enabled },
           lastUpdated: Date.now(),
         });
 
@@ -226,12 +211,6 @@ export function usePosEnabled() {
   return useTenantSettingsStore((state) => state.settings?.posEnabled ?? true);
 }
 
-export function usePhoneOrdersEnabled() {
-  return useTenantSettingsStore(
-    (state) => state.settings?.phoneOrdersEnabled ?? true
-  );
-}
-
 export function useReceiptSettings() {
   return useTenantSettingsStore((state) => ({
     receiptPaperWidth: state.settings?.receiptPaperWidth ?? "80mm",
@@ -276,8 +255,6 @@ export const tenantSettingsActions = {
     useTenantSettingsStore.getState().setOnlineCheckoutEnabled(enabled),
   setPosEnabled: (enabled: boolean) =>
     useTenantSettingsStore.getState().setPosEnabled(enabled),
-  setPhoneOrdersEnabled: (enabled: boolean) =>
-    useTenantSettingsStore.getState().setPhoneOrdersEnabled(enabled),
   setReceiptSettings: (settings: {
     receiptPaperWidth?: ReceiptPaperWidth;
     receiptShowLogo?: boolean;

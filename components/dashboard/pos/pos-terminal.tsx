@@ -19,6 +19,7 @@ import { POSPaymentModal } from "./pos-payment-modal";
 import { PrinterConnectionButton } from "./printer-connection-button";
 import { ConnectivityIndicator } from "./connectivity-indicator";
 import { InstallPrompt } from "./install-prompt";
+import { POSOfflineProvider } from "./pos-offline-provider";
 import { OFFLINE_POS_ENABLED } from "@/lib/offline/feature-flag";
 import type { ReceiptPrintMode } from "@/lib/validations/stores";
 
@@ -77,6 +78,7 @@ type SearchProduct = {
     barcode: string | null;
     price: string | null;
     stock: number;
+    image: string | null;
   }>;
   image: string | null;
 };
@@ -145,8 +147,11 @@ export function POSTerminal({
           toast.error("Not enough stock");
           return;
         }
+        // Remove from current position and add to end (appears on top when reversed)
         const updated = [...items];
-        updated[existingIndex].quantity += 1;
+        const [existingItem] = updated.splice(existingIndex, 1);
+        existingItem.quantity += 1;
+        updated.push(existingItem);
         setItems(updated);
       } else {
         setItems([
@@ -162,7 +167,8 @@ export function POSTerminal({
             originalPrice: price,
             quantity: 1,
             trackInventory: product.trackInventory,
-            image: product.image,
+            // Prioritize variant image over product image
+            image: variant?.image || product.image,
             maxStock: stock,
           },
         ]);
@@ -238,13 +244,13 @@ export function POSTerminal({
   }, []);
 
   // Height: viewport - header(4rem) - vertical padding (2rem mobile, 3rem desktop)
-  return (
+  const content = (
     <>
       {/* Offline POS Features */}
       {OFFLINE_POS_ENABLED && (
         <>
           <InstallPrompt />
-          <div className="absolute top-2 right-2 z-50">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50">
             <ConnectivityIndicator />
           </div>
         </>
@@ -389,4 +395,15 @@ export function POSTerminal({
       </div>
     </>
   );
+
+  // Wrap with offline provider when feature is enabled
+  if (OFFLINE_POS_ENABLED) {
+    return (
+      <POSOfflineProvider tenantId={tenantId} storeSlug={storeSlug}>
+        {content}
+      </POSOfflineProvider>
+    );
+  }
+
+  return content;
 }

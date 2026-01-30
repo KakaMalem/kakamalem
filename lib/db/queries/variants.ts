@@ -181,6 +181,8 @@ export type ProductVariantOptionType = {
   id: string;
   name: string;
   displayOrder: number;
+  swatchSize?: "sm" | "md" | "lg";
+  swatchShape?: "square" | "circle";
   values: {
     id: string;
     value: string;
@@ -219,7 +221,13 @@ export async function getProductVariantOptionTypes(
   const optionsMap = new Map<
     string,
     {
-      option: { id: string; name: string; displayOrder: number };
+      option: {
+        id: string;
+        name: string;
+        displayOrder: number;
+        swatchSize?: "sm" | "md" | "lg";
+        swatchShape?: "square" | "circle";
+      };
       valuesMap: Map<
         string,
         {
@@ -248,6 +256,8 @@ export async function getProductVariantOptionTypes(
             id: option.id,
             name: option.name,
             displayOrder: option.displayOrder,
+            swatchSize: option.swatchSize,
+            swatchShape: option.swatchShape,
           },
           valuesMap: new Map(),
         });
@@ -301,6 +311,8 @@ export async function getProductVariantOptionTypes(
       id: entry.option.id,
       name: entry.option.name,
       displayOrder: entry.option.displayOrder,
+      swatchSize: entry.option.swatchSize,
+      swatchShape: entry.option.swatchShape,
       values,
     });
   }

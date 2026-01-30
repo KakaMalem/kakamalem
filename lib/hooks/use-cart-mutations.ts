@@ -188,6 +188,9 @@ export function useUpdateCartItemMutation() {
 // MUTATION: Remove Cart Item
 // ============================================================================
 
+// Track pending removals to prevent jitter from out-of-order server responses
+const pendingRemovals = new Set<string>();
+
 export function useRemoveCartItemMutation() {
   const queryClient = useQueryClient();
 
@@ -212,18 +215,27 @@ export function useRemoveCartItemMutation() {
         queryKey: cartKeys.byTenant(variables.tenantId),
       });
 
+      // Track this removal to prevent jitter from stale server responses
+      pendingRemovals.add(variables.itemId);
+
       // Apply optimistic update
       const snapshot = cartActions.removeItem(variables.itemId);
 
       return { snapshot };
     },
 
-    onSuccess: (cart) => {
-      // Sync store with server response (no toast - instant UI is enough)
-      cartActions.syncFromServer(cart);
+    onSuccess: (_cart, variables) => {
+      // Don't call syncFromServer here - the optimistic update already
+      // has the correct state. Syncing would cause jitter when multiple
+      // removes are in flight (earlier response overwrites later optimistic state).
+      // We only need server sync for error recovery (rollback).
+      pendingRemovals.delete(variables.itemId);
     },
 
     onError: (error, variables, context) => {
+      // Clear pending status
+      pendingRemovals.delete(variables.itemId);
+
       // Rollback optimistic update - item reappears
       if (context?.snapshot) {
         cartActions.rollback(context.snapshot);
@@ -235,9 +247,13 @@ export function useRemoveCartItemMutation() {
     },
 
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: cartKeys.byTenant(variables.tenantId),
-      });
+      // Only invalidate if no other removals are pending
+      // This prevents refetch from undoing other optimistic updates
+      if (pendingRemovals.size === 0) {
+        queryClient.invalidateQueries({
+          queryKey: cartKeys.byTenant(variables.tenantId),
+        });
+      }
     },
   });
 }

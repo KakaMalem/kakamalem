@@ -165,6 +165,12 @@ export const swatchTypeEnum = pgEnum("swatch_type", [
   "image", // Image thumbnail (for patterns, textures, materials)
 ]);
 
+// Swatch display size for variant options (sm=20px, md=24px, lg=32px)
+export const swatchSizeEnum = pgEnum("swatch_size", ["sm", "md", "lg"]);
+
+// Swatch display shape for variant options
+export const swatchShapeEnum = pgEnum("swatch_shape", ["square", "circle"]);
+
 export const inventoryMovementTypeEnum = pgEnum("inventory_movement_type", [
   "adjustment", // Manual stock adjustment
   "sale", // Stock reduced due to order
@@ -1741,6 +1747,9 @@ export const variantOptions = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(), // "Size", "Color", "Material"
     displayOrder: integer("display_order").default(0).notNull(),
+    // Swatch display settings for this option's values on the storefront
+    swatchSize: swatchSizeEnum("swatch_size").default("md").notNull(),
+    swatchShape: swatchShapeEnum("swatch_shape").default("square").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -7967,6 +7976,8 @@ export type OptionValueImage = typeof optionValueImages.$inferSelect;
 export type NewOptionValueImage = typeof optionValueImages.$inferInsert;
 export type StockStatus = (typeof stockStatusEnum.enumValues)[number];
 export type SwatchType = (typeof swatchTypeEnum.enumValues)[number];
+export type SwatchSize = (typeof swatchSizeEnum.enumValues)[number];
+export type SwatchShape = (typeof swatchShapeEnum.enumValues)[number];
 
 // Pricing types
 export type PriceTier = typeof priceTiers.$inferSelect;
