@@ -65,10 +65,11 @@ export function SalesHeatmap({
 
   // Format tooltip value
   const formatValue = (value: number): string => {
+    const safeValue = Number.isFinite(value) ? value : 0;
     if (metric === "revenue") {
-      return `${value.toLocaleString()} ${currency}`;
+      return `${safeValue.toLocaleString()} ${currency}`;
     }
-    return `${value} ${value === 1 ? "order" : "orders"}`;
+    return `${safeValue} ${safeValue === 1 ? "order" : "orders"}`;
   };
 
   if (!data || data.length === 0) {
@@ -93,7 +94,7 @@ export function SalesHeatmap({
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <div className="min-w-[600px]">
+          <div className="min-w-150">
             {/* Hour labels */}
             <div className="flex mb-1">
               <div className="w-10" /> {/* Spacer for day labels */}

@@ -73,7 +73,7 @@ export function RealTimeIndicator({
           <div className="hidden sm:flex items-center gap-1.5 border-l pl-4">
             <span className="text-sm">
               <span className="font-medium">
-                {data.revenueToday.toLocaleString()} {currency}
+                {(data.revenueToday || 0).toLocaleString()} {currency}
               </span>
               <span className="text-muted-foreground"> revenue</span>
             </span>

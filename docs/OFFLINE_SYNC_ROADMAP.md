@@ -110,17 +110,17 @@ The Afghan market presents unique connectivity challenges — frequent power out
 
 | Component         | Status  | Notes                                                                                          |
 | ----------------- | ------- | ---------------------------------------------------------------------------------------------- |
-| POS Terminal UI   | Done    | `components/dashboard/pos/pos-terminal.tsx` — full-screen POS with product grid, cart, payment |
-| Product Search    | Done    | Server action `searchProductsForSale()` — requires network                                     |
-| Sale Recording    | Done    | Server action `recordOfflineSale()` — requires network                                         |
-| Barcode Scanner   | Done    | `components/dashboard/pos/barcode-scanner.tsx` — camera + USB support                          |
-| Receipt Printing  | Done    | Thermal printer via Web Serial API — works client-side                                         |
-| Zustand Stores    | Done    | `use-pos-products-store.ts` (in-memory only, lost on refresh)                                  |
-| Service Worker    | Partial | `public/sw.js` — push notifications only, no caching                                           |
-| PWA Manifest      | Missing | No `manifest.json`, not installable                                                            |
-| IndexedDB         | Missing | No local persistence layer                                                                     |
-| Offline Detection | Missing | No connectivity awareness                                                                      |
-| Sync Engine       | Missing | No sync queue or conflict resolution                                                           |
+| POS Terminal UI   | ✅ Done | `components/dashboard/pos/pos-terminal.tsx` — full-screen POS with product grid, cart, payment |
+| Product Search    | ✅ Done | Server action `searchProductsForSale()` + offline cache                                        |
+| Sale Recording    | ✅ Done | Server action `recordOfflineSale()` with offline queue                                         |
+| Barcode Scanner   | ✅ Done | `components/dashboard/pos/barcode-scanner.tsx` — camera + USB support                          |
+| Receipt Printing  | ✅ Done | Thermal printer via Web Serial API — works client-side                                         |
+| Zustand Stores    | ✅ Done | `use-pos-products-store.ts` with offline persistence                                           |
+| Service Worker    | ✅ Done | Serwist-based SW (`app/sw.ts`) with caching                                                    |
+| PWA Manifest      | ✅ Done | `public/manifest.json` — installable PWA                                                       |
+| IndexedDB         | ✅ Done | Dexie.js for local persistence (`lib/offline/db.ts`)                                           |
+| Offline Detection | ✅ Done | Connectivity hooks and indicators                                                              |
+| Sync Engine       | ✅ Done | Background sync queue with retry logic                                                         |
 
 ### Current POS Data Flow (Online-Only)
 
@@ -222,13 +222,13 @@ For the Afghan market context:
 
 ## Implementation Phases
 
-### Phase 1: Foundation — PWA & Local Storage
+### Phase 1: Foundation — PWA & Local Storage (COMPLETED) ✅
 
 **Objective**: Make the POS installable and establish local data persistence.
 
 #### 1.1 PWA Manifest & Installation
 
-- [ ] Create `public/manifest.json` with POS-optimized settings
+- [x] Create `public/manifest.json` with POS-optimized settings
   ```json
   {
     "name": "Kaka Malem POS",
@@ -260,31 +260,31 @@ For the Afghan market context:
     ]
   }
   ```
-- [ ] Add manifest link to root layout `<head>`
-- [ ] Create app icons (192px, 512px, maskable)
-- [ ] Add "Install App" prompt banner on POS page for non-installed users
-- [ ] Add `<meta name="apple-mobile-web-app-capable" content="yes">` for iOS
+- [x] Add manifest link to root layout `<head>`
+- [x] Create app icons (192px, 512px, maskable)
+- [x] Add "Install App" prompt banner on POS page for non-installed users
+- [x] Add `<meta name="apple-mobile-web-app-capable" content="yes">` for iOS
 
 #### 1.2 Service Worker with Serwist
 
-- [ ] Install and configure `@serwist/next` in `next.config.ts`
-- [ ] Create `app/sw.ts` (TypeScript service worker, replaces `public/sw.js`)
-- [ ] Configure precaching for POS-critical assets:
+- [x] Install and configure `@serwist/next` in `next.config.ts`
+- [x] Create `app/sw.ts` (TypeScript service worker)
+- [x] Configure precaching for POS-critical assets:
   - POS page shell (HTML, JS, CSS)
   - Product placeholder images
   - Notification sounds (existing)
   - Font files
-- [ ] Configure runtime caching strategies:
+- [x] Configure runtime caching strategies:
   - **NetworkFirst** for API routes (`/api/*`)
   - **CacheFirst** for static assets (`/icons/*`, fonts, images)
   - **StaleWhileRevalidate** for product images
-- [ ] Migrate existing push notification SW code into the new Serwist-based SW
-- [ ] Add offline fallback page for non-POS routes
+- [x] Migrate existing push notification SW code into the new Serwist-based SW
+- [x] Add offline fallback page for non-POS routes
 
 #### 1.3 Dexie.js Local Database
 
-- [ ] Install `dexie` and `dexie-react-hooks`
-- [ ] Create `lib/offline/db.ts` — Dexie database definition:
+- [x] Install `dexie` and `dexie-react-hooks`
+- [x] Create `lib/offline/db.ts` — Dexie database definition:
 
   ```typescript
   import Dexie, { type EntityTable } from 'dexie';
@@ -379,17 +379,17 @@ For the Afghan market context:
   export { db };
   ```
 
-- [ ] Create `lib/offline/hooks.ts` — React hooks wrapping Dexie `liveQuery`:
+- [x] Create `lib/offline/hooks.ts` — React hooks wrapping Dexie `liveQuery`:
   - `useOfflineProducts(tenantId, categoryId?, search?)`
   - `useOfflineCategories(tenantId)`
   - `useOfflineStoreSettings(tenantId)`
   - `useSyncQueueCount()` — pending sync items count
   - `useOfflineReceipts(tenantId)`
-- [ ] Create `lib/offline/seed.ts` — initial data load from server to IndexedDB
+- [x] Create `lib/offline/seed.ts` — initial data load from server to IndexedDB
 
 #### 1.4 Connectivity Detection
 
-- [ ] Create `lib/offline/connectivity.ts`:
+- [x] Create `lib/offline/connectivity.ts`:
 
   ```typescript
   // Multi-signal connectivity detection
@@ -400,68 +400,63 @@ For the Afghan market context:
   type ConnectivityStatus = "online" | "offline" | "degraded";
   ```
 
-- [ ] Create `useConnectivity()` Zustand store with:
+- [x] Create `useConnectivity()` Zustand store with:
   - Real-time status tracking
   - Toast notifications on status change
   - Heartbeat interval (30s online, 5s when recovering)
   - Network quality estimation (RTT-based)
-- [ ] Add connectivity indicator to POS UI header (green/yellow/red dot)
+- [x] Add connectivity indicator to POS UI header (green/yellow/red dot)
 
 ---
 
-### Phase 2: Offline Product Catalog
+### Phase 2: Offline Product Catalog (COMPLETED) ✅
 
 **Objective**: POS can browse and search products without network.
 
 #### 2.1 Catalog Sync (Server → Device)
 
-- [ ] Create `lib/offline/sync/catalog-sync.ts`:
+- [x] Create `lib/offline/sync/catalog-sync.ts`:
   - Full sync on first load (all POS-visible products)
   - Incremental sync using `updatedAt` watermark (only fetch changes since last sync)
   - Batch processing (100 products per batch to avoid memory pressure)
   - Image URL caching (Cache API for product thumbnails)
-- [ ] Create server API endpoint `GET /api/pos/catalog-sync`:
-  ```typescript
-  // Query params: tenantId, since (ISO timestamp), limit, offset
-  // Returns: { products, variants, categories, hasMore, syncTimestamp }
-  // Includes: deleted product IDs for local cleanup
-  ```
-- [ ] Handle catalog sync edge cases:
+- [x] Create server API endpoint `GET /api/pos/catalog-sync`
+- [x] Handle catalog sync edge cases:
   - Product deleted on server → remove from IndexedDB
   - Product price changed → update local copy
   - New category added → insert locally
   - Product removed from POS visibility → remove from local POS cache
-- [ ] Add "Last synced: X minutes ago" indicator to POS UI
-- [ ] Add manual "Sync Now" button for catalog refresh
-- [ ] Pre-cache product images via Service Worker Cache API
+- [x] Add "Last synced: X minutes ago" indicator to POS UI
+- [x] Add manual "Sync Now" button for catalog refresh
+- [x] Pre-cache product images via Service Worker Cache API
 
 #### 2.2 Offline Product Search
 
-- [ ] Replace `searchProductsForSale` server action calls with local IndexedDB queries
-- [ ] Implement Dexie-based search:
+- [x] Replace `searchProductsForSale` server action calls with local IndexedDB queries
+- [x] Implement Dexie-based search:
   - Name search: `db.products.where('name').startsWithIgnoreCase(query)`
   - Barcode scan: `db.products.where('barcode').equals(code)` (exact match)
   - SKU search: `db.products.where('sku').startsWithIgnoreCase(query)`
   - Variant barcode: `db.variants.where('barcode').equals(code)` → resolve to product
   - Category filter: `db.products.where('categoryIds').equals(categoryId)`
-- [ ] Full-text search fallback using Dexie's `filter()` for substring matching
-- [ ] Update `use-pos-products-store.ts` to source data from Dexie instead of server
+- [x] Full-text search fallback using Dexie's `filter()` for substring matching
+- [x] Update `use-pos-products-store.ts` to source data from Dexie instead of server
 
 #### 2.3 Offline Category Browsing
 
-- [ ] Sync categories to IndexedDB alongside products
-- [ ] Update POS category tabs to read from local DB
-- [ ] Maintain category product counts locally
+- [x] Sync categories to IndexedDB alongside products
+- [x] Update POS category tabs to read from local DB
+- [x] Maintain category product counts locally
 
 ---
 
-### Phase 3: Offline Sales & Sync Queue
+### Phase 3: Offline Sales & Sync Queue (COMPLETED) ✅
 
 **Objective**: Record sales offline and sync them reliably.
 
 #### 3.1 Client-Side Sale Recording
 
-- [ ] Create `lib/offline/actions/record-sale.ts`:
+- [x] Create `lib/offline/actions/record-sale.ts`:
 
   ```typescript
   async function recordOfflineSaleLocally(
@@ -479,19 +474,19 @@ For the Afghan market context:
   }
   ```
 
-- [ ] Implement client-side order number generation:
+- [x] Implement client-side order number generation:
   - Format: `KM-LOCAL-{YYYYMMDD}-{sequence}` (distinguishable from server-generated)
   - Server assigns final `KM-{YEAR}-{sequence}` on sync
   - Receipt shows local number; reprints show final number after sync
-- [ ] Implement local stock deduction:
+- [x] Implement local stock deduction:
   - Deduct from IndexedDB `products.stock` / `variants.stock`
   - Track deductions in local `inventory_movements` table
   - Flag products with stock warnings (approaching zero)
-- [ ] Create offline receipt storage for reprint capability
+- [x] Create offline receipt storage for reprint capability
 
 #### 3.2 Sync Queue Engine
 
-- [ ] Create `lib/offline/sync/sync-engine.ts`:
+- [x] Create `lib/offline/sync/sync-engine.ts`:
   ```typescript
   class SyncEngine {
     // Process queue items in FIFO order
@@ -502,22 +497,14 @@ For the Afghan market context:
     // Pause on connectivity loss, resume on restore
   }
   ```
-- [ ] Implement sync lifecycle:
+- [x] Implement sync lifecycle:
   ```
   pending → syncing → synced ✓
        ↘ failed (after max retries) → manual retry
   ```
-- [ ] Add Background Sync API registration:
-  ```typescript
-  // In service worker:
-  self.addEventListener("sync", (event) => {
-    if (event.tag === "pos-transaction-sync") {
-      event.waitUntil(processSyncQueue());
-    }
-  });
-  ```
-- [ ] Fallback: polling-based sync for browsers without Background Sync (Safari)
-- [ ] Sync status UI component showing:
+- [x] Add Background Sync API registration
+- [x] Fallback: polling-based sync for browsers without Background Sync (Safari)
+- [x] Sync status UI component showing:
   - Pending items count (badge on sync icon)
   - Currently syncing animation
   - Failed items with retry button
@@ -525,37 +512,31 @@ For the Afghan market context:
 
 #### 3.3 Server-Side Sync Endpoint
 
-- [ ] Create `POST /api/pos/sync` endpoint:
-  ```typescript
-  // Accepts: Array of sync events
-  // Each event has clientId for idempotency
-  // Server processes in order
-  // Returns: { results: Array<{ clientId, status, serverOrderId?, error? }> }
-  ```
-- [ ] Server-side idempotency:
+- [x] Create `POST /api/pos/sync` endpoint
+- [x] Server-side idempotency:
   - Store `clientId` in orders table (new column)
   - Check for existing order with same `clientId` before insert
   - Return existing order data if duplicate detected
-- [ ] Server-side validation:
+- [x] Server-side validation:
   - Re-validate stock (may have changed since device cached)
   - Generate final order numbers (KM-{YEAR}-{sequence})
   - Generate final receipt numbers (RCP-{YEAR}-{sequence})
   - Map local IDs to server IDs in response
-- [ ] Handle partial sync failures:
+- [x] Handle partial sync failures:
   - Each item in batch processed independently
   - Failed items returned with error details
   - Client retries only failed items
 
 #### 3.4 Inventory Reconciliation
 
-- [ ] On sync: compare local stock with server stock
-- [ ] If server stock < local deduction amount:
+- [x] On sync: compare local stock with server stock
+- [x] If server stock < local deduction amount:
   - Sale still goes through (already committed to customer)
   - Flag as "stock oversold" event
   - Create admin notification: "Product X oversold by Y units during offline period"
   - Admin reviews and adjusts (accept backorder, cancel partial, restock)
-- [ ] Post-sync: refresh local stock from server (source of truth)
-- [ ] Create dashboard widget: "Offline Sales Pending Sync" with count and total value
+- [x] Post-sync: refresh local stock from server (source of truth)
+- [x] Create dashboard widget: "Offline Sales Pending Sync" with count and total value
 
 ---
 

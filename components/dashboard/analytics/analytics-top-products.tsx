@@ -47,13 +47,19 @@ export function AnalyticsTopProducts({
                       {product.name}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {product.quantitySold} sold (
-                      {product.percentOfTotal.toFixed(1)}%)
+                      {product.quantitySold || 0} sold (
+                      {Number.isFinite(product.percentOfTotal)
+                        ? product.percentOfTotal.toFixed(1)
+                        : "0.0"}
+                      %)
                     </p>
                   </div>
                 </div>
                 <span className="text-sm font-medium">
-                  {product.revenue.toLocaleString()} {currency}
+                  {Number.isFinite(product.revenue)
+                    ? product.revenue.toLocaleString()
+                    : 0}{" "}
+                  {currency}
                 </span>
               </div>
             ))}

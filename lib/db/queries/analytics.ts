@@ -997,3 +997,375 @@ export async function getAnalyticsData(
     topProducts,
   };
 }
+
+// ============================================================================
+// Enhanced Analytics Functions
+// ============================================================================
+
+/**
+ * Get enhanced KPIs including conversion rate, cart abandonment, etc.
+ * These require analytics event tracking to be fully accurate
+ */
+export async function getEnhancedKPIs(
+  tenantId: string,
+  timeRange: TimeRange = "7d"
+): Promise<EnhancedAnalyticsKPIs> {
+  const baseData = await getAnalyticsData(tenantId, timeRange);
+  const { current, previous } = getDateRangeFromTimeRange(timeRange);
+
+  const currentStartStr = current.start.toISOString();
+  const currentEndStr = current.end.toISOString();
+  const previousStartStr = previous.start.toISOString();
+  const previousEndStr = previous.end.toISOString();
+
+  // Get items per order metrics
+  const [currentItemsPerOrder, previousItemsPerOrder] = await Promise.all([
+    db
+      .select({
+        avgItems: sql<number>`avg(item_count)::numeric`,
+      })
+      .from(
+        sql`(
+          SELECT ${orders.id}, COALESCE(SUM(${orderItems.quantity}), 0) as item_count
+          FROM ${orders}
+          LEFT JOIN ${orderItems} ON ${orderItems.orderId} = ${orders.id}
+          WHERE ${orders.tenantId} = ${tenantId}
+            AND ${orders.createdAt} >= ${currentStartStr}
+            AND ${orders.createdAt} <= ${currentEndStr}
+            AND ${orders.status} NOT IN ('cancelled', 'returned')
+          GROUP BY ${orders.id}
+        ) as order_items`
+      ),
+    db
+      .select({
+        avgItems: sql<number>`avg(item_count)::numeric`,
+      })
+      .from(
+        sql`(
+          SELECT ${orders.id}, COALESCE(SUM(${orderItems.quantity}), 0) as item_count
+          FROM ${orders}
+          LEFT JOIN ${orderItems} ON ${orderItems.orderId} = ${orders.id}
+          WHERE ${orders.tenantId} = ${tenantId}
+            AND ${orders.createdAt} >= ${previousStartStr}
+            AND ${orders.createdAt} <= ${previousEndStr}
+            AND ${orders.status} NOT IN ('cancelled', 'returned')
+          GROUP BY ${orders.id}
+        ) as order_items`
+      ),
+  ]);
+
+  const avgItems = parseFloat(String(currentItemsPerOrder[0]?.avgItems || 0));
+  const prevAvgItems = parseFloat(
+    String(previousItemsPerOrder[0]?.avgItems || 0)
+  );
+
+  return {
+    ...baseData.kpis,
+    // These would require page view / conversion event tracking
+    conversionRate: 0,
+    conversionRateChange: 0,
+    cartAbandonmentRate: 0,
+    cartAbandonmentChange: 0,
+    // Items per order can be calculated from existing data
+    averageItemsPerOrder: Math.round(avgItems * 10) / 10,
+    itemsPerOrderChange: calculateChange(avgItems, prevAvgItems),
+    // Product views would require page view tracking
+    productViews: 0,
+    productViewsChange: 0,
+  };
+}
+
+/**
+ * Get category performance data for pie/donut charts
+ */
+export async function getCategoryPerformance(
+  tenantId: string,
+  timeRange: TimeRange = "7d"
+): Promise<CategoryPerformance[]> {
+  const { current } = getDateRangeFromTimeRange(timeRange);
+  const currentStartStr = current.start.toISOString();
+  const currentEndStr = current.end.toISOString();
+
+  const categoryStats = await db
+    .select({
+      categoryId: sql<string>`COALESCE(${products.categoryId}::text, 'uncategorized')`,
+      categoryName: sql<string>`COALESCE(c.name, 'Uncategorized')`,
+      revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+      orders: sql<number>`count(distinct ${orders.id})`,
+      quantitySold: sum(orderItems.quantity),
+    })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .innerJoin(products, eq(orderItems.productId, products.id))
+    .leftJoin(sql`categories c`, sql`c.id = ${products.categoryId}`)
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        gte(orders.createdAt, currentStartStr),
+        lte(orders.createdAt, currentEndStr),
+        notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+      )
+    )
+    .groupBy(
+      sql`COALESCE(${products.categoryId}::text, 'uncategorized'), COALESCE(c.name, 'Uncategorized')`
+    )
+    .orderBy(desc(sum(sql`${orderItems.quantity} * ${orderItems.price}`)));
+
+  const totalRevenue = categoryStats.reduce(
+    (acc, c) => acc + parseFloat(String(c.revenue) || "0"),
+    0
+  );
+
+  return categoryStats.map((c) => {
+    const revenue = parseFloat(String(c.revenue) || "0");
+    return {
+      categoryId: c.categoryId,
+      categoryName: c.categoryName,
+      revenue,
+      orders: c.orders || 0,
+      quantitySold: Number(c.quantitySold) || 0,
+      percentOfTotal: totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0,
+    };
+  });
+}
+
+/**
+ * Get sales heatmap data (hour x day of week)
+ */
+export async function getSalesHeatmap(
+  tenantId: string,
+  timeRange: TimeRange = "30d"
+): Promise<HeatmapData[]> {
+  const { current } = getDateRangeFromTimeRange(timeRange);
+  const currentStartStr = current.start.toISOString();
+  const currentEndStr = current.end.toISOString();
+
+  const heatmapStats = await db
+    .select({
+      hour: sql<number>`extract(hour from ${orders.createdAt}::timestamp)::int`,
+      dayOfWeek: sql<number>`extract(dow from ${orders.createdAt}::timestamp)::int`,
+      value: count(),
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        gte(orders.createdAt, currentStartStr),
+        lte(orders.createdAt, currentEndStr),
+        notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+      )
+    )
+    .groupBy(
+      sql`extract(hour from ${orders.createdAt}::timestamp)`,
+      sql`extract(dow from ${orders.createdAt}::timestamp)`
+    );
+
+  // Fill in missing hour/day combinations with 0
+  const heatmapMap = new Map<string, number>();
+  heatmapStats.forEach((h) => {
+    heatmapMap.set(`${h.hour}-${h.dayOfWeek}`, h.value);
+  });
+
+  const result: HeatmapData[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      result.push({
+        hour,
+        dayOfWeek: day,
+        value: heatmapMap.get(`${hour}-${day}`) || 0,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Get product performance data for the table
+ */
+export async function getProductPerformance(
+  tenantId: string,
+  timeRange: TimeRange = "7d",
+  options: {
+    page?: number;
+    pageSize?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  } = {}
+): Promise<{ data: ProductPerformanceRow[]; total: number }> {
+  const { page = 1, pageSize = 10, sortOrder = "desc" } = options;
+  const { current } = getDateRangeFromTimeRange(timeRange);
+  const currentStartStr = current.start.toISOString();
+  const currentEndStr = current.end.toISOString();
+
+  // Get product stats
+  const productStats = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      sku: products.sku,
+      category: sql<string>`c.name`,
+      quantitySold: sum(orderItems.quantity),
+      revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+      orders: sql<number>`count(distinct ${orders.id})`,
+    })
+    .from(products)
+    .leftJoin(orderItems, eq(orderItems.productId, products.id))
+    .leftJoin(
+      orders,
+      and(
+        eq(orderItems.orderId, orders.id),
+        gte(orders.createdAt, currentStartStr),
+        lte(orders.createdAt, currentEndStr),
+        notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+      )
+    )
+    .leftJoin(sql`categories c`, sql`c.id = ${products.categoryId}`)
+    .where(eq(products.tenantId, tenantId))
+    .groupBy(products.id, products.name, products.sku, sql`c.name`)
+    .orderBy(
+      sortOrder === "desc"
+        ? desc(sum(sql`${orderItems.quantity} * ${orderItems.price}`))
+        : sum(sql`${orderItems.quantity} * ${orderItems.price}`)
+    )
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
+  // Get total count
+  const totalCount = await db
+    .select({ count: count() })
+    .from(products)
+    .where(eq(products.tenantId, tenantId));
+
+  const data: ProductPerformanceRow[] = productStats.map((p) => {
+    const revenue = parseFloat(String(p.revenue) || "0");
+    const qty = Number(p.quantitySold) || 0;
+    return {
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      quantitySold: qty,
+      revenue,
+      orders: p.orders || 0,
+      views: 0, // Would need page view tracking
+      conversionRate: 0, // Would need page view tracking
+      averagePrice: qty > 0 ? revenue / qty : 0,
+    };
+  });
+
+  return {
+    data,
+    total: totalCount[0]?.count || 0,
+  };
+}
+
+/**
+ * Get traffic source data (requires UTM tracking implementation)
+ * Currently returns empty array as UTM tracking is not implemented
+ */
+export async function getTrafficSources(
+  _tenantId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _timeRange: TimeRange = "7d"
+): Promise<TrafficSourceData[]> {
+  // Traffic source tracking requires:
+  // 1. Capturing UTM params in orders
+  // 2. Or analytics_traffic_sources table population
+  // For now, return empty array
+  return [];
+}
+
+/**
+ * Get conversion funnel data (requires event tracking implementation)
+ * Currently returns placeholder data based on orders
+ */
+export async function getConversionFunnel(
+  tenantId: string,
+  timeRange: TimeRange = "7d"
+): Promise<ConversionFunnelData[]> {
+  const { current } = getDateRangeFromTimeRange(timeRange);
+  const currentStartStr = current.start.toISOString();
+  const currentEndStr = current.end.toISOString();
+
+  // Get order count as the "purchase" stage
+  const [orderCount] = await db
+    .select({ count: count() })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        gte(orders.createdAt, currentStartStr),
+        lte(orders.createdAt, currentEndStr),
+        notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+      )
+    );
+
+  const purchases = orderCount?.count || 0;
+
+  // Without event tracking, we can only show purchase stage
+  // A full funnel would require: page views → add to cart → checkout start → purchase
+  if (purchases === 0) {
+    return [];
+  }
+
+  // Return purchase stage only (other stages require event tracking)
+  return [
+    {
+      stage: "purchase",
+      label: "Purchases",
+      count: purchases,
+      dropoff: 0,
+      dropoffPercent: 0,
+    },
+  ];
+}
+
+/**
+ * Get geographic sales data
+ */
+export async function getGeographicSales(
+  tenantId: string,
+  timeRange: TimeRange = "7d"
+): Promise<GeographicData[]> {
+  const { current } = getDateRangeFromTimeRange(timeRange);
+  const currentStartStr = current.start.toISOString();
+  const currentEndStr = current.end.toISOString();
+
+  const geoStats = await db
+    .select({
+      countryCode: sql<string>`COALESCE(${orders.shippingAddress}->>'countryCode', 'AF')`,
+      countryName: sql<string>`COALESCE(${orders.shippingAddress}->>'country', 'Afghanistan')`,
+      state: sql<string | null>`${orders.shippingAddress}->>'state'`,
+      city: sql<string | null>`${orders.shippingAddress}->>'city'`,
+      orders: count(),
+      revenue: sum(orders.total),
+      uniqueCustomers: sql<number>`count(distinct ${orders.customerSnapshot}->>'email')`,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.tenantId, tenantId),
+        gte(orders.createdAt, currentStartStr),
+        lte(orders.createdAt, currentEndStr),
+        notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
+      )
+    )
+    .groupBy(
+      sql`${orders.shippingAddress}->>'countryCode'`,
+      sql`${orders.shippingAddress}->>'country'`,
+      sql`${orders.shippingAddress}->>'state'`,
+      sql`${orders.shippingAddress}->>'city'`
+    )
+    .orderBy(desc(sum(orders.total)));
+
+  return geoStats.map((g) => ({
+    countryCode: g.countryCode,
+    countryName: g.countryName,
+    state: g.state,
+    city: g.city,
+    orders: g.orders,
+    revenue: parseFloat(String(g.revenue) || "0"),
+    uniqueCustomers: g.uniqueCustomers || 0,
+  }));
+}

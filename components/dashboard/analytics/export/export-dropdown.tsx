@@ -73,11 +73,13 @@ export function ExportDropdown({
   const handleExportDailyDataCSV = () => {
     const dailyData = data.dailyData.map((d) => ({
       date: d.date,
-      revenue: d.revenue,
-      orders: d.orders,
-      averageOrderValue: d.averageOrderValue.toFixed(2),
-      newCustomers: d.newCustomers,
-      returningCustomers: d.returningCustomers,
+      revenue: d.revenue || 0,
+      orders: d.orders || 0,
+      averageOrderValue: Number.isFinite(d.averageOrderValue)
+        ? d.averageOrderValue.toFixed(2)
+        : "0.00",
+      newCustomers: d.newCustomers || 0,
+      returningCustomers: d.returningCustomers || 0,
     }));
 
     exportToCSV(dailyData, generateAnalyticsFilename("daily", storeSlug), [
@@ -93,10 +95,10 @@ export function ExportDropdown({
   const handleExportTopProductsCSV = () => {
     const productData = data.topProducts.map((p) => ({
       product: p.name,
-      unitsSold: p.quantitySold,
-      revenue: p.revenue,
-      ordersContaining: p.ordersContaining,
-      percentOfTotal: `${p.percentOfTotal.toFixed(1)}%`,
+      unitsSold: p.quantitySold || 0,
+      revenue: p.revenue || 0,
+      ordersContaining: p.ordersContaining || 0,
+      percentOfTotal: `${Number.isFinite(p.percentOfTotal) ? p.percentOfTotal.toFixed(1) : "0.0"}%`,
     }));
 
     exportToCSV(productData, generateAnalyticsFilename("products", storeSlug), [

@@ -11,6 +11,7 @@ interface AnalyticsKPICardsProps {
 
 export function AnalyticsKPICards({ kpis, currency }: AnalyticsKPICardsProps) {
   const formatCurrency = (value: number) => {
+    if (!Number.isFinite(value)) return `0 ${currency}`;
     return `${value.toLocaleString()} ${currency}`;
   };
 

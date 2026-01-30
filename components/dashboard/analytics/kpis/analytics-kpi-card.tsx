@@ -90,7 +90,7 @@ export function AnalyticsKPICard({
         {/* Sparkline */}
         {sparklineData && sparklineData.length > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-12 opacity-50">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={48} minHeight={48}>
               <AreaChart data={sparklineData}>
                 <defs>
                   <linearGradient

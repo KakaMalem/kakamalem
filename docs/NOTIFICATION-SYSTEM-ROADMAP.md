@@ -2,26 +2,33 @@
 
 ## Executive Summary
 
-This document outlines a professional, enterprise-grade notification system for Kaka Malem. The system will support multi-channel notifications (in-app, push, email, SMS) with granular user preferences at both account and store levels.
+This document outlines the enterprise-grade notification system for Kaka Malem using Novu. The system supports multi-channel notifications (in-app, push, email) with granular user preferences.
+
+**Status: IN PROGRESS** - Novu integration started, basic infrastructure in place.
 
 ---
 
 ## Current State Analysis
 
-### What We Have
+### What We Have ✅
 
-- Basic Web Push API implementation using `web-push` npm package
-- Push subscriptions stored per user
-- Notifications triggered on order creation (checkout + offline sales)
+- Novu SDK integrated (`@novu/api`, `@novu/react`)
+- Basic notification infrastructure in `lib/notifications/`
+- Push subscriptions via Novu
+- Notifications triggered on order creation
 
-### Limitations
+### In Progress
 
-- No in-app notification center (users miss notifications if browser is closed)
-- No notification preferences per store
-- No customer notifications (order status updates)
-- No notification history/feed
-- Single channel only (push)
-- No digest/batching for high-volume stores
+- [ ] In-app notification center component
+- [ ] User notification preferences UI
+- [ ] Email notification templates
+- [ ] Customer notifications (order status updates)
+
+### Future Enhancements
+
+- Notification history/feed
+- Digest/batching for high-volume stores
+- SMS integration
 
 ---
 
@@ -260,17 +267,15 @@ ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Week 1-2)
+### Phase 1: Foundation (COMPLETED) ✅
 
 **Goal**: Set up Novu infrastructure and migrate existing push notifications
 
-- [ ] Set up Novu self-hosted (Docker)
-- [ ] Create database migrations for new tables
-- [ ] Migrate existing `push_subscriptions` to Novu subscribers
-- [ ] Create basic notification workflows:
+- [x] Integrate Novu SDK (`@novu/api`, `@novu/react`)
+- [x] Create notification infrastructure in `lib/notifications/`
+- [x] Create basic notification workflows:
   - `new-order-owner` - Notify store owner of new order
-  - `new-order-customer` - Confirm order to customer
-- [ ] Integrate `@novu/api` in server actions
+- [x] Integrate Novu in server actions for order notifications
 
 ### Phase 2: In-App Notification Center (Week 2-3)
 

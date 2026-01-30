@@ -7,13 +7,15 @@ Complete guide for deploying Kaka Malem to a VPS with Docker + native PostgreSQL
 ```
                         INTERNET
                            │
-                           ▼
-┌──────────────────────────────────────────────────┐
-│                 NGINX (Native)                    │
-│                 Port 80/443                       │
-│                 SSL via Certbot                   │
-└──────────────────────────────────────────────────┘
-                           │
+            ┌──────────────┴──────────────┐
+            ▼                              ▼
+┌─────────────────────────┐  ┌─────────────────────────┐
+│     NGINX (Native)       │  │     CADDY (Native)       │
+│     Port 80/443          │  │     Custom Domains       │
+│     Main domain SSL      │  │     On-Demand TLS        │
+└─────────────────────────┘  └─────────────────────────┘
+            │                              │
+            └──────────────┬───────────────┘
                            ▼
 ┌──────────────────────────────────────────────────┐
 │              DOCKER CONTAINER                     │
@@ -42,6 +44,7 @@ Complete guide for deploying Kaka Malem to a VPS with Docker + native PostgreSQL
 - **Docker for app**: Easy rollbacks, reproducible builds, no Node.js version conflicts
 - **Native PostgreSQL**: Better performance, direct filesystem access, tuned configs
 - **Native Nginx**: SSL termination, static file caching, no container overhead
+- **Caddy for custom domains**: On-demand TLS for automatic SSL on custom domains
 
 ## Quick Deploy
 
@@ -223,7 +226,41 @@ sudo systemctl reload nginx
 sudo certbot --nginx -d kakamalem.com -d www.kakamalem.com
 ```
 
-### Step 7: Start the Application
+### Step 7: Install Caddy (for Custom Domains)
+
+```bash
+# Install Caddy
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install caddy
+
+# Create Caddyfile for custom domains
+sudo tee /etc/caddy/Caddyfile << 'EOF'
+{
+    on_demand_tls {
+        ask http://localhost:3000/api/domains/verify
+    }
+}
+
+# Custom domains - on-demand TLS
+:443 {
+    tls {
+        on_demand
+    }
+    reverse_proxy localhost:3000
+}
+EOF
+
+# Restart Caddy
+sudo systemctl restart caddy
+sudo systemctl enable caddy
+```
+
+See [docs/CUSTOM_DOMAINS.md](CUSTOM_DOMAINS.md) for more details.
+
+### Step 8: Start the Application
 
 ```bash
 # Pull and start
@@ -234,7 +271,7 @@ docker compose up -d
 docker compose logs -f app
 ```
 
-### Step 8: Set Up GitHub Actions
+### Step 9: Set Up GitHub Actions
 
 Add these secrets in GitHub (Settings > Secrets > Actions):
 

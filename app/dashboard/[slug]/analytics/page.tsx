@@ -1,6 +1,15 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
-import { getAnalyticsData, type TimeRange } from "@/lib/db/queries/analytics";
+import {
+  getAnalyticsData,
+  getEnhancedKPIs,
+  getCategoryPerformance,
+  getSalesHeatmap,
+  getConversionFunnel,
+  getProductPerformance,
+  getTrafficSources,
+  type TimeRange,
+} from "@/lib/db/queries/analytics";
 import { EnhancedAnalyticsPageClient } from "@/components/dashboard/analytics/enhanced-analytics-page-client";
 
 interface AnalyticsPageProps {
@@ -56,8 +65,24 @@ export default async function AnalyticsPage({
     timeRange = "7d"; // Fall back if custom but no dates provided
   }
 
-  // Fetch analytics data
-  const analyticsData = await getAnalyticsData(store.id, timeRange);
+  // Fetch all analytics data in parallel
+  const [
+    analyticsData,
+    enhancedKpis,
+    categoryData,
+    heatmapData,
+    funnelData,
+    productTableResult,
+    trafficData,
+  ] = await Promise.all([
+    getAnalyticsData(store.id, timeRange),
+    getEnhancedKPIs(store.id, timeRange),
+    getCategoryPerformance(store.id, timeRange),
+    getSalesHeatmap(store.id, timeRange),
+    getConversionFunnel(store.id, timeRange),
+    getProductPerformance(store.id, timeRange, { page: 1, pageSize: 10 }),
+    getTrafficSources(store.id, timeRange),
+  ]);
 
   return (
     <EnhancedAnalyticsPageClient
@@ -65,6 +90,12 @@ export default async function AnalyticsPage({
       tenantId={store.id}
       currency={store.currency}
       data={analyticsData}
+      enhancedKpis={enhancedKpis}
+      categoryData={categoryData}
+      heatmapData={heatmapData}
+      funnelData={funnelData}
+      productTableData={productTableResult.data}
+      trafficData={trafficData}
     />
   );
 }

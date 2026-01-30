@@ -3,12 +3,11 @@
 ## Phase 1: Foundation (Completed)
 
 - [x] Project structure setup (`app/`, `lib/`, `components/`)
-- [x] Drizzle ORM with Supabase connection
-- [x] Local Supabase setup for development
-  - [x] Combined Drizzle migrations into single schema file (`supabase/migrations/000_initial_schema.sql`)
-  - [x] RLS policies migration (`supabase/migrations/001_rls_policies.sql`)
-  - [x] Local environment configuration (`.env.local` for local dev)
-  - [x] Successfully started local Supabase with Studio at http://127.0.0.1:54323
+- [x] Drizzle ORM with PostgreSQL 18 + PgBouncer
+- [x] Database migration system
+  - [x] Drizzle migrations in `drizzle/` folder
+  - [x] Custom SQL migrations in `drizzle/custom/` (triggers, functions)
+  - [x] Migration tracking via `custom_migrations` table
 - [x] Database schema design
   - [x] Core: profiles, tenants, tenant_members, categories, products, media
   - [x] Inventory: variant_options, variant_option_values, product_variants, inventory_movements
@@ -17,7 +16,7 @@
   - [x] Reviews: reviews, review_media
   - [x] Billing: commission_transactions
   - [x] Analytics: daily_snapshots, hourly_metrics, product/category performance, traffic, geo, page_views, conversion_events
-- [x] RLS policies for tenant isolation (`supabase/migrations/001_rls_policies.sql`)
+- [x] Application-level tenant isolation (all queries filter by `tenant_id`)
 - [x] Authentication system
   - [x] Email/password signup and login
   - [x] Google OAuth
@@ -794,23 +793,31 @@ Handle `store_customers` record lifecycle (lazy creation on first order).
 
 ---
 
-## Phase 4: Order Management
+## Phase 4: Order Management (Completed)
 
 ### Order Dashboard
 
-- [ ] Orders list with status filters
-- [ ] Order detail page
-  - [ ] Customer info
-  - [ ] Items ordered
-  - [ ] Shipping info
-  - [ ] Status timeline
-- [ ] Update order status
-- [ ] Staff notes
+- [x] Orders list with status filters
+- [x] Order detail page
+  - [x] Customer info
+  - [x] Items ordered
+  - [x] Shipping info
+  - [x] Status timeline
+- [x] Update order status
+- [x] Staff notes
+
+### Offline Sales (POS)
+
+- [x] POS interface for in-store sales
+- [x] Offline support via PWA (Dexie + Serwist)
+- [x] Sync queue for offline orders
+- [x] Variant selection in POS
 
 ### Shipping & Fulfillment
 
-- [ ] Shipping zones setup
-- [ ] Shipping methods per zone
+- [x] Shipping zones setup
+- [x] Shipping methods per zone (5 rate types)
+- [x] Zone priority matching (postal > city > state > country)
 - [ ] Create shipment for order
 - [ ] Add tracking info
 - [ ] Tracking events log
@@ -824,26 +831,39 @@ Handle `store_customers` record lifecycle (lazy creation on first order).
 
 ---
 
-## Phase 5: Analytics
+## Phase 5: Analytics (In Progress)
 
-### Dashboard Widgets
+### Dashboard Widgets (Completed)
 
-- [ ] Revenue chart (daily/weekly/monthly)
-- [ ] Orders count
-- [ ] Top products
-- [ ] Conversion rate
+- [x] Revenue chart (daily/weekly/monthly) - `RevenueTrendChart`
+- [x] Orders count chart - `OrdersTrendChart`
+- [x] Top products list - `AnalyticsTopProducts`
+- [x] KPI cards (Revenue, Orders, AOV, Customers) - `EnhancedAnalyticsKPICards`
+- [x] Customer split (new vs returning) - `CustomerSplitCard`
+- [x] Time range filtering (today, 7d, 30d, 90d, custom) - `AnalyticsFilterBar`
+- [x] Export dropdown (CSV) - `ExportDropdown`
 
-### Detailed Reports
+### Detailed Reports (Completed)
 
-- [ ] Product performance table
-- [ ] Category performance
-- [ ] Traffic sources breakdown
-- [ ] Geographic sales map
+- [x] Product performance table - `ProductPerformanceTable` + `/api/analytics/products`
+- [x] Category performance (pie/donut chart) - `CategoryDistributionChart` + `/api/analytics/categories`
+- [x] Sales heatmap (hour × day-of-week) - `SalesHeatmap` + `/api/analytics/heatmap`
+- [x] Geographic sales data - `getGeographicSales()` + `/api/analytics/geographic`
+- [ ] Traffic sources breakdown (requires UTM tracking implementation)
+- [ ] Conversion funnel (requires event tracking for full funnel)
 
-### Real-time
+### Real-time (Completed)
 
-- [ ] Hourly metrics display
-- [ ] Live visitor count (if feasible)
+- [x] Real-time metrics indicator (30s polling) - `RealTimeIndicator` + `/api/analytics/realtime`
+- [x] Today's orders and revenue
+- [ ] Live visitor count (requires session tracking)
+
+### Event Tracking (Not Started)
+
+- [ ] Page view tracking (`analytics_page_views` table exists)
+- [ ] Conversion events (add_to_cart, checkout_start, purchase)
+- [ ] Full conversion funnel with dropoff rates
+- [ ] UTM parameter capture for traffic sources
 
 ---
 
@@ -861,11 +881,12 @@ Handle `store_customers` record lifecycle (lazy creation on first order).
 - [ ] Input sanitization audit
 - [ ] CSRF protection verification
 
-### SEO
+### SEO (Completed)
 
-- [ ] Dynamic meta tags per store
-- [ ] Sitemap generation
-- [ ] robots.txt
+- [x] Dynamic meta tags per store (`generateMetadata`)
+- [x] Sitemap generation (`app/sitemap.ts`)
+- [x] robots.txt (`app/robots.ts`)
+- [x] Structured data (JSON-LD for products)
 
 ### Testing
 
@@ -874,11 +895,12 @@ Handle `store_customers` record lifecycle (lazy creation on first order).
 - [ ] Integration tests for server actions
 - [ ] E2E tests for critical flows (Playwright)
 
-### Deployment
+### Deployment (Completed)
 
-- [ ] Vercel deployment configuration
-- [ ] Environment variables setup
-- [ ] Database migrations pipeline
+- [x] Docker deployment with blue-green strategy
+- [x] Environment variables setup
+- [x] Database migrations pipeline (Drizzle)
+- [x] Health check endpoint (`/api/health`)
 - [ ] Monitoring (Sentry or similar)
 
 ---
@@ -1233,11 +1255,12 @@ When customer selects "Blue" color, product gallery shows blue product images au
 
 - [ ] Multi-language support (Dari, Pashto, English)
 - [ ] Payment gateway integration (local Afghan options)
-- [ ] Email notifications (order confirmation, shipping updates)
+- [x] Email notifications (via Novu)
 - [ ] SMS notifications (WhatsApp API)
 - [ ] Discount codes / coupons
-- [x] Customer accounts (order history, saved addresses) - Moved to Phase 3.5
-- [x] Wishlist functionality - Moved to Phase 3.5
+- [x] Customer accounts (order history, saved addresses) - Phase 3.5
+- [x] Wishlist functionality - Phase 3.5
 - [ ] Store themes/templates
-- [ ] Custom domain support
-- [ ] Admin panel for platform management
+- [x] Custom domain support (Caddy on-demand TLS) - See `docs/CUSTOM_DOMAINS.md`
+- [x] Admin panel for platform management - `/admin` route
+- [x] Offline POS support (PWA with Dexie + Serwist) - See `docs/OFFLINE_SYNC_ROADMAP.md`

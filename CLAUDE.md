@@ -105,13 +105,23 @@ The deployment uses blue-green strategy for zero downtime:
 
 The production setup uses a hybrid approach for optimal performance:
 
-| Component     | Where      | Why                                       |
-| ------------- | ---------- | ----------------------------------------- |
-| Next.js App   | Docker     | Portable, reproducible, easy rollback     |
-| PostgreSQL 18 | Native     | Performance, tuned configs in `database/` |
-| PgBouncer     | Native     | Minimal overhead, connection pooling      |
-| Nginx         | Native     | SSL termination, static files faster      |
-| File Storage  | Bind mount | Docker accesses native filesystem         |
+| Component     | Where      | Why                                               |
+| ------------- | ---------- | ------------------------------------------------- |
+| Next.js App   | Docker     | Portable, reproducible, easy rollback             |
+| PostgreSQL 18 | Native     | Performance, tuned configs in `database/`         |
+| PgBouncer     | Native     | Minimal overhead, connection pooling              |
+| Nginx         | Native     | SSL termination, static files faster              |
+| Caddy         | Native     | Custom domains with on-demand TLS (automatic SSL) |
+| File Storage  | Bind mount | Docker accesses native filesystem                 |
+
+### Custom Domains
+
+Stores can connect custom domains (e.g., `shop.mybrand.com`) via Caddy's on-demand TLS:
+
+- Automatic SSL certificate provisioning via Let's Encrypt
+- Domain verification via DNS TXT record
+- Configured in store settings (`/dashboard/[slug]/settings/domain`)
+- See [docs/CUSTOM_DOMAINS.md](docs/CUSTOM_DOMAINS.md) for setup details
 
 ### Docker Deployment
 
@@ -190,6 +200,9 @@ scripts/
 - **File Storage**: Local NVMe storage (served via Next.js API route)
 - **UI Components**: shadcn/ui (new-york style)
 - **Validation**: Zod
+- **Notifications**: Novu (in-app + push notifications)
+- **Offline/PWA**: Dexie.js (IndexedDB) + Serwist (Service Worker)
+- **Custom Domains**: Caddy with on-demand TLS
 - **Package Manager**: pnpm
 
 ## Architecture
@@ -376,6 +389,54 @@ Location: `lib/stores/`
 | `analytics_geographic_sales`     | Sales by location                           |
 | `analytics_page_views`           | Raw page view events                        |
 | `analytics_conversion_events`    | Funnel events (add_to_cart, checkout, etc.) |
+
+## Analytics Dashboard
+
+The analytics dashboard at `/dashboard/[slug]/analytics` provides store owners with performance insights.
+
+### Available Features
+
+| Feature                 | Component                   | Data Source                          |
+| ----------------------- | --------------------------- | ------------------------------------ |
+| Revenue & Orders Charts | `RevenueTrendChart`         | Orders table aggregation             |
+| KPI Cards               | `EnhancedAnalyticsKPICards` | `getEnhancedKPIs()`                  |
+| Top Products            | `AnalyticsTopProducts`      | Order items aggregation              |
+| Customer Split          | `CustomerSplitCard`         | New vs returning customers           |
+| Category Distribution   | `CategoryDistributionChart` | `/api/analytics/categories`          |
+| Sales Heatmap           | `SalesHeatmap`              | `/api/analytics/heatmap`             |
+| Product Performance     | `ProductPerformanceTable`   | `/api/analytics/products`            |
+| Real-time Metrics       | `RealTimeIndicator`         | `/api/analytics/realtime` (30s poll) |
+| Geographic Sales        | -                           | `/api/analytics/geographic`          |
+
+### Query Functions
+
+Location: `lib/db/queries/analytics.ts`
+
+| Function                   | Returns                                          |
+| -------------------------- | ------------------------------------------------ |
+| `getAnalyticsData()`       | KPIs, daily data, top products                   |
+| `getEnhancedKPIs()`        | Extended KPIs (items per order, etc.)            |
+| `getCategoryPerformance()` | Revenue/orders by category                       |
+| `getSalesHeatmap()`        | Order count by hour × day-of-week (168 points)   |
+| `getProductPerformance()`  | Paginated product metrics                        |
+| `getConversionFunnel()`    | Purchase funnel (partial - needs event tracking) |
+| `getGeographicSales()`     | Sales by country/state/city                      |
+| `getTrafficSources()`      | Placeholder (needs UTM tracking)                 |
+
+### Time Range Options
+
+- `today`, `yesterday`, `7d`, `30d`, `90d`
+- `this_month`, `last_month`, `this_year`
+- `custom` (with start/end dates)
+
+### Not Yet Implemented
+
+These features require analytics event tracking to be implemented:
+
+- Full conversion funnel (product_view → add_to_cart → checkout_start → purchase)
+- Traffic sources (UTM parameter capture)
+- Cart abandonment rate
+- Product page views
 
 ### Enums
 
@@ -585,6 +646,43 @@ STORAGE_PATH="C:/Users/YourName/kakamalem-uploads"
 ```
 
 **Note:** `.env.local` takes precedence over `.env` in Next.js. Delete or rename `.env.local` to use production environment.
+
+## Offline/PWA Support
+
+The POS system supports offline operation via Progressive Web App (PWA) technology:
+
+- **Service Worker**: Serwist for caching and offline support
+- **IndexedDB**: Dexie.js for local data storage
+- **Offline Sales**: POS can process sales offline, synced when back online
+- **Background Sync**: Queued operations synced automatically
+
+Key files:
+
+- `lib/offline/` - Dexie database and sync logic
+- `app/sw.ts` - Service worker configuration
+- See [docs/OFFLINE_SYNC_ROADMAP.md](docs/OFFLINE_SYNC_ROADMAP.md) for architecture
+
+## Notifications
+
+Using Novu for multi-channel notifications:
+
+- **In-App**: Real-time notifications in dashboard
+- **Email**: Order confirmations, shipping updates
+- **Push**: Browser push notifications (optional)
+
+Key files:
+
+- `lib/notifications/` - Novu client and helpers
+- Configured via `NOVU_API_KEY` environment variable
+
+## SEO
+
+Dynamic SEO configuration per store:
+
+- **Sitemaps**: Auto-generated at `/sitemap.xml` (dynamic per store)
+- **Robots.txt**: Dynamic at `/robots.txt`
+- **Meta Tags**: Per-page via Next.js `generateMetadata`
+- **Structured Data**: JSON-LD for products and organization
 
 ## Development Notes
 

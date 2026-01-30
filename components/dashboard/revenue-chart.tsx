@@ -48,7 +48,7 @@ export function RevenueChart({ data, currency }: RevenueChartProps) {
             No revenue data yet. Sales will appear here.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={300} minHeight={300}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">

@@ -31,6 +31,7 @@ interface TrafficSourcesTableProps {
 }
 
 function formatCurrency(value: number, currency: string): string {
+  if (!Number.isFinite(value)) return `0 ${currency}`;
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M ${currency}`;
   }
@@ -41,6 +42,7 @@ function formatCurrency(value: number, currency: string): string {
 }
 
 function formatNumber(value: number): string {
+  if (!Number.isFinite(value)) return "0";
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M`;
   }
@@ -177,7 +179,7 @@ export function TrafficSourcesTable({
       ),
       cell: ({ row }) => {
         const rate = row.getValue("conversionRate") as number;
-        return `${rate.toFixed(2)}%`;
+        return `${Number.isFinite(rate) ? rate.toFixed(2) : "0.00"}%`;
       },
     },
   ];

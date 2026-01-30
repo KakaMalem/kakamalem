@@ -52,7 +52,7 @@ export function CategoryDistributionChart({
         <div className="flex flex-col lg:flex-row items-center gap-4">
           {/* Chart */}
           <div className="w-full lg:w-2/3">
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minHeight={280}>
               <PieChart>
                 <Pie
                   data={data}
@@ -92,13 +92,20 @@ export function CategoryDistributionChart({
                           {item.categoryName}
                         </p>
                         <p className="text-sm text-primary">
-                          {item.revenue.toLocaleString()} {currency}
+                          {Number.isFinite(item.revenue)
+                            ? item.revenue.toLocaleString()
+                            : 0}{" "}
+                          {currency}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {item.percentOfTotal.toFixed(1)}% of total
+                          {Number.isFinite(item.percentOfTotal)
+                            ? item.percentOfTotal.toFixed(1)
+                            : "0.0"}
+                          % of total
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {item.orders} orders, {item.quantitySold} units
+                          {item.orders || 0} orders, {item.quantitySold || 0}{" "}
+                          units
                         </p>
                       </div>
                     );
@@ -129,7 +136,10 @@ export function CategoryDistributionChart({
                   </span>
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  {category.percentOfTotal.toFixed(1)}%
+                  {Number.isFinite(category.percentOfTotal)
+                    ? category.percentOfTotal.toFixed(1)
+                    : "0.0"}
+                  %
                 </span>
               </div>
             ))}

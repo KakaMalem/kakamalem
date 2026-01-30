@@ -38,7 +38,7 @@ export function OrdersTrendChart({ data }: OrdersTrendChartProps) {
             No orders for this period.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={300} minHeight={300}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis
@@ -62,7 +62,9 @@ export function OrdersTrendChart({ data }: OrdersTrendChartProps) {
                   return (
                     <div className="rounded-lg border bg-background p-3 shadow-sm">
                       <p className="text-sm font-medium">{d.displayDate}</p>
-                      <p className="text-sm text-primary">Orders: {d.orders}</p>
+                      <p className="text-sm text-primary">
+                        Orders: {d.orders || 0}
+                      </p>
                     </div>
                   );
                 }}

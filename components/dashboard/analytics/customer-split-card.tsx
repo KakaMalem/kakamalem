@@ -44,7 +44,8 @@ export function CustomerSplitCard({ kpis }: CustomerSplitCardProps) {
                 <div>
                   <p className="text-sm font-medium">{kpis.newCustomers}</p>
                   <p className="text-xs text-muted-foreground">
-                    New ({newPercent.toFixed(0)}%)
+                    New (
+                    {Number.isFinite(newPercent) ? newPercent.toFixed(0) : 0}%)
                   </p>
                 </div>
               </div>
@@ -55,7 +56,11 @@ export function CustomerSplitCard({ kpis }: CustomerSplitCardProps) {
                     {kpis.returningCustomers}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Returning ({returningPercent.toFixed(0)}%)
+                    Returning (
+                    {Number.isFinite(returningPercent)
+                      ? returningPercent.toFixed(0)
+                      : 0}
+                    %)
                   </p>
                 </div>
               </div>

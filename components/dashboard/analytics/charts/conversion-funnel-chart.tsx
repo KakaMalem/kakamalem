@@ -54,7 +54,9 @@ export function ConversionFunnelChart({ data }: ConversionFunnelChartProps) {
                 <span className="font-medium">{stage.label}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground">
-                    {stage.count.toLocaleString()}
+                    {Number.isFinite(stage.count)
+                      ? stage.count.toLocaleString()
+                      : 0}
                   </span>
                   {index > 0 && (
                     <span
@@ -67,7 +69,11 @@ export function ConversionFunnelChart({ data }: ConversionFunnelChartProps) {
                             : "bg-green-100 text-green-700"
                       )}
                     >
-                      -{stage.dropoffPercent.toFixed(1)}%
+                      -
+                      {Number.isFinite(stage.dropoffPercent)
+                        ? stage.dropoffPercent.toFixed(1)
+                        : "0.0"}
+                      %
                     </span>
                   )}
                 </div>
@@ -89,7 +95,10 @@ export function ConversionFunnelChart({ data }: ConversionFunnelChartProps) {
                 <div className="flex items-center justify-center gap-2 py-1">
                   <div className="h-4 w-px bg-muted-foreground/30" />
                   <span className="text-xs text-muted-foreground">
-                    {stage.dropoff.toLocaleString()} dropped off
+                    {Number.isFinite(stage.dropoff)
+                      ? stage.dropoff.toLocaleString()
+                      : 0}{" "}
+                    dropped off
                   </span>
                   <div className="h-4 w-px bg-muted-foreground/30" />
                 </div>
@@ -105,10 +114,12 @@ export function ConversionFunnelChart({ data }: ConversionFunnelChartProps) {
                   Overall Conversion Rate
                 </span>
                 <span className="text-lg font-bold text-primary">
-                  {(
-                    (data[data.length - 1].count / data[0].count) *
-                    100
-                  ).toFixed(2)}
+                  {data[0].count > 0
+                    ? (
+                        (data[data.length - 1].count / data[0].count) *
+                        100
+                      ).toFixed(2)
+                    : "0.00"}
                   %
                 </span>
               </div>

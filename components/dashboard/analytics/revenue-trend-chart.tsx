@@ -27,6 +27,7 @@ export function RevenueTrendChart({ data, currency }: RevenueTrendChartProps) {
   }));
 
   const formatCurrency = (value: number) => {
+    if (!Number.isFinite(value)) return "0";
     if (value >= 1000000) {
       return `${(value / 1000000).toFixed(1)}M`;
     }
@@ -49,7 +50,7 @@ export function RevenueTrendChart({ data, currency }: RevenueTrendChartProps) {
             No revenue data for this period.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={300} minHeight={300}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient
@@ -94,10 +95,14 @@ export function RevenueTrendChart({ data, currency }: RevenueTrendChartProps) {
                     <div className="rounded-lg border bg-background p-3 shadow-sm">
                       <p className="text-sm font-medium">{d.displayDate}</p>
                       <p className="text-sm text-primary">
-                        Revenue: {d.revenue.toLocaleString()} {currency}
+                        Revenue:{" "}
+                        {Number.isFinite(d.revenue)
+                          ? d.revenue.toLocaleString()
+                          : 0}{" "}
+                        {currency}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Orders: {d.orders}
+                        Orders: {d.orders || 0}
                       </p>
                     </div>
                   );

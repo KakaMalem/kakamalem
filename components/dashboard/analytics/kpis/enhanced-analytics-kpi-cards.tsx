@@ -23,6 +23,7 @@ interface EnhancedAnalyticsKPICardsProps {
 }
 
 function formatCurrency(value: number, currency: string): string {
+  if (!Number.isFinite(value)) return `0 ${currency}`;
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M ${currency}`;
   }
@@ -33,6 +34,7 @@ function formatCurrency(value: number, currency: string): string {
 }
 
 function formatNumber(value: number): string {
+  if (!Number.isFinite(value)) return "0";
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M`;
   }
@@ -43,6 +45,7 @@ function formatNumber(value: number): string {
 }
 
 function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return "0.0%";
   return `${value.toFixed(1)}%`;
 }
 
@@ -120,7 +123,11 @@ export function EnhancedAnalyticsKPICards({
       />
       <AnalyticsKPICard
         title="Items per Order"
-        value={kpis.averageItemsPerOrder.toFixed(1)}
+        value={
+          Number.isFinite(kpis.averageItemsPerOrder)
+            ? kpis.averageItemsPerOrder.toFixed(1)
+            : "0.0"
+        }
         change={kpis.itemsPerOrderChange}
         icon={<Package className="size-5" />}
       />
