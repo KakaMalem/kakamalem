@@ -24,6 +24,8 @@ interface AddressesMapPreviewProps {
   selectedAddressId: string | null;
   onAddressClick?: (addressId: string) => void;
   className?: string;
+  /** Store's physical location - shown as a shop marker on the map */
+  storeLocation?: { lat: number; lng: number } | null;
 }
 
 interface AddressZoneStatus {
@@ -83,6 +85,7 @@ export function AddressesMapPreview({
   selectedAddressId,
   onAddressClick,
   className,
+  storeLocation,
 }: AddressesMapPreviewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -298,6 +301,49 @@ export function AddressesMapPreview({
       }
     });
 
+    // Add store location marker if available
+    if (storeLocation) {
+      const storeIcon = L.divIcon({
+        className: "custom-store-marker",
+        html: `
+          <div style="
+            width: 32px;
+            height: 32px;
+            background: #8b5cf6;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/>
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/>
+              <path d="M2 7h20"/>
+              <path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
+      const storeMarker = L.marker([storeLocation.lat, storeLocation.lng], {
+        icon: storeIcon,
+        zIndexOffset: -100,
+      }).addTo(map);
+
+      storeMarker.bindTooltip("Store Location", {
+        permanent: false,
+        direction: "top",
+        className: "store-tooltip",
+      });
+
+      bounds.push([storeLocation.lat, storeLocation.lng]);
+    }
+
     // Fit bounds to show all markers and zones
     if (bounds.length > 0) {
       const group = L.latLngBounds(bounds);
@@ -327,6 +373,22 @@ export function AddressesMapPreview({
         background: transparent !important;
         border: none !important;
       }
+      .custom-store-marker {
+        background: transparent !important;
+        border: none !important;
+      }
+      .store-tooltip {
+        background: #8b5cf6 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 6px !important;
+        padding: 4px 8px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+      }
+      .store-tooltip::before {
+        border-top-color: #8b5cf6 !important;
+      }
       .address-popup {
         min-width: 150px;
       }
@@ -350,6 +412,7 @@ export function AddressesMapPreview({
     selectedAddressId,
     addressZoneStatuses,
     onAddressClick,
+    storeLocation,
   ]);
 
   // Track previous selection to detect changes
@@ -449,6 +512,12 @@ export function AddressesMapPreview({
         {leafletLoaded && deliveryZones.length > 0 && (
           <div className="absolute bottom-2 right-2 z-1000 rounded-lg bg-white/95 p-2 shadow-md backdrop-blur-sm text-xs">
             <div className="flex items-center gap-3">
+              {storeLocation && (
+                <div className="flex items-center gap-1.5">
+                  <div className="size-3 rounded-full bg-violet-500" />
+                  <span className="text-gray-600">Store</span>
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <div className="size-3 rounded-full bg-green-500" />
                 <span className="text-gray-600">In zone</span>

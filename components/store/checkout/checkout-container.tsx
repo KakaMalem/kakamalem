@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import type { Address, DeliveryZone } from "@/lib/db/schema";
 import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { useMounted } from "@/lib/hooks/use-mounted";
-import { CheckoutSteps } from "./checkout-steps";
+import { CheckoutAccordion } from "./accordion";
 import { CheckoutSummary } from "./checkout-summary";
-import { StepContactShipping } from "./step-contact-shipping";
-import { StepShippingMethod } from "./step-shipping-method";
-import { StepReview } from "./step-review";
+import { MobileOrderSummary } from "./mobile-order-summary";
 
 interface CheckoutContainerProps {
   tenantId: string;
   storeSlug: string;
+  storeName: string;
   currency: string;
   cart: Cart;
   savedAddresses: Array<{
@@ -42,11 +43,13 @@ interface CheckoutContainerProps {
   subtotal: number;
   deliveryZones: DeliveryZone[];
   enabledPaymentMethods: EnabledGateway[];
+  storeLocation?: { lat: number; lng: number } | null;
 }
 
 export function CheckoutContainer({
   tenantId,
   storeSlug,
+  storeName,
   currency,
   cart,
   savedAddresses,
@@ -55,17 +58,12 @@ export function CheckoutContainer({
   subtotal,
   deliveryZones,
   enabledPaymentMethods,
+  storeLocation,
 }: CheckoutContainerProps) {
   const mounted = useMounted();
 
-  const {
-    currentStep,
-    shippingAddress,
-    selectedMethod,
-    initCheckout,
-    setStep,
-    setShippingAddress,
-  } = useCheckoutStore();
+  const { shippingAddress, initCheckout, setShippingAddress } =
+    useCheckoutStore();
 
   // Initialize checkout on mount
   useEffect(() => {
@@ -104,79 +102,59 @@ export function CheckoutContainer({
         <div className="animate-pulse">
           <div className="h-8 w-48 bg-muted rounded mb-8" />
           <div className="grid gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="h-64 bg-muted rounded" />
+            <div className="lg:col-span-2 space-y-4">
+              <div className="h-20 bg-muted rounded" />
+              <div className="h-20 bg-muted rounded" />
+              <div className="h-20 bg-muted rounded" />
+              <div className="h-20 bg-muted rounded" />
             </div>
-            <div className="h-96 bg-muted rounded" />
+            <div className="hidden lg:block h-96 bg-muted rounded" />
           </div>
         </div>
       </div>
     );
   }
 
-  const handleStepClick = (step: 1 | 2 | 3) => {
-    // Allow going back to previous steps
-    if (step < currentStep) {
-      setStep(step);
-    }
-    // Allow going forward only if previous steps completed
-    else if (step === 2 && shippingAddress) {
-      setStep(step);
-    } else if (step === 3 && shippingAddress && selectedMethod) {
-      setStep(step);
-    }
-  };
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-bold mb-8">Checkout</h1>
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
+        <Link
+          href={`/store/${storeSlug}/cart`}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="size-4" />
+          <span className="hidden sm:inline">Back to cart</span>
+        </Link>
+        <h1 className="text-2xl font-bold">Checkout</h1>
+      </div>
 
-      {/* Step Indicator */}
-      <CheckoutSteps
-        currentStep={currentStep}
-        onStepClick={handleStepClick}
-        completedSteps={{
-          1: !!shippingAddress,
-          2: !!selectedMethod,
-          3: false,
-        }}
-      />
+      {/* Mobile Order Summary */}
+      <div className="lg:hidden mb-6">
+        <MobileOrderSummary cart={cart} currency={currency} />
+      </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-3">
-        {/* Main Content */}
+      {/* Main Layout */}
+      <div className="grid gap-8 lg:grid-cols-3">
+        {/* Accordion Sections */}
         <div className="lg:col-span-2">
-          {currentStep === 1 && (
-            <StepContactShipping
-              user={user}
-              userPhone={userPhone}
-              savedAddresses={savedAddresses}
-              tenantId={tenantId}
-              storeSlug={storeSlug}
-              deliveryZones={deliveryZones}
-            />
-          )}
-          {currentStep === 2 && (
-            <StepShippingMethod
-              tenantId={tenantId}
-              storeSlug={storeSlug}
-              currency={currency}
-              deliveryZones={deliveryZones}
-            />
-          )}
-          {currentStep === 3 && (
-            <StepReview
-              tenantId={tenantId}
-              storeSlug={storeSlug}
-              currency={currency}
-              cart={cart}
-              user={user}
-              enabledPaymentMethods={enabledPaymentMethods}
-            />
-          )}
+          <CheckoutAccordion
+            tenantId={tenantId}
+            storeSlug={storeSlug}
+            storeName={storeName}
+            currency={currency}
+            cart={cart}
+            savedAddresses={savedAddresses}
+            user={user}
+            userPhone={userPhone}
+            deliveryZones={deliveryZones}
+            enabledPaymentMethods={enabledPaymentMethods}
+            storeLocation={storeLocation}
+          />
         </div>
 
-        {/* Order Summary Sidebar */}
-        <div className="lg:col-span-1">
+        {/* Desktop Order Summary Sidebar */}
+        <div className="hidden lg:block lg:col-span-1">
           <CheckoutSummary cart={cart} currency={currency} />
         </div>
       </div>

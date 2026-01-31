@@ -80,14 +80,10 @@ export function PricingCard({
       {highlighted ? (
         isLoggedIn ? (
           <Button asChild size="lg" className="w-full">
-            <a
-              href={`https://wa.me/93708133894?text=${encodeURIComponent("Hi! I'd like to upgrade my Kaka Malem store to Pro plan.")}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <Link href="/dashboard">
               <Crown className="mr-2 size-4" />
               {cta}
-            </a>
+            </Link>
           </Button>
         ) : (
           <Button asChild size="lg" className="w-full">

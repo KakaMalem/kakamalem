@@ -931,6 +931,26 @@ export const tenants = pgTable(
       mode: "string",
     }),
 
+    // ==========================================================================
+    // STORE LOCATION (Physical store location for POS/offline stores)
+    // ==========================================================================
+    // GPS coordinates - uses same precision as delivery zones
+    storeLocationLat: decimal("store_location_lat", {
+      precision: 10,
+      scale: 8,
+    }),
+    storeLocationLng: decimal("store_location_lng", {
+      precision: 11,
+      scale: 8,
+    }),
+    // Reverse geocoded city name (from Nominatim/OpenStreetMap)
+    storeLocationCity: varchar("store_location_city", { length: 100 }),
+    // Location quality metadata
+    storeLocationAccuracy: integer("store_location_accuracy"), // GPS accuracy in meters
+    storeLocationSource: varchar("store_location_source", { length: 10 }), // 'gps' | 'manual'
+    // Plus Code for easy sharing (e.g., "8J7XMJRV+97")
+    storeLocationPlusCode: varchar("store_location_plus_code", { length: 20 }),
+
     // Analytics (system-managed, read-only for owners)
     analytics: jsonb("analytics").$type<StoreAnalytics>().default({
       totalViews: 0,
@@ -958,6 +978,67 @@ export const tenants = pgTable(
     index("tenants_custom_domain_idx").on(table.customDomain),
   ]
 );
+
+// ============================================================================
+// STORE LOCATIONS (Multiple physical locations per store)
+// ============================================================================
+// For stores with multiple physical locations (branches, warehouses, pickup points).
+// Each location can have its own address, hours, and be used for local pickup.
+export const storeLocations = pgTable(
+  "store_locations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Location name/label
+    name: varchar("name", { length: 100 }).notNull(), // e.g., "Main Store", "Warehouse", "Kabul Branch"
+
+    // GPS coordinates - uses same precision as delivery zones
+    latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
+    longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
+
+    // Reverse geocoded city name (from Nominatim/OpenStreetMap)
+    city: varchar("city", { length: 100 }),
+
+    // Plus Code for easy sharing (e.g., "8J7XMJRV+97")
+    plusCode: varchar("plus_code", { length: 20 }),
+
+    // Location quality metadata
+    accuracy: integer("accuracy"), // GPS accuracy in meters
+    source: varchar("source", { length: 10 }), // 'gps' | 'manual'
+
+    // Contact info specific to this location
+    phone: varchar("phone", { length: 50 }),
+    email: varchar("email", { length: 255 }),
+
+    // Whether this is the primary/default location shown on storefront
+    isPrimary: boolean("is_primary").default(false).notNull(),
+
+    // Whether this location is active and shown on the storefront
+    isActive: boolean("is_active").default(true).notNull(),
+
+    // Display order for sorting
+    displayOrder: integer("display_order").default(0).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("store_locations_tenant_id_idx").on(table.tenantId),
+    // Primary location lookup
+    index("store_locations_primary_idx").on(table.tenantId, table.isPrimary),
+  ]
+);
+
+// Type export for Store Location
+export type StoreLocation = typeof storeLocations.$inferSelect;
+export type StoreLocationInsert = typeof storeLocations.$inferInsert;
 
 // ============================================================================
 // TENANT MEMBERS (Store staff/collaborators)
@@ -6111,7 +6192,7 @@ export const invoices = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
 
-    // Invoice identification
+    // Invoice identification (globally unique via nanoid)
     invoiceNumber: varchar("invoice_number", { length: 50 }).notNull().unique(),
 
     // Amounts
@@ -6574,6 +6655,15 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   categoryPerformance: many(analyticsCategoryPerformance),
   trafficSources: many(analyticsTrafficSources),
   geographicSales: many(analyticsGeographicSales),
+  // Store Locations
+  storeLocations: many(storeLocations),
+}));
+
+export const storeLocationsRelations = relations(storeLocations, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [storeLocations.tenantId],
+    references: [tenants.id],
+  }),
 }));
 
 export const tenantMembersRelations = relations(tenantMembers, ({ one }) => ({

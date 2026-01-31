@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { eq, count as drizzleCount, desc, and, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import {
   tenants,
@@ -480,23 +481,31 @@ export const getBillingSummary = cache(
 );
 
 /**
- * Generate next invoice number for a tenant
- * Format: INV-{YEAR}-{SEQUENCE}
+ * Generate a 3-character uppercase code from a store slug
+ * Examples: "sample-store" → "SAM", "kabul-electronics" → "KAB", "az" → "AZZ"
  */
-export async function generateInvoiceNumber(tenantId: string): Promise<string> {
+function generateStoreCode(slug: string): string {
+  // Remove hyphens and get alphanumeric only
+  const clean = slug.replace(/-/g, "").toUpperCase();
+  // Take first 3 chars, pad with 'X' if too short
+  return clean.slice(0, 3).padEnd(3, "X");
+}
+
+/**
+ * Generate invoice number with tenant prefix and nanoid for uniqueness
+ * Format: INV-{STORE_CODE}-{YEAR}-{NANOID}
+ * Example: INV-SAM-2026-k5xvh8yq
+ *
+ * Benefits:
+ * - Non-guessable (can't enumerate other invoices)
+ * - No race conditions (nanoid is always unique)
+ * - Quick store identification for support/debugging
+ * - Human-readable with store prefix and year
+ */
+export function generateInvoiceNumber(storeSlug: string): string {
+  const storeCode = generateStoreCode(storeSlug);
   const year = new Date().getFullYear();
-
-  // Get the count of invoices for this tenant this year
-  const result = await db
-    .select({ count: drizzleCount() })
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.tenantId, tenantId),
-        sql`EXTRACT(YEAR FROM ${invoices.createdAt}) = ${year}`
-      )
-    );
-
-  const sequence = (result[0]?.count ?? 0) + 1;
-  return `INV-${year}-${String(sequence).padStart(4, "0")}`;
+  // 8-char nanoid gives ~2.8 trillion possibilities - collision-proof
+  const id = nanoid(8);
+  return `INV-${storeCode}-${year}-${id}`;
 }

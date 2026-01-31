@@ -1142,6 +1142,30 @@ export function ProductForm({
           }
         }
 
+        // Remove variants if they were disabled (product had variants but now doesn't)
+        if (!hasVariants && product?.hasVariants && productId) {
+          setUploadProgress({
+            stage: "saving",
+            message: "Removing variants...",
+          });
+
+          const removeResult = await updateProductVariantsInBulk(
+            tenantId,
+            productId,
+            {
+              options: [],
+              variants: [],
+              imageAssignments: [],
+            }
+          );
+
+          if (!removeResult.success) {
+            toast.error(
+              removeResult.error?.message || "Failed to remove variants"
+            );
+          }
+        }
+
         // Save price tiers if any exist
         if (productId && priceTiers.length > 0) {
           setUploadProgress({
@@ -1681,16 +1705,29 @@ export function ProductForm({
                         Configure size, color, material and other options
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowVariantWizard(true)}
-                      disabled={isPending}
-                    >
-                      <Wand2 className="h-4 w-4 mr-2" />
-                      Open Wizard
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowDisableVariantsDialog(true)}
+                        disabled={isPending}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove Variants
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowVariantWizard(true)}
+                        disabled={isPending}
+                      >
+                        <Wand2 className="h-4 w-4 mr-2" />
+                        Open Wizard
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Global Inventory Settings for Variants */}

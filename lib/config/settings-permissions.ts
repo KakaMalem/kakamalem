@@ -9,6 +9,7 @@ import type { StoreRole } from "@/lib/auth/context";
 
 export type SettingsPageKey =
   | "general"
+  | "location"
   | "branding"
   | "social"
   | "seo"
@@ -45,6 +46,13 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     title: "General",
     description: "Store name, description, and contact info",
     href: "",
+    minRole: "admin",
+  },
+  {
+    key: "location",
+    title: "Location",
+    description: "Physical store location on map",
+    href: "/location",
     minRole: "admin",
   },
   {

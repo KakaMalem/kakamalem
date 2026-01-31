@@ -22,6 +22,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-picker";
 import { AddressesMapPreview } from "./addresses-map-preview";
+import { NotificationPrompt } from "./notification-prompt";
 import { cn } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
@@ -59,6 +60,7 @@ interface StepContactShippingProps {
   }>;
   tenantId: string;
   storeSlug: string;
+  storeName: string;
   deliveryZones: DeliveryZone[];
 }
 
@@ -66,12 +68,12 @@ export function StepContactShipping({
   user,
   userPhone,
   savedAddresses,
-  tenantId: _tenantId,
+  tenantId,
   storeSlug: _storeSlug,
+  storeName,
   deliveryZones,
 }: StepContactShippingProps) {
-  // tenantId and storeSlug are available for future use if needed
-  void _tenantId;
+  // storeSlug is available for future use if needed
   void _storeSlug;
 
   const {
@@ -462,6 +464,15 @@ export function StepContactShipping({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Push Notification Prompt - Only for logged-in users */}
+      {user && (
+        <NotificationPrompt
+          tenantId={tenantId}
+          storeName={storeName}
+          isLoggedIn={!!user}
+        />
       )}
 
       {/* Delivery Location */}

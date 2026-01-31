@@ -18,7 +18,9 @@ import {
   StepBasicInfo,
   StepBranding,
   StepContact,
+  StepLocation,
 } from "@/components/dashboard/wizard";
+import type { LocationValue } from "@/components/shared";
 import {
   createStoreSchema,
   generateSlug,
@@ -100,6 +102,13 @@ export function CreateStoreForm({
     contactEmail: string;
     contactPhone: string;
     currency: "AFN" | "USD";
+    // Location
+    storeLocationLat: number | null;
+    storeLocationLng: number | null;
+    storeLocationCity: string;
+    storeLocationAccuracy: number | null;
+    storeLocationSource: "gps" | "manual" | null;
+    storeLocationPlusCode: string;
   }>({
     storeMode: "online_only",
     name: "",
@@ -110,6 +119,13 @@ export function CreateStoreForm({
     contactEmail: userEmail,
     contactPhone: userPhone,
     currency: "AFN",
+    // Location defaults
+    storeLocationLat: null,
+    storeLocationLng: null,
+    storeLocationCity: "",
+    storeLocationAccuracy: null,
+    storeLocationSource: null,
+    storeLocationPlusCode: "",
   });
 
   // Check slug availability with debounce
@@ -188,6 +204,31 @@ export function CreateStoreForm({
 
   const updateCurrency = (value: "AFN" | "USD") => {
     setFormData((prev) => ({ ...prev, currency: value }));
+  };
+
+  // Update location from LocationPicker
+  const updateLocation = (location: LocationValue | null) => {
+    if (location) {
+      setFormData((prev) => ({
+        ...prev,
+        storeLocationLat: location.latitude,
+        storeLocationLng: location.longitude,
+        storeLocationCity: location.city || "",
+        storeLocationAccuracy: location.accuracy || null,
+        storeLocationSource: location.source,
+        storeLocationPlusCode: location.plusCode || "",
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        storeLocationLat: null,
+        storeLocationLng: null,
+        storeLocationCity: "",
+        storeLocationAccuracy: null,
+        storeLocationSource: null,
+        storeLocationPlusCode: "",
+      }));
+    }
   };
 
   // Handle logo upload
@@ -287,7 +328,7 @@ export function CreateStoreForm({
     e.stopPropagation();
     if (validateStep(currentStep)) {
       setDirection(1);
-      setCurrentStep((prev) => Math.min(prev + 1, 3));
+      setCurrentStep((prev) => Math.min(prev + 1, 4));
     }
   };
 
@@ -299,8 +340,8 @@ export function CreateStoreForm({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    // Only allow submission on the final step
-    if (currentStep !== 3) return;
+    // Only allow submission on the final step (Step 4: Location)
+    if (currentStep !== 4) return;
 
     if (!validateStep(currentStep)) return;
 
@@ -440,6 +481,27 @@ export function CreateStoreForm({
                   disabled={isPending}
                 />
               )}
+
+              {/* Step 4: Location */}
+              {currentStep === 4 && (
+                <StepLocation
+                  location={
+                    formData.storeLocationLat !== null &&
+                    formData.storeLocationLng !== null
+                      ? {
+                          latitude: formData.storeLocationLat,
+                          longitude: formData.storeLocationLng,
+                          city: formData.storeLocationCity || undefined,
+                          plusCode: formData.storeLocationPlusCode || undefined,
+                          accuracy: formData.storeLocationAccuracy || undefined,
+                          source: formData.storeLocationSource || "manual",
+                        }
+                      : null
+                  }
+                  onLocationChange={updateLocation}
+                  disabled={isPending}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
 
@@ -459,7 +521,7 @@ export function CreateStoreForm({
               <div />
             )}
 
-            {currentStep < 3 ? (
+            {currentStep < 4 ? (
               <Button
                 type="button"
                 onClick={(e) => nextStep(e)}

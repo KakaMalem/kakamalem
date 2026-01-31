@@ -12,7 +12,7 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   orders,
@@ -762,4 +762,65 @@ export async function getOrderPaymentSessions(orderId: string) {
     .from(paymentSessions)
     .where(eq(paymentSessions.orderId, orderId))
     .orderBy(desc(paymentSessions.createdAt));
+}
+
+/**
+ * Get the latest pending payment session for a store
+ * Used to redirect users back to payment if they left during checkout
+ */
+export async function getLatestPendingPaymentSession(
+  tenantId: string,
+  userId?: string
+) {
+  // Get orders for this user/session in this store that are unpaid
+  const recentOrders = await db.query.orders.findMany({
+    where: and(
+      eq(orders.tenantId, tenantId),
+      eq(orders.paymentStatus, "unpaid"),
+      userId ? eq(orders.userId, userId) : undefined
+    ),
+    columns: { id: true },
+    orderBy: desc(orders.createdAt),
+    limit: 5,
+  });
+
+  if (recentOrders.length === 0) {
+    return null;
+  }
+
+  const orderIds = recentOrders.map((o) => o.id);
+
+  // Get the most recent pending/processing payment session
+  const [session] = await db
+    .select({
+      id: paymentSessions.id,
+      orderId: paymentSessions.orderId,
+      gatewaySessionUrl: paymentSessions.gatewaySessionUrl,
+      status: paymentSessions.status,
+      expiresAt: paymentSessions.expiresAt,
+    })
+    .from(paymentSessions)
+    .where(
+      and(
+        eq(paymentSessions.tenantId, tenantId),
+        inArray(paymentSessions.orderId, orderIds),
+        inArray(paymentSessions.status, ["pending", "processing"])
+      )
+    )
+    .orderBy(desc(paymentSessions.createdAt))
+    .limit(1);
+
+  if (!session) {
+    return null;
+  }
+
+  // Check if session is not expired
+  if (session.expiresAt) {
+    const expiresAt = new Date(session.expiresAt);
+    if (expiresAt < new Date()) {
+      return null;
+    }
+  }
+
+  return session;
 }

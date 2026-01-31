@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Layers, Store, Palette, Settings } from "lucide-react";
+import { Check, Layers, Store, Palette, Settings, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const steps = [
@@ -9,6 +9,7 @@ const steps = [
   { id: 1, title: "Basic Info", icon: Store },
   { id: 2, title: "Branding", icon: Palette },
   { id: 3, title: "Contact", icon: Settings },
+  { id: 4, title: "Location", icon: MapPin },
 ];
 
 interface StepIndicatorProps {

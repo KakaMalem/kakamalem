@@ -83,6 +83,14 @@ export const createStoreSchema = z.object({
     .or(z.literal("")),
   contactPhone: optionalPhoneSchema,
   currency: z.enum(currencyOptions).default("AFN"),
+
+  // Step 4: Location (optional)
+  storeLocationLat: z.number().min(-90).max(90).optional().nullable(),
+  storeLocationLng: z.number().min(-180).max(180).optional().nullable(),
+  storeLocationCity: z.string().max(100).optional().or(z.literal("")),
+  storeLocationAccuracy: z.number().int().positive().optional().nullable(),
+  storeLocationSource: z.enum(["gps", "manual"]).optional().nullable(),
+  storeLocationPlusCode: z.string().max(20).optional().or(z.literal("")),
 });
 
 export type CreateStoreInput = z.infer<typeof createStoreSchema>;
@@ -326,6 +334,36 @@ export const storeModeSettingsSchema = z.object({
 });
 
 export type StoreModeSettingsInput = z.infer<typeof storeModeSettingsSchema>;
+
+// Store location validation schema (for multi-location feature)
+export const storeLocationSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, "Location name is required")
+      .max(100, "Location name must be less than 100 characters"),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    city: z.string().max(100).optional().or(z.literal("")),
+    plusCode: z.string().max(20).optional().or(z.literal("")),
+    accuracy: z.number().int().positive().optional().nullable(),
+    source: z.enum(["gps", "manual"]).optional().nullable(),
+    phone: optionalPhoneSchema,
+    email: z
+      .string()
+      .regex(emailRegex, "Please enter a valid email address")
+      .optional()
+      .or(z.literal("")),
+    isPrimary: z.boolean().default(false),
+    isActive: z.boolean().default(true),
+    displayOrder: z.number().int().min(0).default(0),
+  })
+  .refine((data) => data.latitude !== 0 || data.longitude !== 0, {
+    message: "Please select a location on the map",
+    path: ["latitude"],
+  });
+
+export type StoreLocationInput = z.infer<typeof storeLocationSchema>;
 
 /**
  * Generate slug from store name (supports Unicode including Persian)

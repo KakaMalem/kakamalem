@@ -119,6 +119,13 @@ export async function createTenant(data: {
   contactPhone?: string;
   currency?: string;
   storeMode?: "full" | "online_only" | "offline_only" | "catalog";
+  // Store location
+  storeLocationLat?: number | null;
+  storeLocationLng?: number | null;
+  storeLocationCity?: string | null;
+  storeLocationAccuracy?: number | null;
+  storeLocationSource?: "gps" | "manual" | null;
+  storeLocationPlusCode?: string | null;
 }) {
   // Determine channel settings based on store mode
   let onlineCheckoutEnabled = true;
@@ -154,6 +161,13 @@ export async function createTenant(data: {
       onlineCheckoutEnabled,
       posEnabled,
       status: "active", // New stores are active by default
+      // Store location
+      storeLocationLat: data.storeLocationLat?.toString() ?? null,
+      storeLocationLng: data.storeLocationLng?.toString() ?? null,
+      storeLocationCity: data.storeLocationCity || null,
+      storeLocationAccuracy: data.storeLocationAccuracy ?? null,
+      storeLocationSource: data.storeLocationSource || null,
+      storeLocationPlusCode: data.storeLocationPlusCode || null,
     })
     .returning();
 
@@ -199,6 +213,13 @@ export async function updateTenant(
     socialLinks: Record<string, string | boolean | undefined>;
     seo: Record<string, string | undefined>;
     status: "pending_review" | "active" | "suspended" | "inactive";
+    // Store location
+    storeLocationLat: string | null;
+    storeLocationLng: string | null;
+    storeLocationCity: string | null;
+    storeLocationAccuracy: number | null;
+    storeLocationSource: string | null;
+    storeLocationPlusCode: string | null;
   }>
 ) {
   const [updated] = await db

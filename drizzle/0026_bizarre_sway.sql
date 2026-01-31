@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ADD COLUMN "store_location_plus_code" varchar(20);

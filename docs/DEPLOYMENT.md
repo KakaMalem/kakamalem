@@ -408,6 +408,7 @@ find /var/backups/postgresql -name "*.dump" -mtime +14 -delete
 | `BETTER_AUTH_SECRET`    | Auth secret (32+ chars)            | `openssl rand -base64 32`                               |
 | `NEXT_PUBLIC_APP_URL`   | Public URL                         | `https://kakamalem.com`                                 |
 | `STORAGE_PATH`          | Upload storage path                | `/app/uploads`                                          |
+| `HESABPAY_API_KEY`      | HesabPay API key (escrow model)    | Get from developers.hesab.com                           |
 
 ---
 

@@ -71,6 +71,7 @@ interface DeliverySettingsClientProps {
   enableDeliveryZones: boolean;
   deliveryZones: DeliveryZone[];
   shippingZones: ShippingZone[];
+  storeLocation?: { lat: number; lng: number } | null;
 }
 
 type DeliveryMode = "local" | "anywhere";
@@ -82,6 +83,7 @@ export function DeliverySettingsClient({
   enableDeliveryZones: initialEnabled,
   deliveryZones,
   shippingZones,
+  storeLocation,
 }: DeliverySettingsClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -154,6 +156,7 @@ export function DeliverySettingsClient({
                 tenantId={tenantId}
                 currency={currency}
                 initialZones={deliveryZones}
+                storeLocation={storeLocation}
               />
             </TabsContent>
 

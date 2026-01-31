@@ -4,3 +4,4 @@ export { StepStoreType } from "./step-store-type";
 export { StepBasicInfo } from "./step-basic-info";
 export { StepBranding } from "./step-branding";
 export { StepContact } from "./step-contact";
+export { StepLocation } from "./step-location";

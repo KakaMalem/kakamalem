@@ -7,12 +7,14 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
 import { getOrCreateCart } from "@/lib/db/queries/carts";
 import { getWishlistedProductIds } from "@/lib/db/queries/wishlists";
+import { getActiveStoreLocations } from "@/lib/db/queries/store-locations";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
 import { getUser } from "@/lib/auth/server";
 import { getUserStoreContext } from "@/lib/auth/context";
 import { StoreHeaderWrapper } from "@/components/store/store-header-wrapper";
 import { StoreCategoriesBar } from "@/components/store/store-categories-bar";
 import { StoreFooter } from "@/components/store/store-footer";
+import { StoreInfoSection } from "@/components/store/store-info-section";
 import { CartProvider } from "@/components/store/cart-provider";
 import { CartDrawer } from "@/components/store/cart-drawer";
 import { WishlistHydration } from "@/components/store/wishlist-hydration";
@@ -160,11 +162,12 @@ export default async function StoreLayout({
     );
   }
 
-  // Fetch categories, user, and session data
-  const [categories, user, sessionId] = await Promise.all([
+  // Fetch categories, user, session data, and store locations
+  const [categories, user, sessionId, storeLocations] = await Promise.all([
     getCategoriesWithCounts(store.id),
     getUser(),
     getCartSessionIdOrNull(),
+    getActiveStoreLocations(store.id),
   ]);
 
   // Fetch wishlisted product IDs (for hydrating the wishlist store)
@@ -259,6 +262,39 @@ export default async function StoreLayout({
             storeSlug={slug}
           />
           <main className="flex-1">{children}</main>
+          {/* Store Info Section - Shows location map if store has locations */}
+          {(storeLocations.length > 0 ||
+            (store.storeLocationLat && store.storeLocationLng)) && (
+            <StoreInfoSection
+              storeName={store.name}
+              storeDescription={store.description}
+              contactPhone={store.contactPhone}
+              contactEmail={store.contactEmail}
+              locations={storeLocations.map((loc) => ({
+                id: loc.id,
+                name: loc.name,
+                lat: parseFloat(loc.latitude),
+                lng: parseFloat(loc.longitude),
+                city: loc.city,
+                plusCode: loc.plusCode,
+                phone: loc.phone,
+                email: loc.email,
+                isPrimary: loc.isPrimary,
+              }))}
+              storeLocation={
+                storeLocations.length === 0 &&
+                store.storeLocationLat &&
+                store.storeLocationLng
+                  ? {
+                      lat: parseFloat(store.storeLocationLat),
+                      lng: parseFloat(store.storeLocationLng),
+                      city: store.storeLocationCity,
+                      plusCode: store.storeLocationPlusCode,
+                    }
+                  : null
+              }
+            />
+          )}
           <StoreFooter
             store={store}
             categories={categories.map((c) => ({

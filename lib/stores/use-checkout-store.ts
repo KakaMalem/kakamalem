@@ -9,7 +9,13 @@ import type { Address } from "@/lib/db/schema";
 // TYPES
 // =============================================================================
 
+// Legacy step type (kept for migration)
 export type CheckoutStep = 1 | 2 | 3;
+
+// New section-based navigation
+export type CheckoutSection = "contact" | "delivery" | "shipping" | "payment";
+
+export type SectionStatus = "locked" | "active" | "completed";
 
 export type CustomerInfo = {
   email: string;
@@ -34,7 +40,11 @@ export type PaymentMethod = {
 };
 
 type CheckoutState = {
-  // Step tracking
+  // Section-based navigation (accordion)
+  expandedSection: CheckoutSection | null;
+  completedSections: CheckoutSection[];
+
+  // Legacy step tracking (for backward compatibility during migration)
   currentStep: CheckoutStep;
   completedSteps: CheckoutStep[];
 
@@ -73,7 +83,14 @@ type CheckoutActions = {
   // Initialization
   initCheckout: (tenantId: string, storeSlug: string, subtotal: number) => void;
 
-  // Step navigation
+  // Section navigation (new accordion-based)
+  setExpandedSection: (section: CheckoutSection | null) => void;
+  completeSection: (section: CheckoutSection) => void;
+  uncompleteSection: (section: CheckoutSection) => void;
+  canExpandSection: (section: CheckoutSection) => boolean;
+  getSectionStatus: (section: CheckoutSection) => SectionStatus;
+
+  // Legacy step navigation (kept for backward compatibility)
   setStep: (step: CheckoutStep) => void;
   completeStep: (step: CheckoutStep) => void;
   canProceedToStep: (step: CheckoutStep) => boolean;
@@ -106,12 +123,32 @@ type CheckoutActions = {
 type CheckoutStore = CheckoutState & CheckoutActions;
 
 // =============================================================================
+// CONSTANTS
+// =============================================================================
+
+const STORE_VERSION = 2;
+
+// Section order for validation
+const SECTION_ORDER: CheckoutSection[] = [
+  "contact",
+  "delivery",
+  "shipping",
+  "payment",
+];
+
+// =============================================================================
 // INITIAL STATE
 // =============================================================================
 
 const initialState: CheckoutState = {
+  // New section-based state
+  expandedSection: "contact",
+  completedSections: [],
+
+  // Legacy (kept for migration)
   currentStep: 1,
   completedSteps: [],
+
   tenantId: null,
   storeSlug: null,
   customerInfo: null,
@@ -158,7 +195,76 @@ export const useCheckoutStore = create<CheckoutStore>()(
         }
       },
 
-      // Step navigation
+      // ==========================================================================
+      // SECTION NAVIGATION (new accordion-based)
+      // ==========================================================================
+
+      setExpandedSection: (section) => {
+        set({ expandedSection: section });
+      },
+
+      completeSection: (section) => {
+        const { completedSections } = get();
+        if (!completedSections.includes(section)) {
+          set({ completedSections: [...completedSections, section] });
+        }
+      },
+
+      uncompleteSection: (section) => {
+        const { completedSections } = get();
+        // Remove this section and all sections after it
+        const sectionIndex = SECTION_ORDER.indexOf(section);
+        const newCompletedSections = completedSections.filter((s) => {
+          const index = SECTION_ORDER.indexOf(s);
+          return index < sectionIndex;
+        });
+        set({ completedSections: newCompletedSections });
+      },
+
+      canExpandSection: (section) => {
+        const { completedSections } = get();
+
+        // Contact is always accessible
+        if (section === "contact") return true;
+
+        // For other sections, check if the previous section is completed
+        const sectionIndex = SECTION_ORDER.indexOf(section);
+        if (sectionIndex <= 0) return true;
+
+        const previousSection = SECTION_ORDER[sectionIndex - 1];
+        return completedSections.includes(previousSection);
+      },
+
+      getSectionStatus: (section) => {
+        const { expandedSection, completedSections } = get();
+
+        // Check if this section is currently expanded
+        if (expandedSection === section) {
+          return "active";
+        }
+
+        // Check if completed
+        if (completedSections.includes(section)) {
+          return "completed";
+        }
+
+        // Check if locked (previous section not completed)
+        const sectionIndex = SECTION_ORDER.indexOf(section);
+        if (sectionIndex > 0) {
+          const previousSection = SECTION_ORDER[sectionIndex - 1];
+          if (!completedSections.includes(previousSection)) {
+            return "locked";
+          }
+        }
+
+        // Default to locked if not first section
+        return section === "contact" ? "active" : "locked";
+      },
+
+      // ==========================================================================
+      // LEGACY STEP NAVIGATION (kept for backward compatibility)
+      // ==========================================================================
+
       setStep: (step) => {
         set({ currentStep: step });
       },
@@ -187,6 +293,10 @@ export const useCheckoutStore = create<CheckoutStore>()(
 
         return false;
       },
+
+      // ==========================================================================
+      // DATA MANAGEMENT
+      // ==========================================================================
 
       // Customer info
       setCustomerInfo: (info) => {
@@ -251,10 +361,16 @@ export const useCheckoutStore = create<CheckoutStore>()(
     }),
     {
       name: "kaka-malem-checkout",
+      version: STORE_VERSION,
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
+        // New section-based state
+        expandedSection: state.expandedSection,
+        completedSections: state.completedSections,
+        // Legacy (for migration)
         currentStep: state.currentStep,
         completedSteps: state.completedSteps,
+        // Data
         tenantId: state.tenantId,
         storeSlug: state.storeSlug,
         customerInfo: state.customerInfo,
@@ -269,6 +385,38 @@ export const useCheckoutStore = create<CheckoutStore>()(
         shippingTotal: state.shippingTotal,
         total: state.total,
       }),
+      migrate: (persistedState, version) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const state = persistedState as any;
+
+        if (version < 2) {
+          // Migrate from step-based to section-based
+          const stepToSection: Record<number, CheckoutSection> = {
+            1: "contact",
+            2: "shipping",
+            3: "payment",
+          };
+
+          // Map old completed steps to new sections
+          // Note: Old step 1 combined contact+delivery, so we mark both as complete
+          const completedSections: CheckoutSection[] = [];
+          if (state.completedSteps?.includes(1)) {
+            completedSections.push("contact", "delivery");
+          }
+          if (state.completedSteps?.includes(2)) {
+            completedSections.push("shipping");
+          }
+
+          return {
+            ...state,
+            expandedSection:
+              stepToSection[state.currentStep as number] || "contact",
+            completedSections,
+          };
+        }
+
+        return state as CheckoutState;
+      },
     }
   )
 );
@@ -277,6 +425,34 @@ export const useCheckoutStore = create<CheckoutStore>()(
 // SELECTOR HOOKS
 // =============================================================================
 
+// Section-based selectors (new)
+export function useExpandedSection() {
+  return useCheckoutStore((state) => state.expandedSection);
+}
+
+export function useCompletedSections() {
+  return useCheckoutStore((state) => state.completedSections);
+}
+
+export function useSectionStatus(section: CheckoutSection): SectionStatus {
+  return useCheckoutStore((state) => state.getSectionStatus(section));
+}
+
+export function useCheckoutSectionNavigation() {
+  return useCheckoutStore(
+    useShallow((state) => ({
+      expandedSection: state.expandedSection,
+      completedSections: state.completedSections,
+      setExpandedSection: state.setExpandedSection,
+      completeSection: state.completeSection,
+      uncompleteSection: state.uncompleteSection,
+      canExpandSection: state.canExpandSection,
+      getSectionStatus: state.getSectionStatus,
+    }))
+  );
+}
+
+// Legacy step selector (kept for backward compatibility)
 export function useCheckoutStep() {
   return useCheckoutStore((state) => state.currentStep);
 }
@@ -302,4 +478,8 @@ export function useSelectedShippingMethod() {
 
 export function useSelectedPaymentMethod() {
   return useCheckoutStore((state) => state.selectedPaymentMethod);
+}
+
+export function useCustomerInfo() {
+  return useCheckoutStore((state) => state.customerInfo);
 }

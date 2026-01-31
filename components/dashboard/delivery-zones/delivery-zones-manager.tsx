@@ -81,6 +81,8 @@ type DeliveryZonesManagerProps = {
   tenantId: string;
   currency: string;
   initialZones: DeliveryZone[];
+  /** Store's physical location - used as default center for new zones */
+  storeLocation?: { lat: number; lng: number } | null;
 };
 
 type ZoneFormData = {
@@ -144,6 +146,7 @@ export function DeliveryZonesManager({
   tenantId,
   currency,
   initialZones,
+  storeLocation,
 }: DeliveryZonesManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -155,11 +158,18 @@ export function DeliveryZonesManager({
   const [deletingZone, setDeletingZone] = useState<DeliveryZone | null>(null);
   const [formData, setFormData] = useState<ZoneFormData>(DEFAULT_ZONE);
 
-  // Dynamic default center from GPS or IP location
-  const [defaultCenter, setDefaultCenter] = useState(FALLBACK_CENTER);
+  // Dynamic default center: store location > GPS > IP > fallback
+  const [defaultCenter, setDefaultCenter] = useState(
+    storeLocation || FALLBACK_CENTER
+  );
 
-  // Fetch user's location on mount (GPS if allowed, otherwise IP)
+  // Fetch user's location on mount if no store location (GPS if allowed, otherwise IP)
   useEffect(() => {
+    // If store location is set, it's already used as initial state - skip GPS/IP lookup
+    if (storeLocation) {
+      return;
+    }
+
     let cancelled = false;
 
     async function initializeDefaultLocation() {
@@ -204,7 +214,7 @@ export function DeliveryZonesManager({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storeLocation]);
 
   // Get the next available color
   const getNextColor = useCallback(() => {

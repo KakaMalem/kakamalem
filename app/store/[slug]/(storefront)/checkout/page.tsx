@@ -6,8 +6,12 @@ import { ShoppingCart } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
+import { getPrimaryStoreLocation } from "@/lib/db/queries/store-locations";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
-import { getStorePaymentGateways } from "@/lib/actions/payments";
+import {
+  getStorePaymentGateways,
+  getLatestPendingPaymentSession,
+} from "@/lib/actions/payments";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
 import { getUser, getUserProfile } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
@@ -86,8 +90,22 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     user?.id
   );
 
-  // Redirect to cart if empty
+  // Redirect to cart if empty, but first check for pending payment sessions
+  // This handles the case where user created an order but didn't complete payment
   if (!cartValidation.cart || cartValidation.cart.items.length === 0) {
+    // Check if there's a pending payment session (user might be returning from payment gateway)
+    const pendingPayment = await getLatestPendingPaymentSession(
+      store.id,
+      user?.id
+    );
+
+    if (pendingPayment?.orderId) {
+      // Redirect to payment retry page instead of showing cart empty error
+      redirect(
+        `/store/${slug}/checkout/payment?order=${pendingPayment.orderId}`
+      );
+    }
+
     redirect(`/store/${slug}/cart?error=empty`);
   }
 
@@ -106,12 +124,13 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     ? await getActiveDeliveryZones(store.id)
     : [];
 
-  // Get user's saved addresses, profile, and enabled payment methods
-  const [savedAddresses, userProfile, enabledPaymentMethods] =
+  // Get user's saved addresses, profile, enabled payment methods, and primary store location
+  const [savedAddresses, userProfile, enabledPaymentMethods, primaryLocation] =
     await Promise.all([
       user ? getUserAddresses(user.id) : Promise.resolve([]),
       user ? getUserProfile() : Promise.resolve(null),
       getStorePaymentGateways(store.id),
+      getPrimaryStoreLocation(store.id),
     ]);
 
   // Calculate cart subtotal with tier pricing
@@ -139,10 +158,24 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     return sum + effectivePrice * item.quantity;
   }, 0);
 
+  // Extract store location if available (prefer new locations system, fall back to legacy)
+  const storeLocation = primaryLocation
+    ? {
+        lat: parseFloat(primaryLocation.latitude),
+        lng: parseFloat(primaryLocation.longitude),
+      }
+    : store.storeLocationLat && store.storeLocationLng
+      ? {
+          lat: parseFloat(store.storeLocationLat),
+          lng: parseFloat(store.storeLocationLng),
+        }
+      : null;
+
   return (
     <CheckoutContainer
       tenantId={store.id}
       storeSlug={slug}
+      storeName={store.name}
       currency={store.currency}
       cart={cartValidation.cart}
       savedAddresses={savedAddresses}
@@ -151,6 +184,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       subtotal={subtotal}
       deliveryZones={deliveryZones}
       enabledPaymentMethods={enabledPaymentMethods}
+      storeLocation={storeLocation}
     />
   );
 }

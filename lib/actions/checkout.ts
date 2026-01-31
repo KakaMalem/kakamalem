@@ -685,34 +685,45 @@ export async function createOrderAction(
       shippingTotal = deliveryZoneFee;
     } else if (input.shippingMethodId) {
       // When delivery zones are disabled: Use the selected shipping method
-      const selectedMethod = await db.query.shippingMethods.findFirst({
-        where: and(
-          eq(shippingMethods.id, input.shippingMethodId),
-          eq(shippingMethods.tenantId, tenantId),
-          eq(shippingMethods.isActive, true)
-        ),
-      });
+      // Check for synthetic shipping method IDs (not stored in database)
+      const isSyntheticMethod =
+        input.shippingMethodId === "free-shipping" ||
+        input.shippingMethodId === "free-delivery";
 
-      if (selectedMethod) {
-        // Convert cart items for shipping calculation
-        const cartItemsForShipping: CartItemForShipping[] = cart.items.map(
-          (item) => ({
-            quantity: item.quantity,
-            product: {
-              weight: item.product.weight || null,
-            },
-          })
-        );
+      if (isSyntheticMethod) {
+        // Synthetic methods have zero shipping cost
+        shippingTotal = 0;
+      } else {
+        // Look up actual shipping method from database
+        const selectedMethod = await db.query.shippingMethods.findFirst({
+          where: and(
+            eq(shippingMethods.id, input.shippingMethodId),
+            eq(shippingMethods.tenantId, tenantId),
+            eq(shippingMethods.isActive, true)
+          ),
+        });
 
-        // Calculate shipping method rate
-        const methodRate = calculateShippingRate(
-          selectedMethod,
-          cartItemsForShipping,
-          subtotal
-        );
+        if (selectedMethod) {
+          // Convert cart items for shipping calculation
+          const cartItemsForShipping: CartItemForShipping[] = cart.items.map(
+            (item) => ({
+              quantity: item.quantity,
+              product: {
+                weight: item.product.weight || null,
+              },
+            })
+          );
 
-        if (methodRate >= 0) {
-          shippingTotal = methodRate;
+          // Calculate shipping method rate
+          const methodRate = calculateShippingRate(
+            selectedMethod,
+            cartItemsForShipping,
+            subtotal
+          );
+
+          if (methodRate >= 0) {
+            shippingTotal = methodRate;
+          }
         }
       }
     } else if (!enableDeliveryZones) {
@@ -911,16 +922,23 @@ export async function createOrderAction(
         columns: { name: true },
       });
 
-      sendOrderNotificationToTenant(tenantId, storeSlug, {
-        orderNumber: order.orderNumber,
-        orderId: order.id,
-        customerName: order.customerSnapshot.name,
-        total: order.total,
-        currency: "AFN",
-        isOffline: false,
-        storeName: tenant?.name,
-        productNames,
-      }).catch((error) => {
+      // Pass user?.id to exclude from notification if they're also store staff
+      // This prevents store owners from seeing notifications about their own orders
+      sendOrderNotificationToTenant(
+        tenantId,
+        storeSlug,
+        {
+          orderNumber: order.orderNumber,
+          orderId: order.id,
+          customerName: order.customerSnapshot.name,
+          total: order.total,
+          currency: "AFN",
+          isOffline: false,
+          storeName: tenant?.name,
+          productNames,
+        },
+        user?.id
+      ).catch((error) => {
         console.error("Failed to send order notification:", error);
       });
 

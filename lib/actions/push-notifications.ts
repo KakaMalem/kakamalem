@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { getUser } from "@/lib/auth/server";
 import { db } from "@/lib/db";
-import { pushSubscriptions, tenantMembers } from "@/lib/db/schema";
+import {
+  pushSubscriptions,
+  tenantMembers,
+  customerNotificationPreferences,
+} from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 // =============================================================================
@@ -96,4 +100,186 @@ export async function canReceiveNotifications(
   });
 
   return !!membership && ["owner", "admin"].includes(membership.role);
+}
+
+// =============================================================================
+// CUSTOMER PUSH NOTIFICATION ACTIONS
+// =============================================================================
+// For customers subscribing to order updates at checkout
+// =============================================================================
+
+export type CustomerPushSubscriptionInput = {
+  tenantId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+};
+
+/**
+ * Save push subscription for a customer at checkout
+ * Works for both logged-in users and guests (requires userId)
+ */
+export async function saveCustomerPushSubscription(
+  input: CustomerPushSubscriptionInput
+): Promise<PushSubscriptionResult> {
+  const user = await getUser();
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    // Check if subscription already exists for this endpoint + user + tenant
+    const existing = await db.query.pushSubscriptions.findFirst({
+      where: and(
+        eq(pushSubscriptions.endpoint, input.endpoint),
+        eq(pushSubscriptions.userId, user.id),
+        eq(pushSubscriptions.tenantId, input.tenantId)
+      ),
+    });
+
+    if (existing) {
+      // Update existing subscription (might have new keys)
+      await db
+        .update(pushSubscriptions)
+        .set({
+          p256dh: input.p256dh,
+          auth: input.auth,
+          isActive: true,
+          userAgent: input.userAgent,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(pushSubscriptions.id, existing.id));
+    } else {
+      // Create new subscription
+      await db.insert(pushSubscriptions).values({
+        tenantId: input.tenantId,
+        userId: user.id,
+        endpoint: input.endpoint,
+        p256dh: input.p256dh,
+        auth: input.auth,
+        userAgent: input.userAgent,
+        isActive: true,
+      });
+    }
+
+    // Also create/update customer notification preferences
+    const existingPrefs =
+      await db.query.customerNotificationPreferences.findFirst({
+        where: and(
+          eq(customerNotificationPreferences.userId, user.id),
+          eq(customerNotificationPreferences.tenantId, input.tenantId)
+        ),
+      });
+
+    if (!existingPrefs) {
+      await db.insert(customerNotificationPreferences).values({
+        userId: user.id,
+        tenantId: input.tenantId,
+        orderUpdatesPush: true,
+        orderUpdatesEmail: true,
+        orderUpdatesSms: false,
+        promotionalPush: false,
+        promotionalEmail: false,
+        backInStockEnabled: true,
+        priceDropEnabled: true,
+      });
+    } else if (!existingPrefs.orderUpdatesPush) {
+      // Enable push if they're subscribing
+      await db
+        .update(customerNotificationPreferences)
+        .set({
+          orderUpdatesPush: true,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(customerNotificationPreferences.id, existingPrefs.id));
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save customer push subscription:", error);
+    return { success: false, error: "Failed to save notification settings" };
+  }
+}
+
+/**
+ * Check if customer has push notifications enabled for a store
+ */
+export async function getCustomerPushStatus(
+  tenantId: string
+): Promise<{ hasSubscription: boolean; pushEnabled: boolean }> {
+  const user = await getUser();
+  if (!user) {
+    return { hasSubscription: false, pushEnabled: false };
+  }
+
+  const [subscription, prefs] = await Promise.all([
+    db.query.pushSubscriptions.findFirst({
+      where: and(
+        eq(pushSubscriptions.tenantId, tenantId),
+        eq(pushSubscriptions.userId, user.id),
+        eq(pushSubscriptions.isActive, true)
+      ),
+      columns: { id: true },
+    }),
+    db.query.customerNotificationPreferences.findFirst({
+      where: and(
+        eq(customerNotificationPreferences.tenantId, tenantId),
+        eq(customerNotificationPreferences.userId, user.id)
+      ),
+      columns: { orderUpdatesPush: true },
+    }),
+  ]);
+
+  return {
+    hasSubscription: !!subscription,
+    pushEnabled: prefs?.orderUpdatesPush ?? true,
+  };
+}
+
+/**
+ * Disable customer push notifications for a store
+ */
+export async function disableCustomerPushNotifications(
+  tenantId: string
+): Promise<PushSubscriptionResult> {
+  const user = await getUser();
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    // Deactivate all push subscriptions for this user+tenant
+    await db
+      .update(pushSubscriptions)
+      .set({
+        isActive: false,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(pushSubscriptions.tenantId, tenantId),
+          eq(pushSubscriptions.userId, user.id)
+        )
+      );
+
+    // Update preferences
+    await db
+      .update(customerNotificationPreferences)
+      .set({
+        orderUpdatesPush: false,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(customerNotificationPreferences.tenantId, tenantId),
+          eq(customerNotificationPreferences.userId, user.id)
+        )
+      );
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to disable customer push notifications:", error);
+    return { success: false, error: "Failed to update notification settings" };
+  }
 }

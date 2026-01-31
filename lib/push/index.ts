@@ -48,6 +48,7 @@ export type SendNotificationResult = {
 /**
  * Send push notification to all owners/admins of a tenant
  * Used for order alerts
+ * @param excludeUserId - Optional user ID to exclude (e.g., if customer is also store owner)
  */
 export async function sendOrderNotificationToTenant(
   tenantId: string,
@@ -62,7 +63,8 @@ export async function sendOrderNotificationToTenant(
     city?: string;
     storeName?: string;
     productNames?: string[]; // First 3 product names
-  }
+  },
+  excludeUserId?: string
 ): Promise<SendNotificationResult> {
   // Get all users with owner/admin/staff role for this tenant
   const eligibleMembers = await db.query.tenantMembers.findMany({
@@ -77,7 +79,15 @@ export async function sendOrderNotificationToTenant(
     return { success: true, sent: 0, failed: 0 };
   }
 
-  const userIds = eligibleMembers.map((m) => m.userId);
+  // Exclude the customer user ID if provided (when customer is also store owner/staff)
+  const userIds = eligibleMembers
+    .map((m) => m.userId)
+    .filter((id) => id !== excludeUserId);
+
+  // No one left to notify after excluding the customer
+  if (userIds.length === 0) {
+    return { success: true, sent: 0, failed: 0 };
+  }
 
   // Build concise, scannable notification
   // Title format: "New order #1234" or "POS sale #1234"

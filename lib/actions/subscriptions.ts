@@ -90,8 +90,8 @@ export async function initiateProUpgrade(
       const periodEnd = new Date(now);
       periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-      // Generate unique invoice number
-      const invoiceNumber = await generateInvoiceNumber(tenantId);
+      // Generate unique invoice number with store code prefix
+      const invoiceNumber = generateInvoiceNumber(tenant.slug);
 
       try {
         const [newInvoice] = await db

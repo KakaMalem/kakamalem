@@ -74,6 +74,7 @@
     "leaflet": "^1.9.4",
     "libphonenumber-js": "^1.12.33",
     "lucide-react": "^0.562.0",
+    "nanoid": "^5.1.6",
     "next": "16.1.1",
     "nodemailer": "^7.0.12",
     "nuqs": "^2.8.6",

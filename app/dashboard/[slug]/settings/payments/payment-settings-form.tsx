@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CreditCard, Banknote, Check, Info } from "lucide-react";
+import { CreditCard, Banknote, Check, Info, Star } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import { savePaymentGatewayConfig } from "@/lib/actions/payments";
@@ -42,6 +44,15 @@ interface PaymentSettingsFormProps {
   };
 }
 
+// Get initial default gateway from displayOrder (lowest = default)
+function getInitialDefault(
+  configs: PaymentSettingsFormProps["initialConfigs"]
+): "hesabpay" | "cod" {
+  const hesabOrder = configs.hesabpay?.displayOrder ?? 0;
+  const codOrder = configs.cod?.displayOrder ?? 1;
+  return hesabOrder <= codOrder ? "hesabpay" : "cod";
+}
+
 export function PaymentSettingsForm({
   storeId,
   initialConfigs,
@@ -57,17 +68,26 @@ export function PaymentSettingsForm({
     cod: initialConfigs.cod?.isEnabled ?? true, // Default COD to enabled
   });
 
+  // Track default payment method (shown first at checkout)
+  const [defaultGateway, setDefaultGateway] = useState<"hesabpay" | "cod">(
+    getInitialDefault(initialConfigs)
+  );
+
   // Track previous props for sync
   const [prevConfigs, setPrevConfigs] = useState(initialConfigs);
   if (
     prevConfigs.hesabpay?.isEnabled !== initialConfigs.hesabpay?.isEnabled ||
-    prevConfigs.cod?.isEnabled !== initialConfigs.cod?.isEnabled
+    prevConfigs.cod?.isEnabled !== initialConfigs.cod?.isEnabled ||
+    prevConfigs.hesabpay?.displayOrder !==
+      initialConfigs.hesabpay?.displayOrder ||
+    prevConfigs.cod?.displayOrder !== initialConfigs.cod?.displayOrder
   ) {
     setPrevConfigs(initialConfigs);
     setEnabledGateways({
       hesabpay: initialConfigs.hesabpay?.isEnabled ?? true,
       cod: initialConfigs.cod?.isEnabled ?? true,
     });
+    setDefaultGateway(getInitialDefault(initialConfigs));
   }
 
   // Check if any gateway is enabled
@@ -77,11 +97,15 @@ export function PaymentSettingsForm({
   const needsInitialSave =
     initialConfigs.hesabpay === null || initialConfigs.cod === null;
 
+  // Get initial default for comparison
+  const initialDefault = getInitialDefault(initialConfigs);
+
   // Track if form has changes
   const hasChanges =
     needsInitialSave ||
     (initialConfigs.hesabpay?.isEnabled ?? true) !== enabledGateways.hesabpay ||
-    (initialConfigs.cod?.isEnabled ?? true) !== enabledGateways.cod;
+    (initialConfigs.cod?.isEnabled ?? true) !== enabledGateways.cod ||
+    initialDefault !== defaultGateway;
 
   // Handle toggle
   const handleToggle = (gateway: string, enabled: boolean) => {
@@ -95,14 +119,17 @@ export function PaymentSettingsForm({
   const handleSave = () => {
     startTransition(async () => {
       try {
-        // Save each gateway config
+        // Save each gateway config with display order based on default selection
         const results = await Promise.all(
           PAYMENT_GATEWAYS.map(async (gw) => {
+            // Default gateway gets displayOrder 0, others get higher values
+            const displayOrder = gw.gateway === defaultGateway ? 0 : 1;
+
             const result = await savePaymentGatewayConfig(storeId, gw.gateway, {
               displayName: gw.displayName,
               description: gw.description,
               isEnabled: enabledGateways[gw.gateway],
-              displayOrder: gw.gateway === "hesabpay" ? 0 : 1,
+              displayOrder,
             });
             return { gateway: gw.gateway, ...result };
           })
@@ -212,6 +239,60 @@ export function PaymentSettingsForm({
           })}
         </CardContent>
       </Card>
+
+      {/* Default Payment Method */}
+      {hasAnyEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Star className="size-4" />
+              Default Payment Method
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              The default payment method will be pre-selected at checkout.
+            </p>
+            <RadioGroup
+              value={defaultGateway}
+              onValueChange={(value) =>
+                setDefaultGateway(value as "hesabpay" | "cod")
+              }
+              disabled={isPending}
+            >
+              {PAYMENT_GATEWAYS.filter((gw) => enabledGateways[gw.gateway]).map(
+                (gw) => {
+                  const Icon = gw.icon;
+                  return (
+                    <Label
+                      key={gw.gateway}
+                      htmlFor={`default-${gw.gateway}`}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
+                        defaultGateway === gw.gateway
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-muted/50"
+                      )}
+                    >
+                      <RadioGroupItem
+                        value={gw.gateway}
+                        id={`default-${gw.gateway}`}
+                      />
+                      <Icon className="size-4" />
+                      <span className="font-medium">{gw.displayName}</span>
+                      {defaultGateway === gw.gateway && (
+                        <span className="ml-auto text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                          Default
+                        </span>
+                      )}
+                    </Label>
+                  );
+                }
+              )}
+            </RadioGroup>
+          </CardContent>
+        </Card>
+      )}
 
       {/* What This Means */}
       <Card>

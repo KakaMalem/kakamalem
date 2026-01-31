@@ -49,6 +49,15 @@ export default async function DeliverySettingsPage({
     ? shippingZonesResult.data || []
     : [];
 
+  // Extract store location if available
+  const storeLocation =
+    store.storeLocationLat && store.storeLocationLng
+      ? {
+          lat: parseFloat(store.storeLocationLat),
+          lng: parseFloat(store.storeLocationLng),
+        }
+      : null;
+
   return (
     <div className="space-y-6">
       <DeliverySettingsClient
@@ -58,6 +67,7 @@ export default async function DeliverySettingsPage({
         enableDeliveryZones={store.enableDeliveryZones}
         deliveryZones={deliveryZones}
         shippingZones={shippingZones}
+        storeLocation={storeLocation}
       />
     </div>
   );

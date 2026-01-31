@@ -379,6 +379,7 @@ export async function recordBillingTransaction(data: {
       columns: {
         id: true,
         name: true,
+        slug: true,
         subscriptionPlan: true,
         subscriptionStatus: true,
         currency: true,
@@ -394,7 +395,7 @@ export async function recordBillingTransaction(data: {
 
     // Create invoice if requested
     if (createInvoice && type === "subscription_payment") {
-      const invoiceNumber = await generateInvoiceNumber(storeId);
+      const invoiceNumber = generateInvoiceNumber(store.slug);
       const [newInvoice] = await db
         .insert(invoices)
         .values({
@@ -523,6 +524,7 @@ export async function createInvoice(data: {
       columns: {
         id: true,
         name: true,
+        slug: true,
         currency: true,
       },
     });
@@ -531,7 +533,7 @@ export async function createInvoice(data: {
       return { success: false, error: "Store not found" };
     }
 
-    const invoiceNumber = await generateInvoiceNumber(storeId);
+    const invoiceNumber = generateInvoiceNumber(store.slug);
     const now = new Date().toISOString();
 
     // Create invoice

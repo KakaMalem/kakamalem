@@ -202,6 +202,7 @@ scripts/
 - **Validation**: Zod
 - **Notifications**: Novu (in-app + push notifications)
 - **Offline/PWA**: Dexie.js (IndexedDB) + Serwist (Service Worker)
+- **Payments**: HesabPay (Afghanistan), COD, with Stripe Connect planned
 - **Custom Domains**: Caddy with on-demand TLS
 - **Package Manager**: pnpm
 
@@ -377,6 +378,15 @@ Location: `lib/stores/`
 | `review_media`            | Customer-uploaded review images                               |
 | `commission_transactions` | Platform commission audit log                                 |
 
+### Payments
+
+| Table                     | Purpose                                         |
+| ------------------------- | ----------------------------------------------- |
+| `payment_gateway_configs` | Gateway credentials per tenant (HesabPay, etc.) |
+| `payment_sessions`        | Track payment attempts and redirects            |
+| `payment_webhook_events`  | Audit log for gateway webhooks                  |
+| `order_transactions`      | Financial transaction ledger                    |
+
 ### Analytics (System-Managed)
 
 | Table                            | Purpose                                     |
@@ -446,6 +456,10 @@ These features require analytics event tracking to be implemented:
 - **Subscription plan**: `free`, `pro`
 - **Subscription status**: `trialing`, `active`, `past_due`, `cancelled`, `expired`
 - **Order status**: `pending`, `confirmed`, `processing`, `shipped`, `delivered`, `cancelled`, `refunded`, `partially_refunded`
+- **Payment status**: `unpaid`, `partial`, `paid`, `refunded`, `partial_refund`
+- **Payment method**: `cash`, `card`, `bank_transfer`, `mobile_money`, `store_credit`
+- **Payment gateway**: `hesabpay`, `stripe`, `cod`, `bank_transfer`, `mobile_money`
+- **Payment session status**: `pending`, `processing`, `completed`, `failed`, `expired`, `cancelled`
 - **Stock status**: `in_stock`, `low_stock`, `out_of_stock`, `on_backorder`
 - **Shipment status**: `pending`, `picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `failed`, `returned`
 - **Store mode**: `full`, `online_only`, `offline_only`, `catalog`

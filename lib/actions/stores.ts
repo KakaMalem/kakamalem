@@ -227,6 +227,13 @@ export async function createStoreWithLogo(
       contactPhone: formValues.contactPhone,
       currency: formValues.currency,
       storeMode: formValues.storeMode,
+      // Store location
+      storeLocationLat: formValues.storeLocationLat ?? null,
+      storeLocationLng: formValues.storeLocationLng ?? null,
+      storeLocationCity: formValues.storeLocationCity || null,
+      storeLocationAccuracy: formValues.storeLocationAccuracy ?? null,
+      storeLocationSource: formValues.storeLocationSource ?? null,
+      storeLocationPlusCode: formValues.storeLocationPlusCode || null,
     });
 
     if (!newStore) {
@@ -972,6 +979,56 @@ export async function updateStoreModeSettings(
     return {
       error: {
         message: "Failed to update store mode. Please try again.",
+      },
+    };
+  }
+}
+
+/**
+ * Update store location settings
+ */
+export async function updateStoreLocation(
+  storeId: string,
+  storeSlug: string,
+  locationData: {
+    storeLocationLat: number | null;
+    storeLocationLng: number | null;
+    storeLocationCity: string | null;
+    storeLocationPlusCode: string | null;
+    storeLocationAccuracy: number | null;
+    storeLocationSource: "gps" | "manual" | null;
+  }
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  try {
+    await updateTenant(storeId, {
+      storeLocationLat: locationData.storeLocationLat?.toString() ?? null,
+      storeLocationLng: locationData.storeLocationLng?.toString() ?? null,
+      storeLocationCity: locationData.storeLocationCity,
+      storeLocationPlusCode: locationData.storeLocationPlusCode,
+      storeLocationAccuracy: locationData.storeLocationAccuracy,
+      storeLocationSource: locationData.storeLocationSource,
+    });
+
+    revalidatePath(`/dashboard/${storeSlug}/settings/location`, "page");
+    revalidatePath(`/store/${storeSlug}`, "layout");
+    return { success: true };
+  } catch {
+    return {
+      error: {
+        message: "Failed to update store location. Please try again.",
       },
     };
   }

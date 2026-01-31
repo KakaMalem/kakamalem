@@ -15,7 +15,7 @@
  * - Mobile Money (M-Paisa, M-Hawala)
  */
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { paymentGatewayConfigs, paymentSessions } from "@/lib/db/schema";
 import type { PaymentGateway, PaymentGatewayConfig } from "@/lib/db/schema";
@@ -106,7 +106,7 @@ export async function getEnabledGateways(
     .select()
     .from(paymentGatewayConfigs)
     .where(eq(paymentGatewayConfigs.tenantId, tenantId))
-    .orderBy(paymentGatewayConfigs.displayOrder);
+    .orderBy(asc(paymentGatewayConfigs.displayOrder));
 
   // If no configs exist, return platform defaults
   if (configs.length === 0) {
