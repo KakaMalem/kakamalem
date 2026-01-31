@@ -15,6 +15,7 @@ export type SettingsPageKey =
   | "domains"
   | "team"
   | "delivery"
+  | "payments"
   | "store-mode"
   | "danger";
 
@@ -87,6 +88,13 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     description: "Delivery zones, rates, and shipping options",
     href: "/delivery",
     minRole: "admin",
+  },
+  {
+    key: "payments",
+    title: "Payments",
+    description: "Configure payment methods for checkout",
+    href: "/payments",
+    minRole: "owner",
   },
   {
     key: "store-mode",

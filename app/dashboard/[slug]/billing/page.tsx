@@ -27,6 +27,7 @@ export default async function BillingPage({ params }: BillingPageProps) {
 
   return (
     <BillingPageClient
+      tenantId={store.id}
       storeSlug={slug}
       storeName={store.name}
       currency={store.currency}

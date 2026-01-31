@@ -252,9 +252,11 @@ export function CreateStoreForm({
       }
       if (!formData.slug || formData.slug.length < 3) {
         errors.slug = "Store URL must be at least 3 characters";
-      } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(formData.slug)) {
+      } else if (
+        !/^[\p{Ll}\p{Lo}\p{N}]+(?:-[\p{Ll}\p{Lo}\p{N}]+)*$/u.test(formData.slug)
+      ) {
         errors.slug =
-          "Store URL can only contain lowercase letters, numbers, and hyphens";
+          "Store URL can only contain letters, numbers, and hyphens";
       } else if (slugAvailable === false) {
         errors.slug = "This store URL is already taken";
       }

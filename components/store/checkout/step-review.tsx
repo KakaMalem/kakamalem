@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Loader2,
   Tag,
+  CreditCard,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,10 @@ import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
+import { createOrderPaymentSession } from "@/lib/actions/payments";
+import { PaymentMethodSelector } from "./payment-method-selector";
 import type { Cart } from "@/lib/db/queries/carts";
+import type { EnabledGateway } from "@/lib/payments/types";
 import { toast } from "sonner";
 
 interface StepReviewProps {
@@ -36,6 +40,7 @@ interface StepReviewProps {
     name: string | null;
     email: string;
   } | null;
+  enabledPaymentMethods: EnabledGateway[];
 }
 
 export function StepReview({
@@ -44,6 +49,7 @@ export function StepReview({
   currency,
   cart,
   user,
+  enabledPaymentMethods,
 }: StepReviewProps) {
   const router = useRouter();
 
@@ -51,11 +57,13 @@ export function StepReview({
     customerInfo,
     shippingAddress,
     selectedMethod,
+    selectedPaymentMethod,
     customerNotes,
     subtotal,
     shippingTotal,
     total,
     setCustomerNotes,
+    setPaymentMethod,
     setStep,
   } = useCheckoutStore();
 
@@ -91,6 +99,11 @@ export function StepReview({
       return;
     }
 
+    if (!selectedPaymentMethod) {
+      toast.error("Please select a payment method");
+      return;
+    }
+
     setIsSubmitting(true);
     setCartErrors([]);
 
@@ -111,13 +124,14 @@ export function StepReview({
         return;
       }
 
-      // Create order
+      // Create order with selected payment method
       const result = await createOrderAction(tenantId, storeSlug, {
         customerInfo: user ? null : customerInfo,
         shippingAddress,
         billingAddress: null, // Same as shipping for now
         shippingMethodId: selectedMethod.id,
         customerNotes: customerNotes || null,
+        paymentMethod: selectedPaymentMethod.gateway,
       });
 
       if (!result.success) {
@@ -184,11 +198,36 @@ export function StepReview({
         }
       }
 
-      // Success! Redirect to confirmation page (cart clearing happens there)
-      toast.success("Order placed successfully!");
-      router.replace(
-        `/store/${storeSlug}/checkout/success?order=${result.order?.id}`
-      );
+      const orderId = result.order?.id;
+
+      // Handle payment based on selected method
+      if (selectedPaymentMethod.gateway === "hesabpay") {
+        // For online payment, create payment session and redirect
+        const paymentResult = await createOrderPaymentSession(
+          orderId!,
+          "hesabpay"
+        );
+
+        if (!paymentResult.success) {
+          toast.error("Failed to create payment session", {
+            description: paymentResult.error || "Please try again.",
+          });
+          // Order is created but payment failed - redirect to success page
+          // where they can retry payment
+          router.replace(
+            `/store/${storeSlug}/checkout/success?order=${orderId}&payment=pending`
+          );
+          return;
+        }
+
+        // Redirect to HesabPay payment page
+        toast.success("Redirecting to payment...");
+        window.location.href = paymentResult.paymentUrl!;
+      } else {
+        // For COD or other methods, go directly to success page
+        toast.success("Order placed successfully!");
+        router.replace(`/store/${storeSlug}/checkout/success?order=${orderId}`);
+      }
     } catch (error) {
       console.error("Failed to place order:", error);
       toast.error("An unexpected error occurred. Please try again.");
@@ -443,6 +482,25 @@ export function StepReview({
         </CardContent>
       </Card>
 
+      {/* Payment Method */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <CreditCard className="size-5" />
+            Payment Method
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PaymentMethodSelector
+            selectedMethod={selectedPaymentMethod}
+            onMethodSelect={setPaymentMethod}
+            disabled={isSubmitting}
+            currency={currency}
+            enabledMethods={enabledPaymentMethods}
+          />
+        </CardContent>
+      </Card>
+
       {/* Order Notes */}
       <Card>
         <CardHeader>
@@ -507,14 +565,20 @@ export function StepReview({
         </Button>
         <Button
           onClick={handlePlaceOrder}
-          disabled={isSubmitting || cartErrors.length > 0}
+          disabled={
+            isSubmitting || cartErrors.length > 0 || !selectedPaymentMethod
+          }
           size="lg"
         >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />
-              Placing Order...
+              {selectedPaymentMethod?.gateway === "hesabpay"
+                ? "Processing..."
+                : "Placing Order..."}
             </>
+          ) : selectedPaymentMethod?.gateway === "hesabpay" ? (
+            <>Pay {formatPrice(total, currency)}</>
           ) : (
             <>Place Order - {formatPrice(total, currency)}</>
           )}

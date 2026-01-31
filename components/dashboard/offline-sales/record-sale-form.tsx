@@ -385,7 +385,7 @@ export function RecordSaleForm({
   };
 
   // Payment section (shared between desktop and mobile) - using render function pattern
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   const renderPaymentSection = (_compact = false) => (
     <div className="space-y-4">
       {/* Payment Method */}

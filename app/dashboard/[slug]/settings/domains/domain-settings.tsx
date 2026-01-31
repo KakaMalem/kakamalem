@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { UpgradeButton } from "@/components/dashboard/billing/upgrade-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -439,12 +440,10 @@ export function DomainSettings({
                     own domain like mybrand.com with free SSL.
                   </p>
                 </div>
-                <Button asChild>
-                  <a href={`/dashboard/${storeSlug}/billing`}>
-                    <Crown className="mr-2 size-4" />
-                    Upgrade to Pro
-                  </a>
-                </Button>
+                <UpgradeButton>
+                  <Crown className="mr-2 size-4" />
+                  Upgrade to Pro
+                </UpgradeButton>
               </div>
             </>
           )}

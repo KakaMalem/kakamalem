@@ -647,6 +647,79 @@ STORAGE_PATH="C:/Users/YourName/kakamalem-uploads"
 
 **Note:** `.env.local` takes precedence over `.env` in Next.js. Delete or rename `.env.local` to use production environment.
 
+## Payment System
+
+Multi-gateway payment orchestration supporting HesabPay (Afghanistan), COD, bank transfer, and mobile money. Designed for future expansion to Stripe Connect (UAE/International).
+
+### Payment Architecture
+
+```
+lib/payments/
+├── index.ts              # Payment orchestrator
+├── types.ts              # Common gateway types
+└── hesabpay/
+    ├── index.ts          # HesabPay exports
+    ├── client.ts         # HesabPay API client
+    └── types.ts          # HesabPay-specific types
+
+lib/actions/payments.ts   # Server actions for payments
+app/api/webhooks/hesabpay/route.ts  # Webhook handler
+```
+
+### Supported Payment Gateways
+
+| Gateway         | Type    | Use Case                            |
+| --------------- | ------- | ----------------------------------- |
+| `hesabpay`      | Online  | Card payments (Afghanistan primary) |
+| `cod`           | Offline | Cash on Delivery                    |
+| `bank_transfer` | Manual  | Bank transfer with verification     |
+| `mobile_money`  | Manual  | M-Paisa, M-Hawala                   |
+| `stripe`        | Online  | Future: UAE/International           |
+
+### Database Tables
+
+| Table                     | Purpose                              |
+| ------------------------- | ------------------------------------ |
+| `payment_gateway_configs` | Store gateway credentials per tenant |
+| `payment_sessions`        | Track payment attempts               |
+| `payment_webhook_events`  | Audit log for webhooks               |
+| `order_transactions`      | Financial transaction ledger         |
+
+### Configuration
+
+Gateway credentials are stored per-tenant in `payment_gateway_configs`:
+
+```typescript
+// Enable HesabPay for a store
+await savePaymentGatewayConfig(tenantId, "hesabpay", {
+  displayName: "Pay with Card",
+  apiKey: "hpay_live_xxx",
+  merchantPin: "1234",
+  webhookSecret: "whsec_xxx",
+  isLive: true,
+  isEnabled: true,
+});
+```
+
+### Payment Flow
+
+1. Customer selects payment method at checkout
+2. `createOrderPaymentSession()` creates session with gateway
+3. Customer redirected to gateway (HesabPay) or confirmation page (COD)
+4. Webhook receives payment confirmation
+5. Order marked as paid, inventory updated
+
+### Webhook Setup
+
+HesabPay webhook URL: `https://kakamalem.com/api/webhooks/hesabpay?tenantId={tenantId}`
+
+Events handled:
+
+- `payment.completed` - Mark order as paid
+- `payment.failed` - Update session status
+- `payment.cancelled` - Update session status
+- `refund.completed` - Process refund
+
 ## Offline/PWA Support
 
 The POS system supports offline operation via Progressive Web App (PWA) technology:

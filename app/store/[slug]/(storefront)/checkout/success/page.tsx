@@ -5,11 +5,15 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getOrderById, getOrderItemsWithImages } from "@/lib/db/queries/orders";
 import { getUser } from "@/lib/auth/server";
 import { OrderSuccessContent } from "@/components/store/checkout/order-success-content";
+import { ClearCartSession } from "@/components/store/checkout/clear-cart-session";
 import type { Address } from "@/lib/db/schema";
 
 interface CheckoutSuccessPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ order?: string }>;
+  searchParams: Promise<{
+    order?: string;
+    payment?: "success" | "pending" | "cancelled";
+  }>;
 }
 
 export async function generateMetadata({
@@ -33,7 +37,7 @@ export default async function CheckoutSuccessPage({
   searchParams,
 }: CheckoutSuccessPageProps) {
   const { slug } = await params;
-  const { order: orderId } = await searchParams;
+  const { order: orderId, payment: paymentStatus } = await searchParams;
 
   // Fetch store
   const store = await getTenantBySlug(slug);
@@ -86,15 +90,22 @@ export default async function CheckoutSuccessPage({
         }),
         total: order.total,
         shippingAddress: order.shippingAddress as Address | undefined,
+        paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
       }
     : null;
 
   return (
-    <OrderSuccessContent
-      storeSlug={slug}
-      currency={store.currency}
-      order={orderData}
-      user={user ? { id: user.id } : null}
-    />
+    <>
+      {/* Clear cart session on mount (client-side) */}
+      <ClearCartSession />
+      <OrderSuccessContent
+        storeSlug={slug}
+        currency={store.currency}
+        order={orderData}
+        user={user ? { id: user.id } : null}
+        paymentStatus={paymentStatus}
+      />
+    </>
   );
 }

@@ -1,14 +1,19 @@
 "use client";
 
+import { useEffect, useState, useRef, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { BillingStatusCard } from "./billing-status-card";
 import { PlanComparison } from "./plan-comparison";
 import { InvoiceList } from "./invoice-list";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type {
   SubscriptionOverview,
   InvoiceWithStats,
 } from "@/lib/db/queries/billing";
 
 interface BillingPageClientProps {
+  tenantId: string;
   storeSlug: string;
   storeName: string;
   currency: string;
@@ -17,12 +22,112 @@ interface BillingPageClientProps {
   invoicesTotal: number;
 }
 
+// HesabPay redirect data structure
+interface HesabPayRedirectData {
+  success: boolean;
+  message?: string;
+  transaction_id?: string | null;
+}
+
+// Parse HesabPay redirect data from URL
+function parseHesabPayData(
+  dataParam: string | null
+): HesabPayRedirectData | null {
+  if (!dataParam) return null;
+
+  try {
+    // HesabPay might URL-encode the JSON or pass it directly
+    const decoded = decodeURIComponent(dataParam);
+    return JSON.parse(decoded) as HesabPayRedirectData;
+  } catch {
+    // Try parsing directly without decoding
+    try {
+      return JSON.parse(dataParam) as HesabPayRedirectData;
+    } catch {
+      console.error("[Billing] Failed to parse HesabPay data:", dataParam);
+      return null;
+    }
+  }
+}
+
 export function BillingPageClient({
+  tenantId,
+  storeSlug,
   currency,
   subscription,
   invoices,
   invoicesTotal,
 }: BillingPageClientProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Parse payment result from URL parameters
+  // HesabPay appends ?data={success, message, transaction_id}
+  // We also check for our own ?payment=success/cancelled param as fallback
+  const paymentResult = useMemo(() => {
+    const dataParam = searchParams.get("data");
+    const paymentParam = searchParams.get("payment");
+
+    // First try to parse HesabPay's data parameter
+    const hesabPayData = parseHesabPayData(dataParam);
+    if (hesabPayData) {
+      return {
+        status: hesabPayData.success
+          ? ("success" as const)
+          : ("failed" as const),
+        message: hesabPayData.message,
+        transactionId: hesabPayData.transaction_id,
+      };
+    }
+
+    // Fallback to our own payment parameter
+    if (paymentParam === "success") {
+      return {
+        status: "success" as const,
+        message: undefined,
+        transactionId: undefined,
+      };
+    }
+    if (paymentParam === "cancelled") {
+      return {
+        status: "cancelled" as const,
+        message: undefined,
+        transactionId: undefined,
+      };
+    }
+
+    return null;
+  }, [searchParams]);
+
+  const [showAlert, setShowAlert] = useState(!!paymentResult);
+
+  // Track if we've already cleared the URL
+  const clearedUrl = useRef(false);
+
+  // Clear the URL params after mounting (only once)
+  useEffect(() => {
+    const hasParams = searchParams.get("data") || searchParams.get("payment");
+    if (hasParams && !clearedUrl.current) {
+      clearedUrl.current = true;
+      // Use setTimeout to avoid blocking the render
+      const timer = setTimeout(() => {
+        router.replace(`/dashboard/${storeSlug}/billing`, { scroll: false });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, router, storeSlug]);
+
+  // Auto-dismiss the alert after 15 seconds
+  useEffect(() => {
+    if (showAlert) {
+      const timer = setTimeout(() => {
+        setShowAlert(false);
+      }, 15000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showAlert]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -33,12 +138,54 @@ export function BillingPageClient({
         </p>
       </div>
 
+      {/* Payment Result Alert */}
+      {showAlert && paymentResult?.status === "success" && (
+        <Alert className="border-green-500/50 bg-green-50 text-green-900">
+          <CheckCircle2 className="size-4 text-green-600" />
+          <AlertTitle>Payment Successful!</AlertTitle>
+          <AlertDescription>
+            {paymentResult.message ||
+              "Your subscription has been upgraded to Pro. Thank you for your purchase!"}
+            {paymentResult.transactionId && (
+              <span className="block mt-1 text-xs text-green-700">
+                Transaction ID: {paymentResult.transactionId}
+              </span>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {showAlert && paymentResult?.status === "failed" && (
+        <Alert className="border-red-500/50 bg-red-50 text-red-900">
+          <AlertCircle className="size-4 text-red-600" />
+          <AlertTitle>Payment Failed</AlertTitle>
+          <AlertDescription>
+            {paymentResult.message ||
+              "Your payment could not be processed. Please try again."}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {showAlert && paymentResult?.status === "cancelled" && (
+        <Alert className="border-amber-500/50 bg-amber-50 text-amber-900">
+          <XCircle className="size-4 text-amber-600" />
+          <AlertTitle>Payment Cancelled</AlertTitle>
+          <AlertDescription>
+            Your payment was cancelled. You can try again anytime.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Subscription Status Card */}
       <BillingStatusCard subscription={subscription} currency={currency} />
 
       {/* Plan Comparison - only show for non-Pro users */}
       {subscription.plan !== "pro" && (
-        <PlanComparison subscription={subscription} currency={currency} />
+        <PlanComparison
+          subscription={subscription}
+          currency={currency}
+          tenantId={tenantId}
+        />
       )}
 
       {/* Billing History (Invoices) */}

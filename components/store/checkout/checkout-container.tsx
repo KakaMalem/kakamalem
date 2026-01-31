@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { Address, DeliveryZone } from "@/lib/db/schema";
 import type { Cart } from "@/lib/db/queries/carts";
+import type { EnabledGateway } from "@/lib/payments/types";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { useMounted } from "@/lib/hooks/use-mounted";
 import { CheckoutSteps } from "./checkout-steps";
@@ -40,6 +41,7 @@ interface CheckoutContainerProps {
   userPhone: string;
   subtotal: number;
   deliveryZones: DeliveryZone[];
+  enabledPaymentMethods: EnabledGateway[];
 }
 
 export function CheckoutContainer({
@@ -52,6 +54,7 @@ export function CheckoutContainer({
   userPhone,
   subtotal,
   deliveryZones,
+  enabledPaymentMethods,
 }: CheckoutContainerProps) {
   const mounted = useMounted();
 
@@ -167,6 +170,7 @@ export function CheckoutContainer({
               currency={currency}
               cart={cart}
               user={user}
+              enabledPaymentMethods={enabledPaymentMethods}
             />
           )}
         </div>

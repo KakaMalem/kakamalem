@@ -7,6 +7,7 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
+import { getStorePaymentGateways } from "@/lib/actions/payments";
 import { getCartSessionIdOrNull } from "@/lib/cart/session";
 import { getUser, getUserProfile } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
@@ -105,11 +106,13 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     ? await getActiveDeliveryZones(store.id)
     : [];
 
-  // Get user's saved addresses and profile phone if logged in
-  const [savedAddresses, userProfile] = await Promise.all([
-    user ? getUserAddresses(user.id) : Promise.resolve([]),
-    user ? getUserProfile() : Promise.resolve(null),
-  ]);
+  // Get user's saved addresses, profile, and enabled payment methods
+  const [savedAddresses, userProfile, enabledPaymentMethods] =
+    await Promise.all([
+      user ? getUserAddresses(user.id) : Promise.resolve([]),
+      user ? getUserProfile() : Promise.resolve(null),
+      getStorePaymentGateways(store.id),
+    ]);
 
   // Calculate cart subtotal with tier pricing
   const subtotal = cartValidation.cart.items.reduce((sum, item) => {
@@ -147,6 +150,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       userPhone={userProfile?.phone || ""}
       subtotal={subtotal}
       deliveryZones={deliveryZones}
+      enabledPaymentMethods={enabledPaymentMethods}
     />
   );
 }

@@ -1,20 +1,9 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { StoreHeaderSkeletonShimmer } from "@/components/store/store-header-skeleton";
+import { StoreHeader } from "@/components/store/store-header";
 
 import type { Tenant } from "@/lib/db/schema";
 import type { StoreRole } from "@/lib/auth/context";
-
-// Dynamic import to prevent hydration mismatch with Radix UI components
-const StoreHeader = dynamic(
-  () =>
-    import("@/components/store/store-header").then((mod) => mod.StoreHeader),
-  {
-    ssr: false,
-    loading: () => <StoreHeaderSkeletonShimmer />,
-  }
-);
 
 interface StoreHeaderWrapperProps {
   store: Tenant;
@@ -26,13 +15,20 @@ interface StoreHeaderWrapperProps {
     isMember: boolean;
     role: StoreRole;
   } | null;
+  /** Initial search query from server - passed to avoid hydration issues */
+  initialSearchQuery?: string;
 }
 
+/**
+ * Client component wrapper for StoreHeader.
+ * Passes server-provided initialSearchQuery to avoid useSearchParams() hydration issues.
+ */
 export function StoreHeaderWrapper({
   store,
   cartItemCount,
   user,
   userContext,
+  initialSearchQuery,
 }: StoreHeaderWrapperProps) {
   return (
     <StoreHeader
@@ -40,6 +36,7 @@ export function StoreHeaderWrapper({
       cartItemCount={cartItemCount}
       user={user}
       userContext={userContext}
+      initialSearchQuery={initialSearchQuery}
     />
   );
 }

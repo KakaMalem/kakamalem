@@ -38,11 +38,15 @@ interface StoreSwitcherProps {
 // Reserved paths that are not store slugs
 const reservedPaths = new Set(["new", "account"]);
 
-// Extract store slug from pathname
+// Extract store slug from pathname (handles URL-encoded Unicode slugs)
 function getStoreSlugFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/dashboard\/([^/]+)/);
   if (match && !reservedPaths.has(match[1])) {
-    return match[1];
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
   }
   return null;
 }

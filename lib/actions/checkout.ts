@@ -30,8 +30,10 @@ import { db } from "@/lib/db";
 import {
   checkoutSubmitSchema,
   type CheckoutSubmitInput,
+  type PaymentGateway,
 } from "@/lib/validations/checkout";
 import type { CartPriceTier } from "@/lib/db/queries/carts";
+import type { PaymentMethod } from "@/lib/db/schema";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import { checkDeliveryZone } from "@/lib/geo/delivery-zone-check";
 import { sendOrderNotificationToTenant } from "@/lib/push";
@@ -55,6 +57,24 @@ async function getTenantDeliverySettings(
     .limit(1);
 
   return { enableDeliveryZones: result[0]?.enableDeliveryZones ?? false };
+}
+
+// =============================================================================
+// PAYMENT GATEWAY TO METHOD MAPPING
+// =============================================================================
+
+/**
+ * Map payment gateway (checkout selection) to payment method enum (for orders table)
+ */
+function mapGatewayToPaymentMethod(gateway: PaymentGateway): PaymentMethod {
+  const mapping: Record<PaymentGateway, PaymentMethod> = {
+    hesabpay: "card", // HesabPay is card payment
+    stripe: "card", // Stripe is card payment
+    cod: "cash", // Cash on Delivery
+    bank_transfer: "bank_transfer",
+    mobile_money: "mobile_money",
+  };
+  return mapping[gateway] || "cash";
 }
 
 // =============================================================================
@@ -738,7 +758,11 @@ export async function createOrderAction(
         // 3. Calculate total
         const total = subtotal + shippingTotal;
 
-        // 4. Create order record
+        // 4. Map payment gateway to payment method
+        const paymentGateway = input.paymentMethod || "cod";
+        const paymentMethod = mapGatewayToPaymentMethod(paymentGateway);
+
+        // 5. Create order record
         const [newOrder] = await tx
           .insert(orders)
           .values({
@@ -754,12 +778,18 @@ export async function createOrderAction(
             taxTotal: "0",
             discountTotal: "0",
             total: total.toFixed(2),
+            amountDue: total.toFixed(2),
             status: "pending",
+            paymentStatus: paymentGateway === "cod" ? "unpaid" : "unpaid", // Both start unpaid
+            paymentMethod,
             customerNotes: input.customerNotes || null,
+            metadata: {
+              paymentGateway, // Track the original gateway for payment processing
+            },
           })
           .returning();
 
-        // 5. Create order items with snapshots (using tier pricing)
+        // 6. Create order items with snapshots (using tier pricing)
         for (const item of cart.items) {
           const basePrice = item.variant?.price
             ? parseFloat(item.variant.price)
@@ -785,7 +815,7 @@ export async function createOrderAction(
           });
         }
 
-        // 6. Reduce stock and create inventory movements
+        // 7. Reduce stock and create inventory movements
         for (const item of cart.items) {
           if (!item.product.trackInventory) continue;
 
@@ -834,7 +864,7 @@ export async function createOrderAction(
           });
         }
 
-        // 7. Update store customer stats (if applicable)
+        // 8. Update store customer stats (if applicable)
         if (storeCustomerId) {
           await tx
             .update(storeCustomers)
@@ -848,14 +878,19 @@ export async function createOrderAction(
             .where(eq(storeCustomers.id, storeCustomerId));
         }
 
-        // 8. Clear cart items
+        // 9. Clear cart items
         await tx.delete(cartItems).where(eq(cartItems.cartId, cart.id));
 
         return newOrder;
       });
 
-      // Clear cart session cookie
-      await clearCartSession();
+      // Only clear cart session for COD (offline payment)
+      // For online payments (HesabPay, Stripe), keep session until payment is confirmed
+      // This prevents session errors during redirect and allows retry if payment fails
+      const isOfflinePayment = input.paymentMethod === "cod";
+      if (isOfflinePayment) {
+        await clearCartSession();
+      }
 
       // Revalidate relevant paths
       revalidatePath(`/store/${storeSlug}`);
@@ -933,4 +968,12 @@ export async function validateCartAction(tenantId: string) {
     errors: result.errors,
     isEmpty: !result.cart || result.cart.items.length === 0,
   };
+}
+
+/**
+ * Clear cart session (Server Action - safe to call from client)
+ * Used after successful checkout to clear the cart cookie
+ */
+export async function clearCartSessionAction(): Promise<void> {
+  await clearCartSession();
 }

@@ -32,17 +32,6 @@ export function getOnboardingItemsForMode(
     });
   }
 
-  // Physical stores: Record first sale
-  if (storeMode === "offline_only" || storeMode === "full") {
-    items.push({
-      id: "first_sale",
-      label: "Record your first sale",
-      description: "Use the point of sale to record an in-person sale",
-      href: `/dashboard/${storeSlug}/pos`,
-      completed: false,
-    });
-  }
-
   // Catalog stores: Add contact info
   if (storeMode === "catalog") {
     items.push({

@@ -15,6 +15,20 @@ const eslintConfig = defineConfig([
     // Serwist generated service worker
     "public/sw.js",
   ]),
+  // Custom rules
+  {
+    rules: {
+      // Allow underscore-prefixed parameters (convention for intentionally unused)
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

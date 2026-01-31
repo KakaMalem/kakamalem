@@ -27,6 +27,12 @@ export type ShippingMethod = {
   maxDeliveryDays: number | null;
 };
 
+export type PaymentMethod = {
+  gateway: "hesabpay" | "stripe" | "cod" | "bank_transfer" | "mobile_money";
+  displayName: string;
+  description?: string;
+};
+
 type CheckoutState = {
   // Step tracking
   currentStep: CheckoutStep;
@@ -49,6 +55,9 @@ type CheckoutState = {
 
   // Shipping method
   selectedMethod: ShippingMethod | null;
+
+  // Payment method
+  selectedPaymentMethod: PaymentMethod | null;
 
   // Notes
   customerNotes: string;
@@ -81,6 +90,9 @@ type CheckoutActions = {
   // Shipping method
   setShippingMethod: (method: ShippingMethod) => void;
 
+  // Payment method
+  setPaymentMethod: (method: PaymentMethod) => void;
+
   // Notes
   setCustomerNotes: (notes: string) => void;
 
@@ -108,6 +120,7 @@ const initialState: CheckoutState = {
   useSameForBilling: true,
   selectedAddressId: null,
   selectedMethod: null,
+  selectedPaymentMethod: null,
   customerNotes: "",
   subtotal: 0,
   shippingTotal: 0,
@@ -210,6 +223,11 @@ export const useCheckoutStore = create<CheckoutStore>()(
         });
       },
 
+      // Payment method
+      setPaymentMethod: (method) => {
+        set({ selectedPaymentMethod: method });
+      },
+
       // Notes
       setCustomerNotes: (notes) => {
         set({ customerNotes: notes });
@@ -245,6 +263,7 @@ export const useCheckoutStore = create<CheckoutStore>()(
         useSameForBilling: state.useSameForBilling,
         selectedAddressId: state.selectedAddressId,
         selectedMethod: state.selectedMethod,
+        selectedPaymentMethod: state.selectedPaymentMethod,
         customerNotes: state.customerNotes,
         subtotal: state.subtotal,
         shippingTotal: state.shippingTotal,
@@ -279,4 +298,8 @@ export function useShippingAddress() {
 
 export function useSelectedShippingMethod() {
   return useCheckoutStore((state) => state.selectedMethod);
+}
+
+export function useSelectedPaymentMethod() {
+  return useCheckoutStore((state) => state.selectedPaymentMethod);
 }

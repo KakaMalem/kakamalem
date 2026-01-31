@@ -2,10 +2,11 @@ import { isValidPhoneNumber } from "libphonenumber-js";
 import { z } from "zod";
 import { slugify } from "@/lib/utils/slug";
 
-// Slug validation pattern: Unicode lowercase letters, numbers, and hyphens
-// \p{Ll} = lowercase letters (any script including Persian/Arabic)
+// Slug validation pattern: Unicode letters (lowercase + caseless scripts), numbers, and hyphens
+// \p{Ll} = lowercase letters (Latin, etc.)
+// \p{Lo} = letters without case (Persian, Arabic, CJK, etc.)
 // \p{N} = numbers (any script)
-const slugRegex = /^[\p{Ll}\p{N}]+(?:-[\p{Ll}\p{N}]+)*$/u;
+const slugRegex = /^[\p{Ll}\p{Lo}\p{N}]+(?:-[\p{Ll}\p{Lo}\p{N}]+)*$/u;
 
 // URL validation regex (allows @ for TikTok/YouTube style URLs)
 const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .@-]*)*\/?$/i;

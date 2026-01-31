@@ -4,13 +4,23 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, Package, ArrowRight, ShoppingBag } from "lucide-react";
+import {
+  CheckCircle,
+  Package,
+  ArrowRight,
+  ShoppingBag,
+  Clock,
+  Banknote,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
-import type { Address } from "@/lib/db/schema";
+import type { Address, PaymentMethod, PaymentStatus } from "@/lib/db/schema";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { cartActions } from "@/lib/stores/use-cart-store";
 
@@ -91,6 +101,8 @@ interface Order {
   items: OrderItem[];
   total: string;
   shippingAddress: Address | undefined;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod | null;
 }
 
 interface OrderSuccessContentProps {
@@ -98,6 +110,7 @@ interface OrderSuccessContentProps {
   currency: string;
   order: Order | null;
   user: { id: string } | null;
+  paymentStatus?: "success" | "pending" | "cancelled";
 }
 
 export function OrderSuccessContent({
@@ -105,6 +118,7 @@ export function OrderSuccessContent({
   currency,
   order,
   user,
+  paymentStatus,
 }: OrderSuccessContentProps) {
   const [showConfetti, setShowConfetti] = useState(true);
   const { resetCheckout } = useCheckoutStore();
@@ -123,6 +137,40 @@ export function OrderSuccessContent({
   }, []);
 
   const shippingAddress = order?.shippingAddress;
+
+  // Determine payment display info
+  const isPaid = order?.paymentStatus === "paid";
+  const isCOD = order?.paymentMethod === "cash";
+  const isOnlinePaymentPending = paymentStatus === "pending";
+  const isPaymentCancelled = paymentStatus === "cancelled";
+
+  // Get payment status badge info
+  const getPaymentBadge = () => {
+    if (isPaid) {
+      return { label: "Paid", variant: "default" as const, icon: CheckCircle };
+    }
+    if (isCOD) {
+      return {
+        label: "Pay on Delivery",
+        variant: "secondary" as const,
+        icon: Banknote,
+      };
+    }
+    if (isPaymentCancelled) {
+      return {
+        label: "Payment Cancelled",
+        variant: "destructive" as const,
+        icon: AlertCircle,
+      };
+    }
+    return {
+      label: "Payment Pending",
+      variant: "outline" as const,
+      icon: Clock,
+    };
+  };
+
+  const paymentBadge = getPaymentBadge();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 relative overflow-hidden">
@@ -169,9 +217,39 @@ export function OrderSuccessContent({
         >
           <h1 className="mt-6 text-3xl font-bold">Thank you for your order!</h1>
           <p className="mt-2 text-lg text-muted-foreground">
-            Your order has been placed and is being processed.
+            {isPaid
+              ? "Payment received! Your order is being processed."
+              : isCOD
+                ? "Your order is confirmed. Pay when you receive your items."
+                : "Your order has been placed and is being processed."}
           </p>
         </motion.div>
+
+        {/* Payment Alert for pending/cancelled */}
+        {(isOnlinePaymentPending || isPaymentCancelled) && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+          >
+            <Alert
+              variant={isPaymentCancelled ? "destructive" : "default"}
+              className="mt-6 text-left"
+            >
+              <AlertCircle className="size-4" />
+              <AlertTitle>
+                {isPaymentCancelled
+                  ? "Payment was cancelled"
+                  : "Payment not completed"}
+              </AlertTitle>
+              <AlertDescription>
+                {isPaymentCancelled
+                  ? "Your payment was cancelled. Your order is saved and you can try again."
+                  : "We couldn't process your payment. Your order is saved and you can complete payment later."}
+              </AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
 
         {/* Order Details */}
         {order && (
@@ -199,6 +277,14 @@ export function OrderSuccessContent({
                       })}
                     </p>
                   </div>
+                </div>
+
+                {/* Payment Status Badge */}
+                <div className="mt-4">
+                  <Badge variant={paymentBadge.variant} className="gap-1.5">
+                    <paymentBadge.icon className="size-3.5" />
+                    {paymentBadge.label}
+                  </Badge>
                 </div>
 
                 <Separator className="my-4" />
@@ -343,6 +429,16 @@ export function OrderSuccessContent({
                 Your order will be delivered to your shipping address.
               </span>
             </li>
+            {isCOD && (
+              <li className="flex items-start gap-2">
+                <span className="mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                  4
+                </span>
+                <span>
+                  Pay the delivery person when you receive your items.
+                </span>
+              </li>
+            )}
           </ul>
         </motion.div>
 

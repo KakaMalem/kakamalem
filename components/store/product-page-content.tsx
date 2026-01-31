@@ -129,6 +129,8 @@ export function ProductPageContent({
 
   // Track if this is the initial render to avoid URL update on mount
   const isInitialRender = useRef(true);
+  // Track the last URL we set to prevent infinite loops
+  const lastSetUrlRef = useRef<string | null>(null);
 
   // Compute default state once during initialization (same on server & client)
   // Uses URL options if provided, otherwise selects first available variant
@@ -161,6 +163,12 @@ export function ProductPageContent({
     const queryString = params.toString();
     const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
 
+    // Prevent infinite loop: don't update if URL is the same as what we last set
+    if (lastSetUrlRef.current === newUrl) {
+      return;
+    }
+
+    lastSetUrlRef.current = newUrl;
     router.replace(newUrl, { scroll: false });
   }, [selectedOptions, pathname, searchParams, router]);
 

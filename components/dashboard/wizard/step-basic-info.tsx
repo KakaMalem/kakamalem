@@ -90,13 +90,13 @@ export function StepBasicInfo({
           <FieldError>This URL is already taken</FieldError>
         ) : name && !slug ? (
           <FieldDescription className="text-amber-600">
-            Please enter a custom URL (letters a-z, numbers, and hyphens only)
+            Please enter a custom URL (letters, numbers, and hyphens only)
           </FieldDescription>
         ) : fieldErrors.slug ? (
           <FieldError>{fieldErrors.slug}</FieldError>
         ) : (
           <FieldDescription>
-            Only lowercase letters (a-z), numbers, and hyphens allowed
+            Letters, numbers, and hyphens allowed (supports Persian/Dari)
           </FieldDescription>
         )}
       </Field>

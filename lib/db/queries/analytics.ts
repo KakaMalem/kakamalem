@@ -1266,7 +1266,7 @@ export async function getProductPerformance(
  */
 export async function getTrafficSources(
   _tenantId: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   _timeRange: TimeRange = "7d"
 ): Promise<TrafficSourceData[]> {
   // Traffic source tracking requires:

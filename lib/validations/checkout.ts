@@ -53,6 +53,19 @@ export const shippingAddressSchema = z.object({
 export type ShippingAddressInput = z.infer<typeof shippingAddressSchema>;
 
 /**
+ * Payment gateway options
+ */
+export const paymentGatewaySchema = z.enum([
+  "hesabpay",
+  "stripe",
+  "cod",
+  "bank_transfer",
+  "mobile_money",
+]);
+
+export type PaymentGateway = z.infer<typeof paymentGatewaySchema>;
+
+/**
  * Full checkout submission schema
  */
 export const checkoutSubmitSchema = z.object({
@@ -80,6 +93,9 @@ export const checkoutSubmitSchema = z.object({
     },
     { message: "Invalid shipping method" }
   ),
+
+  // Payment method (optional, defaults to COD)
+  paymentMethod: paymentGatewaySchema.optional().default("cod"),
 
   // Optional notes
   customerNotes: z.string().max(1000).optional().nullable(),

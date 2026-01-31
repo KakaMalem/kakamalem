@@ -162,6 +162,20 @@
       "when": 1769710020595,
       "tag": "0022_fluffy_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1769773575030,
+      "tag": "0023_swatch_shape_rename",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1769773575031,
+      "tag": "0024_smooth_callisto",
+      "breakpoints": true
     }
   ]
 }

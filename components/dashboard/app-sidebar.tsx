@@ -14,6 +14,8 @@ import {
   Warehouse,
   Star,
   Monitor,
+  Wallet,
+  CreditCard,
 } from "lucide-react";
 
 import {
@@ -72,11 +74,16 @@ interface AppSidebarProps {
 // Reserved paths that are not store slugs
 const reservedPaths = new Set(["new", "account"]);
 
-// Extract store slug from pathname
+// Extract store slug from pathname (handles URL-encoded Unicode slugs)
 function getStoreSlugFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/dashboard\/([^/]+)/);
   if (match && !reservedPaths.has(match[1])) {
-    return match[1];
+    // Decode URL encoding for Unicode slugs (e.g., %D9%86%D9%88%D9%86 -> نون)
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
   }
   return null;
 }
@@ -176,6 +183,20 @@ export function AppSidebar({
     },
   ];
 
+  // Finance items - only for owners
+  const financeNavItems = [
+    {
+      title: "Earnings",
+      href: `${baseUrl}/earnings`,
+      icon: Wallet,
+    },
+    {
+      title: "Billing",
+      href: `${baseUrl}/billing`,
+      icon: CreditCard,
+    },
+  ];
+
   // Check if user can access settings (owner or admin only)
   const showSettings = userRole === "owner" || userRole === "admin";
 
@@ -261,6 +282,31 @@ export function AppSidebar({
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Finance section - only for owners */}
+        {userRole === "owner" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Finance</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {financeNavItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.href)}
+                      tooltip={item.title}
+                    >
+                      <NavLink href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Settings section - hidden for staff (no settings access) */}
         {showSettings && (

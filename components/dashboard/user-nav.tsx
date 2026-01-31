@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { UpgradeButton } from "@/components/dashboard/billing/upgrade-button";
 import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
@@ -36,11 +36,15 @@ import { useSubscription } from "@/lib/stores/use-subscription-store";
 // Reserved paths that are not store slugs
 const reservedPaths = new Set(["new", "account"]);
 
-// Extract store slug from pathname
+// Extract store slug from pathname (handles URL-encoded Unicode slugs)
 function getStoreSlugFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/dashboard\/([^/]+)/);
   if (match && !reservedPaths.has(match[1])) {
-    return match[1];
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
   }
   return null;
 }
@@ -248,15 +252,10 @@ export function UserNav({ user }: UserNavProps) {
 
                   {/* Get Pro Button */}
                   {showUpgrade && (
-                    <Button size="sm" className="w-full" asChild>
-                      <Link
-                        href={`${baseUrl}/billing`}
-                        onClick={closeSidebarOnMobile}
-                      >
-                        <Crown className="mr-1.5 size-3.5" />
-                        Upgrade Store
-                      </Link>
-                    </Button>
+                    <UpgradeButton className="w-full">
+                      <Crown className="mr-1.5 size-3.5" />
+                      Upgrade Store
+                    </UpgradeButton>
                   )}
                 </div>
               </>

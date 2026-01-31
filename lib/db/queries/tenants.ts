@@ -57,8 +57,18 @@ export async function getTenantById(tenantId: string) {
 }
 
 export async function getTenantBySlug(slug: string) {
+  // Normalize Unicode to match how slugs are stored (NFKC from slugify)
+  // Also decode URL encoding in case it wasn't decoded by the framework
+  let normalizedSlug: string;
+  try {
+    normalizedSlug = decodeURIComponent(slug).normalize("NFKC");
+  } catch {
+    // If decoding fails, just normalize the original
+    normalizedSlug = slug.normalize("NFKC");
+  }
+
   const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.slug, slug),
+    where: eq(tenants.slug, normalizedSlug),
   });
 
   return tenant;
@@ -84,8 +94,11 @@ export async function getTenantByCustomDomain(domain: string) {
  * Check if a slug is available (not already in use)
  */
 export async function checkSlugAvailable(slug: string): Promise<boolean> {
+  // Normalize Unicode to match how slugs are stored (NFKC from slugify)
+  const normalizedSlug = slug.normalize("NFKC");
+
   const existing = await db.query.tenants.findFirst({
-    where: eq(tenants.slug, slug),
+    where: eq(tenants.slug, normalizedSlug),
     columns: { id: true },
   });
 

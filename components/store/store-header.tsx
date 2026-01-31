@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useCallback, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useCallback, useTransition, useEffect } from "react";
 import {
   ShoppingCart,
   Search,
@@ -45,6 +45,8 @@ interface StoreHeaderProps {
     isMember: boolean;
     role: StoreRole;
   } | null;
+  /** Initial search query from server - avoids useSearchParams() hydration issues */
+  initialSearchQuery?: string;
 }
 
 export function StoreHeader({
@@ -52,11 +54,28 @@ export function StoreHeader({
   cartItemCount = 0,
   user,
   userContext,
+  initialSearchQuery = "",
 }: StoreHeaderProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  // Initialize from server prop to avoid hydration mismatch
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [isSearching, startSearchTransition] = useTransition();
+
+  // Sync with URL changes (back/forward navigation) after hydration
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlQuery = params.get("q") || "";
+      setSearchQuery(urlQuery);
+    };
+
+    // Sync on mount
+    syncFromUrl();
+
+    // Listen for popstate (back/forward navigation)
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
 
   // Get hydrated cart count that syncs with Zustand store
   const hydratedCartCount = useHydratedCartCount(cartItemCount);

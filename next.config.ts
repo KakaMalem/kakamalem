@@ -9,6 +9,9 @@ const withSerwist = withSerwistInit({
   swDest: "public/sw.js",
   // Disable in development to avoid Turbopack conflicts
   disable: isDevelopment,
+  // Exclude sound files from precaching - they should be loaded on-demand
+  // Use pattern that matches both forward and back slashes (Windows build issue)
+  exclude: [/sounds[\\/]/],
 });
 
 const nextConfig: NextConfig = {

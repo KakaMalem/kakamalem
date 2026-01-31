@@ -6176,6 +6176,234 @@ export const invoices = pgTable(
 );
 
 // ============================================================================
+// PAYMENT GATEWAY CONFIGURATION
+// ============================================================================
+// Stores payment gateway credentials and settings per tenant.
+// Supports multiple gateways: HesabPay, Stripe, COD, manual bank transfer, etc.
+
+export const paymentGatewayEnum = pgEnum("payment_gateway", [
+  "hesabpay", // HesabPay - Afghanistan primary
+  "stripe", // Stripe Connect - International
+  "cod", // Cash on Delivery
+  "bank_transfer", // Manual bank transfer
+  "mobile_money", // Mobile money (M-Paisa, M-Hawala)
+]);
+
+export const paymentGatewayConfigs = pgTable(
+  "payment_gateway_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Gateway type
+    gateway: paymentGatewayEnum("gateway").notNull(),
+
+    // Display settings
+    displayName: varchar("display_name", { length: 100 }), // "Pay with Card", "Cash on Delivery"
+    description: text("description"), // Instructions for customers
+    displayOrder: integer("display_order").default(0).notNull(),
+
+    // Credentials (encrypt sensitive fields in production)
+    apiKey: text("api_key"), // HesabPay API key, Stripe publishable key
+    secretKey: text("secret_key"), // HesabPay secret, Stripe secret key
+    merchantId: varchar("merchant_id", { length: 100 }), // Merchant/account ID
+    merchantPin: varchar("merchant_pin", { length: 50 }), // HesabPay PIN
+    webhookSecret: text("webhook_secret"), // For verifying webhooks
+
+    // For Stripe Connect
+    stripeAccountId: varchar("stripe_account_id", { length: 100 }),
+
+    // Mode and status
+    isLive: boolean("is_live").default(false).notNull(), // Live vs sandbox
+    isEnabled: boolean("is_enabled").default(true).notNull(),
+
+    // Supported currencies (null = all tenant currencies)
+    supportedCurrencies: jsonb("supported_currencies").$type<string[]>(),
+
+    // Transaction limits
+    minAmount: decimal("min_amount", { precision: 12, scale: 2 }),
+    maxAmount: decimal("max_amount", { precision: 12, scale: 2 }),
+
+    // Additional gateway-specific settings
+    settings: jsonb("settings").$type<Record<string, unknown>>(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // One config per gateway per tenant
+    uniqueIndex("payment_gateway_configs_tenant_gateway_idx").on(
+      table.tenantId,
+      table.gateway
+    ),
+    index("payment_gateway_configs_tenant_id_idx").on(table.tenantId),
+    index("payment_gateway_configs_enabled_idx").on(
+      table.tenantId,
+      table.isEnabled
+    ),
+  ]
+);
+
+// ============================================================================
+// PAYMENT WEBHOOK EVENTS (Audit log for all incoming webhooks)
+// ============================================================================
+// Logs all payment gateway webhook events for debugging and reconciliation.
+
+export const paymentWebhookStatusEnum = pgEnum("payment_webhook_status", [
+  "received", // Webhook received, not yet processed
+  "processing", // Currently being processed
+  "processed", // Successfully processed
+  "failed", // Processing failed
+  "ignored", // Intentionally ignored (duplicate, irrelevant)
+]);
+
+export const paymentWebhookEvents = pgTable(
+  "payment_webhook_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").references(() => tenants.id, {
+      onDelete: "set null",
+    }),
+
+    // Gateway info
+    gateway: paymentGatewayEnum("gateway").notNull(),
+
+    // Event identification
+    eventId: varchar("event_id", { length: 255 }), // Gateway's event ID
+    eventType: varchar("event_type", { length: 100 }).notNull(), // "payment.completed", etc.
+
+    // Raw payload (for debugging)
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    headers: jsonb("headers").$type<Record<string, string>>(),
+
+    // Processing status
+    status: paymentWebhookStatusEnum("status").default("received").notNull(),
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    errorMessage: text("error_message"),
+    retryCount: integer("retry_count").default(0).notNull(),
+
+    // Linked entities (populated after processing)
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    transactionId: uuid("transaction_id").references(
+      () => orderTransactions.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+
+    // IP for security auditing
+    sourceIp: varchar("source_ip", { length: 45 }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Prevent duplicate event processing
+    uniqueIndex("payment_webhook_events_gateway_event_idx")
+      .on(table.gateway, table.eventId)
+      .where(sql`event_id IS NOT NULL`),
+    index("payment_webhook_events_tenant_id_idx").on(table.tenantId),
+    index("payment_webhook_events_status_idx").on(table.status),
+    index("payment_webhook_events_created_at_idx").on(table.createdAt),
+    index("payment_webhook_events_order_id_idx").on(table.orderId),
+  ]
+);
+
+// ============================================================================
+// PAYMENT SESSIONS (Track payment attempts)
+// ============================================================================
+// Tracks payment sessions created with gateways (for abandoned payment recovery).
+
+export const paymentSessionStatusEnum = pgEnum("payment_session_status", [
+  "pending", // Session created, awaiting payment
+  "processing", // Payment in progress
+  "completed", // Payment successful
+  "failed", // Payment failed
+  "expired", // Session expired
+  "cancelled", // Cancelled by user
+]);
+
+export const paymentSessions = pgTable(
+  "payment_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // What this payment is for
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    invoiceId: uuid("invoice_id").references(() => invoices.id, {
+      onDelete: "set null",
+    }),
+
+    // Payment details
+    gateway: paymentGatewayEnum("gateway").notNull(),
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+
+    // Gateway session info
+    gatewaySessionId: varchar("gateway_session_id", { length: 255 }), // HesabPay session ID
+    gatewaySessionUrl: text("gateway_session_url"), // Redirect URL for payment
+    gatewayResponse: jsonb("gateway_response").$type<Record<string, unknown>>(),
+
+    // Status
+    status: paymentSessionStatusEnum("status").default("pending").notNull(),
+
+    // Expiry
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+
+    // Customer info (for guest checkout)
+    customerEmail: varchar("customer_email", { length: 255 }),
+    customerPhone: varchar("customer_phone", { length: 50 }),
+
+    // Callback URLs
+    successUrl: text("success_url"),
+    cancelUrl: text("cancel_url"),
+
+    // Result
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    failedAt: timestamp("failed_at", { withTimezone: true, mode: "string" }),
+    failureReason: text("failure_reason"),
+
+    // Metadata
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("payment_sessions_tenant_id_idx").on(table.tenantId),
+    index("payment_sessions_order_id_idx").on(table.orderId),
+    index("payment_sessions_invoice_id_idx").on(table.invoiceId),
+    index("payment_sessions_status_idx").on(table.status),
+    index("payment_sessions_gateway_session_idx").on(table.gatewaySessionId),
+    index("payment_sessions_expires_at_idx").on(table.expiresAt),
+  ]
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -8271,6 +8499,19 @@ export type BillingTransaction = typeof billingTransactions.$inferSelect;
 export type NewBillingTransaction = typeof billingTransactions.$inferInsert;
 export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
+
+// Payment gateway types
+export type PaymentGateway = (typeof paymentGatewayEnum.enumValues)[number];
+export type PaymentWebhookStatus =
+  (typeof paymentWebhookStatusEnum.enumValues)[number];
+export type PaymentSessionStatus =
+  (typeof paymentSessionStatusEnum.enumValues)[number];
+export type PaymentGatewayConfig = typeof paymentGatewayConfigs.$inferSelect;
+export type NewPaymentGatewayConfig = typeof paymentGatewayConfigs.$inferInsert;
+export type PaymentWebhookEvent = typeof paymentWebhookEvents.$inferSelect;
+export type NewPaymentWebhookEvent = typeof paymentWebhookEvents.$inferInsert;
+export type PaymentSession = typeof paymentSessions.$inferSelect;
+export type NewPaymentSession = typeof paymentSessions.$inferInsert;
 
 // Order invoice token types
 export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;

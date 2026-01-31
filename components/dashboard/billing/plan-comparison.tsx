@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Crown, Zap } from "lucide-react";
+import { useState } from "react";
+import { Check, Crown, Zap, Loader2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -11,10 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SubscriptionOverview } from "@/lib/db/queries/billing";
+import { initiateProUpgrade } from "@/lib/actions/subscriptions";
 
 interface PlanComparisonProps {
   subscription: SubscriptionOverview;
   currency: string;
+  tenantId: string;
 }
 
 function formatPrice(price: string | number): string {
@@ -36,13 +39,37 @@ const INCLUDED_FEATURES = [
 export function PlanComparison({
   subscription,
   currency,
+  tenantId,
 }: PlanComparisonProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const isPro = subscription.plan === "pro";
   const showUpgrade =
     !isPro &&
     (subscription.status === "trialing" ||
       subscription.status === "expired" ||
       subscription.status === "active");
+
+  const handleUpgrade = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await initiateProUpgrade(tenantId);
+
+      if (result.success && result.paymentUrl) {
+        // Redirect to HesabPay payment page
+        window.location.href = result.paymentUrl;
+      } else {
+        setError(result.error || "Failed to start upgrade");
+      }
+    } catch (_err) {
+      setError("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Card>
@@ -51,6 +78,13 @@ export function PlanComparison({
         <CardDescription>Simple pricing. Upgrade anytime.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {/* Error Alert */}
+        {error && (
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
         {/* Plan Cards - Stack on mobile, side by side on tablet+, constrained on desktop */}
         <div className="grid gap-3 sm:grid-cols-2 sm:max-w-xl">
           {/* Free Plan */}
@@ -167,15 +201,23 @@ export function PlanComparison({
             </ul>
 
             {showUpgrade && (
-              <Button size="sm" className="mt-4 w-full" asChild>
-                <a
-                  href={`https://wa.me/93708133894?text=${encodeURIComponent("Hi! I'd like to upgrade my Kaka Malem store to Pro plan.")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Crown className="mr-1.5 size-3.5" />
-                  Upgrade to Pro
-                </a>
+              <Button
+                size="sm"
+                className="mt-4 w-full"
+                onClick={handleUpgrade}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Crown className="mr-1.5 size-3.5" />
+                    Upgrade to Pro
+                  </>
+                )}
               </Button>
             )}
             {isPro && (
@@ -213,7 +255,7 @@ export function PlanComparison({
             <p className="text-xs">
               <span className="font-medium">Ready to upgrade?</span>{" "}
               <span className="text-muted-foreground">
-                Contact us via WhatsApp or email.
+                Click the button above or contact us for help.
               </span>
             </p>
             <div className="flex gap-2 shrink-0">
@@ -223,16 +265,7 @@ export function PlanComparison({
                 className="h-7 text-xs"
                 asChild
               >
-                <a href="mailto:kakamalem.team@gmail.com">Email</a>
-              </Button>
-              <Button size="sm" className="h-7 text-xs" asChild>
-                <a
-                  href={`https://wa.me/93708133894?text=${encodeURIComponent("Hi! I'd like to upgrade my Kaka Malem store to Pro plan.")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  WhatsApp
-                </a>
+                <a href="mailto:kakamalem.team@gmail.com">Need Help?</a>
               </Button>
             </div>
           </div>

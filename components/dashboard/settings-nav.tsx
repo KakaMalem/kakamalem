@@ -10,10 +10,15 @@ import {
 } from "@/lib/config/settings-permissions";
 
 // Extract store slug from pathname like /dashboard/my-store/settings
+// Handles URL-encoded Unicode slugs (e.g., %D9%86%D9%88%D9%86 -> نون)
 function getStoreSlugFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/dashboard\/([^/]+)/);
   if (match && match[1] !== "new" && match[1] !== "account") {
-    return match[1];
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
   }
   return null;
 }
