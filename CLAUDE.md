@@ -663,7 +663,7 @@ STORAGE_PATH="C:/Users/YourName/kakamalem-uploads"
 
 ## Payment System
 
-Multi-gateway payment orchestration supporting HesabPay (Afghanistan), COD, bank transfer, and mobile money. Designed for future expansion to Stripe Connect (UAE/International).
+Multi-gateway payment orchestration supporting HesabPay (Afghanistan), Stripe (International), COD, bank transfer, and mobile money. See [docs/STRIPE_SETUP.md](docs/STRIPE_SETUP.md) for Stripe account setup guide.
 
 ### Payment Architecture
 
@@ -671,24 +671,57 @@ Multi-gateway payment orchestration supporting HesabPay (Afghanistan), COD, bank
 lib/payments/
 ├── index.ts              # Payment orchestrator
 ├── types.ts              # Common gateway types
-└── hesabpay/
-    ├── index.ts          # HesabPay exports
-    ├── client.ts         # HesabPay API client
-    └── types.ts          # HesabPay-specific types
+├── hesabpay/
+│   ├── index.ts          # HesabPay exports
+│   ├── client.ts         # HesabPay API client
+│   └── types.ts          # HesabPay-specific types
+└── stripe/
+    └── index.ts          # Stripe payment provider
+
+lib/stripe/
+├── index.ts              # Stripe server client
+├── client.ts             # Stripe browser client (@stripe/stripe-js)
+└── subscriptions.ts      # Pro subscription management
 
 lib/actions/payments.ts   # Server actions for payments
-app/api/webhooks/hesabpay/route.ts  # Webhook handler
+lib/actions/stripe-subscriptions.ts  # Subscription server actions
+app/api/webhooks/hesabpay/route.ts   # HesabPay webhook handler
+app/api/webhooks/stripe/route.ts     # Stripe webhook handler
 ```
 
 ### Supported Payment Gateways
 
-| Gateway         | Type    | Use Case                            |
-| --------------- | ------- | ----------------------------------- |
-| `hesabpay`      | Online  | Card payments (Afghanistan primary) |
-| `cod`           | Offline | Cash on Delivery                    |
-| `bank_transfer` | Manual  | Bank transfer with verification     |
-| `mobile_money`  | Manual  | M-Paisa, M-Hawala                   |
-| `stripe`        | Online  | Future: UAE/International           |
+| Gateway         | Type    | Use Case                               |
+| --------------- | ------- | -------------------------------------- |
+| `hesabpay`      | Online  | Card payments (Afghanistan primary)    |
+| `stripe`        | Online  | International payments + subscriptions |
+| `cod`           | Offline | Cash on Delivery                       |
+| `bank_transfer` | Manual  | Bank transfer with verification        |
+| `mobile_money`  | Manual  | M-Paisa, M-Hawala                      |
+
+### Multi-Currency Support
+
+International customers can view prices and pay in their preferred currency:
+
+```
+lib/currency/
+├── index.ts              # Exchange rate service (caching, conversion)
+└── country-currency.ts   # Country → currency mapping
+
+lib/stores/use-currency-store.ts    # Client-side currency state (Zustand)
+components/store/currency-selector.tsx  # Currency dropdown
+components/store/price-display.tsx      # Auto-converting price display
+app/api/exchange-rates/route.ts         # Exchange rate API endpoint
+```
+
+**Features:**
+
+- Auto-detect currency based on IP/browser locale
+- Real-time exchange rates (cached, updated daily)
+- Prices displayed in customer's currency
+- Payments processed in customer's currency via Stripe
+
+**Exchange Rate Source:** [Fawaz Ahmed Currency API](https://github.com/fawazahmed0/exchange-api) (free, supports AFN)
 
 ### Database Tables
 
@@ -698,6 +731,7 @@ app/api/webhooks/hesabpay/route.ts  # Webhook handler
 | `payment_sessions`        | Track payment attempts               |
 | `payment_webhook_events`  | Audit log for webhooks               |
 | `order_transactions`      | Financial transaction ledger         |
+| `exchange_rates`          | Cached exchange rates for AFN        |
 
 ### Configuration
 
@@ -779,6 +813,31 @@ Dynamic SEO configuration per store:
 - **Rich text editor**: TipTap (used for product descriptions)
 - Components in `components/ui/` are shadcn/ui (don't modify directly unless necessary)
 - For new features, create server actions in appropriate `lib/` subdirectory
+
+### Next.js 16 Proxy (NOT middleware.ts)
+
+**IMPORTANT:** Next.js 16 uses `proxy.ts` at the project root instead of `middleware.ts`. Do NOT create a middleware.ts file.
+
+The `proxy.ts` file handles:
+1. **SEO redirects** - www → non-www canonical redirect
+2. **Custom domain routing** - Rewrites custom domains to `/store/_custom/` route
+
+```typescript
+// proxy.ts - NOT middleware.ts
+export function proxy(request: NextRequest) {
+  // www redirect for SEO
+  if (hostname === "www.kakamalem.com") {
+    return NextResponse.redirect(url, { status: 301 });
+  }
+
+  // Custom domain rewrite
+  return NextResponse.rewrite(url);
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)" ],
+};
+```
 
 ## Common Patterns
 

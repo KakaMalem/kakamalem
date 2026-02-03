@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
- * Proxy for handling custom domain routing
+ * Proxy for handling:
+ * 1. SEO: www → non-www redirect (canonical consolidation)
+ * 2. Custom domain routing to internal _custom route
  *
  * When a request comes from a custom domain (not kakamalem.com),
  * we rewrite it to the internal _custom route handler which will
@@ -35,6 +37,16 @@ export function proxy(request: NextRequest) {
 
   // Extract hostname without port for comparison
   const hostnameWithoutPort = hostname.split(":")[0];
+
+  // ==========================================================================
+  // SEO: Redirect www.kakamalem.com → kakamalem.com (301 permanent)
+  // This consolidates SEO authority to the canonical non-www domain
+  // ==========================================================================
+  if (hostnameWithoutPort === "www.kakamalem.com") {
+    const url = request.nextUrl.clone();
+    url.host = "kakamalem.com";
+    return NextResponse.redirect(url, { status: 301 });
+  }
 
   // Skip proxy for main domain
   if (

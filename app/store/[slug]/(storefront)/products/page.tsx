@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProducts } from "@/lib/db/queries/products";
 import { InfiniteScrollWrapper } from "@/components/store/infinite-scroll-wrapper";
@@ -5,6 +6,49 @@ import { InfiniteScrollWrapper } from "@/components/store/infinite-scroll-wrappe
 interface ProductsPageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ sort?: string; search?: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: ProductsPageProps): Promise<Metadata> {
+  const { slug } = await params;
+
+  const store = await getTenantBySlug(slug);
+  if (!store) return { title: "Products Not Found" };
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+  // Canonical URL without query params to prevent duplicate content
+  const productsUrl = `${baseUrl}/store/${slug}/products`;
+  const description = `Browse all products at ${store.name}. Find the best deals and latest arrivals.`;
+
+  // Get store logo for OG image
+  const imageUrl = store.logo ? `${baseUrl}${store.logo}` : undefined;
+
+  return {
+    title: `All Products | ${store.name}`,
+    description,
+    // Canonical URL prevents duplicate content issues from pagination/sorting
+    alternates: {
+      canonical: productsUrl,
+    },
+    openGraph: {
+      type: "website",
+      title: `All Products | ${store.name}`,
+      description,
+      url: productsUrl,
+      siteName: store.name,
+      locale: "en_US",
+      images: imageUrl
+        ? [{ url: imageUrl, width: 1200, height: 630, alt: store.name }]
+        : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `All Products | ${store.name}`,
+      description,
+      images: imageUrl ? [imageUrl] : undefined,
+    },
+  };
 }
 
 export default async function ProductsPage({
