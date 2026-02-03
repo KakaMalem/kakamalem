@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProducts } from "@/lib/db/queries/products";
+import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
 import { InfiniteScrollWrapper } from "@/components/store/infinite-scroll-wrapper";
 
 interface ProductsPageProps {
@@ -22,7 +23,7 @@ export async function generateMetadata({
   const description = `Browse all products at ${store.name}. Find the best deals and latest arrivals.`;
 
   // Get store logo for OG image
-  const imageUrl = store.logo ? `${baseUrl}${store.logo}` : undefined;
+  const imageUrl = store.logoUrl ? `${baseUrl}${store.logoUrl}` : undefined;
 
   return {
     title: `All Products | ${store.name}`,
@@ -67,19 +68,23 @@ export default async function ProductsPage({
     "displayOrder";
   const sortDirection = (sort?.split("-")[1] as "asc" | "desc") || "asc";
 
-  const productsResult = await getProducts(store.id, {
-    page: 1,
-    limit: 12,
-    filters: {
-      isActive: true,
-      showOnStorefront: true,
-      search: search || undefined,
-    },
-    sort: {
-      field: sortField,
-      direction: sortDirection,
-    },
-  });
+  // Fetch products and active campaigns in parallel
+  const [productsResult, activeCampaigns] = await Promise.all([
+    getProducts(store.id, {
+      page: 1,
+      limit: 12,
+      filters: {
+        isActive: true,
+        showOnStorefront: true,
+        search: search || undefined,
+      },
+      sort: {
+        field: sortField,
+        direction: sortDirection,
+      },
+    }),
+    getActiveCampaigns(store.id),
+  ]);
 
   // Check if store is in catalog mode (no cart functionality)
   const isCatalogMode = store.storeMode === "catalog";
@@ -109,6 +114,7 @@ export default async function ProductsPage({
         }}
         currentSort={sort || "displayOrder-asc"}
         catalogMode={isCatalogMode}
+        activeCampaigns={activeCampaigns}
       />
     </div>
   );

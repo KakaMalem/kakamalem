@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getCategoryBySlugWithImage } from "@/lib/db/queries/categories";
 import { getProducts } from "@/lib/db/queries/products";
+import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
 import { InfiniteScrollWrapper } from "@/components/store/infinite-scroll-wrapper";
 import { BreadcrumbStructuredData } from "@/components/store/breadcrumb-structured-data";
 import {
@@ -96,19 +97,23 @@ export default async function CategoryPage({
     (sort?.split("-")[0] as "name" | "price" | "createdAt") || "createdAt";
   const sortDirection = (sort?.split("-")[1] as "asc" | "desc") || "desc";
 
-  const productsResult = await getProducts(store.id, {
-    page: 1,
-    limit: 12,
-    filters: {
-      categoryId: category.id,
-      isActive: true,
-      showOnStorefront: true,
-    },
-    sort: {
-      field: sortField,
-      direction: sortDirection,
-    },
-  });
+  // Fetch products and active campaigns in parallel
+  const [productsResult, activeCampaigns] = await Promise.all([
+    getProducts(store.id, {
+      page: 1,
+      limit: 12,
+      filters: {
+        categoryId: category.id,
+        isActive: true,
+        showOnStorefront: true,
+      },
+      sort: {
+        field: sortField,
+        direction: sortDirection,
+      },
+    }),
+    getActiveCampaigns(store.id),
+  ]);
 
   // Check if online cart should be disabled
   // - catalog: Display only, no checkout anywhere
@@ -184,6 +189,7 @@ export default async function CategoryPage({
           }}
           currentSort={sort || "createdAt-desc"}
           catalogMode={isCartDisabled}
+          activeCampaigns={activeCampaigns}
         />
       </div>
     </>
