@@ -123,7 +123,9 @@ CREATE TABLE "reserved_slugs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "tenants" ADD COLUMN "enable_shipping" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+-- Skip: enable_shipping already added in 0030_enable_shipping_flag.sql
+-- ALTER TABLE "tenants" ADD COLUMN "enable_shipping" boolean DEFAULT true NOT NULL;
+--> statement-breakpoint
 ALTER TABLE "platform_affiliate_clicks" ADD CONSTRAINT "platform_affiliate_clicks_affiliate_id_platform_affiliates_id_fk" FOREIGN KEY ("affiliate_id") REFERENCES "public"."platform_affiliates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "platform_affiliate_commissions" ADD CONSTRAINT "platform_affiliate_commissions_affiliate_id_platform_affiliates_id_fk" FOREIGN KEY ("affiliate_id") REFERENCES "public"."platform_affiliates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "platform_affiliate_commissions" ADD CONSTRAINT "platform_affiliate_commissions_referral_id_platform_affiliate_referrals_id_fk" FOREIGN KEY ("referral_id") REFERENCES "public"."platform_affiliate_referrals"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

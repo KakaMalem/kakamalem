@@ -1,6 +1,13 @@
 -- Seed reserved slugs for affiliate vanity URLs
 -- These paths cannot be used as affiliate slugs as they conflict with existing routes
 
+-- Create the table if it doesn't exist (idempotent)
+CREATE TABLE IF NOT EXISTS reserved_slugs (
+  slug varchar(63) PRIMARY KEY NOT NULL,
+  reason varchar(100),
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 INSERT INTO reserved_slugs (slug, reason) VALUES
   ('terms', 'legal page'),
   ('privacy', 'legal page'),

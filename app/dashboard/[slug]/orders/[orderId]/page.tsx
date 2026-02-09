@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowLeft, Package, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, MapPin, Phone } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getDashboardOrderById } from "@/lib/db/queries/orders";
 import { getRefundsByOrderId } from "@/lib/db/queries/refunds";
@@ -17,8 +16,7 @@ import { OrderPaymentSection } from "@/components/dashboard/orders/order-payment
 import { DeliveryLocationMapWrapper } from "@/components/dashboard/orders/delivery-location-map";
 import { OrderShipmentSection } from "@/components/dashboard/orders/order-shipment-section";
 import { OrderQuickActions } from "@/components/dashboard/orders/order-quick-actions";
-import { OrderShippingAdjustment } from "@/components/dashboard/orders/order-shipping-adjustment";
-import { OrderTotalAdjustment } from "@/components/dashboard/orders/order-total-adjustment";
+import { OrderItemsCard } from "@/components/dashboard/orders/order-items-card";
 import { AutoPrintTrigger } from "@/components/dashboard/orders/auto-print-trigger";
 import { OrderRefundsSection } from "@/components/dashboard/orders/order-refunds-section";
 
@@ -55,10 +53,6 @@ export default async function OrderDetailPage({
   const amountPaid = parseFloat(order.totalPaid || "0");
   const amountRefunded = parseFloat(order.amountRefunded || "0");
   const canRefund = canManage && amountPaid > amountRefunded;
-
-  const formatPrice = (price: string) => {
-    return `${parseFloat(price).toLocaleString()} ${store.currency}`;
-  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -119,104 +113,18 @@ export default async function OrderDetailPage({
         {/* Main content - 2 columns on lg */}
         <div className="space-y-6 lg:col-span-2">
           {/* Order Items */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Order Items</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y">
-                {order.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-4 px-6 py-4"
-                  >
-                    <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted">
-                      {item.image?.url ? (
-                        <Image
-                          src={item.image.url}
-                          alt={item.image.alt || item.productName}
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="flex size-full items-center justify-center">
-                          <Package className="size-6 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{item.productName}</p>
-                      {item.variantName && (
-                        <p className="text-sm text-muted-foreground">
-                          {item.variantName}
-                        </p>
-                      )}
-                      {item.sku && (
-                        <p className="text-xs text-muted-foreground">
-                          SKU: {item.sku}
-                        </p>
-                      )}
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="font-medium">{formatPrice(item.price)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Qty: {item.quantity}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Order Totals */}
-              <div className="border-t bg-muted/30 px-6 py-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>{formatPrice(order.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Shipping</span>
-                      <OrderShippingAdjustment
-                        orderId={order.id}
-                        tenantId={store.id}
-                        currency={store.currency}
-                        currentShipping={order.shippingTotal}
-                        subtotal={order.subtotal}
-                      />
-                    </div>
-                    <span>{formatPrice(order.shippingTotal)}</span>
-                  </div>
-                  {parseFloat(order.taxTotal) > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tax</span>
-                      <span>{formatPrice(order.taxTotal)}</span>
-                    </div>
-                  )}
-                  {parseFloat(order.discountTotal) > 0 && (
-                    <div className="flex justify-between text-sm text-green-600">
-                      <span>Discount</span>
-                      <span>-{formatPrice(order.discountTotal)}</span>
-                    </div>
-                  )}
-                  <Separator className="my-2" />
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">Total</span>
-                    <OrderTotalAdjustment
-                      orderId={order.id}
-                      tenantId={store.id}
-                      currency={store.currency}
-                      subtotal={order.subtotal}
-                      shippingTotal={order.shippingTotal}
-                      taxTotal={order.taxTotal}
-                      discountTotal={order.discountTotal}
-                      currentTotal={order.total}
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <OrderItemsCard
+            items={order.items}
+            storeSlug={slug}
+            currency={store.currency}
+            orderId={order.id}
+            tenantId={store.id}
+            subtotal={order.subtotal}
+            shippingTotal={order.shippingTotal}
+            taxTotal={order.taxTotal}
+            discountTotal={order.discountTotal}
+            total={order.total}
+          />
 
           {/* Customer Notes */}
           {order.customerNotes && (
