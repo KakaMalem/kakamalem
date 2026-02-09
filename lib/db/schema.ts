@@ -6926,7 +6926,7 @@ export const platformSettings = pgTable("platform_settings", {
     precision: 10,
     scale: 2,
   })
-    .default("11000")
+    .default("12000")
     .notNull(),
 
   // Free tier limits

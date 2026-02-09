@@ -206,6 +206,26 @@ export async function requestPasswordReset(email: string): Promise<AuthResult> {
 }
 
 /**
+ * Resend verification email
+ */
+export async function resendVerificationEmail(
+  email: string
+): Promise<AuthResult> {
+  try {
+    await auth.api.sendVerificationEmail({
+      body: { email },
+      headers: await headers(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Resend verification email error:", error);
+    // Don't reveal if email exists or not for security
+    return { success: true };
+  }
+}
+
+/**
  * Reset password with token
  */
 export async function resetPassword(

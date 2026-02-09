@@ -86,6 +86,7 @@ export function BillingStatusCard({
   const config = STATUS_CONFIG[subscription.status];
   const StatusIcon = config.icon;
   const isPro = subscription.plan === "pro";
+  const isYearly = subscription.billingInterval === "yearly";
 
   return (
     <Card>
@@ -216,15 +217,22 @@ export function BillingStatusCard({
               ) : (
                 <Package className="size-4" />
               )}
-              <span>Monthly Price</span>
+              <span>
+                {isPro && isYearly ? "Yearly Price" : "Monthly Price"}
+              </span>
             </div>
             <p className="mt-1 text-2xl font-bold">
               {isPro
-                ? formatPrice(subscription.proPlanPriceAfn, currency)
+                ? formatPrice(
+                    isYearly
+                      ? subscription.proPlanYearlyPriceAfn
+                      : subscription.proPlanPriceAfn,
+                    currency
+                  )
                 : "0"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {isPro ? "per month" : "Free plan"}
+              {isPro ? (isYearly ? "per year" : "per month") : "Free plan"}
             </p>
           </div>
 

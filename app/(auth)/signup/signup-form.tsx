@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth/client";
+import { resendVerificationEmail } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -37,6 +38,30 @@ export function SignupForm() {
   >({});
   const [success, setSuccess] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const [signupEmail, setSignupEmail] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Cooldown timer for resend button
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  async function handleResendVerification() {
+    if (!signupEmail || isResending || resendCooldown > 0) return;
+    setIsResending(true);
+    try {
+      await resendVerificationEmail(signupEmail);
+      toast.success("Verification email sent! Check your inbox.");
+      setResendCooldown(60);
+    } catch {
+      toast.error("Failed to resend. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
+  }
 
   // Scroll to first error field when fieldErrors change
   useEffect(() => {
@@ -106,6 +131,7 @@ export function SignupForm() {
 
       // In development, auto sign-in is enabled so redirect to dashboard
       // In production, show email verification message
+      setSignupEmail(formValues.email);
       if (process.env.NODE_ENV === "development") {
         setSuccess(true);
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -141,7 +167,31 @@ export function SignupForm() {
                 href: "/login",
               }
         }
-      />
+      >
+        {!isDev && (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Didn&apos;t receive the email? Check your spam folder or resend it.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResendVerification}
+              disabled={isResending || resendCooldown > 0}
+            >
+              {isResending ? (
+                <>
+                  <Spinner /> Sending...
+                </>
+              ) : resendCooldown > 0 ? (
+                `Resend in ${resendCooldown}s`
+              ) : (
+                "Resend verification email"
+              )}
+            </Button>
+          </div>
+        )}
+      </AuthStatusCard>
     );
   }
 

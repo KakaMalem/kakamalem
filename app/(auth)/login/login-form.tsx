@@ -5,13 +5,14 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth/client";
+import { resendVerificationEmail } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Mail } from "lucide-react";
 import { OAuthButton } from "@/components/auth/oauth-button";
 import { AuthStatusCard } from "@/components/auth/auth-status-card";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
@@ -34,6 +35,31 @@ export function LoginForm() {
   >({});
   const [success, setSuccess] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Cooldown timer for resend button
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  async function handleResendVerification() {
+    if (!loginEmail || isResending || resendCooldown > 0) return;
+    setIsResending(true);
+    try {
+      await resendVerificationEmail(loginEmail);
+      toast.success("Verification email sent! Check your inbox.");
+      setResendCooldown(60);
+    } catch {
+      toast.error("Failed to resend. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
+  }
 
   // Scroll to first error field when fieldErrors change
   useEffect(() => {
@@ -93,6 +119,14 @@ export function LoginForm() {
       if (result.error) {
         const errorMessage =
           result.error.message || "Invalid email or password";
+        // Detect email verification errors
+        const isVerificationError =
+          errorMessage.toLowerCase().includes("verif") ||
+          result.error.code === "EMAIL_NOT_VERIFIED";
+        if (isVerificationError) {
+          setLoginEmail(formValues.email);
+          setNeedsVerification(true);
+        }
         setError(errorMessage);
         toast.error(errorMessage);
         setIsPending(false);
@@ -135,9 +169,35 @@ export function LoginForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+            <Alert variant={needsVerification ? "default" : "destructive"}>
+              {needsVerification ? (
+                <Mail className="h-4 w-4" />
+              ) : (
+                <AlertCircle className="h-4 w-4" />
+              )}
+              <AlertDescription>
+                <p>{error}</p>
+                {needsVerification && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={handleResendVerification}
+                    disabled={isResending || resendCooldown > 0}
+                  >
+                    {isResending ? (
+                      <>
+                        <Spinner /> Sending...
+                      </>
+                    ) : resendCooldown > 0 ? (
+                      `Resend in ${resendCooldown}s`
+                    ) : (
+                      "Resend verification email"
+                    )}
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

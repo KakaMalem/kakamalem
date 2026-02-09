@@ -118,7 +118,7 @@ export const getSubscriptionOverview = cache(
     // Default platform settings (fallback for HesabPay payments)
     const platformDefaults = {
       proPlanPriceAfn: "1100",
-      proPlanYearlyPriceAfn: "11000",
+      proPlanYearlyPriceAfn: "12000",
       freeProductLimit: 20,
       trialDurationDays: 7,
     };

@@ -8,6 +8,10 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // Connection timeout settings to prevent hanging
+  connectionTimeout: 10_000, // 10s to establish connection
+  greetingTimeout: 10_000, // 10s for SMTP greeting
+  socketTimeout: 15_000, // 15s for socket inactivity
 });
 
 interface SendEmailOptions {
@@ -17,25 +21,46 @@ interface SendEmailOptions {
   text?: string;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1_000, 3_000, 5_000]; // 1s, 3s, 5s
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   const fromName = process.env.SMTP_FROM_NAME || "Kaka Malem";
   const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
 
-  try {
-    const info = await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
-      to,
-      subject,
-      text: text || html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
-      html,
-    });
+  let lastError: unknown;
 
-    console.log("Email sent:", info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error("Failed to send email:", error);
-    throw error;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to,
+        subject,
+        text: text || html.replace(/<[^>]*>/g, ""),
+        html,
+      });
+
+      console.log("Email sent:", info.messageId, `(attempt ${attempt + 1})`);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `Failed to send email (attempt ${attempt + 1}/${MAX_RETRIES}):`,
+        error instanceof Error ? error.message : error
+      );
+
+      if (attempt < MAX_RETRIES - 1) {
+        await sleep(RETRY_DELAYS[attempt]);
+      }
+    }
   }
+
+  console.error("All email send attempts failed for:", to, "subject:", subject);
+  throw lastError;
 }
 
 export function getVerificationEmailHtml(url: string, name?: string) {

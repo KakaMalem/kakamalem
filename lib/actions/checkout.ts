@@ -1144,6 +1144,13 @@ export async function createOrderAction(
       // The user already saw the validation error in the UI
     }
 
+    // Fetch the store's currency for the order
+    const tenantForCurrency = await db.query.tenants.findFirst({
+      where: eq(tenants.id, tenantId),
+      columns: { currency: true },
+    });
+    const storeCurrency = tenantForCurrency?.currency || "AFN";
+
     try {
       const order = await withTransaction(async (tx) => {
         // 1. Generate order number
@@ -1184,6 +1191,7 @@ export async function createOrderAction(
             discountTotal: discountTotal.toFixed(2),
             total: total.toFixed(2),
             amountDue: total.toFixed(2),
+            currencyCode: storeCurrency,
             status: "pending",
             paymentStatus: paymentGateway === "cod" ? "unpaid" : "unpaid", // Both start unpaid
             paymentMethod,
@@ -1343,7 +1351,7 @@ export async function createOrderAction(
           orderId: order.id,
           customerName: order.customerSnapshot.name,
           total: order.total,
-          currency: "AFN",
+          currency: storeCurrency,
           isOffline: false,
           storeName: tenant?.name,
           productNames,

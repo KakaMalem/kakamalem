@@ -18,7 +18,7 @@ import { createInvoicePaymentSession } from "@/lib/actions/payments";
 import { revalidatePath } from "next/cache";
 import { isStripeEnabled } from "@/lib/stripe";
 import { createProSubscriptionCheckout } from "@/lib/stripe/subscriptions";
-import { convertFromAFN, getExchangeRates } from "@/lib/currency";
+import { getExchangeRates } from "@/lib/currency";
 import { generateUniqueAmount } from "@/lib/payments/crypto/trongrid";
 
 // =============================================================================
@@ -137,7 +137,7 @@ export async function initiateProUpgrade(
     const billingInterval = options?.billingInterval || "monthly";
     const proPlanPrice =
       billingInterval === "yearly"
-        ? parseFloat(settings?.proPlanYearlyPriceAfn || "11000")
+        ? parseFloat(settings?.proPlanYearlyPriceAfn || "12000")
         : parseFloat(settings?.proPlanPriceAfn || "1100");
 
     // Check for existing unpaid subscription invoice
@@ -351,16 +351,21 @@ export async function initiateProUpgradeWithCrypto(
 
     const walletAddress = networkWallet.address;
 
-    // 5. Calculate price in AFN and convert to USDT
+    // 5. Calculate price in AFN and USDT
     const proPlanPriceAfn =
       options.billingInterval === "yearly"
-        ? parseFloat(settings.proPlanYearlyPriceAfn || "11000")
+        ? parseFloat(settings.proPlanYearlyPriceAfn || "12000")
         : parseFloat(settings.proPlanPriceAfn || "1100");
 
-    // Get exchange rate (AFN to USD, then USD is roughly 1:1 with USDT)
+    // Fixed USDT prices (matching Stripe USD pricing)
+    const USDT_MONTHLY = 20;
+    const USDT_YEARLY = 200;
+    const baseUsdtAmount =
+      options.billingInterval === "yearly" ? USDT_YEARLY : USDT_MONTHLY;
+
+    // Get exchange rate for record-keeping
     const rates = await getExchangeRates();
     const usdRate = rates["USD"] || 0.0141; // Fallback rate ~1/71
-    const baseUsdtAmount = await convertFromAFN(proPlanPriceAfn, "USD");
 
     // Add unique cents to avoid payment collision (for auto-detection)
     // Only for TRC20 which supports auto-detection via TronGrid

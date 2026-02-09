@@ -62,6 +62,10 @@ interface UpgradePageClientProps {
 type PaymentMethod = "stripe" | "hesabpay" | "crypto";
 type CryptoNetwork = "trc20" | "erc20" | "bep20";
 
+// Fixed USDT prices (matching Stripe USD pricing)
+const USDT_MONTHLY_PRICE = 20;
+const USDT_YEARLY_PRICE = 200;
+
 function formatPrice(price: string | number): string {
   const value = typeof price === "string" ? parseFloat(price) : price;
   return value.toLocaleString();
@@ -93,7 +97,7 @@ export function UpgradePageClient({
   const getMonthlyPrice = () =>
     parseFloat(subscription.proPlanPriceAfn || "1100");
   const getYearlyPrice = () =>
-    parseFloat(subscription.proPlanYearlyPriceAfn || "11000");
+    parseFloat(subscription.proPlanYearlyPriceAfn || "12000");
 
   // Get Stripe prices based on interval
   const getCurrentStripePrice = () =>
@@ -431,7 +435,10 @@ export function UpgradePageClient({
               <div className="mt-4 w-full">
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl font-bold">
-                    ~${(getCurrentAfnPrice() / 71).toFixed(0)}
+                    $
+                    {billingInterval === "yearly"
+                      ? USDT_YEARLY_PRICE
+                      : USDT_MONTHLY_PRICE}
                   </span>
                   <span className="text-sm text-muted-foreground">
                     USDT / {billingInterval === "yearly" ? "year" : "month"}

@@ -131,11 +131,21 @@ export const auth = betterAuth({
         console.log(`[DEV] Verification email for ${user.email}: ${url}`);
         return;
       }
-      await sendEmail({
-        to: user.email,
-        subject: "Verify your Kaka Malem account",
-        html: getVerificationEmailHtml(url, user.name || undefined),
-      });
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "Verify your Kaka Malem account",
+          html: getVerificationEmailHtml(url, user.name || undefined),
+        });
+      } catch (error) {
+        // Log but don't throw - account creation should still succeed
+        // User can resend verification email from the login page
+        console.error(
+          "Failed to send verification email to:",
+          user.email,
+          error instanceof Error ? error.message : error
+        );
+      }
     },
   },
 
