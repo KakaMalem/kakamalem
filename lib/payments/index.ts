@@ -104,10 +104,29 @@ const DEFAULT_ENABLED_GATEWAYS: EnabledGateway[] = [
 ];
 
 /**
+ * Check if crypto USDT payments are enabled at platform level
+ * Returns true only if at least one wallet network is enabled with an address
+ */
+async function isCryptoEnabledAtPlatformLevel(): Promise<boolean> {
+  const settings = await db.query.platformSettings.findFirst();
+  const walletConfig = settings?.usdtWalletConfig as UsdtWalletConfig | null;
+
+  if (!walletConfig) return false;
+
+  return !!(
+    (walletConfig.trc20?.enabled && walletConfig.trc20?.address) ||
+    (walletConfig.erc20?.enabled && walletConfig.erc20?.address) ||
+    (walletConfig.bep20?.enabled && walletConfig.bep20?.address)
+  );
+}
+
+/**
  * Get all enabled payment gateways for a tenant
  *
  * If the store has configured payment methods, returns those.
  * Otherwise, returns platform default gateways (HesabPay + COD).
+ *
+ * Note: crypto_usdt is filtered out if not enabled at platform level.
  */
 export async function getEnabledGateways(
   tenantId: string
@@ -124,9 +143,29 @@ export async function getEnabledGateways(
   }
 
   // Filter to only enabled gateways
-  const enabledConfigs = configs.filter((c) => c.isEnabled);
+  let enabledConfigs = configs.filter((c) => c.isEnabled);
 
   // If nothing is enabled, return platform defaults
+  if (enabledConfigs.length === 0) {
+    return DEFAULT_ENABLED_GATEWAYS;
+  }
+
+  // Check if any store wants to use crypto_usdt
+  const hasCryptoConfig = enabledConfigs.some(
+    (c) => c.gateway === "crypto_usdt"
+  );
+  if (hasCryptoConfig) {
+    // Verify crypto is enabled at platform level before allowing it
+    const cryptoPlatformEnabled = await isCryptoEnabledAtPlatformLevel();
+    if (!cryptoPlatformEnabled) {
+      // Filter out crypto_usdt since platform has disabled it
+      enabledConfigs = enabledConfigs.filter(
+        (c) => c.gateway !== "crypto_usdt"
+      );
+    }
+  }
+
+  // If filtering removed all configs, return platform defaults
   if (enabledConfigs.length === 0) {
     return DEFAULT_ENABLED_GATEWAYS;
   }
