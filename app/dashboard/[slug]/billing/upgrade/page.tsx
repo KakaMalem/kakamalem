@@ -53,15 +53,19 @@ export default async function BillingUpgradePage({ params }: PageProps) {
   // Get platform settings for crypto configuration
   const platformSettings = await getPlatformSettings();
   const cryptoWalletConfig = platformSettings.usdtWalletConfig as {
-    trc20?: string;
-    erc20?: string;
-    bep20?: string;
+    trc20?: { address: string; enabled: boolean };
+    erc20?: { address: string; enabled: boolean };
+    bep20?: { address: string; enabled: boolean };
   } | null;
+  // Check if any wallet is both enabled AND has an address configured
   const cryptoEnabled =
     !!cryptoWalletConfig &&
-    (!!cryptoWalletConfig.trc20 ||
-      !!cryptoWalletConfig.erc20 ||
-      !!cryptoWalletConfig.bep20);
+    ((cryptoWalletConfig.trc20?.enabled &&
+      !!cryptoWalletConfig.trc20?.address) ||
+      (cryptoWalletConfig.erc20?.enabled &&
+        !!cryptoWalletConfig.erc20?.address) ||
+      (cryptoWalletConfig.bep20?.enabled &&
+        !!cryptoWalletConfig.bep20?.address));
 
   // If no payment methods are available (shouldn't happen), redirect back
   if (!stripeEnabled && !subscription.proPlanPriceAfn && !cryptoEnabled) {

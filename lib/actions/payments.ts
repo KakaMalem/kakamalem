@@ -96,12 +96,31 @@ export async function createOrderPaymentSession(
     const successUrl = `${baseUrl}/store/${tenant.slug}/checkout/success?order=${orderId}`;
     const cancelUrl = `${baseUrl}/store/${tenant.slug}/checkout/payment?order=${orderId}&cancelled=true`;
 
+    // Determine the correct currency and amount for payment
+    // If customer selected a different currency (e.g., USD), use that for Stripe
+    // Otherwise fall back to store currency (AFN) for local payments like HesabPay
+    const hasCustomerCurrency = order.customerCurrency && order.customerAmount;
+
+    // For Stripe, use customer's currency if available
+    const paymentCurrency =
+      gateway === "stripe" && hasCustomerCurrency
+        ? order.customerCurrency!
+        : order.currencyCode || "AFN";
+
+    const paymentAmount =
+      gateway === "stripe" && hasCustomerCurrency
+        ? parseFloat(order.customerAmount!)
+        : parseFloat(order.amountDue || order.total);
+
     // Create payment session
     const result = await createSession(gateway, {
       tenantId: order.tenantId,
       orderId: order.id,
-      amount: parseFloat(order.amountDue || order.total),
+      amount: parseFloat(order.total), // Base amount in AFN (for records)
       currency: order.currencyCode || "AFN",
+      // Customer payment currency (used by Stripe)
+      customerCurrency: paymentCurrency,
+      customerAmount: paymentAmount,
       successUrl,
       cancelUrl,
       customerEmail: order.customerSnapshot?.email,

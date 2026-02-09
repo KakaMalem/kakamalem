@@ -110,6 +110,14 @@ export async function getProPriceInfo(): Promise<ProPriceInfo | null> {
       return null;
     }
 
+    // Ensure it's actually a monthly price
+    if (price.recurring.interval !== "month") {
+      console.error(
+        `[Stripe] STRIPE_PRO_PRICE_ID (${priceId}) is configured as ${price.recurring.interval}ly, not monthly! Please fix in Stripe dashboard.`
+      );
+      return null;
+    }
+
     // Extract product info
     const product = price.product as Stripe.Product;
 
@@ -150,6 +158,14 @@ export async function getYearlyPriceInfo(): Promise<ProPriceInfo | null> {
     if (price.type !== "recurring" || !price.recurring) {
       console.warn(
         "[Stripe] Yearly Pro price is not a recurring subscription price"
+      );
+      return null;
+    }
+
+    // Ensure it's actually a yearly price
+    if (price.recurring.interval !== "year") {
+      console.error(
+        `[Stripe] STRIPE_PRO_YEARLY_PRICE_ID (${priceId}) is configured as ${price.recurring.interval}ly, not yearly! Please fix in Stripe dashboard.`
       );
       return null;
     }

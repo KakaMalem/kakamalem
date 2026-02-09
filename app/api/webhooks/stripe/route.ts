@@ -370,7 +370,8 @@ async function handleCheckoutExpired(session: {
 async function handleSubscriptionUpdate(subscription: {
   id: string;
   status: string;
-  current_period_end: number;
+  current_period_end?: number;
+  current_period_start?: number;
   metadata?: Record<string, string> | null;
   items?: {
     data: Array<{
@@ -401,7 +402,30 @@ async function handleSubscriptionUpdate(subscription: {
   };
 
   const subscriptionStatus = statusMap[subscription.status] || "active";
-  const periodEnd = new Date(subscription.current_period_end * 1000);
+
+  // Safely parse period end - use fallback if not provided
+  let periodEnd: Date;
+  if (
+    subscription.current_period_end &&
+    !isNaN(subscription.current_period_end)
+  ) {
+    periodEnd = new Date(subscription.current_period_end * 1000);
+  } else {
+    // Fallback: calculate based on billing interval
+    const priceInterval =
+      subscription.items?.data?.[0]?.price?.recurring?.interval;
+    const isYearly = metadataInterval === "yearly" || priceInterval === "year";
+    periodEnd = new Date();
+    if (isYearly) {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    } else {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    }
+    console.log(
+      `[Stripe Webhook] current_period_end missing, using fallback: ${periodEnd.toISOString()}`
+    );
+  }
+
   const priceItem = subscription.items?.data?.[0]?.price;
   const priceId = priceItem?.id;
 

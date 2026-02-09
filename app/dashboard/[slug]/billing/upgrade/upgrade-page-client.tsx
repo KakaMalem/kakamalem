@@ -53,9 +53,9 @@ interface UpgradePageClientProps {
   stripeYearlyPriceInfo: ProPriceInfo | null;
   cryptoEnabled?: boolean;
   cryptoWalletConfig?: {
-    trc20?: string;
-    erc20?: string;
-    bep20?: string;
+    trc20?: { address: string; enabled: boolean };
+    erc20?: { address: string; enabled: boolean };
+    bep20?: { address: string; enabled: boolean };
   } | null;
 }
 
@@ -172,18 +172,19 @@ export function UpgradePageClient({
   // HesabPay always available with AFN pricing
   const hesabPayAvailable = !!subscription.proPlanPriceAfn;
 
-  // Crypto available if enabled and at least one wallet is configured
+  // Crypto available if enabled and at least one wallet is enabled with an address
   const cryptoAvailable =
     cryptoEnabled &&
     cryptoWalletConfig &&
-    (cryptoWalletConfig.trc20 ||
-      cryptoWalletConfig.erc20 ||
-      cryptoWalletConfig.bep20);
+    ((cryptoWalletConfig.trc20?.enabled && cryptoWalletConfig.trc20?.address) ||
+      (cryptoWalletConfig.erc20?.enabled &&
+        cryptoWalletConfig.erc20?.address) ||
+      (cryptoWalletConfig.bep20?.enabled && cryptoWalletConfig.bep20?.address));
 
-  // Get available networks for crypto
+  // Get available networks for crypto (only those enabled with an address)
   const availableNetworks = cryptoWalletConfig
     ? (["trc20", "erc20", "bep20"] as const).filter(
-        (n) => cryptoWalletConfig[n]
+        (n) => cryptoWalletConfig[n]?.enabled && cryptoWalletConfig[n]?.address
       )
     : [];
 
