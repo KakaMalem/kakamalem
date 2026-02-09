@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapPin, AlertCircle } from "lucide-react";
+import { MapPin, AlertCircle, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/utils";
 import {
@@ -14,15 +15,17 @@ import {
 } from "@/lib/stores/use-checkout-store";
 import { calculateShippingAction } from "@/lib/actions/checkout";
 import { OutOfZoneMap } from "../out-of-zone-map";
-import type { DeliveryZone } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 
 interface SectionShippingProps {
   tenantId: string;
   currency: string;
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
   onContinue: () => void;
   onEditAddress: () => void;
 }
+
+type FulfillmentType = "local_delivery" | "shipping";
 
 type ShippingMethodOption = {
   id: string;
@@ -31,6 +34,7 @@ type ShippingMethodOption = {
   price: number;
   minDeliveryDays: number | null;
   maxDeliveryDays: number | null;
+  type?: FulfillmentType;
 };
 
 export function SectionShipping({
@@ -49,12 +53,20 @@ export function SectionShipping({
     isOutOfZone: boolean;
     zoneName: string | null;
     methods: ShippingMethodOption[];
+    hasLocalDelivery: boolean;
+    hasShipping: boolean;
+    deliveryZonesEnabled: boolean;
+    shippingEnabled: boolean;
   }>({
     isLoading: !!shippingAddress,
     error: null,
     isOutOfZone: false,
     zoneName: null,
     methods: [],
+    hasLocalDelivery: false,
+    hasShipping: false,
+    deliveryZonesEnabled: false,
+    shippingEnabled: false,
   });
 
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(
@@ -92,25 +104,40 @@ export function SectionShipping({
         return;
       }
 
-      // Out of zone
+      const data = result.data;
+      const deliveryZonesEnabled = data?.deliveryZonesEnabled ?? false;
+      const shippingEnabled = data?.shippingEnabled ?? true;
+      const isWithinDeliveryZone = data?.isWithinDeliveryZone ?? false;
+      const returnedMethods = data?.methods || [];
+
+      // Check if we have local delivery and/or shipping options
+      const hasLocalDelivery = returnedMethods.some(
+        (m) => m.type === "local_delivery"
+      );
+      const hasShipping = returnedMethods.some((m) => m.type === "shipping");
+
+      // Out of zone scenario: delivery zones enabled, no shipping, and outside zone
       if (
-        result.data?.deliveryZonesEnabled &&
-        result.data.methods.length === 0
+        deliveryZonesEnabled &&
+        !shippingEnabled &&
+        !isWithinDeliveryZone &&
+        returnedMethods.length === 0
       ) {
         setFetchState((prev) => ({
           ...prev,
           isLoading: false,
           isOutOfZone: true,
           error: "Your selected address is outside our delivery areas.",
+          deliveryZonesEnabled,
+          shippingEnabled,
+          hasLocalDelivery: false,
+          hasShipping: false,
         }));
         return;
       }
 
-      // No zones configured - offer free shipping
-      if (
-        !result.data?.deliveryZonesEnabled &&
-        result.data?.methods.length === 0
-      ) {
+      // No methods available at all
+      if (returnedMethods.length === 0) {
         const freeShipping: ShippingMethodOption = {
           id: "free-shipping",
           name: "Free Shipping",
@@ -118,6 +145,7 @@ export function SectionShipping({
           price: 0,
           minDeliveryDays: null,
           maxDeliveryDays: null,
+          type: "shipping",
         };
 
         setFetchState({
@@ -126,6 +154,10 @@ export function SectionShipping({
           isOutOfZone: false,
           zoneName: null,
           methods: [freeShipping],
+          hasLocalDelivery: false,
+          hasShipping: true,
+          deliveryZonesEnabled,
+          shippingEnabled,
         });
 
         if (!selectedMethodId) {
@@ -135,18 +167,22 @@ export function SectionShipping({
         return;
       }
 
-      const methods = result.data?.methods || [];
       setFetchState({
         isLoading: false,
         error: null,
-        isOutOfZone: false,
-        zoneName: result.data?.zone?.name || null,
-        methods,
+        isOutOfZone:
+          deliveryZonesEnabled && !isWithinDeliveryZone && !hasShipping,
+        zoneName: data?.zone?.name || null,
+        methods: returnedMethods,
+        hasLocalDelivery,
+        hasShipping,
+        deliveryZonesEnabled,
+        shippingEnabled,
       });
 
       // Auto-select first method if none selected
-      if (!selectedMethodId && methods.length > 0) {
-        const firstMethod = methods[0];
+      if (!selectedMethodId && returnedMethods.length > 0) {
+        const firstMethod = returnedMethods[0];
         setSelectedMethodId(firstMethod.id);
         setShippingMethod({
           id: firstMethod.id,
@@ -230,43 +266,69 @@ export function SectionShipping({
         </div>
       )}
 
-      {/* Out of Zone Error */}
-      {!isLoading && error && isOutOfZone && shippingAddress && (
-        <div className="space-y-4">
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-0.5 size-5 text-destructive" />
-              <div>
-                <p className="font-medium text-destructive">
-                  Outside Delivery Area
-                </p>
-                <p className="mt-1 text-sm text-destructive/80">
-                  Your selected address is outside our delivery zones. Please
-                  choose an address within the highlighted zones.
-                </p>
+      {/* Out of Zone Error - Only show if no shipping methods available */}
+      {!isLoading &&
+        error &&
+        isOutOfZone &&
+        shippingAddress &&
+        methods.length === 0 && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 size-5 text-destructive" />
+                <div>
+                  <p className="font-medium text-destructive">
+                    Outside Delivery Area
+                  </p>
+                  <p className="mt-1 text-sm text-destructive/80">
+                    Your selected address is outside our delivery zones and we
+                    don&apos;t currently offer shipping to your location. Please
+                    choose an address within the highlighted zones.
+                  </p>
+                </div>
               </div>
             </div>
+
+            {deliveryZones.length > 0 && (
+              <OutOfZoneMap
+                userAddress={{
+                  latitude: shippingAddress.latitude,
+                  longitude: shippingAddress.longitude,
+                }}
+                deliveryZones={deliveryZones}
+              />
+            )}
+
+            <Button
+              variant="default"
+              className="w-full"
+              onClick={onEditAddress}
+            >
+              <MapPin className="mr-2 size-4" />
+              Choose a Different Address
+            </Button>
           </div>
+        )}
 
-          {deliveryZones.length > 0 && (
-            <OutOfZoneMap
-              userAddress={{
-                latitude: shippingAddress.latitude,
-                longitude: shippingAddress.longitude,
-              }}
-              deliveryZones={deliveryZones}
-            />
-          )}
-
-          <Button variant="default" className="w-full" onClick={onEditAddress}>
+      {/* No Address Selected */}
+      {!shippingAddress && (
+        <div className="rounded-lg border border-muted bg-muted/30 p-6 text-center">
+          <MapPin className="mx-auto size-10 text-muted-foreground/50 mb-3" />
+          <p className="font-medium text-foreground">
+            Select a delivery address first
+          </p>
+          <p className="text-sm text-muted-foreground mt-1 mb-4">
+            We need your delivery location to show available shipping options.
+          </p>
+          <Button variant="default" onClick={onEditAddress}>
             <MapPin className="mr-2 size-4" />
-            Choose a Different Address
+            Add Delivery Address
           </Button>
         </div>
       )}
 
-      {/* Generic Error */}
-      {!isLoading && error && !isOutOfZone && (
+      {/* Generic Error (when address exists but other errors) */}
+      {!isLoading && error && !isOutOfZone && shippingAddress && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 size-5 text-destructive" />
@@ -288,76 +350,82 @@ export function SectionShipping({
       {/* Methods List */}
       {!isLoading && !error && methods.length > 0 && (
         <>
+          {/* Zone info */}
           {zoneName && (
             <p className="text-sm text-muted-foreground">
-              Shipping to: <span className="font-medium">{zoneName}</span>
+              Delivering to: <span className="font-medium">{zoneName}</span>
             </p>
           )}
 
+          {/* Show section headers when both types available */}
           <RadioGroup
             value={selectedMethodId || ""}
             onValueChange={handleMethodSelect}
           >
-            <div className="space-y-3">
-              {methods.map((method) => {
-                const deliveryEstimate = formatDeliveryEstimate(
-                  method.minDeliveryDays,
-                  method.maxDeliveryDays
-                );
+            <div className="space-y-4">
+              {/* Local Delivery Section */}
+              {fetchState.hasLocalDelivery && (
+                <div className="space-y-2">
+                  {fetchState.hasShipping && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span>Local Delivery</span>
+                      <Badge variant="secondary" className="text-xs">
+                        Fastest
+                      </Badge>
+                    </div>
+                  )}
+                  {methods
+                    .filter((m) => m.type === "local_delivery")
+                    .map((method) => (
+                      <FulfillmentOption
+                        key={method.id}
+                        method={method}
+                        isSelected={selectedMethodId === method.id}
+                        currency={currency}
+                        formatDeliveryEstimate={formatDeliveryEstimate}
+                      />
+                    ))}
+                </div>
+              )}
 
-                return (
-                  <div key={method.id}>
-                    <RadioGroupItem
-                      value={method.id}
-                      id={`shipping-${method.id}`}
-                      className="peer sr-only"
+              {/* Shipping Section */}
+              {fetchState.hasShipping && (
+                <div className="space-y-2">
+                  {fetchState.hasLocalDelivery && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground pt-2 border-t">
+                      <Truck className="h-4 w-4" />
+                      <span>Shipping</span>
+                    </div>
+                  )}
+                  {methods
+                    .filter((m) => m.type === "shipping" || !m.type)
+                    .map((method) => (
+                      <FulfillmentOption
+                        key={method.id}
+                        method={method}
+                        isSelected={selectedMethodId === method.id}
+                        currency={currency}
+                        formatDeliveryEstimate={formatDeliveryEstimate}
+                      />
+                    ))}
+                </div>
+              )}
+
+              {/* Fallback: show all if no type info */}
+              {!fetchState.hasLocalDelivery && !fetchState.hasShipping && (
+                <div className="space-y-3">
+                  {methods.map((method) => (
+                    <FulfillmentOption
+                      key={method.id}
+                      method={method}
+                      isSelected={selectedMethodId === method.id}
+                      currency={currency}
+                      formatDeliveryEstimate={formatDeliveryEstimate}
                     />
-                    <Label
-                      htmlFor={`shipping-${method.id}`}
-                      className={cn(
-                        "flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-4 transition-colors",
-                        "hover:bg-muted/50",
-                        "peer-data-[state=checked]:border-primary peer-data-[state=checked]:ring-1 peer-data-[state=checked]:ring-primary"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
-                            selectedMethodId === method.id
-                              ? "border-primary bg-primary"
-                              : "border-muted-foreground"
-                          )}
-                        >
-                          {selectedMethodId === method.id && (
-                            <div className="size-2 rounded-full bg-primary-foreground" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium">{method.name}</p>
-                          {method.description && (
-                            <p className="text-sm text-muted-foreground">
-                              {method.description}
-                            </p>
-                          )}
-                          {deliveryEstimate && (
-                            <p className="text-sm text-muted-foreground">
-                              Est. {deliveryEstimate}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="shrink-0 font-semibold">
-                        {method.price === 0 ? (
-                          <span className="text-green-600">Free</span>
-                        ) : (
-                          formatPrice(method.price, currency)
-                        )}
-                      </div>
-                    </Label>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              )}
             </div>
           </RadioGroup>
 
@@ -373,6 +441,73 @@ export function SectionShipping({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Individual fulfillment option component
+function FulfillmentOption({
+  method,
+  isSelected,
+  currency,
+  formatDeliveryEstimate,
+}: {
+  method: ShippingMethodOption;
+  isSelected: boolean;
+  currency: string;
+  formatDeliveryEstimate: (min: number | null, max: number | null) => string;
+}) {
+  const deliveryEstimate = formatDeliveryEstimate(
+    method.minDeliveryDays,
+    method.maxDeliveryDays
+  );
+
+  return (
+    <div>
+      <RadioGroupItem
+        value={method.id}
+        id={`shipping-${method.id}`}
+        className="peer sr-only"
+      />
+      <Label
+        htmlFor={`shipping-${method.id}`}
+        className={cn(
+          "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+          "hover:bg-muted/50",
+          "peer-data-[state=checked]:border-primary peer-data-[state=checked]:ring-1 peer-data-[state=checked]:ring-primary"
+        )}
+      >
+        <div
+          className={cn(
+            "flex size-5 shrink-0 items-center justify-center rounded-full border-2 mt-0.5",
+            isSelected ? "border-primary bg-primary" : "border-muted-foreground"
+          )}
+        >
+          {isSelected && <div className="size-2 rounded-full bg-white" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-medium">{method.name}</p>
+            <span className="shrink-0 font-semibold">
+              {method.price === 0 ? (
+                <span className="text-green-600">Free</span>
+              ) : (
+                formatPrice(method.price, currency)
+              )}
+            </span>
+          </div>
+          {method.description && (
+            <p className="text-sm text-muted-foreground">
+              {method.description}
+            </p>
+          )}
+          {deliveryEstimate && (
+            <p className="text-sm text-muted-foreground">
+              Est. {deliveryEstimate}
+            </p>
+          )}
+        </div>
+      </Label>
     </div>
   );
 }

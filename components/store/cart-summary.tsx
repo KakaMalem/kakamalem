@@ -2,23 +2,27 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, Tag } from "lucide-react";
+import { ArrowRight, ShieldCheck, Tag, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice } from "@/lib/utils";
 import {
-  useCartSubtotal,
   useCartItemCount,
   useCartItems,
   getApplicableTierPrice,
 } from "@/lib/stores/use-cart-store";
+import {
+  useCartCampaignDiscounts,
+  calculateDiscountedPrice,
+} from "@/lib/hooks/use-campaign-discounts";
 
 interface CartSummaryProps {
   storeSlug: string;
   currency: string;
   checkoutEnabled?: boolean;
   contactPhone?: string | null;
+  tenantId?: string;
 }
 
 export function CartSummary({
@@ -26,32 +30,65 @@ export function CartSummary({
   currency,
   checkoutEnabled = true,
   contactPhone,
+  tenantId,
 }: CartSummaryProps) {
-  const subtotal = useCartSubtotal();
   const itemCount = useCartItemCount();
   const items = useCartItems();
 
-  // Calculate total savings from tier pricing
-  const totalSavings = useMemo(() => {
-    return items.reduce((savings, item) => {
-      const basePrice = item.variant?.price
-        ? parseFloat(item.variant.price)
-        : parseFloat(item.product.price);
-      const effectivePrice = getApplicableTierPrice(
-        basePrice,
-        item.quantity,
-        item.product.priceTiers || []
-      );
-      const itemSavings = (basePrice - effectivePrice) * item.quantity;
-      return savings + itemSavings;
-    }, 0);
-  }, [items]);
+  // Fetch campaign discounts
+  const { discountsMap } = useCartCampaignDiscounts(tenantId || null, items);
+
+  // Calculate totals with both campaign and tier discounts
+  const { originalSubtotal, campaignSavings, tierSavings, finalSubtotal } =
+    useMemo(() => {
+      let originalSubtotal = 0;
+      let campaignSavings = 0;
+      let tierSavings = 0;
+      let finalSubtotal = 0;
+
+      for (const item of items) {
+        const originalPrice = item.variant?.price
+          ? parseFloat(item.variant.price)
+          : parseFloat(item.product.price);
+
+        originalSubtotal += originalPrice * item.quantity;
+
+        // Apply campaign discount
+        const campaignDiscount = discountsMap.get(item.product.id);
+        const afterCampaignPrice = calculateDiscountedPrice(
+          originalPrice,
+          campaignDiscount || null
+        );
+
+        if (campaignDiscount && afterCampaignPrice < originalPrice) {
+          campaignSavings +=
+            (originalPrice - afterCampaignPrice) * item.quantity;
+        }
+
+        // Apply tier discount (on top of campaign price)
+        const effectivePrice = getApplicableTierPrice(
+          afterCampaignPrice,
+          item.quantity,
+          item.product.priceTiers || []
+        );
+
+        if (effectivePrice < afterCampaignPrice) {
+          tierSavings += (afterCampaignPrice - effectivePrice) * item.quantity;
+        }
+
+        finalSubtotal += effectivePrice * item.quantity;
+      }
+
+      return { originalSubtotal, campaignSavings, tierSavings, finalSubtotal };
+    }, [items, discountsMap]);
+
+  const totalSavings = campaignSavings + tierSavings;
 
   // Future: These could be calculated based on store settings
   const shipping = 0; // Free shipping or calculated at checkout
   const tax = 0; // Calculated at checkout
 
-  const total = subtotal + shipping + tax;
+  const total = finalSubtotal + shipping + tax;
 
   return (
     <div className="rounded-lg border bg-card p-6">
@@ -62,16 +99,34 @@ export function CartSummary({
           <span className="text-muted-foreground">
             Subtotal ({itemCount} {itemCount === 1 ? "item" : "items"})
           </span>
-          <span>{formatPrice(subtotal, currency)}</span>
+          <span>
+            {totalSavings > 0 ? (
+              <span className="line-through text-muted-foreground">
+                {formatPrice(originalSubtotal, currency)}
+              </span>
+            ) : (
+              formatPrice(originalSubtotal, currency)
+            )}
+          </span>
         </div>
 
-        {totalSavings > 0 && (
+        {campaignSavings > 0 && (
+          <div className="flex items-center justify-between text-sm text-red-600">
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Sale discounts
+            </span>
+            <span>-{formatPrice(campaignSavings, currency)}</span>
+          </div>
+        )}
+
+        {tierSavings > 0 && (
           <div className="flex items-center justify-between text-sm text-green-600">
             <span className="flex items-center gap-1.5">
               <Tag className="h-3.5 w-3.5" />
               Bulk discounts
             </span>
-            <span>-{formatPrice(totalSavings, currency)}</span>
+            <span>-{formatPrice(tierSavings, currency)}</span>
           </div>
         )}
 

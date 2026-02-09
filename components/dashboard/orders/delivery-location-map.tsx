@@ -74,8 +74,7 @@ function DeliveryLocationMap({
     <div className="space-y-3">
       <div
         ref={mapContainerRef}
-        className={`w-full h-48 rounded-lg border ${className}`}
-        style={{ zIndex: 1 }}
+        className={`w-full h-48 rounded-lg border map-wrapper ${className}`}
       />
       <div className="flex gap-2">
         <Button variant="outline" size="sm" className="flex-1" asChild>

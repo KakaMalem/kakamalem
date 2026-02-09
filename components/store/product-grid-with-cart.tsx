@@ -19,6 +19,8 @@ interface Product {
   showStock: boolean;
   status: "draft" | "active" | "archived";
   image: { url: string; altText: string | null } | null;
+  minVariantPrice?: string;
+  maxVariantPrice?: string;
   rating?: number;
   reviewCount?: number;
   isNew?: boolean;

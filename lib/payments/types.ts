@@ -16,12 +16,22 @@ export interface CreatePaymentSessionParams {
   tenantId: string;
   /** Order ID (for store purchases) */
   orderId?: string;
+  /** Order number (human-readable) */
+  orderNumber?: string;
   /** Invoice ID (for subscription payments) */
   invoiceId?: string;
-  /** Payment amount */
+  /** Payment amount in store's base currency (AFN) */
   amount: number;
-  /** Currency code (e.g., "AFN", "USD") */
+  /** Store's base currency code (e.g., "AFN") */
   currency: string;
+  /** Customer's display currency (for multi-currency payments) */
+  customerCurrency?: string;
+  /** Amount in customer's currency */
+  customerAmount?: number;
+  /** Exchange rate used (1 store currency = X customer currency) */
+  exchangeRate?: number;
+  /** Payment description */
+  description?: string;
   /** URL to redirect on success */
   successUrl: string;
   /** URL to redirect on cancel/failure */
@@ -120,6 +130,22 @@ export interface WebhookEvent {
 export interface WebhookVerificationResult {
   valid: boolean;
   event?: WebhookEvent;
+  /** Event type (e.g., "payment.completed", "refund.completed") */
+  eventType?: string;
+  /** Gateway's event ID */
+  eventId?: string;
+  /** Related session ID */
+  sessionId?: string;
+  /** Transaction ID */
+  transactionId?: string;
+  /** Order ID from metadata */
+  orderId?: string;
+  /** Amount */
+  amount?: number;
+  /** Currency */
+  currency?: string;
+  /** Raw event object from gateway */
+  rawEvent?: unknown;
   error?: string;
 }
 
@@ -136,6 +162,8 @@ export interface RefundParams {
   reason?: string;
   /** Tenant ID for credential lookup */
   tenantId: string;
+  /** Order ID (for metadata) */
+  orderId?: string;
 }
 
 export interface RefundResult {
@@ -143,9 +171,11 @@ export interface RefundResult {
   /** Gateway's refund ID */
   refundId?: string;
   /** Refund status */
-  status?: "pending" | "completed" | "failed";
+  status?: "pending" | "completed" | "failed" | string;
   /** Amount refunded */
   amount?: number;
+  /** Currency of refund */
+  currency?: string;
   /** Full gateway response */
   gatewayResponse?: Record<string, unknown>;
   /** Error message */
@@ -160,12 +190,6 @@ export interface RefundResult {
  * Interface that all payment gateway implementations must follow
  */
 export interface PaymentGatewayProvider {
-  /** Gateway identifier */
-  readonly gateway: PaymentGateway;
-
-  /** Human-readable name */
-  readonly displayName: string;
-
   /**
    * Create a payment session and get redirect URL
    */

@@ -16,6 +16,11 @@ import {
   type BillingTransactionStatus,
   type InvoiceStatus,
 } from "@/lib/db/schema";
+import {
+  isStripeEnabled,
+  getProPricingInfo,
+  type ProPriceInfo,
+} from "@/lib/stripe";
 
 // =============================================================================
 // SUBSCRIPTION TYPES
@@ -25,6 +30,7 @@ export type SubscriptionOverview = {
   // Plan info
   plan: SubscriptionPlan;
   status: SubscriptionStatus;
+  billingInterval: "monthly" | "yearly";
 
   // Trial info
   trialStartedAt: string | null;
@@ -45,10 +51,19 @@ export type SubscriptionOverview = {
   productLimit: number | null; // null = unlimited
   productLimitReached: boolean;
 
-  // Platform settings (for display)
+  // Platform settings (for display) - Monthly pricing
   proPlanPriceAfn: string;
+  // Platform settings - Yearly pricing
+  proPlanYearlyPriceAfn: string;
   freeProductLimit: number;
   trialDurationDays: number;
+
+  // Stripe pricing (source of truth when configured)
+  stripeEnabled: boolean;
+  stripePriceInfo: ProPriceInfo | null;
+  // Yearly Stripe pricing
+  stripeYearlyPriceInfo: ProPriceInfo | null;
+  hasYearlyOption: boolean;
 };
 
 export type PlanFeature = {
@@ -63,41 +78,55 @@ export type PlanFeature = {
 
 /**
  * Get subscription overview for a tenant
+ *
+ * Pricing source of truth:
+ * - Stripe: When STRIPE_PRO_PRICE_ID is configured, price comes from Stripe API
+ * - Fallback: proPlanPriceAfn from platform settings (for HesabPay payments)
  */
 export const getSubscriptionOverview = cache(
   async (tenantId: string): Promise<SubscriptionOverview | null> => {
-    // Fetch tenant and platform settings in parallel
-    const [tenant, settings, productCountResult] = await Promise.all([
-      db.query.tenants.findFirst({
-        where: eq(tenants.id, tenantId),
-        columns: {
-          subscriptionPlan: true,
-          subscriptionStatus: true,
-          trialStartedAt: true,
-          trialEndsAt: true,
-          subscriptionStartedAt: true,
-          subscriptionEndsAt: true,
-          subscriptionNotes: true,
-        },
-      }),
-      db.query.platformSettings.findFirst(),
-      db
-        .select({ count: drizzleCount() })
-        .from(products)
-        .where(eq(products.tenantId, tenantId)),
-    ]);
+    // Check if Stripe is enabled
+    const stripeEnabled = isStripeEnabled();
+
+    // Fetch tenant, platform settings, product count, and Stripe pricing in parallel
+    const [tenant, settings, productCountResult, stripePricingInfo] =
+      await Promise.all([
+        db.query.tenants.findFirst({
+          where: eq(tenants.id, tenantId),
+          columns: {
+            subscriptionPlan: true,
+            subscriptionStatus: true,
+            trialStartedAt: true,
+            trialEndsAt: true,
+            subscriptionStartedAt: true,
+            subscriptionEndsAt: true,
+            subscriptionNotes: true,
+            billingInterval: true,
+          },
+        }),
+        db.query.platformSettings.findFirst(),
+        db
+          .select({ count: drizzleCount() })
+          .from(products)
+          .where(eq(products.tenantId, tenantId)),
+        // Fetch both monthly and yearly Stripe prices if enabled
+        stripeEnabled ? getProPricingInfo() : Promise.resolve(null),
+      ]);
 
     if (!tenant) return null;
 
-    // Default platform settings
+    // Default platform settings (fallback for HesabPay payments)
     const platformDefaults = {
       proPlanPriceAfn: "1100",
+      proPlanYearlyPriceAfn: "11000",
       freeProductLimit: 20,
       trialDurationDays: 7,
     };
 
     const proPlanPriceAfn =
       settings?.proPlanPriceAfn ?? platformDefaults.proPlanPriceAfn;
+    const proPlanYearlyPriceAfn =
+      settings?.proPlanYearlyPriceAfn ?? platformDefaults.proPlanYearlyPriceAfn;
     const freeProductLimit =
       settings?.freeProductLimit ?? platformDefaults.freeProductLimit;
     const trialDurationDays =
@@ -135,9 +164,19 @@ export const getSubscriptionOverview = cache(
     const productLimitReached =
       productLimit !== null && productCount >= productLimit;
 
+    // Extract Stripe pricing
+    const stripePriceInfo = stripePricingInfo?.monthly ?? null;
+    const stripeYearlyPriceInfo = stripePricingInfo?.yearly ?? null;
+
+    // Check if yearly option is available (either Stripe or AFN)
+    const hasYearlyOption =
+      !!stripeYearlyPriceInfo || parseFloat(proPlanYearlyPriceAfn) > 0;
+
     return {
       plan: tenant.subscriptionPlan,
       status: tenant.subscriptionStatus,
+      billingInterval:
+        (tenant.billingInterval as "monthly" | "yearly") || "monthly",
       trialStartedAt: tenant.trialStartedAt,
       trialEndsAt: tenant.trialEndsAt,
       daysRemainingInTrial,
@@ -150,8 +189,14 @@ export const getSubscriptionOverview = cache(
       productLimit,
       productLimitReached,
       proPlanPriceAfn,
+      proPlanYearlyPriceAfn,
       freeProductLimit,
       trialDurationDays,
+      // Stripe pricing info (source of truth when configured)
+      stripeEnabled,
+      stripePriceInfo,
+      stripeYearlyPriceInfo,
+      hasYearlyOption,
     };
   }
 );
@@ -243,31 +288,12 @@ export const canAddProduct = cache(
 
 /**
  * Check if a user can create more stores
- * Platform-level limit to prevent abuse (configurable in admin settings)
- * Each store has its own subscription (per-store billing model)
+ * Per-store billing model: users can create unlimited stores,
+ * each with its own subscription/trial
  */
 export const canAddStore = cache(
-  async (userId: string): Promise<{ allowed: boolean; reason?: string }> => {
-    // Fetch user's store count and platform settings in parallel
-    const [userStores, settings] = await Promise.all([
-      db.query.tenants.findMany({
-        where: eq(tenants.ownerId, userId),
-        columns: { id: true },
-      }),
-      db.query.platformSettings.findFirst(),
-    ]);
-
-    const maxStoresPerUser = settings?.freeStoreLimit ?? 5;
-    const currentStoreCount = userStores.length;
-
-    // Platform-level limit (not subscription-based)
-    if (currentStoreCount >= maxStoresPerUser) {
-      return {
-        allowed: false,
-        reason: `You've reached the maximum of ${maxStoresPerUser} store${maxStoresPerUser === 1 ? "" : "s"} per account. Contact support if you need more.`,
-      };
-    }
-
+  async (_userId: string): Promise<{ allowed: boolean; reason?: string }> => {
+    // No limit on store creation - each store has its own subscription
     return { allowed: true };
   }
 );

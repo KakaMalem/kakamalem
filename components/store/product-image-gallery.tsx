@@ -14,11 +14,19 @@ interface ProductImageGalleryProps {
     altText: string;
   }[];
   productName: string;
+  /**
+   * Whether to show mobile thumbnail row below the main image.
+   * Set to false for products with variants - mobile users use swipe + dots for navigation.
+   * Desktop thumbnails are always shown regardless of this prop.
+   * Follows Amazon/Shopify pattern for mobile variant products.
+   */
+  showThumbnails?: boolean;
 }
 
 export function ProductImageGallery({
   images,
   productName,
+  showThumbnails = true,
 }: ProductImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -319,37 +327,39 @@ export function ProductImageGallery({
         </AnimatePresence>
       </div>
 
-      {/* Thumbnail Grid - Hidden on mobile when many images, shown as scrollable row */}
+      {/* Thumbnail Grid - Mobile hidden for variant products (use swipe + dots), Desktop always shown */}
       {images.length > 1 && (
         <div className="relative">
-          {/* Mobile: Horizontal scroll */}
-          <div className="flex md:hidden gap-2 overflow-x-auto p-1 -m-1 scrollbar-none snap-x snap-mandatory">
-            {images.map((image, index) => (
-              <button
-                key={image.id}
-                type="button"
-                onClick={() => handleThumbnailClick(index)}
-                className={cn(
-                  "relative size-16 shrink-0 rounded-lg transition-all duration-200 snap-start",
-                  "overflow-hidden bg-muted/20",
-                  index === currentIndex
-                    ? "ring-2 ring-primary ring-offset-2"
-                    : "opacity-70 hover:opacity-100"
-                )}
-              >
-                <Image
-                  src={image.url}
-                  alt={`${productName} thumbnail ${index + 1}`}
-                  fill
-                  sizes="64px"
-                  className="object-cover"
-                  draggable={false}
-                />
-              </button>
-            ))}
-          </div>
+          {/* Mobile: Horizontal scroll - hidden for variant products (showThumbnails=false) */}
+          {showThumbnails && (
+            <div className="flex md:hidden gap-2 overflow-x-auto p-1 -m-1 scrollbar-none snap-x snap-mandatory">
+              {images.map((image, index) => (
+                <button
+                  key={image.id}
+                  type="button"
+                  onClick={() => handleThumbnailClick(index)}
+                  className={cn(
+                    "relative size-16 shrink-0 rounded-lg transition-all duration-200 snap-start",
+                    "overflow-hidden bg-muted/20",
+                    index === currentIndex
+                      ? "ring-2 ring-primary ring-offset-2"
+                      : "opacity-70 hover:opacity-100"
+                  )}
+                >
+                  <Image
+                    src={image.url}
+                    alt={`${productName} thumbnail ${index + 1}`}
+                    fill
+                    sizes="64px"
+                    className="object-cover"
+                    draggable={false}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Desktop: Grid */}
+          {/* Desktop: Grid - always shown (variant swatches supplement, don't replace thumbnails) */}
           <div className="hidden md:grid grid-cols-5 lg:grid-cols-6 gap-2 p-1 -m-1">
             {images.map((image, index) => (
               <motion.button

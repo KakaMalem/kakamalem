@@ -117,8 +117,8 @@ export function StoreInfoSection({
     const map = L.map(mapRef.current, {
       zoomControl: false,
       scrollWheelZoom: false,
-      dragging: allLocations.length > 1, // Allow dragging only with multiple locations
-      tap: allLocations.length > 1,
+      dragging: true,
+      tap: true,
       doubleClickZoom: false,
     }).setView(center, 15);
 
@@ -130,7 +130,7 @@ export function StoreInfoSection({
         '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
     }).addTo(map);
 
-    // Add custom CSS
+    // Add custom CSS for tooltips
     const style = document.createElement("style");
     style.id = "store-info-map-styles";
     if (!document.getElementById("store-info-map-styles")) {
@@ -140,7 +140,7 @@ export function StoreInfoSection({
           border: none !important;
         }
         .location-tooltip {
-          background: #8b5cf6 !important;
+          background: #ca8a04 !important;
           color: white !important;
           border: none !important;
           border-radius: 6px !important;
@@ -149,7 +149,7 @@ export function StoreInfoSection({
           font-weight: 500 !important;
         }
         .location-tooltip::before {
-          border-top-color: #8b5cf6 !important;
+          border-top-color: #ca8a04 !important;
         }
       `;
       document.head.appendChild(style);
@@ -159,14 +159,14 @@ export function StoreInfoSection({
     allLocations.forEach((location, index) => {
       const isPrimary = location.isPrimary || index === 0;
 
-      // Create custom store icon
+      // Create custom store icon (gold/yellow for stores)
       const storeIcon = L.divIcon({
         className: "custom-store-marker",
         html: `
           <div style="
             width: ${isPrimary ? 40 : 32}px;
             height: ${isPrimary ? 40 : 32}px;
-            background: ${isPrimary ? "#8b5cf6" : "#6b7280"};
+            background: ${isPrimary ? "#ca8a04" : "#a16207"};
             border: ${isPrimary ? 3 : 2}px solid #fff;
             border-radius: 50%;
             display: flex;
@@ -237,14 +237,14 @@ export function StoreInfoSection({
                 </div>
               </div>
             ) : (
-              <div ref={mapRef} className="h-64 sm:h-80 w-full" />
+              <div ref={mapRef} className="h-64 sm:h-80 w-full map-wrapper" />
             )}
           </div>
 
           {/* Store Info */}
           <div className="flex flex-col justify-center space-y-6">
             <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-violet-600 mb-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-primary mb-2">
                 <Store className="size-4" />
                 <span>Find Us</span>
               </div>
@@ -279,19 +279,19 @@ export function StoreInfoSection({
                       className={cn(
                         "flex size-10 shrink-0 items-center justify-center rounded-lg",
                         isPrimary
-                          ? "bg-violet-100 text-violet-600"
-                          : "bg-gray-100 text-gray-600"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-secondary text-secondary-foreground"
                       )}
                     >
                       <MapPin className="size-5" />
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium">
                           {location.name || "Location"}
                         </p>
                         {isPrimary && allLocations.length > 1 && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
                             <Star className="size-3" />
                             Primary
                           </span>
@@ -327,7 +327,7 @@ export function StoreInfoSection({
                         href={googleMapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-violet-600 hover:text-violet-700 mt-1"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80 mt-1"
                       >
                         Get directions
                         <ExternalLink className="size-3" />
@@ -343,7 +343,7 @@ export function StoreInfoSection({
                   {/* Phone */}
                   {contactPhone && (
                     <div className="flex items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <Phone className="size-5" />
                       </div>
                       <div>
@@ -361,7 +361,7 @@ export function StoreInfoSection({
                   {/* Email */}
                   {contactEmail && (
                     <div className="flex items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <Mail className="size-5" />
                       </div>
                       <div>

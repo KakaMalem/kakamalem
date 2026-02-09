@@ -819,6 +819,7 @@ Dynamic SEO configuration per store:
 **IMPORTANT:** Next.js 16 uses `proxy.ts` at the project root instead of `middleware.ts`. Do NOT create a middleware.ts file.
 
 The `proxy.ts` file handles:
+
 1. **SEO redirects** - www → non-www canonical redirect
 2. **Custom domain routing** - Rewrites custom domains to `/store/_custom/` route
 
@@ -835,7 +836,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)" ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
 ```
 

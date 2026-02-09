@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   Shield,
+  Handshake,
 } from "lucide-react";
 
 // =============================================================================
@@ -27,12 +28,19 @@ export const metadata = {
   robots: "noindex, nofollow",
 };
 
-const navItems = [
-  { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/admin/stores", icon: Store, label: "Stores" },
-  { href: "/admin/users", icon: Users, label: "Users" },
-  { href: "/admin/settings", icon: Settings, label: "Settings" },
-];
+async function getPendingCounts() {
+  try {
+    const { getPlatformAffiliateStatsSummary } =
+      await import("@/lib/db/queries/platform-affiliates");
+    const stats = await getPlatformAffiliateStatsSummary();
+    return {
+      pendingApplications: stats.pendingApplications,
+      pendingPayouts: stats.pendingPayouts,
+    };
+  } catch {
+    return { pendingApplications: 0, pendingPayouts: 0 };
+  }
+}
 
 export default async function AdminLayout({
   children,
@@ -50,9 +58,29 @@ export default async function AdminLayout({
     redirect("/?error=unauthorized");
   }
 
-  const profile = await getUserProfile();
+  const [profile, pendingCounts] = await Promise.all([
+    getUserProfile(),
+    getPendingCounts(),
+  ]);
+
   const roleLabel =
     profile?.platformRole === "super_admin" ? "Super Admin" : "Platform Admin";
+
+  const totalPending =
+    pendingCounts.pendingApplications + pendingCounts.pendingPayouts;
+
+  const navItems = [
+    { href: "/admin", icon: LayoutDashboard, label: "Dashboard", badge: 0 },
+    { href: "/admin/stores", icon: Store, label: "Stores", badge: 0 },
+    { href: "/admin/users", icon: Users, label: "Users", badge: 0 },
+    {
+      href: "/admin/affiliates",
+      icon: Handshake,
+      label: "Affiliates",
+      badge: totalPending,
+    },
+    { href: "/admin/settings", icon: Settings, label: "Settings", badge: 0 },
+  ];
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -77,10 +105,20 @@ export default async function AdminLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >
-                <item.icon className="size-4" />
-                {item.label}
+                <span className="flex items-center gap-3">
+                  <item.icon className="size-4" />
+                  {item.label}
+                </span>
+                {item.badge > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="size-5 items-center justify-center rounded-full p-0 text-xs"
+                  >
+                    {item.badge}
+                  </Badge>
+                )}
               </Link>
             ))}
           </nav>

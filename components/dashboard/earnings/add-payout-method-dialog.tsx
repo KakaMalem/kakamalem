@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Building2, Smartphone } from "lucide-react";
+import { Loader2, Building2, Smartphone, Wallet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { addPayoutMethod } from "@/lib/actions/earnings";
 import type { PayoutMethodInput } from "@/lib/validations/earnings";
@@ -26,7 +33,8 @@ interface AddPayoutMethodDialogProps {
   tenantId: string;
 }
 
-type MethodType = "bank_transfer" | "mobile_money";
+type MethodType = "bank_transfer" | "mobile_money" | "crypto";
+type CryptoNetwork = "trc20" | "erc20" | "bep20";
 
 export function AddPayoutMethodDialog({
   open,
@@ -49,6 +57,10 @@ export function AddPayoutMethodDialog({
   const [mobileProvider, setMobileProvider] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
 
+  // Crypto fields
+  const [walletAddress, setWalletAddress] = useState("");
+  const [cryptoNetwork, setCryptoNetwork] = useState<CryptoNetwork>("trc20");
+
   const resetForm = () => {
     setMethodType("bank_transfer");
     setIsDefault(false);
@@ -58,6 +70,8 @@ export function AddPayoutMethodDialog({
     setLabel("");
     setMobileProvider("");
     setMobileNumber("");
+    setWalletAddress("");
+    setCryptoNetwork("trc20");
     setError(null);
   };
 
@@ -82,7 +96,7 @@ export function AddPayoutMethodDialog({
           label: label || undefined,
           isDefault,
         };
-      } else {
+      } else if (methodType === "mobile_money") {
         if (!mobileProvider || !mobileNumber) {
           setError("Please fill in all required fields");
           setIsLoading(false);
@@ -93,6 +107,20 @@ export function AddPayoutMethodDialog({
           mobileProvider,
           mobileNumber,
           accountName: accountName || undefined,
+          label: label || undefined,
+          isDefault,
+        };
+      } else {
+        // crypto
+        if (!walletAddress) {
+          setError("Please enter your wallet address");
+          setIsLoading(false);
+          return;
+        }
+        input = {
+          type: "crypto",
+          walletAddress,
+          network: cryptoNetwork,
           label: label || undefined,
           isDefault,
         };
@@ -123,11 +151,11 @@ export function AddPayoutMethodDialog({
         onOpenChange(open);
       }}
     >
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-125">
         <DialogHeader>
           <DialogTitle>Add Payout Method</DialogTitle>
           <DialogDescription>
-            Add a bank account or mobile money number to receive payouts.
+            Add a bank account, mobile money, or USDT wallet to receive payouts.
           </DialogDescription>
         </DialogHeader>
 
@@ -136,7 +164,7 @@ export function AddPayoutMethodDialog({
           <RadioGroup
             value={methodType}
             onValueChange={(v) => setMethodType(v as MethodType)}
-            className="grid grid-cols-2 gap-4"
+            className="grid grid-cols-3 gap-4"
           >
             <Label
               htmlFor="bank_transfer"
@@ -161,6 +189,14 @@ export function AddPayoutMethodDialog({
               />
               <Smartphone className="mb-3 size-6" />
               <span className="text-sm font-medium">Mobile Money</span>
+            </Label>
+            <Label
+              htmlFor="crypto"
+              className="flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
+            >
+              <RadioGroupItem value="crypto" id="crypto" className="sr-only" />
+              <Wallet className="mb-3 size-6" />
+              <span className="text-sm font-medium">USDT</span>
             </Label>
           </RadioGroup>
 
@@ -228,6 +264,61 @@ export function AddPayoutMethodDialog({
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* Crypto (USDT) Fields */}
+          {methodType === "crypto" && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="cryptoNetwork">Network *</Label>
+                <Select
+                  value={cryptoNetwork}
+                  onValueChange={(v) => setCryptoNetwork(v as CryptoNetwork)}
+                >
+                  <SelectTrigger id="cryptoNetwork">
+                    <SelectValue placeholder="Select network" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trc20">
+                      TRC20 (Tron) - Low fees ~$1
+                    </SelectItem>
+                    <SelectItem value="bep20">
+                      BEP20 (BSC) - Low fees ~$0.50
+                    </SelectItem>
+                    <SelectItem value="erc20">
+                      ERC20 (Ethereum) - Higher fees ~$5-50
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  TRC20 is recommended for lower transaction fees
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="walletAddress">USDT Wallet Address *</Label>
+                <Input
+                  id="walletAddress"
+                  placeholder={
+                    cryptoNetwork === "trc20"
+                      ? "T..."
+                      : cryptoNetwork === "bep20"
+                        ? "0x..."
+                        : "0x..."
+                  }
+                  value={walletAddress}
+                  onChange={(e) => setWalletAddress(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Make sure this address supports{" "}
+                  {cryptoNetwork === "trc20"
+                    ? "TRC20"
+                    : cryptoNetwork === "bep20"
+                      ? "BEP20"
+                      : "ERC20"}{" "}
+                  USDT
+                </p>
               </div>
             </div>
           )}

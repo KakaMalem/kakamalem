@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, ChevronDown, Lock, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type {
@@ -35,12 +35,10 @@ export function SectionWrapper({
   onEdit,
   children,
 }: SectionWrapperProps) {
-  const isLocked = status === "locked";
   const isCompleted = status === "completed";
   const isActive = status === "active" || isExpanded;
 
   const handleClick = () => {
-    if (isLocked) return;
     onToggle();
   };
 
@@ -55,16 +53,15 @@ export function SectionWrapper({
       data-status={status}
       className={cn(
         "rounded-lg border bg-card transition-all duration-200",
-        isLocked && "opacity-60 cursor-not-allowed",
-        isActive && "border-primary/50 shadow-sm",
-        isCompleted && !isExpanded && "border-muted"
+        isActive && "border-primary shadow-sm",
+        !isActive && "border-border"
       )}
     >
       {/* Header */}
       <div className="flex items-center">
         <div
           role="button"
-          tabIndex={isLocked ? -1 : 0}
+          tabIndex={0}
           onClick={handleClick}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -72,33 +69,20 @@ export function SectionWrapper({
               handleClick();
             }
           }}
-          className={cn(
-            "flex-1 flex items-center gap-4 p-4 text-left transition-colors",
-            !isLocked && "hover:bg-muted/50 cursor-pointer",
-            isLocked && "cursor-not-allowed"
-          )}
+          className="flex-1 flex items-center gap-4 p-4 text-left transition-colors hover:bg-muted/50 cursor-pointer"
           aria-expanded={isExpanded}
           aria-controls={`section-content-${section}`}
-          aria-disabled={isLocked}
         >
           {/* Step indicator */}
-          <motion.div
-            initial={false}
-            animate={{
-              scale: isActive ? 1.05 : 1,
-              backgroundColor:
-                isCompleted || isActive
-                  ? "hsl(var(--primary))"
-                  : isLocked
-                    ? "hsl(var(--muted))"
-                    : "hsl(var(--muted))",
-            }}
-            transition={{ duration: 0.2 }}
+          <div
             className={cn(
-              "flex items-center justify-center size-10 rounded-full shrink-0 transition-colors",
-              isCompleted || isActive
-                ? "text-primary-foreground"
-                : "text-muted-foreground"
+              "flex items-center justify-center size-10 rounded-full shrink-0 transition-all duration-200",
+              // Active or completed: primary background with white text
+              (isCompleted || isActive) && "bg-primary text-primary-foreground",
+              // Incomplete: muted background with muted text
+              !isCompleted && !isActive && "bg-muted text-muted-foreground",
+              // Scale up when active
+              isActive && "scale-105"
             )}
           >
             {isCompleted && !isExpanded ? (
@@ -107,14 +91,12 @@ export function SectionWrapper({
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: "spring", stiffness: 500, damping: 25 }}
               >
-                <Check className="size-5" />
+                <Check className="size-5" strokeWidth={3} />
               </motion.div>
-            ) : isLocked ? (
-              <Lock className="size-4" />
             ) : (
               <span className="text-sm font-semibold">{stepNumber}</span>
             )}
-          </motion.div>
+          </div>
 
           {/* Title and summary */}
           <div className="flex-1 min-w-0">
@@ -125,14 +107,7 @@ export function SectionWrapper({
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               />
-              <h3
-                className={cn(
-                  "font-medium",
-                  isLocked && "text-muted-foreground"
-                )}
-              >
-                {title}
-              </h3>
+              <h3 className="font-medium">{title}</h3>
             </div>
 
             {/* Summary (shown when collapsed and completed) */}
@@ -150,14 +125,12 @@ export function SectionWrapper({
           </div>
 
           {/* Chevron indicator */}
-          {!isLocked && (
-            <ChevronDown
-              className={cn(
-                "size-5 shrink-0 text-muted-foreground transition-transform duration-200",
-                isExpanded && "rotate-180"
-              )}
-            />
-          )}
+          <ChevronDown
+            className={cn(
+              "size-5 shrink-0 text-muted-foreground transition-transform duration-200",
+              isExpanded && "rotate-180"
+            )}
+          />
         </div>
 
         {/* Edit button - outside the clickable header to avoid nested interactive elements */}

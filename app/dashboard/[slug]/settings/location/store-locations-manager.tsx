@@ -333,7 +333,7 @@ export function StoreLocationsManager({
                       {location.isPrimary && (
                         <Badge
                           variant="secondary"
-                          className="bg-violet-100 text-violet-700"
+                          className="bg-primary/10 text-primary"
                         >
                           <Star className="mr-1 h-3 w-3" />
                           Primary

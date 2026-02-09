@@ -21,6 +21,7 @@ import {
   LogOut,
   Shield,
   Menu,
+  Handshake,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/stores", icon: Store, label: "Stores" },
   { href: "/admin/users", icon: Users, label: "Users" },
+  { href: "/admin/affiliates", icon: Handshake, label: "Affiliates" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 

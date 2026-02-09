@@ -68,6 +68,7 @@ export default async function CartPage({ params }: CartPageProps) {
         currency={store.currency}
         checkoutEnabled={store.onlineCheckoutEnabled}
         contactPhone={store.contactPhone}
+        tenantId={store.id}
       />
     </CartProvider>
   );

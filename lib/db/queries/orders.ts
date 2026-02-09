@@ -485,6 +485,8 @@ export type OrderItemWithImage = {
   sku: string | null;
   price: string;
   quantity: number;
+  quantityRefunded: number;
+  subtotal: string;
   image: {
     url: string;
     alt: string | null;
@@ -525,6 +527,8 @@ export const getDashboardOrderById = cache(
                 sku: orderItems.sku,
                 price: orderItems.price,
                 quantity: orderItems.quantity,
+                quantityRefunded: orderItems.quantityRefunded,
+                subtotal: orderItems.lineSubtotal,
                 // Product image (fallback)
                 productImageUrl: media.url,
                 productImageAlt: media.altText,
@@ -623,6 +627,8 @@ export const getDashboardOrderById = cache(
         sku: item.sku,
         price: item.price,
         quantity: item.quantity,
+        quantityRefunded: item.quantityRefunded,
+        subtotal: item.subtotal,
         image: imageUrl
           ? {
               url: imageUrl,

@@ -16,11 +16,13 @@ import type { Cart } from "@/lib/db/queries/carts";
 interface MobileOrderSummaryProps {
   cart: Cart;
   currency: string;
+  tenantId?: string;
 }
 
 export function MobileOrderSummary({
   cart,
   currency,
+  tenantId,
 }: MobileOrderSummaryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { total } = useCheckoutTotals();
@@ -52,7 +54,11 @@ export function MobileOrderSummary({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="mt-2">
-          <CheckoutSummary cart={cart} currency={currency} />
+          <CheckoutSummary
+            cart={cart}
+            currency={currency}
+            tenantId={tenantId}
+          />
         </div>
       </CollapsibleContent>
     </Collapsible>

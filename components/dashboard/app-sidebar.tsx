@@ -15,7 +15,9 @@ import {
   Star,
   Monitor,
   Wallet,
-  CreditCard,
+  Tag,
+  CalendarDays,
+  Crown,
 } from "lucide-react";
 
 import {
@@ -35,6 +37,9 @@ import {
 } from "@/components/ui/sidebar";
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
+import { Progress } from "@/components/ui/progress";
+import { UpgradeButton } from "@/components/dashboard/billing/upgrade-button";
+import { useSubscription } from "@/lib/stores/use-subscription-store";
 
 // NavLink component that closes mobile sidebar on navigation
 // Uses forwardRef to properly work with SidebarMenuButton's asChild prop
@@ -183,30 +188,43 @@ export function AppSidebar({
     },
   ];
 
-  // Finance items - only for owners
-  const financeNavItems = [
+  // Growth items - marketing + earnings (owner/admin only)
+  const growthNavItems = [
     {
-      title: "Earnings",
-      href: `${baseUrl}/earnings`,
-      icon: Wallet,
+      title: "Sale Campaigns",
+      href: `${baseUrl}/campaigns`,
+      icon: CalendarDays,
     },
     {
-      title: "Billing",
-      href: `${baseUrl}/billing`,
-      icon: CreditCard,
+      title: "Promo Codes",
+      href: `${baseUrl}/coupons`,
+      icon: Tag,
     },
+    ...(userRole === "owner"
+      ? [
+          {
+            title: "Earnings",
+            href: `${baseUrl}/earnings`,
+            icon: Wallet,
+          },
+        ]
+      : []),
   ];
 
   // Check if user can access settings (owner or admin only)
   const showSettings = userRole === "owner" || userRole === "admin";
 
-  const settingsNavItems = [
-    {
-      title: "Store Settings",
-      href: `${baseUrl}/settings`,
-      icon: Store,
-    },
-  ];
+  // Subscription info for upgrade section
+  const subscription = useSubscription();
+  const isPro = subscription?.plan === "pro";
+  const showUpgrade = subscription && !isPro && storeSlug;
+  const productUsagePercent =
+    subscription?.productLimit && subscription.productLimit > 0
+      ? (subscription.productCount / subscription.productLimit) * 100
+      : 0;
+  const showTrialInfo =
+    subscription?.status === "trialing" &&
+    subscription?.daysRemainingInTrial !== null;
 
   return (
     <Sidebar collapsible="icon">
@@ -283,13 +301,13 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Finance section - only for owners */}
-        {userRole === "owner" && (
+        {/* Growth section - campaigns, promos, earnings */}
+        {showSettings && (
           <SidebarGroup>
-            <SidebarGroupLabel>Finance</SidebarGroupLabel>
+            <SidebarGroupLabel>Growth</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {financeNavItems.map((item) => (
+                {growthNavItems.map((item) => (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       asChild
@@ -308,31 +326,65 @@ export function AppSidebar({
           </SidebarGroup>
         )}
 
-        {/* Settings section - hidden for staff (no settings access) */}
+        {/* Settings - single item, no section label needed */}
         {showSettings && (
           <SidebarGroup>
-            <SidebarGroupLabel>Settings</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {settingsNavItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.href)}
-                      tooltip={item.title}
-                    >
-                      <NavLink href={item.href}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(`${baseUrl}/settings`)}
+                    tooltip="Store Settings"
+                  >
+                    <NavLink href={`${baseUrl}/settings`}>
+                      <Store />
+                      <span>Store Settings</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
       </SidebarContent>
+
+      {/* Upgrade section - shows when on Free plan */}
+      {showUpgrade && (
+        <>
+          <SidebarSeparator className="mx-0" />
+          <div className="p-3 group-data-[collapsible=icon]:hidden">
+            <div className="rounded-lg border bg-card p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium">Free Plan</span>
+                {showTrialInfo && (
+                  <span className="text-xs text-muted-foreground">
+                    {subscription.daysRemainingInTrial}d left
+                  </span>
+                )}
+              </div>
+
+              {/* Product usage */}
+              {subscription.productLimit !== null && (
+                <div className="mb-3">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">Products</span>
+                    <span className="font-medium">
+                      {subscription.productCount}/{subscription.productLimit}
+                    </span>
+                  </div>
+                  <Progress value={productUsagePercent} className="h-1.5" />
+                </div>
+              )}
+
+              <UpgradeButton storeSlug={storeSlug} className="w-full" size="sm">
+                <Crown className="mr-1.5 size-3.5" />
+                Upgrade to Pro
+              </UpgradeButton>
+            </div>
+          </div>
+        </>
+      )}
 
       <SidebarFooter>
         <UserNav user={user} />

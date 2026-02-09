@@ -109,6 +109,9 @@ export function InvoiceList({
   const totalPages = Math.ceil(total / pageSize);
   const hasInvoices = invoices.length > 0;
 
+  // Only show actions column if callbacks are provided
+  const hasActions = !!onViewInvoice || !!onDownloadInvoice;
+
   return (
     <Card>
       <CardHeader>
@@ -154,7 +157,9 @@ export function InvoiceList({
                     </TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    {hasActions && (
+                      <TableHead className="text-right">Actions</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -204,34 +209,36 @@ export function InvoiceList({
                             {statusConfig.label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {onViewInvoice && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onViewInvoice(invoice.id)}
-                              >
-                                <Eye className="mr-1 size-4" />
-                                <span className="sr-only md:not-sr-only">
-                                  View
-                                </span>
-                              </Button>
-                            )}
-                            {onDownloadInvoice && invoice.pdfUrl && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onDownloadInvoice(invoice.id)}
-                              >
-                                <Download className="mr-1 size-4" />
-                                <span className="sr-only md:not-sr-only">
-                                  Download
-                                </span>
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
+                        {hasActions && (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {onViewInvoice && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onViewInvoice(invoice.id)}
+                                >
+                                  <Eye className="mr-1 size-4" />
+                                  <span className="sr-only md:not-sr-only">
+                                    View
+                                  </span>
+                                </Button>
+                              )}
+                              {onDownloadInvoice && invoice.pdfUrl && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onDownloadInvoice(invoice.id)}
+                                >
+                                  <Download className="mr-1 size-4" />
+                                  <span className="sr-only md:not-sr-only">
+                                    Download
+                                  </span>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}

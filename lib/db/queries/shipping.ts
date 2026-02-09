@@ -3,6 +3,63 @@ import { eq, and, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { shippingZones, shippingMethods } from "@/lib/db/schema";
 import type { Address } from "@/lib/db/schema";
+import { findProvinceByCity } from "@/lib/geo/afghanistan";
+
+// =============================================================================
+// REVERSE GEOCODING (Server-side fallback)
+// =============================================================================
+
+/**
+ * Reverse geocode result with full location data
+ */
+type ReverseGeocodeResult = {
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  countryCode: string | null;
+};
+
+/**
+ * Reverse geocode coordinates to get location data
+ * Works worldwide - not limited to any specific country
+ * Used as fallback when client doesn't provide city
+ */
+async function reverseGeocode(
+  lat: number,
+  lng: number
+): Promise<ReverseGeocodeResult> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&accept-language=en`,
+      {
+        headers: { "User-Agent": "KakaMalem/1.0 (delivery-platform)" },
+        // Cache for 1 hour to avoid rate limits
+        next: { revalidate: 3600 },
+      }
+    );
+
+    if (!response.ok) {
+      return { city: null, state: null, country: null, countryCode: null };
+    }
+
+    const data = await response.json();
+    const address = data.address;
+
+    return {
+      city:
+        address?.city ||
+        address?.town ||
+        address?.village ||
+        address?.municipality ||
+        null,
+      state: address?.state || address?.province || null,
+      country: address?.country || null,
+      countryCode: address?.country_code?.toUpperCase() || null,
+    };
+  } catch {
+    return { city: null, state: null, country: null, countryCode: null };
+  }
+}
 
 // =============================================================================
 // TYPES
@@ -61,46 +118,183 @@ export const getShippingMethodsForZone = cache(async (zoneId: string) => {
 // =============================================================================
 
 /**
- * Match a GPS-based address to a shipping zone
- *
- * Since we use GPS coordinates instead of traditional address fields,
- * zone matching is simplified:
- * 1. First, look for zones with no geographic restrictions (catch-all zones)
- * 2. In the future, can add geofencing support using lat/lng bounds
- *
- * For now, with GPS-based addresses, we return the highest priority active zone
- * that doesn't have specific geographic filters.
+ * Normalize city/province name for comparison
  */
-export function matchAddressToZone(
-  _address: Address, // GPS coordinates available but not used for matching yet
+function normalizeLocationName(name: string): string {
+  return name.toLowerCase().trim().replace(/[\-_]/g, " ").replace(/\s+/g, " ");
+}
+
+/**
+ * Check if a value matches any item in an array (case-insensitive)
+ */
+function matchesAny(value: string | null | undefined, list: string[]): boolean {
+  if (!value || list.length === 0) return false;
+  const normalized = normalizeLocationName(value);
+  return list.some((item) => normalizeLocationName(item) === normalized);
+}
+
+/**
+ * Get all matching shipping zones for an address
+ * Returns zones sorted by specificity (most specific first)
+ *
+ * Works WORLDWIDE - uses GPS reverse geocoding to determine location
+ * Afghanistan data is only used as a fallback for city → province lookup
+ */
+export async function getMatchingZones(
+  address: Address,
   zones: ShippingZone[]
-): ShippingZone | null {
-  // Zones should already be sorted by priority DESC from query
+): Promise<ShippingZone[]> {
+  const matchedZones: { zone: ShippingZone; specificity: number }[] = [];
+
+  // Location data from address or reverse geocoding
+  let addressCity = address.city || null;
+  let addressProvince: string | null = null;
+  let addressCountry: string | null = null;
+  let addressCountryCode: string | null = null;
+
+  // Always try reverse geocoding if we have coordinates
+  // This gives us accurate city, state, and country for ANY location worldwide
+  if (address.latitude && address.longitude) {
+    const geoResult = await reverseGeocode(address.latitude, address.longitude);
+
+    // Use reverse geocoded data (more accurate than client-provided)
+    if (geoResult.city && !addressCity) {
+      addressCity = geoResult.city;
+    }
+    if (geoResult.state) {
+      addressProvince = geoResult.state;
+    }
+    if (geoResult.country) {
+      addressCountry = geoResult.country;
+    }
+    if (geoResult.countryCode) {
+      addressCountryCode = geoResult.countryCode;
+    }
+  }
+
+  // Fallback: Try Afghanistan data for city → province lookup
+  // Only if we have city but no province (e.g., client provided city name)
+  if (addressCity && !addressProvince) {
+    const province = findProvinceByCity(addressCity);
+    if (province) {
+      addressProvince = province.name;
+      // If we matched in Afghanistan data, set country
+      if (!addressCountry) {
+        addressCountry = "Afghanistan";
+        addressCountryCode = "AF";
+      }
+    }
+  }
+
   for (const zone of zones) {
-    // Check if zone has no geographic restrictions (catch-all zone)
-    const hasPostalCodes = zone.postalCodes && zone.postalCodes.length > 0;
     const hasCities = zone.cities && zone.cities.length > 0;
-    const hasStates = zone.states && zone.states.length > 0;
+    const hasStates = zone.states && zone.states.length > 0; // provinces
     const hasCountries = zone.countries && zone.countries.length > 0;
+    const hasPostalCodes = zone.postalCodes && zone.postalCodes.length > 0;
 
-    // If zone has no geographic filters, it's a catch-all zone
-    if (!hasPostalCodes && !hasCities && !hasStates && !hasCountries) {
-      return zone;
+    // Calculate specificity score (higher = more specific)
+    let specificity = 0;
+    let matches = true;
+
+    // CITY-level matching (most specific)
+    if (hasCities) {
+      if (addressCity && matchesAny(addressCity, zone.cities!)) {
+        specificity += 100; // City match is very specific
+      } else {
+        matches = false; // Zone requires specific cities but address doesn't match
+      }
     }
 
-    // TODO: In the future, implement geofencing support here
-    // Check if GPS coordinates fall within zone's lat/lng bounds
-  }
+    // PROVINCE/STATE-level matching
+    if (hasStates && matches) {
+      if (addressProvince && matchesAny(addressProvince, zone.states!)) {
+        specificity += 50; // Province match
+      } else if (!hasCities) {
+        // If zone only has province filter (no city filter), require province match
+        matches = false;
+      }
+    }
 
-  // If no catch-all zone found, return the first zone with countries set
-  // (assuming "Afghanistan" is the default target market)
-  for (const zone of zones) {
-    if (zone.countries && zone.countries.length > 0) {
-      return zone;
+    // COUNTRY-level matching (works worldwide)
+    if (hasCountries && matches) {
+      // Check if the customer's country matches any in the zone's country list
+      // Supports country codes (AF, US, AE) and full names (Afghanistan, United States)
+      const countryMatches = zone.countries!.some((zoneCountry) => {
+        const c = zoneCountry.toLowerCase().trim();
+        // Match by country code (e.g., "AF", "US")
+        if (addressCountryCode && c === addressCountryCode.toLowerCase()) {
+          return true;
+        }
+        // Match by full country name
+        if (addressCountry && c === addressCountry.toLowerCase()) {
+          return true;
+        }
+        // Special handling for common aliases
+        if (
+          addressCountryCode === "AF" ||
+          addressCountry?.toLowerCase() === "afghanistan"
+        ) {
+          return c === "af" || c === "afghanistan" || c === "افغانستان";
+        }
+        if (
+          addressCountryCode === "US" ||
+          addressCountry?.toLowerCase() === "united states"
+        ) {
+          return (
+            c === "us" ||
+            c === "usa" ||
+            c === "united states" ||
+            c === "united states of america"
+          );
+        }
+        return false;
+      });
+
+      if (countryMatches) {
+        specificity += 10;
+      } else {
+        matches = false;
+      }
+    }
+
+    // POSTAL CODE matching
+    if (hasPostalCodes && matches) {
+      // Postal code matching can be added later
+      // Would need address.postalCode field
+    }
+
+    // CATCH-ALL zone (no geographic restrictions)
+    if (!hasCities && !hasStates && !hasCountries && !hasPostalCodes) {
+      specificity = 1; // Lowest specificity, but still matches
+      matches = true;
+    }
+
+    if (matches) {
+      matchedZones.push({ zone, specificity });
     }
   }
 
-  return null; // No matching zone
+  // Sort by specificity (most specific first), then by priority
+  return matchedZones
+    .sort((a, b) => {
+      if (b.specificity !== a.specificity) {
+        return b.specificity - a.specificity;
+      }
+      return b.zone.priority - a.zone.priority;
+    })
+    .map((m) => m.zone);
+}
+
+/**
+ * Match an address to the best shipping zone
+ * Returns the most specific matching zone, or null if no match
+ */
+export async function matchAddressToZone(
+  address: Address,
+  zones: ShippingZone[]
+): Promise<ShippingZone | null> {
+  const matchingZones = await getMatchingZones(address, zones);
+  return matchingZones[0] || null;
 }
 
 // =============================================================================
@@ -211,8 +405,8 @@ export async function getAvailableShippingMethods(
   // Get all zones for tenant
   const zones = await getShippingZones(tenantId);
 
-  // Match address to zone
-  const zone = matchAddressToZone(address, zones);
+  // Match address to zone (uses reverse geocoding if city not provided)
+  const zone = await matchAddressToZone(address, zones);
 
   if (!zone) {
     return { zone: null, methods: [] };

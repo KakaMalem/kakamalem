@@ -3,7 +3,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CreditCard, Banknote, Check, Info, Star } from "lucide-react";
+import {
+  CreditCard,
+  Banknote,
+  Check,
+  Info,
+  Star,
+  Globe,
+  Wallet,
+} from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -11,65 +19,124 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 import { savePaymentGatewayConfig } from "@/lib/actions/payments";
 import type { PaymentGatewayConfig } from "@/lib/db/schema";
 
+// Gateway type for stricter typing
+type GatewayType = "hesabpay" | "stripe" | "cod" | "crypto_usdt";
+
 // Available payment gateways with their display info
-const PAYMENT_GATEWAYS = [
+const PAYMENT_GATEWAYS: Array<{
+  gateway: GatewayType;
+  displayName: string;
+  description: string;
+  icon: typeof CreditCard;
+  recommended: boolean;
+  badge: string | null;
+}> = [
   {
-    gateway: "hesabpay" as const,
+    gateway: "hesabpay",
     displayName: "Pay with Card (HesabPay)",
     description:
-      "Accept card payments via HesabPay. Payments are processed securely through the platform.",
+      "Accept card payments via HesabPay. Best for customers in Afghanistan.",
     icon: CreditCard,
     recommended: true,
+    badge: "Local",
   },
   {
-    gateway: "cod" as const,
+    gateway: "stripe",
+    displayName: "Pay with Card (International)",
+    description:
+      "Accept Visa, Mastercard, and more from international customers via Stripe.",
+    icon: Globe,
+    recommended: false,
+    badge: "International",
+  },
+  {
+    gateway: "crypto_usdt",
+    displayName: "Pay with USDT",
+    description:
+      "Accept USDT cryptocurrency payments. Supports TRC20, ERC20, and BEP20 networks.",
+    icon: Wallet,
+    recommended: false,
+    badge: "Crypto",
+  },
+  {
+    gateway: "cod",
     displayName: "Cash on Delivery",
     description:
       "Customers pay when they receive their order. No online payment required.",
     icon: Banknote,
     recommended: false,
+    badge: null,
   },
-] as const;
+];
 
 interface PaymentSettingsFormProps {
   storeId: string;
+  stripeEnabled: boolean;
+  cryptoEnabled: boolean;
   initialConfigs: {
     hesabpay: PaymentGatewayConfig | null;
+    stripe: PaymentGatewayConfig | null;
     cod: PaymentGatewayConfig | null;
+    crypto_usdt: PaymentGatewayConfig | null;
   };
 }
 
 // Get initial default gateway from displayOrder (lowest = default)
 function getInitialDefault(
   configs: PaymentSettingsFormProps["initialConfigs"]
-): "hesabpay" | "cod" {
-  const hesabOrder = configs.hesabpay?.displayOrder ?? 0;
-  const codOrder = configs.cod?.displayOrder ?? 1;
-  return hesabOrder <= codOrder ? "hesabpay" : "cod";
+): GatewayType {
+  const orders: Array<{ gateway: GatewayType; order: number }> = [
+    { gateway: "hesabpay", order: configs.hesabpay?.displayOrder ?? 0 },
+    { gateway: "stripe", order: configs.stripe?.displayOrder ?? 2 },
+    { gateway: "cod", order: configs.cod?.displayOrder ?? 1 },
+    { gateway: "crypto_usdt", order: configs.crypto_usdt?.displayOrder ?? 3 },
+  ];
+
+  // Sort by display order and return the first enabled one
+  const sorted = orders.sort((a, b) => a.order - b.order);
+  return sorted[0].gateway;
 }
 
 export function PaymentSettingsForm({
   storeId,
+  stripeEnabled,
+  cryptoEnabled,
   initialConfigs,
 }: PaymentSettingsFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  // Filter gateways based on availability
+  const availableGateways = PAYMENT_GATEWAYS.filter((gw) => {
+    // Stripe is only available if configured at platform level
+    if (gw.gateway === "stripe" && !stripeEnabled) {
+      return false;
+    }
+    // Crypto USDT is only available if configured at platform level
+    if (gw.gateway === "crypto_usdt" && !cryptoEnabled) {
+      return false;
+    }
+    return true;
+  });
 
   // Track enabled state for each gateway
   const [enabledGateways, setEnabledGateways] = useState<
     Record<string, boolean>
   >({
     hesabpay: initialConfigs.hesabpay?.isEnabled ?? true, // Default HesabPay to enabled
+    stripe: initialConfigs.stripe?.isEnabled ?? false, // Default Stripe to disabled
     cod: initialConfigs.cod?.isEnabled ?? true, // Default COD to enabled
+    crypto_usdt: initialConfigs.crypto_usdt?.isEnabled ?? false, // Default crypto to disabled
   });
 
   // Track default payment method (shown first at checkout)
-  const [defaultGateway, setDefaultGateway] = useState<"hesabpay" | "cod">(
+  const [defaultGateway, setDefaultGateway] = useState<GatewayType>(
     getInitialDefault(initialConfigs)
   );
 
@@ -77,15 +144,23 @@ export function PaymentSettingsForm({
   const [prevConfigs, setPrevConfigs] = useState(initialConfigs);
   if (
     prevConfigs.hesabpay?.isEnabled !== initialConfigs.hesabpay?.isEnabled ||
+    prevConfigs.stripe?.isEnabled !== initialConfigs.stripe?.isEnabled ||
     prevConfigs.cod?.isEnabled !== initialConfigs.cod?.isEnabled ||
+    prevConfigs.crypto_usdt?.isEnabled !==
+      initialConfigs.crypto_usdt?.isEnabled ||
     prevConfigs.hesabpay?.displayOrder !==
       initialConfigs.hesabpay?.displayOrder ||
-    prevConfigs.cod?.displayOrder !== initialConfigs.cod?.displayOrder
+    prevConfigs.stripe?.displayOrder !== initialConfigs.stripe?.displayOrder ||
+    prevConfigs.cod?.displayOrder !== initialConfigs.cod?.displayOrder ||
+    prevConfigs.crypto_usdt?.displayOrder !==
+      initialConfigs.crypto_usdt?.displayOrder
   ) {
     setPrevConfigs(initialConfigs);
     setEnabledGateways({
       hesabpay: initialConfigs.hesabpay?.isEnabled ?? true,
+      stripe: initialConfigs.stripe?.isEnabled ?? false,
       cod: initialConfigs.cod?.isEnabled ?? true,
+      crypto_usdt: initialConfigs.crypto_usdt?.isEnabled ?? false,
     });
     setDefaultGateway(getInitialDefault(initialConfigs));
   }
@@ -104,7 +179,10 @@ export function PaymentSettingsForm({
   const hasChanges =
     needsInitialSave ||
     (initialConfigs.hesabpay?.isEnabled ?? true) !== enabledGateways.hesabpay ||
+    (initialConfigs.stripe?.isEnabled ?? false) !== enabledGateways.stripe ||
     (initialConfigs.cod?.isEnabled ?? true) !== enabledGateways.cod ||
+    (initialConfigs.crypto_usdt?.isEnabled ?? false) !==
+      enabledGateways.crypto_usdt ||
     initialDefault !== defaultGateway;
 
   // Handle toggle
@@ -120,10 +198,12 @@ export function PaymentSettingsForm({
     startTransition(async () => {
       try {
         // Save each gateway config with display order based on default selection
+        const gatewaysToSave = availableGateways;
+
         const results = await Promise.all(
-          PAYMENT_GATEWAYS.map(async (gw) => {
+          gatewaysToSave.map(async (gw, index) => {
             // Default gateway gets displayOrder 0, others get higher values
-            const displayOrder = gw.gateway === defaultGateway ? 0 : 1;
+            const displayOrder = gw.gateway === defaultGateway ? 0 : index + 1;
 
             const result = await savePaymentGatewayConfig(storeId, gw.gateway, {
               displayName: gw.displayName,
@@ -148,6 +228,11 @@ export function PaymentSettingsForm({
       }
     });
   };
+
+  // Get enabled gateways for default selection
+  const enabledGatewayList = availableGateways.filter(
+    (gw) => enabledGateways[gw.gateway]
+  );
 
   return (
     <div className="space-y-6">
@@ -187,7 +272,7 @@ export function PaymentSettingsForm({
           <CardTitle className="text-base">Available Payment Methods</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {PAYMENT_GATEWAYS.map((gw) => {
+          {availableGateways.map((gw) => {
             const Icon = gw.icon;
             const isEnabled = enabledGateways[gw.gateway];
 
@@ -211,12 +296,17 @@ export function PaymentSettingsForm({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-medium">{gw.displayName}</h3>
                     {gw.recommended && (
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                         Recommended
                       </span>
+                    )}
+                    {gw.badge && (
+                      <Badge variant="secondary" className="text-xs">
+                        {gw.badge}
+                      </Badge>
                     )}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -241,7 +331,7 @@ export function PaymentSettingsForm({
       </Card>
 
       {/* Default Payment Method */}
-      {hasAnyEnabled && (
+      {hasAnyEnabled && enabledGatewayList.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -255,40 +345,41 @@ export function PaymentSettingsForm({
             </p>
             <RadioGroup
               value={defaultGateway}
-              onValueChange={(value) =>
-                setDefaultGateway(value as "hesabpay" | "cod")
-              }
+              onValueChange={(value) => setDefaultGateway(value as GatewayType)}
               disabled={isPending}
             >
-              {PAYMENT_GATEWAYS.filter((gw) => enabledGateways[gw.gateway]).map(
-                (gw) => {
-                  const Icon = gw.icon;
-                  return (
-                    <Label
-                      key={gw.gateway}
-                      htmlFor={`default-${gw.gateway}`}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                        defaultGateway === gw.gateway
-                          ? "border-primary bg-primary/5"
-                          : "hover:bg-muted/50"
-                      )}
-                    >
-                      <RadioGroupItem
-                        value={gw.gateway}
-                        id={`default-${gw.gateway}`}
-                      />
-                      <Icon className="size-4" />
-                      <span className="font-medium">{gw.displayName}</span>
-                      {defaultGateway === gw.gateway && (
-                        <span className="ml-auto text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          Default
-                        </span>
-                      )}
-                    </Label>
-                  );
-                }
-              )}
+              {enabledGatewayList.map((gw) => {
+                const Icon = gw.icon;
+                return (
+                  <Label
+                    key={gw.gateway}
+                    htmlFor={`default-${gw.gateway}`}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
+                      defaultGateway === gw.gateway
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <RadioGroupItem
+                      value={gw.gateway}
+                      id={`default-${gw.gateway}`}
+                    />
+                    <Icon className="size-4" />
+                    <span className="font-medium">{gw.displayName}</span>
+                    {gw.badge && (
+                      <Badge variant="outline" className="text-xs">
+                        {gw.badge}
+                      </Badge>
+                    )}
+                    {defaultGateway === gw.gateway && (
+                      <span className="ml-auto text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        Default
+                      </span>
+                    )}
+                  </Label>
+                );
+              })}
             </RadioGroup>
           </CardContent>
         </Card>
@@ -304,10 +395,29 @@ export function PaymentSettingsForm({
             <li className="flex items-start gap-2">
               <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
               <span>
-                <strong>HesabPay:</strong> Customers pay securely online. Funds
-                are released to your earnings after order confirmation.
+                <strong>HesabPay:</strong> Customers pay securely online with
+                local payment methods. Best for customers in Afghanistan.
               </span>
             </li>
+            {stripeEnabled && (
+              <li className="flex items-start gap-2">
+                <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
+                <span>
+                  <strong>Stripe (International):</strong> Accept payments from
+                  anywhere in the world. Supports Visa, Mastercard, and more.
+                </span>
+              </li>
+            )}
+            {cryptoEnabled && (
+              <li className="flex items-start gap-2">
+                <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
+                <span>
+                  <strong>USDT (Crypto):</strong> Accept USDT stablecoin
+                  payments. Supports TRC20, ERC20, and BEP20 networks. Payments
+                  are verified manually by the platform.
+                </span>
+              </li>
+            )}
             <li className="flex items-start gap-2">
               <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
               <span>

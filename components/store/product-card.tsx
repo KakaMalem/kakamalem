@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 
 import { cn, formatPrice } from "@/lib/utils";
-import { getDisplayPrices } from "@/lib/utils/pricing-display";
+import {
+  getDisplayPricesWithCampaign,
+  type CampaignDiscount,
+} from "@/lib/utils/pricing-display";
 import { useWishlist } from "@/lib/hooks/use-wishlist";
 import { buildVariantUrl } from "@/lib/utils/variant-url";
 
@@ -31,6 +34,10 @@ interface ProductCardProps {
     showStock: boolean;
     status: "draft" | "active" | "archived";
     image: { url: string; altText: string | null } | null;
+    /** Lowest variant price (for products with variants) */
+    minVariantPrice?: string;
+    /** Highest variant price (for products with variants) */
+    maxVariantPrice?: string;
     rating?: number;
     reviewCount?: number;
     isNew?: boolean;
@@ -47,6 +54,8 @@ interface ProductCardProps {
   priority?: boolean;
   /** Optional variant options for direct variant linking (e.g., {Size: "Large", Color: "Black"}) */
   variantOptions?: Record<string, string>;
+  /** Optional campaign discount to apply */
+  campaignDiscount?: CampaignDiscount | null;
 }
 
 export function ProductCard({
@@ -60,6 +69,7 @@ export function ProductCard({
   catalogMode = false,
   priority = false,
   variantOptions,
+  campaignDiscount = null,
 }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -86,9 +96,33 @@ export function ProductCard({
   const isLowStock =
     product.trackInventory && product.stock > 0 && product.stock <= 5;
 
-  // Use centralized pricing utility
-  const { price, compareAtPrice, discountPercent, hasDiscount } =
-    getDisplayPrices(product.price, product.compareAtPrice ?? null);
+  // Determine the display price for products with variants
+  // Use minVariantPrice if available (actual lowest price), otherwise fall back to product.price
+  const effectivePrice =
+    product.hasVariants && product.minVariantPrice
+      ? product.minVariantPrice
+      : product.price;
+
+  // Use centralized pricing utility with campaign discount support
+  const {
+    price,
+    compareAtPrice,
+    discountPercent,
+    hasDiscount,
+    hasCampaignDiscount,
+    campaignBadgeText,
+  } = getDisplayPricesWithCampaign(
+    effectivePrice,
+    product.compareAtPrice ?? null,
+    campaignDiscount
+  );
+
+  // Only show "From" prefix if variants have different prices
+  const showFromPrefix =
+    product.hasVariants &&
+    product.minVariantPrice &&
+    product.maxVariantPrice &&
+    product.minVariantPrice !== product.maxVariantPrice;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -194,10 +228,14 @@ export function ProductCard({
           )}
         </div>
 
-        {/* Right badge - Discount */}
-        {hasDiscount && discountPercent && (
+        {/* Right badge - Discount (campaign badge text or percentage) */}
+        {hasDiscount && (
           <span className="absolute right-1.5 top-1.5 z-2 rounded-md bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-            -{discountPercent}%
+            {hasCampaignDiscount && campaignBadgeText
+              ? campaignBadgeText
+              : discountPercent
+                ? `-${discountPercent}%`
+                : "Sale"}
           </span>
         )}
       </Link>
@@ -206,7 +244,7 @@ export function ProductCard({
       <div className="flex flex-1 flex-col p-2.5 sm:p-3">
         {/* Price Row */}
         <div className="flex items-baseline gap-1.5">
-          {product.hasVariants && (
+          {showFromPrefix && (
             <span className="text-[10px] text-muted-foreground">From</span>
           )}
           <span className="text-sm font-bold tracking-tight">

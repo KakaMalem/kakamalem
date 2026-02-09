@@ -397,9 +397,11 @@ export function StepReview({
         <CardContent>
           {shippingAddress && (
             <div className="text-sm space-y-1">
-              <p className="font-medium">
-                {shippingAddress.firstName} {shippingAddress.lastName}
-              </p>
+              {(shippingAddress.firstName || shippingAddress.lastName) && (
+                <p className="font-medium">
+                  {shippingAddress.firstName} {shippingAddress.lastName}
+                </p>
+              )}
               <div className="flex items-center gap-1 text-muted-foreground">
                 <MapPin className="size-3" />
                 <span className="font-mono">

@@ -109,8 +109,10 @@ function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
 
 function FieldLabel({
   className,
+  required,
+  children,
   ...props
-}: React.ComponentProps<typeof Label>) {
+}: React.ComponentProps<typeof Label> & { required?: boolean }) {
   return (
     <Label
       data-slot="field-label"
@@ -121,7 +123,10 @@ function FieldLabel({
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {required && <span className="text-destructive">*</span>}
+    </Label>
   );
 }
 
@@ -186,9 +191,13 @@ function FieldSeparator({
 function FieldError({
   className,
   children,
+  error,
   errors,
   ...props
 }: React.ComponentProps<"div"> & {
+  /** Single error message string */
+  error?: string | null;
+  /** Array of error objects with message property */
   errors?: Array<{ message?: string } | undefined>;
 }) {
   const content = useMemo(() => {
@@ -196,12 +205,17 @@ function FieldError({
       return children;
     }
 
+    // Support single error string prop
+    if (error) {
+      return error;
+    }
+
     if (!errors?.length) {
       return null;
     }
 
     const uniqueErrors = [
-      ...new Map(errors.map((error) => [error?.message, error])).values(),
+      ...new Map(errors.map((err) => [err?.message, err])).values(),
     ];
 
     if (uniqueErrors?.length == 1) {
@@ -211,12 +225,11 @@ function FieldError({
     return (
       <ul className="ml-4 flex list-disc flex-col gap-1">
         {uniqueErrors.map(
-          (error, index) =>
-            error?.message && <li key={index}>{error.message}</li>
+          (err, index) => err?.message && <li key={index}>{err.message}</li>
         )}
       </ul>
     );
-  }, [children, errors]);
+  }, [children, error, errors]);
 
   if (!content) {
     return null;

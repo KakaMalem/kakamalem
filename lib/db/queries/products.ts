@@ -8,6 +8,7 @@ import {
   productImages,
   productCategories,
   productVariants,
+  reviews,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -17,6 +18,7 @@ import {
   desc,
   asc,
   count,
+  avg,
   sql,
   inArray,
 } from "drizzle-orm";
@@ -230,10 +232,67 @@ export async function getProducts(
           .groupBy(productVariants.productId)
       : [];
 
-  // Map images, categories, and variant stocks to products
+  // Get min/max variant prices for products with variants
+  // Uses subquery to get product base price for COALESCE when variant price is null
+  const variantPriceRanges =
+    productIds.length > 0
+      ? await db
+          .select({
+            productId: sql<string>`${productVariants.productId}`.as(
+              "productId"
+            ),
+            minPrice:
+              sql<string>`MIN(COALESCE(${productVariants.price}, (SELECT price FROM products WHERE id = ${productVariants.productId})))`.as(
+                "minPrice"
+              ),
+            maxPrice:
+              sql<string>`MAX(COALESCE(${productVariants.price}, (SELECT price FROM products WHERE id = ${productVariants.productId})))`.as(
+                "maxPrice"
+              ),
+          })
+          .from(productVariants)
+          .where(
+            and(
+              inArray(productVariants.productId, productIds),
+              eq(productVariants.isActive, true)
+            )
+          )
+          .groupBy(productVariants.productId)
+      : [];
+
+  // Get review stats (average rating and count) for each product
+  const reviewStats =
+    productIds.length > 0
+      ? await db
+          .select({
+            productId: reviews.productId,
+            averageRating: avg(reviews.rating),
+            reviewCount: count(),
+          })
+          .from(reviews)
+          .where(inArray(reviews.productId, productIds))
+          .groupBy(reviews.productId)
+      : [];
+
+  // Map images, categories, variant stocks, price ranges, and review stats to products
   const imageMap = new Map(images.map((img) => [img.productId, img]));
   const variantStockMap = new Map(
     variantStockSums.map((vs) => [vs.productId, vs.totalStock])
+  );
+  const variantPriceMap = new Map(
+    variantPriceRanges.map((vp) => [
+      vp.productId,
+      { minPrice: vp.minPrice, maxPrice: vp.maxPrice },
+    ])
+  );
+  const reviewStatsMap = new Map(
+    reviewStats.map((rs) => [
+      rs.productId,
+      {
+        rating: rs.averageRating ? parseFloat(rs.averageRating) : null,
+        reviewCount: rs.reviewCount,
+      },
+    ])
   );
 
   // Group categories by product
@@ -255,6 +314,8 @@ export async function getProducts(
   const productsWithImages = productsList.map((product) => {
     const productCategories = categoriesMap.get(product.id) || [];
     const variantTotalStock = variantStockMap.get(product.id) || 0;
+    const variantPrices = variantPriceMap.get(product.id);
+    const productReviewStats = reviewStatsMap.get(product.id);
 
     // Use variant stock sum if product has variants, otherwise use product.stock
     const effectiveStock = product.hasVariants
@@ -270,6 +331,12 @@ export async function getProducts(
       categorySlug: productCategories[0]?.slug || product.categorySlug,
       // Override stock with variant sum if applicable
       stock: effectiveStock,
+      // Variant price range (for "From $X" display logic)
+      minVariantPrice: variantPrices?.minPrice ?? undefined,
+      maxVariantPrice: variantPrices?.maxPrice ?? undefined,
+      // Review stats
+      rating: productReviewStats?.rating ?? undefined,
+      reviewCount: productReviewStats?.reviewCount ?? undefined,
     };
   });
 

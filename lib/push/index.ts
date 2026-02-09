@@ -6,6 +6,8 @@ import {
   notifications,
 } from "@/lib/db/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
+import { broadcastToUsers } from "@/lib/notifications/broadcast";
+import type { Notification } from "@/lib/notifications/types";
 
 // Initialize web-push with VAPID keys
 if (process.env.VAPID_PRIVATE_KEY && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
@@ -111,31 +113,43 @@ export async function sendOrderNotificationToTenant(
 
   const actionUrl = `/dashboard/${tenantSlug}/orders/${payload.orderId}`;
 
-  // Store in-app notifications for all eligible users (always)
-  await Promise.allSettled(
+  // Store in-app notifications for all eligible users and broadcast via SSE
+  const insertResults = await Promise.allSettled(
     userIds.map((userId) =>
-      db.insert(notifications).values({
-        userId,
-        tenantId,
-        type: "new_order",
-        title,
-        body,
-        data: {
-          orderId: payload.orderId,
-          orderNumber: payload.orderNumber,
-          customerName: payload.customerName,
-          total: payload.total,
-          currency: payload.currency,
-          isOffline: payload.isOffline || false,
-          city: payload.city,
-          storeName: payload.storeName,
-          productNames: payload.productNames,
-        },
-        actionUrl,
-        channelsSent: ["in_app"],
-      })
+      db
+        .insert(notifications)
+        .values({
+          userId,
+          tenantId,
+          type: "new_order",
+          title,
+          body,
+          data: {
+            orderId: payload.orderId,
+            orderNumber: payload.orderNumber,
+            customerName: payload.customerName,
+            total: payload.total,
+            currency: payload.currency,
+            isOffline: payload.isOffline || false,
+            city: payload.city,
+            storeName: payload.storeName,
+            productNames: payload.productNames,
+          },
+          actionUrl,
+          channelsSent: ["in_app"],
+        })
+        .returning()
     )
   );
+
+  // Broadcast to connected SSE clients for instant delivery
+  for (let i = 0; i < insertResults.length; i++) {
+    const result = insertResults[i];
+    if (result.status === "fulfilled" && result.value[0]) {
+      const notification = result.value[0] as Notification;
+      broadcastToUsers([notification.userId], notification, tenantId);
+    }
+  }
 
   // Check if push is configured
   if (!isPushConfigured()) {
@@ -319,29 +333,40 @@ export async function sendOrderCancelledNotification(
 
   const actionUrl = `/dashboard/${tenantSlug}/orders/${payload.orderId}`;
 
-  // Store in-app notifications for all eligible users (always)
-  await Promise.allSettled(
+  // Store in-app notifications and broadcast via SSE
+  const insertResults = await Promise.allSettled(
     userIds.map((userId) =>
-      db.insert(notifications).values({
-        userId,
-        tenantId,
-        type: "order_cancelled",
-        title,
-        body,
-        data: {
-          orderId: payload.orderId,
-          orderNumber: payload.orderNumber,
-          customerName: payload.customerName,
-          total: payload.total,
-          currency: payload.currency,
-          storeName: payload.storeName,
-          reason: payload.reason,
-        },
-        actionUrl,
-        channelsSent: ["in_app"],
-      })
+      db
+        .insert(notifications)
+        .values({
+          userId,
+          tenantId,
+          type: "order_cancelled",
+          title,
+          body,
+          data: {
+            orderId: payload.orderId,
+            orderNumber: payload.orderNumber,
+            customerName: payload.customerName,
+            total: payload.total,
+            currency: payload.currency,
+            storeName: payload.storeName,
+            reason: payload.reason,
+          },
+          actionUrl,
+          channelsSent: ["in_app"],
+        })
+        .returning()
     )
   );
+
+  // Broadcast to connected SSE clients for instant delivery
+  for (const result of insertResults) {
+    if (result.status === "fulfilled" && result.value[0]) {
+      const notification = result.value[0] as Notification;
+      broadcastToUsers([notification.userId], notification, tenantId);
+    }
+  }
 
   // Check if push is configured
   if (!isPushConfigured()) {
@@ -414,28 +439,39 @@ export async function sendLowStockNotification(
 
   const actionUrl = `/dashboard/${tenantSlug}/products/${payload.productId}`;
 
-  // Store in-app notifications for all eligible users (always)
-  await Promise.allSettled(
+  // Store in-app notifications and broadcast via SSE
+  const insertResults = await Promise.allSettled(
     userIds.map((userId) =>
-      db.insert(notifications).values({
-        userId,
-        tenantId,
-        type: "low_stock",
-        title,
-        body,
-        data: {
-          productId: payload.productId,
-          productName: payload.productName,
-          variantName: payload.variantName,
-          currentStock: payload.currentStock,
-          lowStockThreshold: payload.lowStockThreshold,
-          storeName: payload.storeName,
-        },
-        actionUrl,
-        channelsSent: ["in_app"],
-      })
+      db
+        .insert(notifications)
+        .values({
+          userId,
+          tenantId,
+          type: "low_stock",
+          title,
+          body,
+          data: {
+            productId: payload.productId,
+            productName: payload.productName,
+            variantName: payload.variantName,
+            currentStock: payload.currentStock,
+            lowStockThreshold: payload.lowStockThreshold,
+            storeName: payload.storeName,
+          },
+          actionUrl,
+          channelsSent: ["in_app"],
+        })
+        .returning()
     )
   );
+
+  // Broadcast to connected SSE clients for instant delivery
+  for (const result of insertResults) {
+    if (result.status === "fulfilled" && result.value[0]) {
+      const notification = result.value[0] as Notification;
+      broadcastToUsers([notification.userId], notification, tenantId);
+    }
+  }
 
   // Check if push is configured
   if (!isPushConfigured()) {
@@ -513,29 +549,40 @@ export async function sendNewReviewNotification(
 
   const actionUrl = `/dashboard/${tenantSlug}/reviews?reviewId=${payload.reviewId}`;
 
-  // Store in-app notifications for all eligible users (always)
-  await Promise.allSettled(
+  // Store in-app notifications and broadcast via SSE
+  const insertResults = await Promise.allSettled(
     userIds.map((userId) =>
-      db.insert(notifications).values({
-        userId,
-        tenantId,
-        type: "new_review",
-        title,
-        body,
-        data: {
-          reviewId: payload.reviewId,
-          productId: payload.productId,
-          productName: payload.productName,
-          customerName: payload.customerName,
-          rating: payload.rating,
-          comment: payload.comment,
-          storeName: payload.storeName,
-        },
-        actionUrl,
-        channelsSent: ["in_app"],
-      })
+      db
+        .insert(notifications)
+        .values({
+          userId,
+          tenantId,
+          type: "new_review",
+          title,
+          body,
+          data: {
+            reviewId: payload.reviewId,
+            productId: payload.productId,
+            productName: payload.productName,
+            customerName: payload.customerName,
+            rating: payload.rating,
+            comment: payload.comment,
+            storeName: payload.storeName,
+          },
+          actionUrl,
+          channelsSent: ["in_app"],
+        })
+        .returning()
     )
   );
+
+  // Broadcast to connected SSE clients for instant delivery
+  for (const result of insertResults) {
+    if (result.status === "fulfilled" && result.value[0]) {
+      const notification = result.value[0] as Notification;
+      broadcastToUsers([notification.userId], notification, tenantId);
+    }
+  }
 
   // Check if push is configured
   if (!isPushConfigured()) {
@@ -640,23 +687,31 @@ export async function sendCustomerOrderStatusNotification(
 
   const actionUrl = `/store/${storeSlug}/account/orders/${payload.orderId}`;
 
-  // Store in-app notification
-  await db.insert(notifications).values({
-    userId,
-    tenantId,
-    type: payload.type,
-    title,
-    body,
-    data: {
-      orderId: payload.orderId,
-      orderNumber: payload.orderNumber,
-      storeName: payload.storeName,
-      trackingNumber: payload.trackingNumber,
-      estimatedDelivery: payload.estimatedDelivery,
-    },
-    actionUrl,
-    channelsSent: ["in_app"],
-  });
+  // Store in-app notification and broadcast via SSE
+  const [insertedNotification] = await db
+    .insert(notifications)
+    .values({
+      userId,
+      tenantId,
+      type: payload.type,
+      title,
+      body,
+      data: {
+        orderId: payload.orderId,
+        orderNumber: payload.orderNumber,
+        storeName: payload.storeName,
+        trackingNumber: payload.trackingNumber,
+        estimatedDelivery: payload.estimatedDelivery,
+      },
+      actionUrl,
+      channelsSent: ["in_app"],
+    })
+    .returning();
+
+  // Broadcast to connected SSE clients for instant delivery
+  if (insertedNotification) {
+    broadcastToUsers([userId], insertedNotification as Notification, tenantId);
+  }
 
   // Check if push is configured
   if (!isPushConfigured()) {
@@ -717,18 +772,30 @@ export async function sendNotificationToUser({
   tenantId?: string;
   payload: GenericNotificationPayload;
 }): Promise<SendNotificationResult> {
-  // Store in-app notification
-  await db.insert(notifications).values({
-    userId,
-    tenantId: tenantId || null,
-    type: payload.type,
-    title: payload.title,
-    body: payload.body,
-    data: payload.data || {},
-    actionUrl: payload.actionUrl,
-    avatarUrl: payload.avatarUrl,
-    channelsSent: ["in_app"],
-  });
+  // Store in-app notification and broadcast via SSE
+  const [insertedNotification] = await db
+    .insert(notifications)
+    .values({
+      userId,
+      tenantId: tenantId || null,
+      type: payload.type,
+      title: payload.title,
+      body: payload.body,
+      data: payload.data || {},
+      actionUrl: payload.actionUrl,
+      avatarUrl: payload.avatarUrl,
+      channelsSent: ["in_app"],
+    })
+    .returning();
+
+  // Broadcast to connected SSE clients for instant delivery
+  if (insertedNotification) {
+    broadcastToUsers(
+      [userId],
+      insertedNotification as Notification,
+      tenantId || undefined
+    );
+  }
 
   // Check if push is configured
   if (!isPushConfigured()) {
@@ -811,28 +878,39 @@ export async function sendBackInStockNotification(
   const body = `${payload.productName} • ${payload.price} ${payload.currency} • ${payload.storeName}`;
   const actionUrl = `/store/${tenantSlug}/product/${payload.productSlug}`;
 
-  // Store in-app notifications for all interested users
-  await Promise.allSettled(
+  // Store in-app notifications and broadcast via SSE
+  const insertResults = await Promise.allSettled(
     userIds.map((userId) =>
-      db.insert(notifications).values({
-        userId,
-        tenantId,
-        type: "back_in_stock",
-        title,
-        body,
-        data: {
-          productId: payload.productId,
-          productName: payload.productName,
-          price: payload.price,
-          currency: payload.currency,
-          storeName: payload.storeName,
-        },
-        actionUrl,
-        avatarUrl: payload.imageUrl,
-        channelsSent: ["in_app"],
-      })
+      db
+        .insert(notifications)
+        .values({
+          userId,
+          tenantId,
+          type: "back_in_stock",
+          title,
+          body,
+          data: {
+            productId: payload.productId,
+            productName: payload.productName,
+            price: payload.price,
+            currency: payload.currency,
+            storeName: payload.storeName,
+          },
+          actionUrl,
+          avatarUrl: payload.imageUrl,
+          channelsSent: ["in_app"],
+        })
+        .returning()
     )
   );
+
+  // Broadcast to connected SSE clients for instant delivery
+  for (const result of insertResults) {
+    if (result.status === "fulfilled" && result.value[0]) {
+      const notification = result.value[0] as Notification;
+      broadcastToUsers([notification.userId], notification, tenantId);
+    }
+  }
 
   // Check if push is configured
   if (!isPushConfigured()) {
@@ -863,4 +941,273 @@ export async function sendBackInStockNotification(
   };
 
   return sendPushNotifications(subscriptions, notificationPayload);
+}
+
+// =============================================================================
+// SUBSCRIPTION NOTIFICATIONS
+// =============================================================================
+
+/**
+ * Send subscription renewal reminder to store owner/admin
+ * Called by the subscription-reminders cron job
+ */
+export async function sendSubscriptionRenewalReminder(params: {
+  userId: string;
+  tenantId: string;
+  storeName: string;
+  storeSlug: string;
+  daysUntilExpiry: number;
+  expiryDate: string;
+}): Promise<SendNotificationResult> {
+  const {
+    userId,
+    tenantId,
+    storeName,
+    storeSlug,
+    daysUntilExpiry,
+    expiryDate,
+  } = params;
+
+  // Format expiry date for display
+  const expiryDateFormatted = new Date(expiryDate).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  // Build notification content based on urgency
+  let title: string;
+  let body: string;
+  let urgency: "low" | "medium" | "high";
+
+  if (daysUntilExpiry === 1) {
+    title = `Pro expires tomorrow`;
+    body = `${storeName} subscription ends ${expiryDateFormatted}. Renew now to avoid interruption.`;
+    urgency = "high";
+  } else if (daysUntilExpiry <= 3) {
+    title = `Pro expires in ${daysUntilExpiry} days`;
+    body = `${storeName} subscription ends ${expiryDateFormatted}. Renew to keep Pro features.`;
+    urgency = "medium";
+  } else {
+    title = `Pro renewal reminder`;
+    body = `${storeName} subscription expires ${expiryDateFormatted}. Renew early to avoid interruption.`;
+    urgency = "low";
+  }
+
+  const actionUrl = `/dashboard/${storeSlug}/billing`;
+
+  // Store in-app notification and broadcast via SSE
+  const [insertedNotification] = await db
+    .insert(notifications)
+    .values({
+      userId,
+      tenantId,
+      type: "subscription_reminder",
+      title,
+      body,
+      data: {
+        daysUntilExpiry,
+        expiryDate,
+        storeName,
+        urgency,
+      },
+      actionUrl,
+      channelsSent: ["in_app"],
+    })
+    .returning();
+
+  // Broadcast to connected SSE clients for instant delivery
+  if (insertedNotification) {
+    broadcastToUsers([userId], insertedNotification as Notification, tenantId);
+  }
+
+  // Check if push is configured
+  if (!isPushConfigured()) {
+    return { success: true, sent: 0, failed: 0 };
+  }
+
+  // Get active push subscriptions for this user (dashboard context, so tenant-specific)
+  const subscriptions = await db.query.pushSubscriptions.findMany({
+    where: and(
+      eq(pushSubscriptions.userId, userId),
+      eq(pushSubscriptions.isActive, true)
+    ),
+  });
+
+  if (subscriptions.length === 0) {
+    return { success: true, sent: 0, failed: 0 };
+  }
+
+  const notificationPayload: PushNotificationPayload = {
+    title,
+    body,
+    tag: `sub-reminder-${tenantId}-${daysUntilExpiry}`,
+    url: actionUrl,
+    requireInteraction: urgency === "high", // Final notice requires interaction
+    type: "default",
+    actions:
+      urgency === "high"
+        ? [
+            { action: "renew", title: "Renew Now" },
+            { action: "dismiss", title: "Dismiss" },
+          ]
+        : undefined,
+  };
+
+  return sendPushNotifications(subscriptions, notificationPayload);
+}
+
+/**
+ * Send subscription expiration notification
+ * Called when a subscription has expired
+ */
+export async function sendSubscriptionExpiredNotification(params: {
+  userId: string;
+  tenantId: string;
+  storeName: string;
+  storeSlug: string;
+}): Promise<SendNotificationResult> {
+  const { userId, tenantId, storeName, storeSlug } = params;
+
+  const title = `Pro subscription expired`;
+  const body = `${storeName} is now on the Free plan. Upgrade to restore Pro features.`;
+  const actionUrl = `/dashboard/${storeSlug}/billing`;
+
+  // Store in-app notification and broadcast via SSE
+  const [insertedNotification] = await db
+    .insert(notifications)
+    .values({
+      userId,
+      tenantId,
+      type: "subscription_expired",
+      title,
+      body,
+      data: { storeName },
+      actionUrl,
+      channelsSent: ["in_app"],
+    })
+    .returning();
+
+  // Broadcast to connected SSE clients for instant delivery
+  if (insertedNotification) {
+    broadcastToUsers([userId], insertedNotification as Notification, tenantId);
+  }
+
+  // Check if push is configured
+  if (!isPushConfigured()) {
+    return { success: true, sent: 0, failed: 0 };
+  }
+
+  // Get active push subscriptions for this user
+  const subscriptions = await db.query.pushSubscriptions.findMany({
+    where: and(
+      eq(pushSubscriptions.userId, userId),
+      eq(pushSubscriptions.isActive, true)
+    ),
+  });
+
+  if (subscriptions.length === 0) {
+    return { success: true, sent: 0, failed: 0 };
+  }
+
+  const notificationPayload: PushNotificationPayload = {
+    title,
+    body,
+    tag: `sub-expired-${tenantId}`,
+    url: actionUrl,
+    requireInteraction: true,
+    type: "default",
+    actions: [
+      { action: "upgrade", title: "Upgrade Now" },
+      { action: "dismiss", title: "Dismiss" },
+    ],
+  };
+
+  return sendPushNotifications(subscriptions, notificationPayload);
+}
+
+/**
+ * Send subscription paused notification
+ */
+export async function sendSubscriptionPausedNotification(params: {
+  userId: string;
+  tenantId: string;
+  storeName: string;
+  storeSlug: string;
+  autoResumeDate?: string;
+}): Promise<SendNotificationResult> {
+  const { userId, tenantId, storeName, storeSlug, autoResumeDate } = params;
+
+  const title = `Pro subscription paused`;
+  const body = autoResumeDate
+    ? `${storeName} is paused until ${new Date(autoResumeDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`
+    : `${storeName} subscription is paused. Resume anytime from billing settings.`;
+  const actionUrl = `/dashboard/${storeSlug}/billing`;
+
+  // Store in-app notification and broadcast via SSE
+  const [insertedNotification] = await db
+    .insert(notifications)
+    .values({
+      userId,
+      tenantId,
+      type: "subscription_paused",
+      title,
+      body,
+      data: { storeName, autoResumeDate },
+      actionUrl,
+      channelsSent: ["in_app"],
+    })
+    .returning();
+
+  // Broadcast to connected SSE clients for instant delivery
+  if (insertedNotification) {
+    broadcastToUsers([userId], insertedNotification as Notification, tenantId);
+  }
+
+  return { success: true, sent: 0, failed: 0 };
+}
+
+/**
+ * Send subscription resumed notification
+ */
+export async function sendSubscriptionResumedNotification(params: {
+  userId: string;
+  tenantId: string;
+  storeName: string;
+  storeSlug: string;
+  creditsDays: number;
+  newEndDate: string;
+}): Promise<SendNotificationResult> {
+  const { userId, tenantId, storeName, storeSlug, creditsDays, newEndDate } =
+    params;
+
+  const title = `Pro subscription resumed`;
+  const creditsText =
+    creditsDays > 0
+      ? ` You've been credited ${creditsDays} days for the pause period.`
+      : "";
+  const body = `${storeName} is back to Pro.${creditsText} Next renewal: ${new Date(newEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`;
+  const actionUrl = `/dashboard/${storeSlug}/billing`;
+
+  // Store in-app notification and broadcast via SSE
+  const [insertedNotification] = await db
+    .insert(notifications)
+    .values({
+      userId,
+      tenantId,
+      type: "subscription_resumed",
+      title,
+      body,
+      data: { storeName, creditsDays, newEndDate },
+      actionUrl,
+      channelsSent: ["in_app"],
+    })
+    .returning();
+
+  // Broadcast to connected SSE clients for instant delivery
+  if (insertedNotification) {
+    broadcastToUsers([userId], insertedNotification as Notification, tenantId);
+  }
+
+  return { success: true, sent: 0, failed: 0 };
 }

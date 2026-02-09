@@ -4,9 +4,8 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getUserStoreContext } from "@/lib/auth/context";
 import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
 import { AccessDenied } from "@/components/access-denied";
-import { getDeliveryZones } from "@/lib/actions/delivery-zones";
-import { getShippingZonesAction } from "@/lib/actions/shipping";
-import { DeliverySettingsClient } from "@/components/dashboard/delivery-shipping/delivery-settings-client";
+import { getUnifiedZones } from "@/lib/actions/unified-delivery";
+import { UnifiedDeliveryManager } from "@/components/dashboard/delivery/unified-delivery-manager";
 
 interface DeliverySettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -39,36 +38,19 @@ export default async function DeliverySettingsPage({
     );
   }
 
-  // Fetch both delivery zones and shipping zones
-  const [deliveryZones, shippingZonesResult] = await Promise.all([
-    getDeliveryZones(store.id),
-    getShippingZonesAction(store.id),
-  ]);
-
-  const shippingZones = shippingZonesResult.success
-    ? shippingZonesResult.data || []
-    : [];
-
-  // Extract store location if available
-  const storeLocation =
-    store.storeLocationLat && store.storeLocationLng
-      ? {
-          lat: parseFloat(store.storeLocationLat),
-          lng: parseFloat(store.storeLocationLng),
-        }
-      : null;
+  // Fetch unified delivery zones
+  const zones = await getUnifiedZones(store.id);
 
   return (
     <div className="space-y-6">
-      <DeliverySettingsClient
-        tenantId={store.id}
-        storeSlug={slug}
-        currency={store.currency}
-        enableDeliveryZones={store.enableDeliveryZones}
-        deliveryZones={deliveryZones}
-        shippingZones={shippingZones}
-        storeLocation={storeLocation}
-      />
+      <div>
+        <h1 className="text-2xl font-bold">Delivery & Shipping</h1>
+        <p className="text-muted-foreground mt-1">
+          Configure delivery zones and shipping rates for your store
+        </p>
+      </div>
+
+      <UnifiedDeliveryManager tenantId={store.id} zones={zones} />
     </div>
   );
 }

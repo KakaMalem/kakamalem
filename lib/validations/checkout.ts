@@ -7,11 +7,10 @@ import { z } from "zod";
 
 /**
  * Guest checkout contact info schema
+ * Phone-first approach for Afghanistan market where phone is the primary contact method
+ * Name is collected in the delivery address section
  */
 export const guestCheckoutSchema = z.object({
-  email: z.string().email("Valid email is required"),
-  firstName: z.string().min(1, "First name is required").max(100),
-  lastName: z.string().min(1, "Last name is required").max(100),
   phone: z
     .string()
     .min(1, "Phone number is required")
@@ -24,7 +23,8 @@ export type GuestCheckoutInput = z.infer<typeof guestCheckoutSchema>;
 
 /**
  * Shipping address schema (GPS-based, matches Address type from schema.ts)
- * Name fields are optional when user is logged in (taken from account)
+ * Name fields are optional - guests don't need to provide name
+ * Name is collected when user creates an account
  */
 export const shippingAddressSchema = z.object({
   firstName: z.string().max(100).optional(),
@@ -61,6 +61,7 @@ export const paymentGatewaySchema = z.enum([
   "cod",
   "bank_transfer",
   "mobile_money",
+  "crypto_usdt",
 ]);
 
 export type PaymentGateway = z.infer<typeof paymentGatewaySchema>;
@@ -76,19 +77,41 @@ export const checkoutSubmitSchema = z.object({
   shippingAddress: shippingAddressSchema,
   billingAddress: shippingAddressSchema.nullable(),
 
-  // Shipping selection (accepts UUID, zone-prefixed UUID, or special values)
+  // Shipping selection (accepts UUID, zone-prefixed UUID, unified system IDs, or special values)
   shippingMethodId: z.string().refine(
     (val) => {
-      // Accept "free-shipping" for stores with no shipping rates configured
-      if (val === "free-shipping") return true;
-      // Accept regular UUID
+      // Accept special/synthetic shipping method IDs
+      const specialIds = [
+        "free-shipping",
+        "free-delivery",
+        "free-local-delivery",
+        "unified-free-shipping",
+      ];
+      if (specialIds.includes(val)) return true;
+
+      // Accept regular UUID (shipping method from database)
       const uuidRegex =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(val)) return true;
-      // Accept zone-prefixed UUID (for GPS delivery zones)
+
+      // Accept zone-prefixed UUID (legacy GPS delivery zones: "zone-{uuid}")
       if (val.startsWith("zone-")) {
         return uuidRegex.test(val.slice(5));
       }
+
+      // Accept unified delivery system format: "unified-{zoneId}-{methodId}"
+      // Both zoneId and methodId should be UUIDs
+      if (val.startsWith("unified-")) {
+        const rest = val.slice(8); // Remove "unified-"
+        const parts = rest.split("-");
+        // UUID has 5 parts separated by dashes, so we expect 10 parts total (2 UUIDs)
+        if (parts.length >= 10) {
+          const firstUuid = parts.slice(0, 5).join("-");
+          const secondUuid = parts.slice(5, 10).join("-");
+          return uuidRegex.test(firstUuid) && uuidRegex.test(secondUuid);
+        }
+      }
+
       return false;
     },
     { message: "Invalid shipping method" }
@@ -99,6 +122,9 @@ export const checkoutSubmitSchema = z.object({
 
   // Optional notes
   customerNotes: z.string().max(1000).optional().nullable(),
+
+  // Applied promo code (optional)
+  appliedCouponCode: z.string().max(50).optional().nullable(),
 });
 
 export type CheckoutSubmitInput = z.infer<typeof checkoutSubmitSchema>;
@@ -108,8 +134,8 @@ export type CheckoutSubmitInput = z.infer<typeof checkoutSubmitSchema>;
  */
 export const customerSnapshotSchema = z.object({
   name: z.string(),
-  email: z.string().email(),
-  phone: z.string().optional(),
+  email: z.string().email().optional(), // Optional - phone is primary in Afghanistan
+  phone: z.string().optional(), // Optional here, but checkout ensures it's provided
 });
 
 export type CustomerSnapshotInput = z.infer<typeof customerSnapshotSchema>;

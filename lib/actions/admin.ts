@@ -7,10 +7,13 @@ import {
   adminAuditLog,
   billingTransactions,
   invoices,
+  platformAffiliateReferrals,
+  platformAffiliateCommissions,
+  platformAffiliates,
   type BillingTransactionType,
   type PaymentMethod,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/auth/server";
 import { headers } from "next/headers";
@@ -288,11 +291,18 @@ export async function addStoreNotes(
  */
 export async function updatePlatformSettings(data: {
   proPlanPriceAfn?: string;
+  proPlanYearlyPriceAfn?: string;
   freeProductLimit?: number;
-  freeStoreLimit?: number;
   trialDurationDays?: number;
   transactionFeePercent?: string;
   trialWarningDays?: number;
+  usdtWalletConfig?: {
+    trc20?: { address: string; enabled: boolean };
+    erc20?: { address: string; enabled: boolean };
+    bep20?: { address: string; enabled: boolean };
+    minAmount?: number;
+    expirationMinutes?: number;
+  };
 }): Promise<ActionResult> {
   try {
     const admin = await requirePlatformAdmin();
@@ -356,6 +366,7 @@ export async function recordBillingTransaction(data: {
   notes?: string;
   createInvoice?: boolean;
   upgradeToProOnPayment?: boolean;
+  periodMonths?: number; // For multi-month subscriptions
 }): Promise<ActionResult & { transactionId?: string; invoiceId?: string }> {
   try {
     const admin = await requirePlatformAdmin();
@@ -371,9 +382,10 @@ export async function recordBillingTransaction(data: {
       notes,
       createInvoice = false,
       upgradeToProOnPayment = false,
+      periodMonths = 1,
     } = data;
 
-    // Get store info
+    // Get store info (including subscription end date for proper extension)
     const store = await db.query.tenants.findFirst({
       where: eq(tenants.id, storeId),
       columns: {
@@ -382,6 +394,7 @@ export async function recordBillingTransaction(data: {
         slug: true,
         subscriptionPlan: true,
         subscriptionStatus: true,
+        subscriptionEndsAt: true,
         currency: true,
       },
     });
@@ -396,6 +409,12 @@ export async function recordBillingTransaction(data: {
     // Create invoice if requested
     if (createInvoice && type === "subscription_payment") {
       const invoiceNumber = generateInvoiceNumber(store.slug);
+      const periodLabel =
+        periodMonths === 1
+          ? "Monthly"
+          : periodMonths === 12
+            ? "Yearly"
+            : `${periodMonths}-Month`;
       const [newInvoice] = await db
         .insert(invoices)
         .values({
@@ -413,9 +432,9 @@ export async function recordBillingTransaction(data: {
           paidAmount: amount.toString(),
           items: [
             {
-              description: "Pro Plan Subscription (Monthly)",
-              quantity: 1,
-              unitPrice: amount,
+              description: `Pro Plan Subscription (${periodLabel})`,
+              quantity: periodMonths,
+              unitPrice: amount / periodMonths,
               total: amount,
             },
           ],
@@ -448,22 +467,143 @@ export async function recordBillingTransaction(data: {
       })
       .returning({ id: billingTransactions.id });
 
-    // Upgrade to pro if this is a payment and upgrade is requested
+    // Upgrade/extend pro subscription if this is a payment
     if (upgradeToProOnPayment && type === "subscription_payment") {
-      // Calculate subscription period (30 days from now)
-      const subscriptionEnd = new Date();
-      subscriptionEnd.setDate(subscriptionEnd.getDate() + 30);
+      // Industry standard: extend from the LATER of (now) or (current subscription end)
+      // This allows payments to "stack" - if already Pro until March 15,
+      // adding another month extends to April 15, not "today + 30 days"
+      const currentEnd = store.subscriptionEndsAt
+        ? new Date(store.subscriptionEndsAt)
+        : new Date();
+      const nowDate = new Date();
+
+      // If already Pro with time remaining, extend from current end date
+      // Otherwise, start fresh from now
+      const isAlreadyProWithTimeRemaining =
+        store.subscriptionPlan === "pro" && currentEnd > nowDate;
+
+      const extendFrom = isAlreadyProWithTimeRemaining ? currentEnd : nowDate;
+      const subscriptionEnd = new Date(extendFrom);
+      subscriptionEnd.setDate(subscriptionEnd.getDate() + periodMonths * 30);
+
+      // Only update subscriptionStartedAt if this is a NEW subscription (not extension)
+      const isNewSubscription = !isAlreadyProWithTimeRemaining;
 
       await db
         .update(tenants)
         .set({
           subscriptionPlan: "pro",
           subscriptionStatus: "active",
-          subscriptionStartedAt: now,
+          ...(isNewSubscription && { subscriptionStartedAt: now }),
           subscriptionEndsAt: subscriptionEnd.toISOString(),
           updatedAt: now,
         })
         .where(eq(tenants.id, storeId));
+    }
+
+    // =========================================================================
+    // AFFILIATE COMMISSION ATTRIBUTION
+    // Check if this store was referred by an affiliate and create commission
+    // =========================================================================
+    let commissionCreated = false;
+    if (type === "subscription_payment") {
+      try {
+        // Check if this store has an affiliate referral
+        const referral = await db.query.platformAffiliateReferrals.findFirst({
+          where: eq(platformAffiliateReferrals.tenantId, storeId),
+          with: {
+            affiliate: {
+              columns: {
+                id: true,
+                currentCommissionRate: true,
+                status: true,
+              },
+            },
+          },
+        });
+
+        if (referral && referral.affiliate?.status === "approved") {
+          // Check if commission period is still active
+          const commissionEndsAt = referral.commissionEndsAt
+            ? new Date(referral.commissionEndsAt)
+            : null;
+          const isWithinCommissionPeriod =
+            !commissionEndsAt || commissionEndsAt > new Date();
+
+          if (isWithinCommissionPeriod) {
+            // Get commission rate (from referral or affiliate's current rate)
+            const commissionRate = parseFloat(
+              referral.commissionRate ||
+                referral.affiliate.currentCommissionRate ||
+                "30"
+            );
+
+            // Calculate commission amount
+            const commissionAmount = (amount * commissionRate) / 100;
+
+            // Determine commission month (count existing commissions + 1)
+            const existingCommissions =
+              await db.query.platformAffiliateCommissions.findMany({
+                where: eq(platformAffiliateCommissions.referralId, referral.id),
+                columns: { id: true },
+              });
+            const commissionMonth = existingCommissions.length + 1;
+
+            // Only create commission if within 12 months
+            if (commissionMonth <= 12) {
+              // Create commission record
+              await db.insert(platformAffiliateCommissions).values({
+                affiliateId: referral.affiliateId,
+                referralId: referral.id,
+                tenantId: storeId,
+                subscriptionAmount: amount.toString(),
+                commissionRate: commissionRate.toString(),
+                commissionAmount: commissionAmount.toString(),
+                commissionMonth,
+                currency: store.currency ?? "AFN",
+                periodStart: periodStart || now,
+                periodEnd: periodEnd || now,
+                status: "available", // Available for payout
+              });
+
+              // Update affiliate totals
+              await db
+                .update(platformAffiliates)
+                .set({
+                  totalEarned: sql`${platformAffiliates.totalEarned} + ${commissionAmount}`,
+                  successfulReferrals: sql`CASE
+                    WHEN ${commissionMonth} = 1 THEN ${platformAffiliates.successfulReferrals} + 1
+                    ELSE ${platformAffiliates.successfulReferrals}
+                  END`,
+                })
+                .where(eq(platformAffiliates.id, referral.affiliateId));
+
+              // If this is the first payment, update referral record
+              if (commissionMonth === 1) {
+                const commissionEndDate = new Date();
+                commissionEndDate.setMonth(commissionEndDate.getMonth() + 12);
+
+                await db
+                  .update(platformAffiliateReferrals)
+                  .set({
+                    firstPaidAt: now,
+                    commissionEndsAt: commissionEndDate.toISOString(),
+                    status: "active",
+                  })
+                  .where(eq(platformAffiliateReferrals.id, referral.id));
+              }
+
+              commissionCreated = true;
+            }
+          }
+        }
+      } catch (commissionError) {
+        // Log but don't fail the main transaction
+        console.error(
+          "Failed to create affiliate commission:",
+          commissionError
+        );
+      }
     }
 
     // Log the action
@@ -475,15 +615,21 @@ export async function recordBillingTransaction(data: {
       transactionId: transaction.id,
       invoiceId,
       upgradeToProOnPayment,
+      affiliateCommissionCreated: commissionCreated,
     });
 
     revalidatePath("/admin/stores");
     revalidatePath(`/admin/stores/${storeId}`);
-    revalidatePath(`/dashboard/${store.name}/billing`);
+    revalidatePath(`/dashboard/${store.slug}/billing`);
+
+    // Build success message
+    let message = "Transaction recorded successfully";
+    if (invoiceId) message += " with invoice";
+    if (commissionCreated) message += " (affiliate commission attributed)";
 
     return {
       success: true,
-      message: `Transaction recorded successfully${invoiceId ? " with invoice" : ""}`,
+      message,
       transactionId: transaction.id,
       invoiceId,
     };

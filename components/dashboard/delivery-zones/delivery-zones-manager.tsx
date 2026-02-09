@@ -17,7 +17,6 @@ import {
   CircleDot,
   ToggleLeft,
   ToggleRight,
-  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,13 +26,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -52,7 +44,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import {
   createDeliveryZone,
@@ -61,7 +52,7 @@ import {
   toggleDeliveryZoneStatus,
 } from "@/lib/actions/delivery-zones";
 import { formatRadius } from "@/lib/geo/delivery-zone-check";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import type { DeliveryZone } from "@/lib/db/schema";
 
 // Dynamically import the map component to avoid SSR issues
@@ -407,134 +398,128 @@ export function DeliveryZonesManager({
   }, [isDialogOpen, editingZone, tenantId, formData]);
 
   return (
-    <div className="space-y-6">
-      {/* Header with Add Button */}
+    <div className="space-y-3">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Define delivery areas where your store can deliver. Customers
-            outside these zones won&apos;t be able to place orders.
-          </p>
-        </div>
-        <Button onClick={handleCreateNew}>
-          <Plus className="mr-2 h-4 w-4" />
+        <p className="text-sm text-muted-foreground">
+          {zones.length} zone{zones.length !== 1 ? "s" : ""}
+        </p>
+        <Button onClick={handleCreateNew} size="sm" variant="outline">
+          <Plus className="mr-1.5 h-4 w-4" />
           Add Zone
         </Button>
       </div>
 
       {/* Map Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Delivery Coverage</CardTitle>
-          <CardDescription>
-            Your current delivery zones displayed on the map
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeliveryZoneMap zones={zones} editingZone={null} isEditing={false} />
-        </CardContent>
-      </Card>
+      <div className="rounded-lg border overflow-hidden">
+        <DeliveryZoneMap zones={zones} editingZone={null} isEditing={false} />
+      </div>
 
       {/* Zones List */}
       {zones.length === 0 ? (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            You haven&apos;t created any delivery zones yet. Add a zone to
-            define where you can deliver.
-          </AlertDescription>
-        </Alert>
+        <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted mb-2">
+            <MapPin className="size-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            No delivery zones yet. Add a zone to define where you deliver.
+          </p>
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {zones.map((zone) => (
-            <Card key={zone.id} className={!zone.isActive ? "opacity-60" : ""}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  {/* Color indicator */}
-                  <div
-                    className="w-4 h-4 rounded-full shrink-0"
-                    style={{ backgroundColor: zone.color || "#3b82f6" }}
-                  />
+            <div
+              key={zone.id}
+              className={cn(
+                "flex items-center gap-3 rounded-md border p-2.5 transition-colors hover:bg-muted/30",
+                !zone.isActive && "opacity-50"
+              )}
+            >
+              {/* Color indicator */}
+              <div
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: zone.color || "#3b82f6" }}
+              />
 
-                  {/* Zone info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium truncate">{zone.name}</h3>
-                      {!zone.isActive && (
-                        <Badge variant="secondary" className="text-xs">
-                          Inactive
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1">
-                        <CircleDot className="h-3 w-3" />
-                        {formatRadius(zone.radiusMeters || 0)}
-                      </span>
-                      <span>
-                        {parseFloat(zone.deliveryFee) === 0
-                          ? "Free delivery"
-                          : `${formatPrice(parseFloat(zone.deliveryFee), currency)} fee`}
-                      </span>
-                      {zone.minOrderAmount && (
-                        <span>
-                          Min:{" "}
-                          {formatPrice(
-                            parseFloat(zone.minOrderAmount),
-                            currency
-                          )}
-                        </span>
-                      )}
-                      {zone.freeShippingThreshold && (
-                        <span className="text-green-600">
-                          Free above{" "}
-                          {formatPrice(
-                            parseFloat(zone.freeShippingThreshold),
-                            currency
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleToggleStatus(zone)}
-                      disabled={isPending}
-                      title={zone.isActive ? "Deactivate" : "Activate"}
+              {/* Zone info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-sm truncate">
+                    {zone.name}
+                  </span>
+                  {!zone.isActive && (
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] px-1 py-0"
                     >
-                      {zone.isActive ? (
-                        <ToggleRight className="h-4 w-4" />
-                      ) : (
-                        <ToggleLeft className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(zone)}
-                      disabled={isPending}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setDeletingZone(zone);
-                        setIsDeleteDialogOpen(true);
-                      }}
-                      disabled={isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                      Off
+                    </Badge>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                  <span className="flex items-center gap-0.5">
+                    <CircleDot className="h-3 w-3" />
+                    {formatRadius(zone.radiusMeters || 0)}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {parseFloat(zone.deliveryFee) === 0
+                      ? "Free"
+                      : formatPrice(parseFloat(zone.deliveryFee), currency)}
+                  </span>
+                  {zone.freeShippingThreshold && (
+                    <>
+                      <span>•</span>
+                      <span className="text-green-600">
+                        Free over{" "}
+                        {formatPrice(
+                          parseFloat(zone.freeShippingThreshold),
+                          currency
+                        )}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => handleToggleStatus(zone)}
+                  disabled={isPending}
+                >
+                  {zone.isActive ? (
+                    <ToggleRight className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <ToggleLeft className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => handleEdit(zone)}
+                  disabled={isPending}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => {
+                    setDeletingZone(zone);
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  disabled={isPending}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              </div>
+            </div>
           ))}
         </div>
       )}

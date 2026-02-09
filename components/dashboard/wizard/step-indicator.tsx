@@ -5,11 +5,11 @@ import { Check, Layers, Store, Palette, Settings, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const steps = [
-  { id: 0, title: "Store Type", icon: Layers },
-  { id: 1, title: "Basic Info", icon: Store },
-  { id: 2, title: "Branding", icon: Palette },
-  { id: 3, title: "Contact", icon: Settings },
-  { id: 4, title: "Location", icon: MapPin },
+  { id: 0, title: "Store Type", icon: Layers, optional: false },
+  { id: 1, title: "Basic Info", icon: Store, optional: false },
+  { id: 2, title: "Branding", icon: Palette, optional: true },
+  { id: 3, title: "Contact", icon: Settings, optional: true },
+  { id: 4, title: "Location", icon: MapPin, optional: true },
 ];
 
 interface StepIndicatorProps {
@@ -28,22 +28,15 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
           <div key={step.id} className="flex items-center">
             <motion.div
               initial={false}
-              animate={{
-                scale: isActive ? 1.1 : 1,
-                backgroundColor: isActive
-                  ? "hsl(var(--primary))"
-                  : isCompleted
-                    ? "hsl(var(--primary))"
-                    : "hsl(var(--muted))",
-              }}
+              animate={{ scale: isActive ? 1.1 : 1 }}
               transition={{ duration: 0.2 }}
               className={cn(
                 "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors",
                 isActive
-                  ? "border-primary text-primary-foreground"
+                  ? "border-primary bg-primary text-primary-foreground"
                   : isCompleted
-                    ? "border-primary text-primary-foreground"
-                    : "border-muted-foreground/30 text-muted-foreground"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30 bg-muted text-muted-foreground"
               )}
             >
               {isCompleted ? (
@@ -52,7 +45,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: "spring", stiffness: 500, damping: 25 }}
                 >
-                  <Check className="h-5 w-5" />
+                  <Check className="h-5 w-5" strokeWidth={3} />
                 </motion.div>
               ) : (
                 <Icon className="h-5 w-5" />
@@ -77,6 +70,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
 }
 
 export function StepTitle({ currentStep }: { currentStep: number }) {
+  const step = steps[currentStep];
   return (
     <motion.div
       key={currentStep}
@@ -86,7 +80,12 @@ export function StepTitle({ currentStep }: { currentStep: number }) {
       className="text-center"
     >
       <h2 className="text-lg font-semibold">
-        Step {currentStep + 1}: {steps[currentStep].title}
+        Step {currentStep + 1}: {step.title}
+        {step.optional && (
+          <span className="text-muted-foreground font-normal text-sm ml-2">
+            (Optional)
+          </span>
+        )}
       </h2>
     </motion.div>
   );

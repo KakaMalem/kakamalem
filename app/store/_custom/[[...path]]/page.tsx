@@ -300,7 +300,11 @@ export default async function CustomDomainPage({
           />
 
           {!isCartDisabled && (
-            <CartDrawer storeSlug={slug} currency={store.currency} />
+            <CartDrawer
+              storeSlug={slug}
+              currency={store.currency}
+              tenantId={store.id}
+            />
           )}
 
           {showWhatsAppButton && whatsappNumber && (

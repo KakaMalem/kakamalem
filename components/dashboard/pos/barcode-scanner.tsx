@@ -230,6 +230,28 @@ export function BarcodeScanner({
         } catch {
           setTorchSupported(false);
         }
+
+        // Fix for Xiaomi/MIUI black screen: ensure video element has proper attributes
+        // The html5-qrcode library creates a video element that may not have all
+        // necessary attributes for proper rendering on some Android devices
+        setTimeout(() => {
+          const container = document.getElementById(
+            "barcode-scanner-container"
+          );
+          const videoElement = container?.querySelector("video");
+          if (videoElement) {
+            // Required for inline playback on iOS and some Android devices
+            videoElement.setAttribute("playsinline", "true");
+            videoElement.setAttribute("webkit-playsinline", "true");
+            // Prevent controls from showing
+            videoElement.setAttribute("disablepictureinpicture", "true");
+            // Force a repaint on problematic devices
+            videoElement.style.display = "none";
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+            videoElement.offsetHeight; // Trigger reflow
+            videoElement.style.display = "block";
+          }
+        }, 100);
       } catch (e) {
         console.error("Scanner error:", e);
         setError(
@@ -429,6 +451,40 @@ export function BarcodeScanner({
         }
         .animate-scan {
           animation: scan 2s ease-in-out infinite;
+        }
+
+        /* Fix for Xiaomi/MIUI black screen issue */
+        #barcode-scanner-container {
+          /* Force GPU rendering */
+          -webkit-transform: translateZ(0);
+          transform: translateZ(0);
+          -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
+          will-change: transform;
+        }
+
+        #barcode-scanner-container video {
+          /* Force video to be visible on problematic devices */
+          opacity: 1 !important;
+          visibility: visible !important;
+          -webkit-transform: translateZ(0) !important;
+          transform: translateZ(0) !important;
+          /* Proper sizing */
+          object-fit: cover !important;
+          width: 100% !important;
+          height: 100% !important;
+          /* Force hardware acceleration */
+          -webkit-backface-visibility: hidden !important;
+          backface-visibility: hidden !important;
+          /* Ensure it's not hidden by parent */
+          position: relative !important;
+          z-index: 1 !important;
+        }
+
+        /* Ensure canvas overlay doesn't block video on some devices */
+        #barcode-scanner-container canvas {
+          -webkit-transform: translateZ(0);
+          transform: translateZ(0);
         }
       `}</style>
     </Dialog>

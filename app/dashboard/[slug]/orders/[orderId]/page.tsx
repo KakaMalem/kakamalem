@@ -4,6 +4,8 @@ import Image from "next/image";
 import { ArrowLeft, Package, MapPin, Phone } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getDashboardOrderById } from "@/lib/db/queries/orders";
+import { getRefundsByOrderId } from "@/lib/db/queries/refunds";
+import { canManageStore, hasMinimumRole } from "@/lib/auth/context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +20,7 @@ import { OrderQuickActions } from "@/components/dashboard/orders/order-quick-act
 import { OrderShippingAdjustment } from "@/components/dashboard/orders/order-shipping-adjustment";
 import { OrderTotalAdjustment } from "@/components/dashboard/orders/order-total-adjustment";
 import { AutoPrintTrigger } from "@/components/dashboard/orders/auto-print-trigger";
+import { OrderRefundsSection } from "@/components/dashboard/orders/order-refunds-section";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
@@ -40,6 +43,18 @@ export default async function OrderDetailPage({
   if (!order) {
     notFound();
   }
+
+  // Fetch refunds and permissions in parallel
+  const [refundsData, canManage, isAdmin] = await Promise.all([
+    getRefundsByOrderId(orderId),
+    canManageStore(store.id),
+    hasMinimumRole(store.id, "admin"),
+  ]);
+
+  // Check if order is eligible for refund (has received payment)
+  const amountPaid = parseFloat(order.totalPaid || "0");
+  const amountRefunded = parseFloat(order.amountRefunded || "0");
+  const canRefund = canManage && amountPaid > amountRefunded;
 
   const formatPrice = (price: string) => {
     return `${parseFloat(price).toLocaleString()} ${store.currency}`;
@@ -226,6 +241,28 @@ export default async function OrderDetailPage({
             tenantId={store.id}
             initialNotes={order.staffNotes || ""}
           />
+
+          {/* Refunds Section */}
+          <OrderRefundsSection
+            tenantId={store.id}
+            orderId={order.id}
+            orderNumber={order.orderNumber}
+            currency={store.currency}
+            items={order.items.map((item) => ({
+              id: item.id,
+              productName: item.productName,
+              variantName: item.variantName,
+              quantity: item.quantity,
+              quantityRefunded: item.quantityRefunded || 0,
+              price: item.price,
+              subtotal: item.subtotal,
+            }))}
+            refunds={refundsData}
+            amountPaid={amountPaid}
+            amountRefunded={amountRefunded}
+            canRefund={canRefund}
+            canManage={isAdmin}
+          />
         </div>
 
         {/* Sidebar - 1 column on lg */}
@@ -320,7 +357,10 @@ export default async function OrderDetailPage({
                     <DeliveryLocationMapWrapper
                       latitude={order.shippingAddress.latitude}
                       longitude={order.shippingAddress.longitude}
-                      customerName={`${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`}
+                      customerName={
+                        `${order.shippingAddress.firstName || ""} ${order.shippingAddress.lastName || ""}`.trim() ||
+                        order.customerSnapshot.name
+                      }
                     />
                   </>
                 )}

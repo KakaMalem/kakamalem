@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import type { DeliveryZone } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 
 interface OutOfZoneMapProps {
   userAddress: {
     latitude: number;
     longitude: number;
   };
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
   className?: string;
 }
 
@@ -72,26 +72,72 @@ export function OutOfZoneMap({
     const bounds: [number, number][] = [];
 
     // Draw delivery zones first (so they're below markers)
-    // Sort by radius (largest first) so smaller zones render on top
+    // Sort by specificity: polygons first, then radius (largest to smallest)
     const activeZones = deliveryZones.filter((z) => z.isActive);
-    const sortedZones = [...activeZones].sort(
-      (a, b) => (b.radiusMeters ?? 0) - (a.radiusMeters ?? 0)
-    );
+    const sortedZones = [...activeZones].sort((a, b) => {
+      if (a.zoneType === "polygon" && b.zoneType !== "polygon") return 1;
+      if (a.zoneType !== "polygon" && b.zoneType === "polygon") return -1;
+      return (b.radiusMeters ?? 0) - (a.radiusMeters ?? 0);
+    });
 
     sortedZones.forEach((zone) => {
-      if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let layer: any = null;
 
-      const centerLat = parseFloat(zone.centerLat);
-      const centerLng = parseFloat(zone.centerLng);
+      // Render radius zones
+      if (
+        zone.zoneType === "radius" ||
+        (!zone.zoneType &&
+          zone.centerLat &&
+          zone.centerLng &&
+          zone.radiusMeters)
+      ) {
+        if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
 
-      const circle = L.circle([centerLat, centerLng], {
-        radius: zone.radiusMeters,
-        color: zone.color || "#22c55e",
-        fillColor: zone.color || "#22c55e",
-        fillOpacity: 0.15,
-        weight: 2,
-        dashArray: "5, 5",
-      }).addTo(map);
+        const centerLat = parseFloat(zone.centerLat);
+        const centerLng = parseFloat(zone.centerLng);
+
+        layer = L.circle([centerLat, centerLng], {
+          radius: zone.radiusMeters,
+          color: zone.color || "#22c55e",
+          fillColor: zone.color || "#22c55e",
+          fillOpacity: 0.15,
+          weight: 2,
+          dashArray: "5, 5",
+        }).addTo(map);
+
+        bounds.push([centerLat, centerLng]);
+      }
+
+      // Render polygon zones
+      if (zone.zoneType === "polygon" && zone.polygonGeojson) {
+        try {
+          const geojson = zone.polygonGeojson as {
+            type: string;
+            coordinates: [number, number][][];
+          };
+          if (geojson.type === "Polygon" && geojson.coordinates?.[0]) {
+            // GeoJSON uses [lng, lat], Leaflet uses [lat, lng]
+            const latLngs = geojson.coordinates[0].map(
+              (c) => [c[1], c[0]] as [number, number]
+            );
+            layer = L.polygon(latLngs, {
+              color: zone.color || "#22c55e",
+              fillColor: zone.color || "#22c55e",
+              fillOpacity: 0.15,
+              weight: 2,
+              dashArray: "5, 5",
+            }).addTo(map);
+
+            // Add polygon vertices to bounds
+            latLngs.forEach((coord) => bounds.push(coord));
+          }
+        } catch {
+          // Invalid polygon, skip
+        }
+      }
+
+      if (!layer) return;
 
       // Add tooltip with zone name and price
       const fee = parseFloat(zone.deliveryFee || "0");
@@ -102,13 +148,11 @@ export function OutOfZoneMap({
         tooltipContent += `<span>${fee.toLocaleString()} AFN</span>`;
       }
 
-      circle.bindTooltip(tooltipContent, {
+      layer.bindTooltip(tooltipContent, {
         permanent: false,
         direction: "center",
         className: "zone-price-tooltip",
       });
-
-      bounds.push([centerLat, centerLng]);
     });
 
     // Add user's address marker (with red X icon)
@@ -213,7 +257,7 @@ export function OutOfZoneMap({
             </div>
           </div>
         ) : (
-          <div ref={mapRef} className="h-56 w-full" />
+          <div ref={mapRef} className="h-56 w-full map-wrapper" />
         )}
 
         {/* Legend */}

@@ -26,6 +26,8 @@ export interface LocationData {
   accuracy?: number;
   source: "gps" | "manual";
   plusCode: string;
+  // Reverse geocoded city name (for shipping zone matching)
+  city?: string;
   // Location history for accuracy analysis
   locationHistory?: {
     gps?: {
@@ -38,17 +40,20 @@ export interface LocationData {
   };
 }
 
-// Simplified delivery zone type for display purposes
+// Simplified delivery zone type for display purposes (compatible with CheckoutDeliveryZone)
 interface DeliveryZoneDisplay {
   id: string;
   name: string;
+  zoneType?: "radius" | "polygon" | "country" | "worldwide";
   centerLat: string | null;
   centerLng: string | null;
   radiusMeters: number | null;
+  polygonGeojson?: unknown | null;
   color: string | null;
   deliveryFee?: string | null;
   freeShippingThreshold?: string | null;
   estimatedDeliveryTime?: string | null;
+  isActive?: boolean;
 }
 
 interface LocationPickerProps {
@@ -77,6 +82,32 @@ interface ZoneCheckResult {
   zoneName?: string;
   deliveryFee?: string | null;
   freeShippingThreshold?: string | null;
+  isWorldwide?: boolean;
+}
+
+/**
+ * Check if a point is inside a polygon using ray casting algorithm
+ */
+function isPointInPolygon(
+  lat: number,
+  lng: number,
+  coordinates: [number, number][]
+): boolean {
+  let inside = false;
+  for (let i = 0, j = coordinates.length - 1; i < coordinates.length; j = i++) {
+    const xi = coordinates[i][0];
+    const yi = coordinates[i][1];
+    const xj = coordinates[j][0];
+    const yj = coordinates[j][1];
+
+    if (
+      yi > lng !== yj > lng &&
+      lat < ((xj - xi) * (lng - yi)) / (yj - yi) + xi
+    ) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
 function isPointInDeliveryZones(
@@ -84,39 +115,100 @@ function isPointInDeliveryZones(
   lng: number,
   zones: DeliveryZoneDisplay[]
 ): ZoneCheckResult {
-  // Sort by radius (smallest first) to return the most specific zone
-  const sortedZones = [...zones].sort(
-    (a, b) => (a.radiusMeters ?? 0) - (b.radiusMeters ?? 0)
-  );
+  // If no zones configured, allow anywhere
+  if (zones.length === 0) {
+    return { inZone: true, isWorldwide: true };
+  }
 
-  for (const zone of sortedZones) {
-    if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) continue;
+  // Check specific zones first
+  for (const zone of zones) {
+    if (zone.isActive === false) continue;
 
-    const centerLat = parseFloat(zone.centerLat);
-    const centerLng = parseFloat(zone.centerLng);
-
-    // Haversine distance calculation
-    const R = 6371000; // Earth's radius in meters
-    const dLat = ((lat - centerLat) * Math.PI) / 180;
-    const dLng = ((lng - centerLng) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((centerLat * Math.PI) / 180) *
-        Math.cos((lat * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-
-    if (distance <= zone.radiusMeters) {
+    // Worldwide zone matches everything
+    if (zone.zoneType === "worldwide") {
       return {
         inZone: true,
         zoneName: zone.name,
         deliveryFee: zone.deliveryFee,
         freeShippingThreshold: zone.freeShippingThreshold,
+        isWorldwide: true,
       };
     }
+
+    // Radius zone check
+    if (
+      zone.zoneType === "radius" ||
+      (!zone.zoneType && zone.centerLat && zone.centerLng && zone.radiusMeters)
+    ) {
+      if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) continue;
+
+      const centerLat = parseFloat(zone.centerLat);
+      const centerLng = parseFloat(zone.centerLng);
+
+      // Haversine distance calculation
+      const R = 6371000; // Earth's radius in meters
+      const dLat = ((lat - centerLat) * Math.PI) / 180;
+      const dLng = ((lng - centerLng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((centerLat * Math.PI) / 180) *
+          Math.cos((lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = R * c;
+
+      if (distance <= zone.radiusMeters) {
+        return {
+          inZone: true,
+          zoneName: zone.name,
+          deliveryFee: zone.deliveryFee,
+          freeShippingThreshold: zone.freeShippingThreshold,
+        };
+      }
+    }
+
+    // Polygon zone check
+    if (zone.zoneType === "polygon" && zone.polygonGeojson) {
+      try {
+        const geojson = zone.polygonGeojson as {
+          type: string;
+          coordinates: [number, number][][];
+        };
+        if (geojson.type === "Polygon" && geojson.coordinates?.[0]) {
+          // GeoJSON uses [lng, lat] order, convert to [lat, lng] for our function
+          const coords = geojson.coordinates[0].map(
+            (c) => [c[1], c[0]] as [number, number]
+          );
+          if (isPointInPolygon(lat, lng, coords)) {
+            return {
+              inZone: true,
+              zoneName: zone.name,
+              deliveryFee: zone.deliveryFee,
+              freeShippingThreshold: zone.freeShippingThreshold,
+            };
+          }
+        }
+      } catch {
+        // Invalid polygon, skip
+      }
+    }
   }
+
+  // Check if there's a worldwide fallback
+  const worldwideZone = zones.find(
+    (z) => z.zoneType === "worldwide" && z.isActive !== false
+  );
+  if (worldwideZone) {
+    return {
+      inZone: true,
+      zoneName: worldwideZone.name,
+      deliveryFee: worldwideZone.deliveryFee,
+      freeShippingThreshold: worldwideZone.freeShippingThreshold,
+      isWorldwide: true,
+    };
+  }
+
   return { inZone: false };
 }
 
@@ -488,32 +580,62 @@ export function LocationPicker({
     [searchLocations]
   );
 
-  // Fetch city name for Plus Code display
-  const fetchCityName = useCallback(async (lat: number, lng: number) => {
-    setIsFetchingCity(true);
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&accept-language=en`,
-        { headers: { "User-Agent": "KakaMalem/1.0 (delivery-platform)" } }
-      );
+  // Store current location data for city update callback
+  const currentLocationRef = useRef<{
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    source: "gps" | "manual";
+    plusCode: string;
+    locationHistory: typeof locationHistory;
+  } | null>(null);
 
-      if (response.ok) {
-        const data = await response.json();
-        const address = data.address;
-        setCityName(
-          address?.city ||
+  // Fetch city name for Plus Code display AND shipping zone matching
+  const fetchCityName = useCallback(
+    async (lat: number, lng: number) => {
+      setIsFetchingCity(true);
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10&accept-language=en`,
+          { headers: { "User-Agent": "KakaMalem/1.0 (delivery-platform)" } }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const address = data.address;
+          const city =
+            address?.city ||
             address?.town ||
             address?.village ||
             address?.municipality ||
-            null
-        );
+            null;
+          setCityName(city);
+
+          // Update parent with city data for shipping zone matching
+          if (city && currentLocationRef.current) {
+            const loc = currentLocationRef.current;
+            // Only update if this is still the current location
+            if (loc.lat === lat && loc.lng === lng) {
+              onChange({
+                latitude: loc.lat,
+                longitude: loc.lng,
+                accuracy: loc.accuracy,
+                source: loc.source,
+                plusCode: loc.plusCode,
+                city,
+                locationHistory: loc.locationHistory,
+              });
+            }
+          }
+        }
+      } catch {
+        // Silently fail
+      } finally {
+        setIsFetchingCity(false);
       }
-    } catch {
-      // Silently fail
-    } finally {
-      setIsFetchingCity(false);
-    }
-  }, []);
+    },
+    [onChange]
+  );
 
   // Handle location selection (auto-confirm)
   const handleLocationSelect = useCallback(
@@ -542,11 +664,19 @@ export function LocationPicker({
         setZoneStatus(status);
       }
 
-      // Fetch city name
-      fetchCityName(lat, lng);
-
-      // Auto-confirm - call onChange immediately
+      // Auto-confirm - call onChange immediately (without city initially)
       const plusCode = computePlusCode(lat, lng);
+
+      // Store current location for city update callback
+      currentLocationRef.current = {
+        lat,
+        lng,
+        accuracy,
+        source,
+        plusCode,
+        locationHistory: newHistory,
+      };
+
       onChange({
         latitude: lat,
         longitude: lng,
@@ -555,6 +685,9 @@ export function LocationPicker({
         plusCode,
         locationHistory: newHistory,
       });
+
+      // Fetch city name (will call onChange again with city once fetched)
+      fetchCityName(lat, lng);
     },
     [locationHistory, hasDeliveryZones, deliveryZones, fetchCityName, onChange]
   );
@@ -614,19 +747,64 @@ export function LocationPicker({
       initialCenter = [initialValue.latitude, initialValue.longitude];
       initialZoom = 16;
     } else if (deliveryZones.length > 0) {
-      const firstZone = deliveryZones.find((z) => z.centerLat && z.centerLng);
-      if (firstZone && firstZone.centerLat && firstZone.centerLng) {
+      // Try to find a zone with center coordinates (radius zones)
+      const radiusZone = deliveryZones.find(
+        (z) => z.zoneType === "radius" && z.centerLat && z.centerLng
+      );
+      // Or try to find a polygon zone
+      const polygonZone = deliveryZones.find(
+        (z) => z.zoneType === "polygon" && z.polygonGeojson
+      );
+
+      if (radiusZone && radiusZone.centerLat && radiusZone.centerLng) {
         initialCenter = [
-          parseFloat(firstZone.centerLat),
-          parseFloat(firstZone.centerLng),
+          parseFloat(radiusZone.centerLat),
+          parseFloat(radiusZone.centerLng),
         ];
-        const radius = firstZone.radiusMeters || 3000;
+        const radius = radiusZone.radiusMeters || 3000;
         if (radius > 10000) initialZoom = 11;
         else if (radius > 5000) initialZoom = 12;
         else if (radius > 2000) initialZoom = 13;
+      } else if (polygonZone && polygonZone.polygonGeojson) {
+        // Get center of polygon from first coordinate
+        try {
+          const geojson = polygonZone.polygonGeojson as {
+            type: string;
+            coordinates: [number, number][][];
+          };
+          if (geojson.type === "Polygon" && geojson.coordinates?.[0]?.[0]) {
+            // Calculate centroid from first few vertices
+            const coords = geojson.coordinates[0];
+            const sumLat = coords.reduce((sum, c) => sum + c[1], 0);
+            const sumLng = coords.reduce((sum, c) => sum + c[0], 0);
+            initialCenter = [sumLat / coords.length, sumLng / coords.length];
+            initialZoom = 13;
+          } else {
+            initialCenter = [34.5553, 69.2075]; // Kabul
+            initialZoom = 12;
+          }
+        } catch {
+          initialCenter = [34.5553, 69.2075]; // Kabul
+          initialZoom = 12;
+        }
       } else {
-        initialCenter = [34.5553, 69.2075]; // Kabul
-        initialZoom = 12;
+        // Fallback to legacy zones with centerLat/centerLng
+        const legacyZone = deliveryZones.find(
+          (z) => z.centerLat && z.centerLng
+        );
+        if (legacyZone && legacyZone.centerLat && legacyZone.centerLng) {
+          initialCenter = [
+            parseFloat(legacyZone.centerLat),
+            parseFloat(legacyZone.centerLng),
+          ];
+          const radius = legacyZone.radiusMeters || 3000;
+          if (radius > 10000) initialZoom = 11;
+          else if (radius > 5000) initialZoom = 12;
+          else if (radius > 2000) initialZoom = 13;
+        } else {
+          initialCenter = [34.5553, 69.2075]; // Kabul
+          initialZoom = 12;
+        }
       }
     } else {
       initialCenter = [34.5553, 69.2075];
@@ -646,26 +824,73 @@ export function LocationPicker({
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
 
-    // Draw delivery zones - sort by radius (largest first) so smaller zones render on top
+    // Draw delivery zones - sort by specificity: polygons first, then radius (largest to smallest)
     zoneCirclesRef.current = [];
-    const sortedZones = [...deliveryZones].sort(
-      (a, b) => (b.radiusMeters ?? 0) - (a.radiusMeters ?? 0)
-    );
+    const sortedZones = [...deliveryZones]
+      .filter((z) => z.isActive !== false)
+      .sort((a, b) => {
+        // Polygon zones first
+        if (a.zoneType === "polygon" && b.zoneType !== "polygon") return 1;
+        if (a.zoneType !== "polygon" && b.zoneType === "polygon") return -1;
+        // Then by radius (largest first)
+        return (b.radiusMeters ?? 0) - (a.radiusMeters ?? 0);
+      });
 
     sortedZones.forEach((zone) => {
-      if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let layer: any = null;
 
-      const circle = L.circle(
-        [parseFloat(zone.centerLat), parseFloat(zone.centerLng)],
-        {
-          radius: zone.radiusMeters,
-          color: zone.color || "#3b82f6",
-          fillColor: zone.color || "#3b82f6",
-          fillOpacity: 0.12,
-          weight: 2,
-          dashArray: "5, 5",
+      // Render radius zones as circles
+      if (
+        zone.zoneType === "radius" ||
+        (!zone.zoneType &&
+          zone.centerLat &&
+          zone.centerLng &&
+          zone.radiusMeters)
+      ) {
+        if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
+
+        layer = L.circle(
+          [parseFloat(zone.centerLat), parseFloat(zone.centerLng)],
+          {
+            radius: zone.radiusMeters,
+            color: zone.color || "#3b82f6",
+            fillColor: zone.color || "#3b82f6",
+            fillOpacity: 0.12,
+            weight: 2,
+            dashArray: "5, 5",
+          }
+        ).addTo(map);
+      }
+
+      // Render polygon zones
+      if (zone.zoneType === "polygon" && zone.polygonGeojson) {
+        try {
+          const geojson = zone.polygonGeojson as {
+            type: string;
+            coordinates: [number, number][][];
+          };
+          if (geojson.type === "Polygon" && geojson.coordinates?.[0]) {
+            // GeoJSON uses [lng, lat], Leaflet uses [lat, lng]
+            const latLngs = geojson.coordinates[0].map(
+              (c) => [c[1], c[0]] as [number, number]
+            );
+            layer = L.polygon(latLngs, {
+              color: zone.color || "#3b82f6",
+              fillColor: zone.color || "#3b82f6",
+              fillOpacity: 0.12,
+              weight: 2,
+              dashArray: "5, 5",
+            }).addTo(map);
+          }
+        } catch {
+          // Invalid polygon, skip
         }
-      ).addTo(map);
+      }
+
+      if (!layer) return;
+
+      // Continue with tooltip (replaces the old circle variable)
 
       // Build tooltip with zone name and delivery price
       const fee = parseFloat(zone.deliveryFee || "0");
@@ -691,13 +916,13 @@ export function LocationPicker({
 
       tooltipContent += `</div>`;
 
-      circle.bindTooltip(tooltipContent, {
+      layer.bindTooltip(tooltipContent, {
         permanent: false,
         direction: "center",
         className: "zone-price-tooltip",
       });
 
-      zoneCirclesRef.current.push(circle);
+      zoneCirclesRef.current.push(layer);
     });
 
     // Add custom tooltip styles
@@ -724,7 +949,7 @@ export function LocationPicker({
           border: none !important;
         }
         .store-tooltip {
-          background: #8b5cf6 !important;
+          background: #ca8a04 !important;
           color: white !important;
           border: none !important;
           border-radius: 6px !important;
@@ -733,13 +958,13 @@ export function LocationPicker({
           font-weight: 500 !important;
         }
         .store-tooltip::before {
-          border-top-color: #8b5cf6 !important;
+          border-top-color: #ca8a04 !important;
         }
       `;
       document.head.appendChild(tooltipStyle);
     }
 
-    // Add store location marker if available
+    // Add store location marker if available (gold/yellow for stores)
     if (storeLocation) {
       const storeIcon = L.divIcon({
         className: "custom-store-marker",
@@ -747,7 +972,7 @@ export function LocationPicker({
           <div style="
             width: 32px;
             height: 32px;
-            background: #8b5cf6;
+            background: #ca8a04;
             border: 2px solid #fff;
             border-radius: 50%;
             display: flex;
@@ -1061,7 +1286,7 @@ export function LocationPicker({
             {/* Map - Responsive height: 288px mobile, 320px sm, 360px md/iPad, 400px lg+ */}
             <div
               ref={mapRef}
-              className="h-72 sm:h-80 md:h-96 lg:h-105 w-full"
+              className="h-72 sm:h-80 md:h-96 lg:h-105 w-full map-wrapper"
             />
 
             {/* Bottom Controls - improved spacing and touch targets */}

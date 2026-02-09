@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { Loader2, AlertTriangle, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
-import type { DeliveryZone } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 
 interface SavedAddress {
   id: string;
@@ -20,7 +20,7 @@ interface SavedAddress {
 
 interface AddressesMapPreviewProps {
   addresses: SavedAddress[];
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
   selectedAddressId: string | null;
   onAddressClick?: (addressId: string) => void;
   className?: string;
@@ -32,50 +32,121 @@ interface AddressZoneStatus {
   addressId: string;
   inZone: boolean;
   zoneName?: string;
-  deliveryFee?: string;
-  freeShippingThreshold?: string;
+  deliveryFee?: string | null;
+  freeShippingThreshold?: string | null;
 }
 
-// Check if a point is within any delivery zone (reusing logic from location-picker)
+/**
+ * Check if a point is inside a polygon using ray casting algorithm
+ */
+function isPointInPolygon(
+  lat: number,
+  lng: number,
+  coordinates: [number, number][]
+): boolean {
+  let inside = false;
+  for (let i = 0, j = coordinates.length - 1; i < coordinates.length; j = i++) {
+    const xi = coordinates[i][0];
+    const yi = coordinates[i][1];
+    const xj = coordinates[j][0];
+    const yj = coordinates[j][1];
+
+    if (
+      yi > lng !== yj > lng &&
+      lat < ((xj - xi) * (lng - yi)) / (yj - yi) + xi
+    ) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Check if a point is within any delivery zone
+ * Supports radius zones, polygon zones, and worldwide zones
+ */
 function checkAddressInZones(
   lat: number,
   lng: number,
-  zones: DeliveryZone[]
-): { inZone: boolean; zone?: DeliveryZone } {
-  // Sort by display order (smaller zones checked first)
-  const sortedZones = [...zones].sort(
-    (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
-  );
+  zones: CheckoutDeliveryZone[]
+): { inZone: boolean; zone?: CheckoutDeliveryZone; isWorldwide?: boolean } {
+  // If no zones configured, allow anywhere
+  if (zones.length === 0) {
+    return { inZone: true, isWorldwide: true };
+  }
 
-  for (const zone of sortedZones) {
-    if (
-      !zone.centerLat ||
-      !zone.centerLng ||
-      !zone.radiusMeters ||
-      !zone.isActive
-    )
+  // Check specific zones first (radius and polygon), then worldwide
+  for (const zone of zones) {
+    if (!zone.isActive) continue;
+
+    // Worldwide zone matches everything
+    if (zone.zoneType === "worldwide") {
+      return { inZone: true, zone, isWorldwide: true };
+    }
+
+    // Radius zone check
+    if (zone.zoneType === "radius") {
+      if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) continue;
+
+      const centerLat = parseFloat(zone.centerLat);
+      const centerLng = parseFloat(zone.centerLng);
+
+      // Haversine distance calculation
+      const R = 6371000; // Earth's radius in meters
+      const dLat = ((lat - centerLat) * Math.PI) / 180;
+      const dLng = ((lng - centerLng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((centerLat * Math.PI) / 180) *
+          Math.cos((lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = R * c;
+
+      if (distance <= zone.radiusMeters) {
+        return { inZone: true, zone };
+      }
+    }
+
+    // Polygon zone check
+    if (zone.zoneType === "polygon" && zone.polygonGeojson) {
+      try {
+        const geojson = zone.polygonGeojson as {
+          type: string;
+          coordinates: [number, number][][];
+        };
+        if (geojson.type === "Polygon" && geojson.coordinates?.[0]) {
+          // GeoJSON uses [lng, lat] order, but our isPointInPolygon expects [lat, lng]
+          const coords = geojson.coordinates[0].map(
+            (c) => [c[1], c[0]] as [number, number]
+          );
+          if (isPointInPolygon(lat, lng, coords)) {
+            return { inZone: true, zone };
+          }
+        }
+      } catch {
+        // Invalid polygon, skip
+      }
+    }
+
+    // Country zone - for now, we can't verify without reverse geocoding
+    // The shipping calculation will handle this server-side
+    if (zone.zoneType === "country") {
+      // We'll mark as "in zone" and let server-side validation confirm
+      // This provides a better UX than blocking the address selection
       continue;
-
-    const centerLat = parseFloat(zone.centerLat);
-    const centerLng = parseFloat(zone.centerLng);
-
-    // Haversine distance calculation
-    const R = 6371000; // Earth's radius in meters
-    const dLat = ((lat - centerLat) * Math.PI) / 180;
-    const dLng = ((lng - centerLng) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((centerLat * Math.PI) / 180) *
-        Math.cos((lat * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-
-    if (distance <= zone.radiusMeters) {
-      return { inZone: true, zone };
     }
   }
+
+  // Check if there's a worldwide fallback
+  const worldwideZone = zones.find(
+    (z) => z.zoneType === "worldwide" && z.isActive
+  );
+  if (worldwideZone) {
+    return { inZone: true, zone: worldwideZone, isWorldwide: true };
+  }
+
   return { inZone: false };
 }
 
@@ -167,25 +238,65 @@ export function AddressesMapPreview({
     zoneCirclesRef.current = [];
     const activeZones = deliveryZones.filter((z) => z.isActive);
 
-    // Sort by radius (largest first) so smaller zones render on top
-    const sortedZones = [...activeZones].sort(
-      (a, b) => (b.radiusMeters ?? 0) - (a.radiusMeters ?? 0)
-    );
+    // Sort by specificity: polygons first, then radius (largest to smallest)
+    // This ensures more specific zones render on top
+    const sortedZones = [...activeZones].sort((a, b) => {
+      // Polygon zones first
+      if (a.zoneType === "polygon" && b.zoneType !== "polygon") return 1;
+      if (a.zoneType !== "polygon" && b.zoneType === "polygon") return -1;
+      // Then by radius (largest first)
+      return (b.radiusMeters ?? 0) - (a.radiusMeters ?? 0);
+    });
 
     sortedZones.forEach((zone) => {
-      if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let layer: any = null;
 
-      const circle = L.circle(
-        [parseFloat(zone.centerLat), parseFloat(zone.centerLng)],
-        {
-          radius: zone.radiusMeters,
-          color: zone.color || "#3b82f6",
-          fillColor: zone.color || "#3b82f6",
-          fillOpacity: 0.12,
-          weight: 2,
-          dashArray: "5, 5",
+      // Render radius zones as circles
+      if (zone.zoneType === "radius") {
+        if (!zone.centerLat || !zone.centerLng || !zone.radiusMeters) return;
+
+        layer = L.circle(
+          [parseFloat(zone.centerLat), parseFloat(zone.centerLng)],
+          {
+            radius: zone.radiusMeters,
+            color: zone.color || "#3b82f6",
+            fillColor: zone.color || "#3b82f6",
+            fillOpacity: 0.12,
+            weight: 2,
+            dashArray: "5, 5",
+          }
+        ).addTo(map);
+      }
+
+      // Render polygon zones
+      if (zone.zoneType === "polygon" && zone.polygonGeojson) {
+        try {
+          const geojson = zone.polygonGeojson as {
+            type: string;
+            coordinates: [number, number][][];
+          };
+          if (geojson.type === "Polygon" && geojson.coordinates?.[0]) {
+            // GeoJSON uses [lng, lat], Leaflet uses [lat, lng]
+            const latLngs = geojson.coordinates[0].map(
+              (c) => [c[1], c[0]] as [number, number]
+            );
+            layer = L.polygon(latLngs, {
+              color: zone.color || "#3b82f6",
+              fillColor: zone.color || "#3b82f6",
+              fillOpacity: 0.12,
+              weight: 2,
+              dashArray: "5, 5",
+            }).addTo(map);
+          }
+        } catch {
+          // Invalid polygon, skip
         }
-      ).addTo(map);
+      }
+
+      if (!layer) return;
+
+      // Common zone styling: Add tooltip
 
       // Add tooltip with zone name and delivery price
       const fee = parseFloat(zone.deliveryFee || "0");
@@ -211,13 +322,13 @@ export function AddressesMapPreview({
 
       tooltipContent += `</div>`;
 
-      circle.bindTooltip(tooltipContent, {
+      layer.bindTooltip(tooltipContent, {
         permanent: false,
         direction: "center",
         className: "zone-price-tooltip",
       });
 
-      zoneCirclesRef.current.push(circle);
+      zoneCirclesRef.current.push(layer);
     });
 
     // Create custom home icon for addresses
@@ -294,14 +405,29 @@ export function AddressesMapPreview({
       bounds.push([lat, lng]);
     });
 
-    // Add zone centers to bounds calculation
+    // Add zone centers/polygon bounds to bounds calculation
     activeZones.forEach((zone) => {
-      if (zone.centerLat && zone.centerLng) {
+      if (zone.zoneType === "radius" && zone.centerLat && zone.centerLng) {
         bounds.push([parseFloat(zone.centerLat), parseFloat(zone.centerLng)]);
+      } else if (zone.zoneType === "polygon" && zone.polygonGeojson) {
+        try {
+          const geojson = zone.polygonGeojson as {
+            type: string;
+            coordinates: [number, number][][];
+          };
+          if (geojson.type === "Polygon" && geojson.coordinates?.[0]) {
+            // Add all polygon vertices to bounds
+            geojson.coordinates[0].forEach((c) => {
+              bounds.push([c[1], c[0]]); // [lat, lng]
+            });
+          }
+        } catch {
+          // Invalid polygon, skip
+        }
       }
     });
 
-    // Add store location marker if available
+    // Add store location marker if available (gold/yellow for stores)
     if (storeLocation) {
       const storeIcon = L.divIcon({
         className: "custom-store-marker",
@@ -309,7 +435,7 @@ export function AddressesMapPreview({
           <div style="
             width: 32px;
             height: 32px;
-            background: #8b5cf6;
+            background: #ca8a04;
             border: 2px solid #fff;
             border-radius: 50%;
             display: flex;
@@ -378,7 +504,7 @@ export function AddressesMapPreview({
         border: none !important;
       }
       .store-tooltip {
-        background: #8b5cf6 !important;
+        background: #ca8a04 !important;
         color: white !important;
         border: none !important;
         border-radius: 6px !important;
@@ -387,7 +513,7 @@ export function AddressesMapPreview({
         font-weight: 500 !important;
       }
       .store-tooltip::before {
-        border-top-color: #8b5cf6 !important;
+        border-top-color: #ca8a04 !important;
       }
       .address-popup {
         min-width: 150px;
@@ -505,7 +631,7 @@ export function AddressesMapPreview({
             </div>
           </div>
         ) : (
-          <div ref={mapRef} className="h-48 sm:h-56 w-full" />
+          <div ref={mapRef} className="h-48 sm:h-56 w-full map-wrapper" />
         )}
 
         {/* Legend */}

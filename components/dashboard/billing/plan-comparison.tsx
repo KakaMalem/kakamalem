@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Crown, Zap, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Crown, Zap } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -12,12 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SubscriptionOverview } from "@/lib/db/queries/billing";
-import { initiateProUpgrade } from "@/lib/actions/subscriptions";
 
 interface PlanComparisonProps {
   subscription: SubscriptionOverview;
   currency: string;
   tenantId: string;
+  storeSlug: string;
 }
 
 function formatPrice(price: string | number): string {
@@ -39,10 +39,10 @@ const INCLUDED_FEATURES = [
 export function PlanComparison({
   subscription,
   currency,
-  tenantId,
+  tenantId: _tenantId,
+  storeSlug,
 }: PlanComparisonProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const isPro = subscription.plan === "pro";
   const showUpgrade =
@@ -51,24 +51,9 @@ export function PlanComparison({
       subscription.status === "expired" ||
       subscription.status === "active");
 
-  const handleUpgrade = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const result = await initiateProUpgrade(tenantId);
-
-      if (result.success && result.paymentUrl) {
-        // Redirect to HesabPay payment page
-        window.location.href = result.paymentUrl;
-      } else {
-        setError(result.error || "Failed to start upgrade");
-      }
-    } catch (_err) {
-      setError("An unexpected error occurred");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleUpgrade = () => {
+    // Navigate to upgrade page for payment method selection
+    router.push(`/dashboard/${storeSlug}/billing/upgrade`);
   };
 
   return (
@@ -78,13 +63,6 @@ export function PlanComparison({
         <CardDescription>Simple pricing. Upgrade anytime.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Error Alert */}
-        {error && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
         {/* Plan Cards - Stack on mobile, side by side on tablet+, constrained on desktop */}
         <div className="grid gap-3 sm:grid-cols-2 sm:max-w-xl">
           {/* Free Plan */}
@@ -201,23 +179,9 @@ export function PlanComparison({
             </ul>
 
             {showUpgrade && (
-              <Button
-                size="sm"
-                className="mt-4 w-full"
-                onClick={handleUpgrade}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Crown className="mr-1.5 size-3.5" />
-                    Upgrade to Pro
-                  </>
-                )}
+              <Button size="sm" className="mt-4 w-full" onClick={handleUpgrade}>
+                <Crown className="mr-1.5 size-3.5" />
+                Upgrade to Pro
               </Button>
             )}
             {isPro && (

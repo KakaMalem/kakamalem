@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { ZodError } from "zod";
 import { getUser } from "@/lib/auth/server";
 import {
@@ -22,6 +23,17 @@ import {
 } from "@/lib/db/queries/tenants";
 import { canAddStore } from "@/lib/db/queries/billing";
 import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
+import { db } from "@/lib/db";
+import {
+  platformAffiliates,
+  platformAffiliateReferrals,
+  platformAffiliateClicks,
+} from "@/lib/db/schema";
+import { eq, and, sql } from "drizzle-orm";
+import {
+  AFFILIATE_COOKIE_NAME,
+  VISITOR_ID_COOKIE_NAME,
+} from "@/lib/affiliate/tracking";
 
 export type StoreActionError = {
   message: string;
@@ -36,6 +48,99 @@ export type StoreActionResult = {
   faviconUrl?: string;
   ogImageUrl?: string;
 };
+
+/**
+ * Track affiliate referral when a new store is created
+ * Checks for affiliate cookie and creates referral record if found
+ */
+async function trackAffiliateReferral(tenantId: string): Promise<void> {
+  try {
+    const cookieStore = await cookies();
+    const affiliateSlug = cookieStore.get(AFFILIATE_COOKIE_NAME)?.value;
+    const visitorId = cookieStore.get(VISITOR_ID_COOKIE_NAME)?.value;
+
+    if (!affiliateSlug) {
+      return; // No affiliate cookie, nothing to track
+    }
+
+    // Find the affiliate by slug
+    const affiliate = await db.query.platformAffiliates.findFirst({
+      where: and(
+        eq(platformAffiliates.slug, affiliateSlug.toLowerCase()),
+        eq(platformAffiliates.status, "approved")
+      ),
+      columns: {
+        id: true,
+        currentCommissionRate: true,
+      },
+    });
+
+    if (!affiliate) {
+      return; // Affiliate not found or not approved
+    }
+
+    // Check if referral already exists for this tenant (prevent duplicates)
+    const existingReferral =
+      await db.query.platformAffiliateReferrals.findFirst({
+        where: eq(platformAffiliateReferrals.tenantId, tenantId),
+        columns: { id: true },
+      });
+
+    if (existingReferral) {
+      return; // Referral already exists
+    }
+
+    // Find the click record to link (if visitor ID exists)
+    let clickId: string | null = null;
+    if (visitorId) {
+      const click = await db.query.platformAffiliateClicks.findFirst({
+        where: and(
+          eq(platformAffiliateClicks.affiliateId, affiliate.id),
+          eq(platformAffiliateClicks.visitorId, visitorId),
+          eq(platformAffiliateClicks.converted, false)
+        ),
+        columns: { id: true },
+        orderBy: (clicks, { desc }) => [desc(clicks.clickedAt)],
+      });
+      clickId = click?.id ?? null;
+    }
+
+    // Create the referral record
+    await db.insert(platformAffiliateReferrals).values({
+      affiliateId: affiliate.id,
+      tenantId: tenantId,
+      clickId: clickId,
+      commissionRate: affiliate.currentCommissionRate.toString(),
+      status: "trial", // New stores start in trial
+    });
+
+    // Update the click to mark as converted (if we found one)
+    if (clickId) {
+      await db
+        .update(platformAffiliateClicks)
+        .set({
+          converted: true,
+          convertedAt: new Date().toISOString(),
+        })
+        .where(eq(platformAffiliateClicks.id, clickId));
+    }
+
+    // Increment affiliate's total signups
+    await db
+      .update(platformAffiliates)
+      .set({
+        totalSignups: sql`${platformAffiliates.totalSignups} + 1`,
+      })
+      .where(eq(platformAffiliates.id, affiliate.id));
+
+    console.log(
+      `[Affiliate] Referral created: affiliate=${affiliateSlug}, tenant=${tenantId}`
+    );
+  } catch (error) {
+    // Log but don't fail store creation if affiliate tracking fails
+    console.error("[Affiliate] Failed to track referral:", error);
+  }
+}
 
 /**
  * Helper to upload a branding image to local storage
@@ -159,6 +264,9 @@ export async function createStore(
       };
     }
 
+    // Track affiliate referral (if user came from affiliate link)
+    await trackAffiliateReferral(newStore.id);
+
     revalidatePath("/dashboard", "layout");
     return { success: true, storeId: newStore.id };
   } catch {
@@ -241,6 +349,9 @@ export async function createStoreWithLogo(
         error: { message: "Failed to create store. Please try again." },
       };
     }
+
+    // Track affiliate referral (if user came from affiliate link)
+    await trackAffiliateReferral(newStore.id);
 
     // Upload logo if provided
     let logoUrl: string | null = null;
@@ -866,6 +977,7 @@ export async function updateDeliveryMode(
 /**
  * Update delivery zones enabled setting
  * When enabled, customers must be within a configured delivery zone to place orders
+ * @deprecated Use updateFulfillmentSettings instead for the additive model
  */
 export async function updateDeliveryZonesEnabled(
   storeId: string,
@@ -896,6 +1008,69 @@ export async function updateDeliveryZonesEnabled(
     return {
       error: {
         message: "Failed to update delivery zone settings. Please try again.",
+      },
+    };
+  }
+}
+
+/**
+ * Fulfillment settings input type
+ */
+export type FulfillmentSettingsInput = {
+  enableDeliveryZones: boolean;
+  enableShipping: boolean;
+};
+
+/**
+ * Update fulfillment settings (additive model)
+ * Both local delivery zones and shipping can be enabled simultaneously
+ * - enableDeliveryZones: GPS-based delivery for local customers
+ * - enableShipping: Shipping rates for remote customers
+ */
+export async function updateFulfillmentSettings(
+  storeId: string,
+  storeSlug: string,
+  settings: FulfillmentSettingsInput
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  // Validate that at least one fulfillment method is enabled
+  if (!settings.enableDeliveryZones && !settings.enableShipping) {
+    return {
+      error: {
+        message:
+          "At least one fulfillment method must be enabled. Enable either Local Delivery, Shipping, or both.",
+      },
+    };
+  }
+
+  try {
+    await updateTenant(storeId, {
+      enableDeliveryZones: settings.enableDeliveryZones,
+      enableShipping: settings.enableShipping,
+    });
+
+    // Revalidate relevant pages
+    revalidatePath(`/dashboard/${storeSlug}/settings/delivery`, "page");
+    revalidatePath(`/store/${storeSlug}`, "layout");
+    revalidatePath(`/store/${storeSlug}/checkout`, "page");
+
+    return { success: true };
+  } catch {
+    return {
+      error: {
+        message: "Failed to update fulfillment settings. Please try again.",
       },
     };
   }

@@ -120,6 +120,13 @@ export async function addPayoutMethod(
           additionalInfo: data.additionalInfo,
         };
         break;
+      case "crypto":
+        insertValues = {
+          ...baseValues,
+          walletAddress: data.walletAddress,
+          additionalInfo: { network: data.network }, // Store network in additionalInfo
+        };
+        break;
       default:
         insertValues = baseValues;
     }
@@ -570,6 +577,152 @@ export async function updatePayoutSettings(
       success: false,
       error:
         error instanceof Error ? error.message : "Failed to update settings",
+    };
+  }
+}
+
+// =============================================================================
+// INTERNAL EARNINGS FUNCTIONS (called from webhooks)
+// =============================================================================
+
+/**
+ * Credit seller earnings when an order is paid
+ *
+ * This is called from payment webhooks (HesabPay, Stripe) when an order payment
+ * is confirmed. The amount goes to pending balance first, then becomes available
+ * after the holding period.
+ *
+ * @param tenantId - The store's tenant ID
+ * @param orderId - The order ID
+ * @param orderNumber - The order number for description
+ * @param amount - The amount to credit (typically the order total)
+ * @param currency - The currency code (default: AFN)
+ * @param gateway - The payment gateway used (for description)
+ */
+export async function creditSellerEarnings(
+  tenantId: string,
+  orderId: string,
+  orderNumber: string,
+  amount: number,
+  currency: string = "AFN",
+  gateway?: string
+): Promise<ActionResult> {
+  try {
+    // Get or create seller balance
+    const balance = await getSellerBalance(tenantId);
+
+    // Calculate new balances
+    const currentPending = parseFloat(balance.pending);
+    const newPending = currentPending + amount;
+
+    // Update balance
+    await db
+      .update(sellerBalances)
+      .set({
+        pending: newPending.toString(),
+        lifetimeEarnings: (
+          parseFloat(balance.lifetimeEarnings) + amount
+        ).toString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(sellerBalances.tenantId, tenantId));
+
+    // Create transaction record
+    await db.insert(sellerTransactions).values({
+      tenantId,
+      type: "sale",
+      amount: amount.toString(),
+      currency,
+      availableAfter: balance.available, // Available stays the same
+      pendingAfter: newPending.toString(),
+      reservedAfter: balance.reserved,
+      orderId,
+      description: `Sale from order ${orderNumber}${gateway ? ` via ${gateway}` : ""}`,
+    });
+
+    console.log(
+      `[creditSellerEarnings] Credited ${amount} ${currency} to tenant ${tenantId} for order ${orderNumber}`
+    );
+
+    return { success: true };
+  } catch (error) {
+    console.error("[creditSellerEarnings] Error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to credit earnings",
+    };
+  }
+}
+
+/**
+ * Debit seller earnings for a refund
+ *
+ * This is called when an order is refunded. The amount is deducted from
+ * available balance (if sufficient) or pending balance.
+ */
+export async function debitSellerEarningsForRefund(
+  tenantId: string,
+  orderId: string,
+  orderNumber: string,
+  amount: number,
+  currency: string = "AFN"
+): Promise<ActionResult> {
+  try {
+    // Get seller balance
+    const balance = await getSellerBalance(tenantId);
+
+    const currentAvailable = parseFloat(balance.available);
+    const currentPending = parseFloat(balance.pending);
+
+    // Deduct from available first, then pending
+    let newAvailable = currentAvailable;
+    let newPending = currentPending;
+
+    if (amount <= currentAvailable) {
+      // Deduct entirely from available
+      newAvailable = currentAvailable - amount;
+    } else {
+      // Deduct available first, then pending
+      const remainingToDeduct = amount - currentAvailable;
+      newAvailable = 0;
+      newPending = Math.max(0, currentPending - remainingToDeduct);
+    }
+
+    // Update balance
+    await db
+      .update(sellerBalances)
+      .set({
+        available: newAvailable.toString(),
+        pending: newPending.toString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(sellerBalances.tenantId, tenantId));
+
+    // Create transaction record
+    await db.insert(sellerTransactions).values({
+      tenantId,
+      type: "refund",
+      amount: (-amount).toString(), // Negative for refund
+      currency,
+      availableAfter: newAvailable.toString(),
+      pendingAfter: newPending.toString(),
+      reservedAfter: balance.reserved,
+      orderId,
+      description: `Refund for order ${orderNumber}`,
+    });
+
+    console.log(
+      `[debitSellerEarningsForRefund] Debited ${amount} ${currency} from tenant ${tenantId} for order ${orderNumber}`
+    );
+
+    return { success: true };
+  } catch (error) {
+    console.error("[debitSellerEarningsForRefund] Error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to debit earnings",
     };
   }
 }

@@ -2,11 +2,15 @@
 
 import { useMemo } from "react";
 import Image from "next/image";
-import { Package, Tag } from "lucide-react";
+import { Package, Tag, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice } from "@/lib/utils";
 import { useCheckoutTotals } from "@/lib/stores/use-checkout-store";
+import {
+  useCartCampaignDiscounts,
+  calculateDiscountedPrice,
+} from "@/lib/hooks/use-campaign-discounts";
 import type { Cart, CartPriceTier } from "@/lib/db/queries/carts";
 
 /**
@@ -37,25 +41,62 @@ function getApplicableTierPrice(
 interface CheckoutSummaryProps {
   cart: Cart;
   currency: string;
+  tenantId?: string;
 }
 
-export function CheckoutSummary({ cart, currency }: CheckoutSummaryProps) {
+export function CheckoutSummary({
+  cart,
+  currency,
+  tenantId,
+}: CheckoutSummaryProps) {
   const { subtotal, shippingTotal, taxTotal, total } = useCheckoutTotals();
 
-  // Calculate total savings from tier pricing
-  const totalSavings = useMemo(() => {
-    return cart.items.reduce((savings, item) => {
-      const basePrice = item.variant?.price
+  // Fetch campaign discounts
+  const { discountsMap } = useCartCampaignDiscounts(
+    tenantId || null,
+    cart.items
+  );
+
+  // Calculate totals with both campaign and tier discounts
+  const { originalSubtotal, campaignSavings, tierSavings } = useMemo(() => {
+    let originalSubtotal = 0;
+    let campaignSavings = 0;
+    let tierSavings = 0;
+
+    for (const item of cart.items) {
+      const originalPrice = item.variant?.price
         ? parseFloat(item.variant.price)
         : parseFloat(item.product.price);
+
+      originalSubtotal += originalPrice * item.quantity;
+
+      // Apply campaign discount
+      const campaignDiscount = discountsMap.get(item.product.id);
+      const afterCampaignPrice = calculateDiscountedPrice(
+        originalPrice,
+        campaignDiscount || null
+      );
+
+      if (campaignDiscount && afterCampaignPrice < originalPrice) {
+        campaignSavings += (originalPrice - afterCampaignPrice) * item.quantity;
+      }
+
+      // Apply tier discount (on top of campaign price)
       const effectivePrice = getApplicableTierPrice(
-        basePrice,
+        afterCampaignPrice,
         item.quantity,
         item.product.priceTiers || []
       );
-      return savings + (basePrice - effectivePrice) * item.quantity;
-    }, 0);
-  }, [cart.items]);
+
+      if (effectivePrice < afterCampaignPrice) {
+        tierSavings += (afterCampaignPrice - effectivePrice) * item.quantity;
+      }
+    }
+
+    return { originalSubtotal, campaignSavings, tierSavings };
+  }, [cart.items, discountsMap]);
+
+  const totalSavings = campaignSavings + tierSavings;
 
   return (
     <Card className="sticky top-4">
@@ -66,15 +107,25 @@ export function CheckoutSummary({ cart, currency }: CheckoutSummaryProps) {
         {/* Items */}
         <div className="space-y-3 max-h-64 overflow-y-auto">
           {cart.items.map((item) => {
-            const basePrice = item.variant?.price
+            const originalPrice = item.variant?.price
               ? parseFloat(item.variant.price)
               : parseFloat(item.product.price);
+
+            // Apply campaign discount first
+            const campaignDiscount = discountsMap.get(item.product.id);
+            const afterCampaignPrice = calculateDiscountedPrice(
+              originalPrice,
+              campaignDiscount || null
+            );
+
+            // Then apply tier discount
             const effectivePrice = getApplicableTierPrice(
-              basePrice,
+              afterCampaignPrice,
               item.quantity,
               item.product.priceTiers || []
             );
-            const hasTierDiscount = effectivePrice < basePrice;
+
+            const hasDiscount = effectivePrice < originalPrice;
 
             return (
               <div key={item.id} className="flex gap-3">
@@ -118,19 +169,19 @@ export function CheckoutSummary({ cart, currency }: CheckoutSummaryProps) {
                     </p>
                   )}
                   <div className="text-sm text-muted-foreground">
-                    {hasTierDiscount ? (
+                    {hasDiscount ? (
                       <span>
                         <span className="text-green-600">
                           {formatPrice(effectivePrice, currency)}
                         </span>{" "}
                         <span className="line-through text-xs">
-                          {formatPrice(basePrice, currency)}
+                          {formatPrice(originalPrice, currency)}
                         </span>{" "}
                         &times; {item.quantity}
                       </span>
                     ) : (
                       <span>
-                        {formatPrice(basePrice, currency)} &times;{" "}
+                        {formatPrice(originalPrice, currency)} &times;{" "}
                         {item.quantity}
                       </span>
                     )}
@@ -152,16 +203,34 @@ export function CheckoutSummary({ cart, currency }: CheckoutSummaryProps) {
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatPrice(subtotal, currency)}</span>
+            <span>
+              {totalSavings > 0 ? (
+                <span className="line-through text-muted-foreground">
+                  {formatPrice(originalSubtotal, currency)}
+                </span>
+              ) : (
+                formatPrice(subtotal, currency)
+              )}
+            </span>
           </div>
 
-          {totalSavings > 0 && (
+          {campaignSavings > 0 && (
+            <div className="flex items-center justify-between text-red-600">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                Sale discounts
+              </span>
+              <span>-{formatPrice(campaignSavings, currency)}</span>
+            </div>
+          )}
+
+          {tierSavings > 0 && (
             <div className="flex items-center justify-between text-green-600">
               <span className="flex items-center gap-1.5">
                 <Tag className="h-3.5 w-3.5" />
                 Bulk discounts
               </span>
-              <span>-{formatPrice(totalSavings, currency)}</span>
+              <span>-{formatPrice(tierSavings, currency)}</span>
             </div>
           )}
 

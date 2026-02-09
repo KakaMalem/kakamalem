@@ -17,8 +17,17 @@
 
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { paymentGatewayConfigs, paymentSessions } from "@/lib/db/schema";
-import type { PaymentGateway, PaymentGatewayConfig } from "@/lib/db/schema";
+import {
+  paymentGatewayConfigs,
+  paymentSessions,
+  cryptoPayments,
+} from "@/lib/db/schema";
+import type {
+  PaymentGateway,
+  PaymentGatewayConfig,
+  UsdtWalletConfig,
+  CryptoNetwork,
+} from "@/lib/db/schema";
 import type {
   PaymentGatewayProvider,
   CreatePaymentSessionParams,
@@ -32,6 +41,8 @@ import type {
   EnabledGateway,
 } from "./types";
 import { hesabPayClient } from "./hesabpay";
+import { stripeClient } from "./stripe";
+import { cryptoUsdtClient } from "./crypto";
 
 // =============================================================================
 // GATEWAY REGISTRY
@@ -44,9 +55,8 @@ const gatewayProviders: Partial<
   Record<PaymentGateway, PaymentGatewayProvider>
 > = {
   hesabpay: hesabPayClient,
-  // Future gateways:
-  // stripe: stripeClient,
-  // paytabs: paytabsClient,
+  stripe: stripeClient,
+  crypto_usdt: cryptoUsdtClient,
 };
 
 // =============================================================================
@@ -157,17 +167,18 @@ function getDefaultDisplayName(gateway: PaymentGateway): string {
     cod: "Cash on Delivery",
     bank_transfer: "Bank Transfer",
     mobile_money: "Mobile Money",
+    crypto_usdt: "Pay with USDT",
   };
   return names[gateway] || gateway;
 }
 
 /**
- * Get platform-level credentials for HesabPay (escrow model)
- * All payments go to the platform's HesabPay account
+ * Get platform-level credentials for payment gateways (escrow model)
+ * All payments go to the platform's accounts (HesabPay, Stripe)
  */
-function getPlatformCredentials(
+async function getPlatformCredentials(
   gateway: PaymentGateway
-): GatewayCredentials | null {
+): Promise<GatewayCredentials | null> {
   if (gateway === "hesabpay") {
     const apiKey = process.env.HESABPAY_API_KEY;
     if (!apiKey) {
@@ -183,6 +194,55 @@ function getPlatformCredentials(
       // No separate webhook secret is needed
     };
   }
+
+  if (gateway === "stripe") {
+    // Stripe uses environment variables directly via lib/stripe
+    // Just return a placeholder to indicate it's configured
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    if (!secretKey) {
+      console.error(
+        "[Payment] STRIPE_SECRET_KEY not configured in environment"
+      );
+      return null;
+    }
+
+    return {
+      secretKey,
+      isLive: process.env.NODE_ENV === "production",
+    };
+  }
+
+  if (gateway === "crypto_usdt") {
+    // Get wallet config from platform settings
+    const settings = await db.query.platformSettings.findFirst();
+    const walletConfig = settings?.usdtWalletConfig as UsdtWalletConfig | null;
+
+    if (!walletConfig) {
+      console.error(
+        "[Payment] USDT wallet config not configured in platform settings"
+      );
+      return null;
+    }
+
+    // Check if at least one network is enabled
+    const hasEnabled =
+      walletConfig.trc20?.enabled ||
+      walletConfig.erc20?.enabled ||
+      walletConfig.bep20?.enabled;
+
+    if (!hasEnabled) {
+      console.error("[Payment] No USDT networks enabled in platform settings");
+      return null;
+    }
+
+    return {
+      isLive: process.env.NODE_ENV === "production",
+      settings: {
+        walletConfig,
+      },
+    };
+  }
+
   return null;
 }
 
@@ -207,16 +267,25 @@ export async function createPaymentSession(
     return handleNonApiGateway(gateway, params);
   }
 
-  // Get credentials - use platform credentials for HesabPay (escrow model)
+  // Get credentials - use platform credentials for HesabPay, Stripe, and Crypto (escrow model)
   let credentials: GatewayCredentials | null = null;
 
-  if (gateway === "hesabpay") {
+  if (
+    gateway === "hesabpay" ||
+    gateway === "stripe" ||
+    gateway === "crypto_usdt"
+  ) {
     // Use platform-level credentials for escrow
-    credentials = getPlatformCredentials(gateway);
+    credentials = await getPlatformCredentials(gateway);
     if (!credentials) {
+      const gatewayNames: Record<string, string> = {
+        hesabpay: "HesabPay",
+        stripe: "Stripe",
+        crypto_usdt: "USDT Payment",
+      };
       return {
         success: false,
-        error: "HesabPay is not configured. Please contact support.",
+        error: `${gatewayNames[gateway] || gateway} is not configured. Please contact support.`,
       };
     }
   } else {
@@ -260,6 +329,51 @@ export async function createPaymentSession(
       expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
     })
     .returning();
+
+  // For crypto payments, create the crypto payment record and return crypto payment page URL
+  if (gateway === "crypto_usdt" && result.gatewayResponse) {
+    const cryptoData = result.gatewayResponse as {
+      network: CryptoNetwork;
+      walletAddress: string;
+      expectedAmount: number;
+      exchangeRate: number;
+      originalAmountAfn: number;
+      expiresAt: string;
+      qrCodeData: string;
+    };
+
+    // Create the crypto payment record
+    // Note: orderId is tracked via paymentSessions, not duplicated here
+    const [cryptoPayment] = await db
+      .insert(cryptoPayments)
+      .values({
+        paymentSessionId: paymentSession.id,
+        tenantId: params.tenantId,
+        purpose: "order",
+        network: cryptoData.network,
+        walletAddress: cryptoData.walletAddress,
+        expectedAmount: cryptoData.expectedAmount.toString(),
+        exchangeRate: cryptoData.exchangeRate.toString(),
+        originalAmountAfn: cryptoData.originalAmountAfn.toString(),
+        status: "pending",
+        expiresAt: cryptoData.expiresAt,
+      })
+      .returning();
+
+    // Generate crypto payment page URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+    const cryptoPaymentUrl = `${baseUrl}/store/${params.metadata?.storeSlug}/checkout/crypto-payment?session=${paymentSession.id}`;
+
+    return {
+      ...result,
+      paymentUrl: cryptoPaymentUrl,
+      paymentSessionId: paymentSession.id,
+      gatewayResponse: {
+        ...result.gatewayResponse,
+        cryptoPaymentId: cryptoPayment.id,
+      },
+    };
+  }
 
   return {
     ...result,
@@ -330,17 +444,26 @@ export async function verifyPayment(
     return verifyNonApiPayment(params.sessionId);
   }
 
-  // Get credentials - use platform credentials for HesabPay
+  // Get credentials - use platform credentials for HesabPay, Stripe, and Crypto
   let credentials: GatewayCredentials | null = null;
 
-  if (gateway === "hesabpay") {
-    credentials = getPlatformCredentials(gateway);
+  if (
+    gateway === "hesabpay" ||
+    gateway === "stripe" ||
+    gateway === "crypto_usdt"
+  ) {
+    credentials = await getPlatformCredentials(gateway);
     if (!credentials) {
+      const gatewayNames: Record<string, string> = {
+        hesabpay: "HesabPay",
+        stripe: "Stripe",
+        crypto_usdt: "USDT Payment",
+      };
       return {
         success: false,
         paid: false,
         status: "failed",
-        error: "HesabPay is not configured",
+        error: `${gatewayNames[gateway] || gateway} is not configured`,
       };
     }
   } else {
@@ -435,15 +558,16 @@ export async function processRefund(
     };
   }
 
-  // Get credentials - use platform credentials for HesabPay
+  // Get credentials - use platform credentials for HesabPay and Stripe
   let credentials: GatewayCredentials | null = null;
 
-  if (gateway === "hesabpay") {
-    credentials = getPlatformCredentials(gateway);
+  if (gateway === "hesabpay" || gateway === "stripe") {
+    credentials = await getPlatformCredentials(gateway);
     if (!credentials) {
+      const gatewayName = gateway === "hesabpay" ? "HesabPay" : "Stripe";
       return {
         success: false,
-        error: "HesabPay is not configured",
+        error: `${gatewayName} is not configured`,
       };
     }
   } else {

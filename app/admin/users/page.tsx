@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Table,
   TableBody,
@@ -152,9 +153,10 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
                           </span>
                         )}
                       </div>
-                      <span className="text-muted-foreground text-xs">
-                        {new Date(u.createdAt).toLocaleDateString()}
-                      </span>
+                      <RelativeTime
+                        date={u.createdAt}
+                        className="text-muted-foreground text-xs"
+                      />
                     </div>
                   </div>
                 ))}
@@ -229,7 +231,7 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {new Date(u.createdAt).toLocaleDateString()}
+                          <RelativeTime date={u.createdAt} />
                         </TableCell>
                         <TableCell className="text-right">
                           <Link href={`/admin/users/${u.id}`}>

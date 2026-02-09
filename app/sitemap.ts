@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { tenants } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
+// Force dynamic generation at request time (not build time)
+// This ensures database is available and sitemap is always fresh
+export const dynamic = "force-dynamic";
+
 /**
  * Main sitemap index for the platform
  * Includes platform pages and all active store homepages

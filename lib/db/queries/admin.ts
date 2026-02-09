@@ -274,11 +274,12 @@ export const getPlatformSettings = cache(async () => {
     return {
       id: null,
       proPlanPriceAfn: "1100",
+      proPlanYearlyPriceAfn: "11000",
       freeProductLimit: 20,
-      freeStoreLimit: 1,
       trialDurationDays: 7,
       transactionFeePercent: "0",
       trialWarningDays: 3,
+      usdtWalletConfig: null,
       updatedAt: null,
       updatedBy: null,
     };

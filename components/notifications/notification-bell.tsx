@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { Bell, Check, CheckCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,13 +25,13 @@ import {
 } from "@/lib/hooks/use-notification-sound";
 
 // Custom hook to detect client-side mounting (prevents hydration mismatch)
+const emptySubscribe = () => () => {};
 function useIsMounted() {
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsMounted(true);
-  }, []);
-  return isMounted;
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 }
 
 interface Notification {
@@ -61,11 +67,15 @@ export function NotificationBell({
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   // Track known notification IDs to detect new ones
   const knownNotificationIds = useRef<Set<string>>(new Set());
   const isInitialLoad = useRef(true);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Fetch notifications from API (for initial load and refresh)
   const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -79,22 +89,7 @@ export function NotificationBell({
         const data = await response.json();
         const newNotifications: Notification[] = data.notifications;
 
-        // Check for new unread notifications (not on initial load)
-        if (!isInitialLoad.current) {
-          for (const notification of newNotifications) {
-            // Play sound for new unread notifications we haven't seen
-            if (
-              !notification.readAt &&
-              !knownNotificationIds.current.has(notification.id)
-            ) {
-              const soundType = mapNotificationTypeToSound(notification.type);
-              playNotificationSound(soundType);
-              break; // Only play once per fetch cycle
-            }
-          }
-        }
-
-        // Update known IDs
+        // Update known IDs (for initial load, don't play sounds)
         knownNotificationIds.current = new Set(
           newNotifications.map((n) => n.id)
         );
@@ -110,21 +105,144 @@ export function NotificationBell({
     }
   }, [tenantId, context]);
 
-  // Fetch notifications when popover opens
+  // Handle incoming SSE notification
+  const handleSSENotification = useCallback(
+    (notification: Notification) => {
+      // Check if this notification matches our context filter
+      const ownerTypes = [
+        "new_order",
+        "order_cancelled",
+        "low_stock",
+        "new_review",
+      ];
+      const customerTypes = [
+        "order_confirmed",
+        "order_shipped",
+        "out_for_delivery",
+        "order_delivered",
+        "order_cancelled",
+        "back_in_stock",
+      ];
+
+      if (context === "owner" && !ownerTypes.includes(notification.type)) {
+        return;
+      }
+      if (
+        context === "customer" &&
+        !customerTypes.includes(notification.type)
+      ) {
+        return;
+      }
+
+      // Add to notifications list (at the beginning)
+      setNotifications((prev) => {
+        // Check if already exists
+        if (prev.some((n) => n.id === notification.id)) {
+          return prev;
+        }
+        return [notification, ...prev].slice(0, 20); // Keep max 20
+      });
+
+      // Increment unread count if not read
+      if (!notification.readAt) {
+        setUnreadCount((prev) => prev + 1);
+      }
+
+      // Play sound for new notification
+      if (!knownNotificationIds.current.has(notification.id)) {
+        const soundType = mapNotificationTypeToSound(notification.type);
+        playNotificationSound(soundType);
+        knownNotificationIds.current.add(notification.id);
+      }
+    },
+    [context]
+  );
+
+  // Setup SSE connection
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const connectSSE = () => {
+      // Build SSE URL
+      const params = new URLSearchParams();
+      if (tenantId) params.set("tenantId", tenantId);
+      const url = `/api/notifications/stream?${params}`;
+
+      // Close existing connection
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+
+      const eventSource = new EventSource(url);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        console.log("[SSE] Connected to notification stream");
+        setIsConnected(true);
+        // Clear any pending reconnect
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "connected") {
+            console.log("[SSE] Connection acknowledged:", data);
+            return;
+          }
+
+          if (data.type === "notification" && data.notification) {
+            handleSSENotification(data.notification);
+          }
+        } catch (error) {
+          console.error("[SSE] Failed to parse message:", error);
+        }
+      };
+
+      eventSource.onerror = () => {
+        console.log("[SSE] Connection error, will reconnect...");
+        setIsConnected(false);
+        eventSource.close();
+
+        // Reconnect after 5 seconds
+        if (!reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connectSSE();
+          }, 5000);
+        }
+      };
+    };
+
+    // Initial fetch
+    fetchNotifications();
+
+    // Connect to SSE
+    connectSSE();
+
+    // Cleanup
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+  }, [isMounted, tenantId, fetchNotifications, handleSSENotification]);
+
+  // Refresh notifications when popover opens
   useEffect(() => {
     if (isOpen) {
       fetchNotifications();
     }
   }, [isOpen, fetchNotifications]);
-
-  // Initial fetch and periodic refresh
-  useEffect(() => {
-    fetchNotifications();
-
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -239,6 +357,14 @@ export function NotificationBell({
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
+          {/* Connection indicator */}
+          <span
+            className={cn(
+              "absolute bottom-0 right-0 h-2 w-2 rounded-full border border-background",
+              isConnected ? "bg-green-500" : "bg-yellow-500"
+            )}
+            title={isConnected ? "Real-time connected" : "Reconnecting..."}
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent

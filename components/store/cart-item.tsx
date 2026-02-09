@@ -3,22 +3,28 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, Trash2, AlertCircle, Tag } from "lucide-react";
+import { Minus, Plus, Trash2, AlertCircle, Tag, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/utils";
 import { useCart, getApplicableTierPrice } from "@/lib/hooks/use-cart";
+import {
+  applyCampaignDiscount,
+  type CampaignDiscount,
+} from "@/lib/utils/pricing-display";
 
 import type { CartItem as CartItemType } from "@/lib/types/cart";
 
 interface CartItemProps {
   item: CartItemType;
   currency: string;
+  /** Optional campaign discount for this product */
+  campaignDiscount?: CampaignDiscount | null;
 }
 
-export function CartItem({ item, currency }: CartItemProps) {
+export function CartItem({ item, currency, campaignDiscount }: CartItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");
   // Local quantity is the single source of truth during user interaction
@@ -69,11 +75,19 @@ export function CartItem({ item, currency }: CartItemProps) {
     }
   }
 
-  const basePrice = item.variant?.price
+  const originalBasePrice = item.variant?.price
     ? parseFloat(item.variant.price)
     : parseFloat(item.product.price);
 
+  // Apply campaign discount to base price first (if applicable)
+  const basePrice = campaignDiscount
+    ? applyCampaignDiscount(originalBasePrice, campaignDiscount)
+    : originalBasePrice;
+
+  const hasCampaignDiscount = campaignDiscount && basePrice < originalBasePrice;
+
   // Calculate tier pricing using local quantity for responsive UI
+  // Tier pricing applies on top of campaign-discounted price
   const effectivePrice = useMemo(
     () =>
       getApplicableTierPrice(
@@ -85,8 +99,15 @@ export function CartItem({ item, currency }: CartItemProps) {
   );
 
   const hasTierDiscount = effectivePrice < basePrice;
-  const savingsPerUnit = hasTierDiscount ? basePrice - effectivePrice : 0;
-  const totalSavings = savingsPerUnit * localQuantity;
+  const tierSavingsPerUnit = hasTierDiscount ? basePrice - effectivePrice : 0;
+  const totalTierSavings = tierSavingsPerUnit * localQuantity;
+
+  // Total savings from all discounts
+  const campaignSavingsPerUnit = hasCampaignDiscount
+    ? originalBasePrice - basePrice
+    : 0;
+  const totalCampaignSavings = campaignSavingsPerUnit * localQuantity;
+  const totalSavings = totalTierSavings + totalCampaignSavings;
 
   const availableStock = item.variant ? item.variant.stock : item.product.stock;
   const trackInventory = item.product.trackInventory;
@@ -253,23 +274,32 @@ export function CartItem({ item, currency }: CartItemProps) {
             >
               {productName}
             </Link>
-            <div className="mt-1 flex items-center gap-2">
-              {hasTierDiscount ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {hasTierDiscount || hasCampaignDiscount ? (
                 <>
                   <span className="text-sm font-medium text-green-600">
                     {formatPrice(effectivePrice, currency)}
                   </span>
                   <span className="text-sm text-muted-foreground line-through">
-                    {formatPrice(basePrice, currency)}
+                    {formatPrice(originalBasePrice, currency)}
                   </span>
                   <span className="text-xs text-green-600">each</span>
                 </>
               ) : (
                 <span className="text-sm text-muted-foreground">
-                  {formatPrice(basePrice, currency)} each
+                  {formatPrice(effectivePrice, currency)} each
                 </span>
               )}
             </div>
+            {hasCampaignDiscount && (
+              <div className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                <Sparkles className="h-3 w-3" />
+                <span>
+                  {campaignDiscount?.badgeText ||
+                    `${campaignDiscount?.campaignName} applied`}
+                </span>
+              </div>
+            )}
             {hasTierDiscount && (
               <div className="mt-1 flex items-center gap-1 text-xs text-green-600">
                 <Tag className="h-3 w-3" />

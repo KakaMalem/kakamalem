@@ -37,26 +37,50 @@ import type { PaymentMethod } from "@/lib/db/schema";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import { checkDeliveryZone } from "@/lib/geo/delivery-zone-check";
 import { sendOrderNotificationToTenant } from "@/lib/push";
+import {
+  validateCouponAction,
+  recordCouponUsage,
+  createOrderDiscountRecord,
+} from "@/lib/actions/coupons";
+import type { CartItemForCoupon } from "@/lib/validations/coupons";
+import {
+  isUnifiedDeliveryEnabled,
+  getDeliveryOptions,
+} from "@/lib/actions/unified-delivery";
 
 // =============================================================================
 // DELIVERY SETTINGS HELPER
 // =============================================================================
 
 /**
- * Get the tenant's delivery zone settings
+ * Fulfillment settings for a tenant
+ */
+type TenantFulfillmentSettings = {
+  enableDeliveryZones: boolean;
+  enableShipping: boolean;
+};
+
+/**
+ * Get the tenant's fulfillment settings (delivery zones + shipping)
  * Uses direct SQL query to bypass any potential caching
  */
 async function getTenantDeliverySettings(
   tenantId: string
-): Promise<{ enableDeliveryZones: boolean }> {
+): Promise<TenantFulfillmentSettings> {
   // Use direct query to ensure fresh data (no Next.js data cache)
   const result = await db
-    .select({ enableDeliveryZones: tenants.enableDeliveryZones })
+    .select({
+      enableDeliveryZones: tenants.enableDeliveryZones,
+      enableShipping: tenants.enableShipping,
+    })
     .from(tenants)
     .where(eq(tenants.id, tenantId))
     .limit(1);
 
-  return { enableDeliveryZones: result[0]?.enableDeliveryZones ?? false };
+  return {
+    enableDeliveryZones: result[0]?.enableDeliveryZones ?? false,
+    enableShipping: result[0]?.enableShipping ?? true,
+  };
 }
 
 // =============================================================================
@@ -73,6 +97,7 @@ function mapGatewayToPaymentMethod(gateway: PaymentGateway): PaymentMethod {
     cod: "cash", // Cash on Delivery
     bank_transfer: "bank_transfer",
     mobile_money: "mobile_money",
+    crypto_usdt: "card", // Crypto USDT - treated as digital payment like card
   };
   return mapping[gateway] || "cash";
 }
@@ -123,6 +148,26 @@ export type CheckoutResult = {
   };
 };
 
+/**
+ * Fulfillment method type - distinguishes between local delivery and shipping
+ */
+export type FulfillmentMethodType = "local_delivery" | "shipping";
+
+/**
+ * Single fulfillment option (either local delivery zone or shipping method)
+ */
+export type FulfillmentMethod = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number; // Total price
+  basePrice?: number; // Base rate (without any discounts)
+  minDeliveryDays: number | null;
+  maxDeliveryDays: number | null;
+  type: FulfillmentMethodType; // Distinguishes local delivery from shipping
+  zoneId?: string; // For local delivery, the GPS zone ID
+};
+
 export type ShippingCalculationResult = {
   success: boolean;
   error?: { message: string };
@@ -133,15 +178,9 @@ export type ShippingCalculationResult = {
     } | null;
     deliveryZoneFee?: number; // Base delivery fee from GPS-based delivery zone
     deliveryZonesEnabled: boolean; // Whether GPS delivery zones are enabled for this store
-    methods: Array<{
-      id: string;
-      name: string;
-      description: string | null;
-      price: number; // Total price (delivery zone fee + method rate)
-      basePrice?: number; // Method-only rate (without delivery zone fee)
-      minDeliveryDays: number | null;
-      maxDeliveryDays: number | null;
-    }>;
+    shippingEnabled: boolean; // Whether shipping is enabled for this store
+    isWithinDeliveryZone: boolean; // Whether customer is within a GPS delivery zone
+    methods: FulfillmentMethod[];
   };
 };
 
@@ -232,8 +271,15 @@ export async function validateDeliveryZoneAction(
 // =============================================================================
 
 /**
- * Calculate available shipping methods for an address
- * Returns shipping methods with prices that include delivery zone base fee
+ * Calculate available fulfillment options for an address
+ * Supports dual-mode fulfillment: local delivery zones AND/OR shipping
+ *
+ * Logic:
+ * 1. If unified delivery system is enabled → use new unified zones
+ * 2. Otherwise, use legacy system:
+ *    - If local delivery enabled AND customer is within a zone → show local delivery option
+ *    - If shipping enabled → show shipping methods
+ * 3. Both can be shown simultaneously, allowing customer to choose
  */
 export async function calculateShippingAction(
   tenantId: string,
@@ -258,127 +304,137 @@ export async function calculateShippingAction(
       };
     }
 
-    // Get the tenant's delivery settings
-    const { enableDeliveryZones } = await getTenantDeliverySettings(tenantId);
+    const cart = cartValidation.cart;
 
-    // When delivery zones are enabled: Use GPS-based delivery zones
-    if (enableDeliveryZones) {
-      if (!address.latitude || !address.longitude) {
-        return {
-          success: false,
-          error: { message: "Location coordinates are required for delivery" },
-        };
-      }
+    // =========================================================================
+    // CHECK FOR UNIFIED DELIVERY SYSTEM (NEW)
+    // =========================================================================
+    const unifiedEnabled = await isUnifiedDeliveryEnabled(tenantId);
 
-      const zones = await getActiveDeliveryZones(tenantId);
-
-      // If no delivery zones configured, offer free delivery from anywhere
-      if (zones.length === 0) {
-        return {
-          success: true,
-          data: {
-            zone: null,
-            deliveryZoneFee: 0,
-            deliveryZonesEnabled: true,
-            methods: [
-              {
-                id: "free-delivery",
-                name: "Free Delivery",
-                description: "Standard delivery to your location",
-                price: 0,
-                basePrice: 0,
-                minDeliveryDays: null,
-                maxDeliveryDays: null,
-              },
-            ],
-          },
-        };
-      }
-
-      const zoneResult = checkDeliveryZone(
-        address.latitude,
-        address.longitude,
-        zones
+    if (unifiedEnabled) {
+      return calculateShippingWithUnifiedSystem(
+        tenantId,
+        address,
+        subtotal,
+        cart.items.length,
+        // Calculate total weight if available
+        cart.items.reduce((total, item) => {
+          const weight = item.product.weight
+            ? parseFloat(String(item.product.weight))
+            : 0;
+          return total + weight * item.quantity;
+        }, 0)
       );
-
-      if (!zoneResult.isWithinZone || !zoneResult.matchingZone) {
-        return {
-          success: true,
-          data: {
-            zone: null,
-            deliveryZoneFee: 0,
-            deliveryZonesEnabled: true,
-            methods: [],
-          },
-        };
-      }
-
-      const matchingZone = zoneResult.matchingZone;
-
-      // Apply free shipping threshold if configured
-      let effectiveDeliveryFee = zoneResult.deliveryFee;
-      const threshold = zoneResult.freeShippingThreshold;
-      if (threshold !== null && subtotal >= threshold) {
-        effectiveDeliveryFee = 0;
-      }
-
-      // Build description with free shipping info
-      let description = matchingZone.estimatedDeliveryTime
-        ? `Estimated: ${matchingZone.estimatedDeliveryTime}`
-        : "Standard delivery to your area";
-      if (threshold !== null && effectiveDeliveryFee === 0) {
-        description = "Free delivery (order qualifies)";
-      } else if (threshold !== null) {
-        description += ` (free over ${threshold.toLocaleString()} AFN)`;
-      }
-
-      // Create a synthetic delivery method from the zone
-      return {
-        success: true,
-        data: {
-          zone: { id: matchingZone.id, name: matchingZone.name },
-          deliveryZoneFee: effectiveDeliveryFee,
-          deliveryZonesEnabled: true,
-          methods: [
-            {
-              id: `zone-${matchingZone.id}`,
-              name: matchingZone.name,
-              description,
-              price: effectiveDeliveryFee,
-              basePrice: zoneResult.deliveryFee,
-              minDeliveryDays: null,
-              maxDeliveryDays: null,
-            },
-          ],
-        },
-      };
     }
 
-    // When delivery zones are disabled: Use shipping methods (if configured)
-    // Convert cart items for shipping calculation
-    const cartItemsForShipping: CartItemForShipping[] =
-      cartValidation.cart.items.map((item) => ({
-        quantity: item.quantity,
-        product: {
-          weight: null, // TODO: Add weight to cart item type
-        },
-      }));
+    // =========================================================================
+    // LEGACY DELIVERY SYSTEM (fallback)
+    // =========================================================================
 
-    // Get available shipping methods
-    const { zone, methods } = await getAvailableShippingMethods(
-      tenantId,
-      address,
-      cartItemsForShipping,
-      subtotal
-    );
+    // Get the tenant's fulfillment settings (both flags)
+    const { enableDeliveryZones, enableShipping } =
+      await getTenantDeliverySettings(tenantId);
 
-    return {
-      success: true,
-      data: {
-        zone: zone ? { id: zone.id, name: zone.name } : null,
-        deliveryZoneFee: 0,
-        deliveryZonesEnabled: false,
-        methods: methods.map((m) => ({
+    // Collect all available fulfillment methods
+    const methods: FulfillmentMethod[] = [];
+    let matchedDeliveryZone: { id: string; name: string } | null = null;
+    let deliveryZoneFee = 0;
+    let isWithinDeliveryZone = false;
+
+    // =========================================================================
+    // 1. CHECK LOCAL DELIVERY ZONES (if enabled)
+    // =========================================================================
+    if (enableDeliveryZones && address.latitude && address.longitude) {
+      const zones = await getActiveDeliveryZones(tenantId);
+
+      if (zones.length > 0) {
+        const zoneResult = checkDeliveryZone(
+          address.latitude,
+          address.longitude,
+          zones
+        );
+
+        if (zoneResult.isWithinZone && zoneResult.matchingZone) {
+          isWithinDeliveryZone = true;
+          const matchingZone = zoneResult.matchingZone;
+          matchedDeliveryZone = {
+            id: matchingZone.id,
+            name: matchingZone.name,
+          };
+
+          // Apply free shipping threshold if configured
+          let effectiveDeliveryFee = zoneResult.deliveryFee;
+          const threshold = zoneResult.freeShippingThreshold;
+          if (threshold !== null && subtotal >= threshold) {
+            effectiveDeliveryFee = 0;
+          }
+          deliveryZoneFee = effectiveDeliveryFee;
+
+          // Build description with free shipping info
+          let description = matchingZone.estimatedDeliveryTime
+            ? `Estimated: ${matchingZone.estimatedDeliveryTime}`
+            : "Local delivery to your area";
+          if (threshold !== null && effectiveDeliveryFee === 0) {
+            description = "Free local delivery (order qualifies)";
+          } else if (threshold !== null) {
+            description += ` (free over ${threshold.toLocaleString()} AFN)`;
+          }
+
+          // Add local delivery option
+          methods.push({
+            id: `zone-${matchingZone.id}`,
+            name: `Local Delivery - ${matchingZone.name}`,
+            description,
+            price: effectiveDeliveryFee,
+            basePrice: zoneResult.deliveryFee,
+            minDeliveryDays: null,
+            maxDeliveryDays: null,
+            type: "local_delivery",
+            zoneId: matchingZone.id,
+          });
+        }
+      } else if (enableDeliveryZones && !enableShipping) {
+        // Delivery zones enabled but none configured, and shipping disabled
+        // Offer free delivery as fallback
+        methods.push({
+          id: "free-local-delivery",
+          name: "Free Local Delivery",
+          description: "Standard delivery to your location",
+          price: 0,
+          basePrice: 0,
+          minDeliveryDays: null,
+          maxDeliveryDays: null,
+          type: "local_delivery",
+        });
+        isWithinDeliveryZone = true;
+      }
+    }
+
+    // =========================================================================
+    // 2. CHECK SHIPPING METHODS (if enabled)
+    // =========================================================================
+    if (enableShipping) {
+      // Convert cart items for shipping calculation
+      const cartItemsForShipping: CartItemForShipping[] =
+        cartValidation.cart.items.map((item) => ({
+          quantity: item.quantity,
+          product: {
+            weight: null, // TODO: Add weight to cart item type
+          },
+        }));
+
+      // Get available shipping methods
+      const { zone: _zone, methods: shippingMethods } =
+        await getAvailableShippingMethods(
+          tenantId,
+          address,
+          cartItemsForShipping,
+          subtotal
+        );
+
+      // Add shipping methods to the list
+      for (const m of shippingMethods) {
+        methods.push({
           id: m.id,
           name: m.name,
           description: m.description,
@@ -386,7 +442,64 @@ export async function calculateShippingAction(
           basePrice: m.calculatedRate,
           minDeliveryDays: m.minDeliveryDays,
           maxDeliveryDays: m.maxDeliveryDays,
-        })),
+          type: "shipping",
+        });
+      }
+
+      // If no shipping methods configured but shipping is enabled, offer free shipping
+      if (shippingMethods.length === 0 && methods.length === 0) {
+        methods.push({
+          id: "free-shipping",
+          name: "Free Shipping",
+          description: "Standard shipping to your location",
+          price: 0,
+          basePrice: 0,
+          minDeliveryDays: null,
+          maxDeliveryDays: null,
+          type: "shipping",
+        });
+      }
+    }
+
+    // =========================================================================
+    // 3. HANDLE EDGE CASES
+    // =========================================================================
+
+    // If no methods available at all
+    if (methods.length === 0) {
+      // If delivery zones are enabled but customer is outside all zones
+      // and shipping is disabled → no delivery available
+      if (enableDeliveryZones && !enableShipping && !isWithinDeliveryZone) {
+        return {
+          success: true,
+          data: {
+            zone: null,
+            deliveryZoneFee: 0,
+            deliveryZonesEnabled: enableDeliveryZones,
+            shippingEnabled: enableShipping,
+            isWithinDeliveryZone: false,
+            methods: [],
+          },
+        };
+      }
+    }
+
+    // Sort methods: local delivery first, then by price
+    methods.sort((a, b) => {
+      if (a.type === "local_delivery" && b.type !== "local_delivery") return -1;
+      if (a.type !== "local_delivery" && b.type === "local_delivery") return 1;
+      return a.price - b.price;
+    });
+
+    return {
+      success: true,
+      data: {
+        zone: matchedDeliveryZone,
+        deliveryZoneFee,
+        deliveryZonesEnabled: enableDeliveryZones,
+        shippingEnabled: enableShipping,
+        isWithinDeliveryZone,
+        methods,
       },
     };
   } catch (error) {
@@ -396,6 +509,134 @@ export async function calculateShippingAction(
       error: { message: "Failed to calculate shipping options" },
     };
   }
+}
+
+// =============================================================================
+// UNIFIED DELIVERY SYSTEM INTEGRATION
+// =============================================================================
+
+/**
+ * Calculate shipping using the unified delivery system
+ * Maps unified zone/method results to FulfillmentMethod format
+ */
+async function calculateShippingWithUnifiedSystem(
+  tenantId: string,
+  address: Address,
+  subtotal: number,
+  itemCount: number,
+  totalWeightKg: number
+): Promise<ShippingCalculationResult> {
+  // Build location input for unified system
+  // MatchLocationInput uses lat/lng (not latitude/longitude)
+  // Address type only has city from reverse geocoding, no country/region/postalCode
+  const locationInput = {
+    lat: address.latitude,
+    lng: address.longitude,
+    city: address.city,
+    // country, region, postalCode are not available in Address type
+    // Radius and polygon zones will still work with lat/lng coordinates
+  };
+
+  // Get delivery options from unified system
+  const result = await getDeliveryOptions(tenantId, locationInput, {
+    subtotal,
+    itemCount,
+    totalWeightKg: totalWeightKg > 0 ? totalWeightKg : undefined,
+  });
+
+  if (!result.success) {
+    return {
+      success: false,
+      error: {
+        message: result.error || "Failed to calculate delivery options",
+      },
+    };
+  }
+
+  // Map unified zones/methods to FulfillmentMethod format
+  const methods: FulfillmentMethod[] = [];
+  let matchedDeliveryZone: { id: string; name: string } | null = null;
+  let deliveryZoneFee = 0;
+  let isWithinDeliveryZone = false;
+
+  if (result.zones && result.zones.length > 0) {
+    // Process each matched zone
+    for (const zoneMatch of result.zones) {
+      const zone = zoneMatch.zone;
+
+      // For local delivery zones (radius/polygon), track as delivery zone
+      if (zone.zoneType === "radius" || zone.zoneType === "polygon") {
+        isWithinDeliveryZone = true;
+        if (!matchedDeliveryZone) {
+          matchedDeliveryZone = { id: zone.id, name: zone.name };
+        }
+      }
+
+      // Add each rate as a fulfillment method
+      // CalculatedRate has: methodId, methodName, rate, isFree, freeReason, deliveryEstimate
+      for (const rate of zoneMatch.rates) {
+        // Determine fulfillment type based on zone type
+        const isLocalDelivery =
+          zone.zoneType === "radius" || zone.zoneType === "polygon";
+
+        // Track delivery zone fee for first local delivery method
+        if (isLocalDelivery && deliveryZoneFee === 0) {
+          deliveryZoneFee = rate.rate;
+        }
+
+        // Build description
+        let description = rate.deliveryEstimate || "";
+        if (rate.isFree && rate.freeReason) {
+          description = rate.freeReason;
+        }
+
+        methods.push({
+          id: `unified-${zone.id}-${rate.methodId}`,
+          name: `${zone.name} - ${rate.methodName}`,
+          description,
+          price: rate.rate,
+          basePrice: rate.rate,
+          minDeliveryDays: null, // Not available in CalculatedRate
+          maxDeliveryDays: null, // Not available in CalculatedRate
+          type: isLocalDelivery ? "local_delivery" : "shipping",
+          zoneId: isLocalDelivery ? zone.id : undefined,
+        });
+      }
+    }
+  }
+
+  // If no methods available, offer free shipping as fallback
+  if (methods.length === 0) {
+    methods.push({
+      id: "unified-free-shipping",
+      name: "Free Shipping",
+      description: "Standard delivery to your location",
+      price: 0,
+      basePrice: 0,
+      minDeliveryDays: null,
+      maxDeliveryDays: null,
+      type: "shipping",
+    });
+  }
+
+  // Sort methods: local delivery first, then by price
+  methods.sort((a, b) => {
+    if (a.type === "local_delivery" && b.type !== "local_delivery") return -1;
+    if (a.type !== "local_delivery" && b.type === "local_delivery") return 1;
+    return a.price - b.price;
+  });
+
+  return {
+    success: true,
+    data: {
+      zone: matchedDeliveryZone,
+      deliveryZoneFee,
+      deliveryZonesEnabled: true, // Unified system always has zones enabled
+      shippingEnabled: true,
+      isWithinDeliveryZone,
+      methods,
+    },
+  };
 }
 
 // =============================================================================
@@ -559,19 +800,6 @@ export async function createOrderAction(
       return sum + effectivePrice * item.quantity;
     }, 0);
 
-    // Build customer snapshot
-    const customerSnapshot: CustomerSnapshot = input.customerInfo
-      ? {
-          name: `${input.customerInfo.firstName} ${input.customerInfo.lastName}`,
-          email: input.customerInfo.email,
-          phone: input.customerInfo.phone,
-        }
-      : {
-          name: user?.name || "Customer",
-          email: user?.email || "",
-          phone: undefined,
-        };
-
     // Fill in shipping address name from user if not provided (logged-in users)
     let firstName = input.shippingAddress.firstName || "";
     let lastName = input.shippingAddress.lastName || "";
@@ -580,6 +808,24 @@ export async function createOrderAction(
       firstName = nameParts[0] || "";
       lastName = nameParts.slice(1).join(" ") || "";
     }
+
+    // Build customer snapshot
+    // For guests: phone only (no name collected), use phone as identifier
+    // For logged-in: name from user, email from user, phone from shipping address
+    const customerSnapshot: CustomerSnapshot = input.customerInfo
+      ? {
+          // Guest checkout - phone is the primary identifier
+          // Name uses phone number since we don't collect name for guests
+          name: input.customerInfo.phone,
+          phone: input.customerInfo.phone,
+          email: undefined, // Not collected in phone-first guest checkout
+        }
+      : {
+          // Logged-in user
+          name: user?.name || "Customer",
+          phone: input.shippingAddress.phone, // Use phone from shipping address
+          email: user?.email,
+        };
 
     const shippingAddress: Address = {
       firstName,
@@ -620,14 +866,82 @@ export async function createOrderAction(
       };
     }
 
-    // Get the tenant's delivery settings
-    const { enableDeliveryZones } = await getTenantDeliverySettings(tenantId);
+    // Get the tenant's fulfillment settings
+    const { enableDeliveryZones, enableShipping } =
+      await getTenantDeliverySettings(tenantId);
 
     let shippingTotal = 0;
     let deliveryZoneFee = 0;
 
-    // When delivery zones are enabled: Validate GPS-based delivery zones
-    if (enableDeliveryZones) {
+    // Check if unified delivery system is enabled
+    const unifiedEnabled = await isUnifiedDeliveryEnabled(tenantId);
+
+    // Determine if the selected method is from the unified system
+    const isUnifiedMethod = input.shippingMethodId?.startsWith("unified-");
+
+    // Determine if the selected method is a local delivery zone (legacy)
+    const isLocalDeliveryMethod =
+      input.shippingMethodId?.startsWith("zone-") ||
+      input.shippingMethodId === "free-local-delivery";
+
+    // ==========================================================================
+    // UNIFIED DELIVERY PATH (NEW SYSTEM)
+    // ==========================================================================
+    if (isUnifiedMethod && unifiedEnabled) {
+      // Recalculate shipping using unified system to get the correct price
+      const unifiedResult = await calculateShippingWithUnifiedSystem(
+        tenantId,
+        shippingAddress,
+        subtotal,
+        cart.items.length,
+        cart.items.reduce((total, item) => {
+          const weight = item.product.weight
+            ? parseFloat(String(item.product.weight))
+            : 0;
+          return total + weight * item.quantity;
+        }, 0)
+      );
+
+      if (unifiedResult.success && unifiedResult.data) {
+        // Find the selected method in the results
+        const selectedMethod = unifiedResult.data.methods.find(
+          (m) => m.id === input.shippingMethodId
+        );
+
+        if (selectedMethod) {
+          shippingTotal = selectedMethod.price;
+          deliveryZoneFee =
+            selectedMethod.type === "local_delivery" ? selectedMethod.price : 0;
+        } else {
+          // Method not found, check if any methods are available
+          if (unifiedResult.data.methods.length > 0) {
+            return {
+              success: false,
+              error: {
+                message:
+                  "Selected delivery method is no longer available. Please choose another option.",
+                code: "DELIVERY_METHOD_NOT_FOUND",
+              },
+            };
+          }
+          // No methods available at all
+          shippingTotal = 0;
+        }
+      } else {
+        return {
+          success: false,
+          error: {
+            message:
+              unifiedResult.error?.message || "Failed to calculate shipping",
+            code: "UNIFIED_DELIVERY_ERROR",
+          },
+        };
+      }
+    }
+    // ==========================================================================
+    // LOCAL DELIVERY PATH (LEGACY)
+    // ==========================================================================
+    else if (isLocalDeliveryMethod && enableDeliveryZones) {
       const deliveryZoneResult = await validateDeliveryZoneAction(
         tenantId,
         shippingAddress.latitude,
@@ -651,7 +965,7 @@ export async function createOrderAction(
           success: false,
           error: {
             message:
-              "Sorry, we don't deliver to this location. Please check our delivery zones.",
+              "Sorry, we don't deliver to this location. Please check our delivery zones or select a shipping option.",
             code: "OUTSIDE_DELIVERY_ZONE",
           },
         };
@@ -666,7 +980,7 @@ export async function createOrderAction(
         return {
           success: false,
           error: {
-            message: `Minimum order for delivery to this area is ${deliveryZone.minOrderAmount.toLocaleString()} AFN. Your order total is ${subtotal.toLocaleString()} AFN.`,
+            message: `Minimum order for local delivery to this area is ${deliveryZone.minOrderAmount.toLocaleString()} AFN. Your order total is ${subtotal.toLocaleString()} AFN.`,
             code: "MIN_ORDER_NOT_MET",
           },
         };
@@ -683,8 +997,11 @@ export async function createOrderAction(
         deliveryZoneFee = 0;
       }
       shippingTotal = deliveryZoneFee;
-    } else if (input.shippingMethodId) {
-      // When delivery zones are disabled: Use the selected shipping method
+    }
+    // ==========================================================================
+    // SHIPPING PATH
+    // ==========================================================================
+    else if (input.shippingMethodId && enableShipping) {
       // Check for synthetic shipping method IDs (not stored in database)
       const isSyntheticMethod =
         input.shippingMethodId === "free-shipping" ||
@@ -726,28 +1043,105 @@ export async function createOrderAction(
           }
         }
       }
-    } else if (!enableDeliveryZones) {
-      // When delivery zones are disabled, a shipping method is required (unless none configured)
-      // Check if any shipping methods are configured
-      const hasShippingMethods = await db.query.shippingMethods.findFirst({
-        where: and(
-          eq(shippingMethods.tenantId, tenantId),
-          eq(shippingMethods.isActive, true)
-        ),
-        columns: { id: true },
-      });
+    }
+    // ==========================================================================
+    // NO METHOD SELECTED - VALIDATION
+    // ==========================================================================
+    else if (!input.shippingMethodId) {
+      // Check if any fulfillment methods are available
+      const hasShippingMethods =
+        enableShipping &&
+        (await db.query.shippingMethods.findFirst({
+          where: and(
+            eq(shippingMethods.tenantId, tenantId),
+            eq(shippingMethods.isActive, true)
+          ),
+          columns: { id: true },
+        }));
 
-      if (hasShippingMethods) {
+      const hasDeliveryZones =
+        enableDeliveryZones &&
+        (await getActiveDeliveryZones(tenantId)).length > 0;
+
+      if (hasShippingMethods || hasDeliveryZones) {
         return {
           success: false,
           error: {
-            message: "Please select a shipping method",
-            code: "SHIPPING_METHOD_REQUIRED",
+            message: "Please select a delivery or shipping method",
+            code: "FULFILLMENT_METHOD_REQUIRED",
           },
         };
       }
-      // If no shipping methods configured, allow free shipping
+      // If no methods configured at all, allow free shipping
       shippingTotal = 0;
+    }
+
+    // ==========================================================================
+    // COUPON VALIDATION & DISCOUNT CALCULATION
+    // ==========================================================================
+    let discountTotal = 0;
+    let validatedCoupon: {
+      id: string;
+      code: string;
+      name: string;
+      type: string;
+      value: string;
+      scope: string;
+    } | null = null;
+
+    if (input.appliedCouponCode) {
+      // Build cart items for coupon validation
+      const cartItemsForCoupon: CartItemForCoupon[] = cart.items.map((item) => {
+        const basePrice = item.variant?.price
+          ? parseFloat(item.variant.price)
+          : parseFloat(item.product.price);
+        const effectivePrice = getApplicableTierPrice(
+          basePrice,
+          item.quantity,
+          item.product.priceTiers || []
+        );
+        return {
+          productId: item.productId,
+          categoryId: null, // Cart items don't include categoryId
+          quantity: item.quantity,
+          lineTotal: effectivePrice * item.quantity,
+        };
+      });
+
+      // Get store customer ID for per-customer limit check
+      let storeCustomerIdForCoupon: string | null = null;
+      if (user?.id) {
+        const existingCustomer = await db.query.storeCustomers.findFirst({
+          where: and(
+            eq(storeCustomers.tenantId, tenantId),
+            eq(storeCustomers.userId, user.id)
+          ),
+          columns: { id: true },
+        });
+        storeCustomerIdForCoupon = existingCustomer?.id || null;
+      }
+
+      // Validate the coupon
+      const couponResult = await validateCouponAction(
+        tenantId,
+        input.appliedCouponCode,
+        subtotal,
+        cartItemsForCoupon,
+        storeCustomerIdForCoupon
+      );
+
+      if (couponResult.valid) {
+        validatedCoupon = couponResult.coupon;
+        discountTotal = couponResult.discountAmount;
+
+        // Handle free_shipping coupon type
+        if (validatedCoupon.type === "free_shipping") {
+          discountTotal = shippingTotal; // Discount equals the shipping cost
+          shippingTotal = 0; // Zero out shipping
+        }
+      }
+      // If coupon validation fails, we silently ignore it and proceed without discount
+      // The user already saw the validation error in the UI
     }
 
     try {
@@ -766,8 +1160,8 @@ export async function createOrderAction(
           storeCustomerId = storeCustomer.id;
         }
 
-        // 3. Calculate total
-        const total = subtotal + shippingTotal;
+        // 3. Calculate total (including discount)
+        const total = subtotal + shippingTotal - discountTotal;
 
         // 4. Map payment gateway to payment method
         const paymentGateway = input.paymentMethod || "cod";
@@ -787,7 +1181,7 @@ export async function createOrderAction(
             subtotal: subtotal.toFixed(2),
             shippingTotal: shippingTotal.toFixed(2),
             taxTotal: "0",
-            discountTotal: "0",
+            discountTotal: discountTotal.toFixed(2),
             total: total.toFixed(2),
             amountDue: total.toFixed(2),
             status: "pending",
@@ -889,7 +1283,24 @@ export async function createOrderAction(
             .where(eq(storeCustomers.id, storeCustomerId));
         }
 
-        // 9. Clear cart items
+        // 9. Record coupon usage (if coupon was applied)
+        if (validatedCoupon && discountTotal > 0) {
+          await recordCouponUsage(
+            tx,
+            validatedCoupon.id,
+            newOrder.id,
+            storeCustomerId,
+            discountTotal
+          );
+          await createOrderDiscountRecord(
+            tx,
+            newOrder.id,
+            validatedCoupon,
+            discountTotal
+          );
+        }
+
+        // 10. Clear cart items
         await tx.delete(cartItems).where(eq(cartItems.cartId, cart.id));
 
         return newOrder;

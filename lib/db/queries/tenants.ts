@@ -200,6 +200,7 @@ export async function updateTenant(
     currency: string;
     deliveryMode: "distance_based" | "service_level" | "weight_price_based";
     enableDeliveryZones: boolean;
+    enableShipping: boolean;
     storeMode: "full" | "online_only" | "offline_only" | "catalog";
     onlineCheckoutEnabled: boolean;
     posEnabled: boolean;

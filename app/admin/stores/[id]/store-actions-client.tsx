@@ -34,6 +34,13 @@ import {
   recordBillingTransaction,
 } from "@/lib/actions/admin";
 import {
+  pauseSubscription,
+  resumeSubscription,
+  getRefundPreview,
+  requestSubscriptionRefund,
+  type ProratedRefundCalculation,
+} from "@/lib/actions/subscriptions";
+import {
   Ban,
   CheckCircle,
   Clock,
@@ -43,6 +50,11 @@ import {
   AlertTriangle,
   CreditCard,
   Receipt,
+  Undo2,
+  Pause,
+  Play,
+  Calculator,
+  Calendar,
 } from "lucide-react";
 import type { PaymentMethod } from "@/lib/db/schema";
 
@@ -54,10 +66,14 @@ import type { PaymentMethod } from "@/lib/db/schema";
 
 interface StoreActionsClientProps {
   storeId: string;
+  storeSlug: string;
   storeName: string;
   currentStatus: string;
   currentPlan: string;
   currentSubscriptionStatus: string;
+  subscriptionEndsAt: string | null;
+  pausedAt: string | null;
+  autoResumeAt: string | null;
   currentNotes: string | null;
   settings: {
     proPlanPriceAfn: string;
@@ -67,10 +83,14 @@ interface StoreActionsClientProps {
 
 export function StoreActionsClient({
   storeId,
+  storeSlug: _storeSlug,
   storeName,
   currentStatus,
   currentPlan,
   currentSubscriptionStatus,
+  subscriptionEndsAt,
+  pausedAt,
+  autoResumeAt,
   currentNotes,
   settings,
 }: StoreActionsClientProps) {
@@ -80,15 +100,67 @@ export function StoreActionsClient({
   const [suspendReason, setSuspendReason] = useState("");
 
   // Payment recording state
+  const [paymentMonths, setPaymentMonths] = useState(1);
   const [paymentAmount, setPaymentAmount] = useState(settings.proPlanPriceAfn);
   const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethod>("bank_transfer");
+    useState<PaymentMethod>("mobile_money");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [createInvoice, setCreateInvoice] = useState(true);
   const [upgradeOnPayment, setUpgradeOnPayment] = useState(
     currentPlan === "free"
   );
+
+  // Refund state
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refundReference, setRefundReference] = useState("");
+
+  // Pause/Resume state
+  const [pauseReason, setPauseReason] = useState("");
+  const [pauseAutoResumeDate, setPauseAutoResumeDate] = useState("");
+  const isPaused = !!pausedAt;
+
+  // Prorated refund state
+  const [refundPreview, setRefundPreview] =
+    useState<ProratedRefundCalculation | null>(null);
+  const [refundPreviewLoading, setRefundPreviewLoading] = useState(false);
+  const [proratedRefundReason, setProratedRefundReason] = useState("");
+
+  // Update payment amount when months change
+  const handleMonthsChange = (months: number) => {
+    setPaymentMonths(months);
+    const basePrice = parseFloat(settings.proPlanPriceAfn);
+    setPaymentAmount((basePrice * months).toString());
+  };
+
+  // Calculate what the new subscription end date will be
+  const calculateNewEndDate = () => {
+    const currentEnd = subscriptionEndsAt ? new Date(subscriptionEndsAt) : null;
+    const now = new Date();
+
+    // If already Pro with time remaining, extend from current end
+    const isAlreadyProWithTimeRemaining =
+      currentPlan === "pro" && currentEnd && currentEnd > now;
+
+    const extendFrom = isAlreadyProWithTimeRemaining ? currentEnd : now;
+    const newEnd = new Date(extendFrom);
+    newEnd.setDate(newEnd.getDate() + paymentMonths * 30);
+    return newEnd;
+  };
+
+  // Check subscription status for display
+  const hasActiveSubscription =
+    currentPlan === "pro" &&
+    subscriptionEndsAt &&
+    new Date(subscriptionEndsAt) > new Date();
+
+  const daysRemaining = hasActiveSubscription
+    ? Math.ceil(
+        (new Date(subscriptionEndsAt!).getTime() - new Date().getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : 0;
 
   const handleStatusChange = (
     status: "pending_review" | "active" | "suspended" | "inactive",
@@ -147,10 +219,18 @@ export function StoreActionsClient({
       return;
     }
 
-    // Calculate period (30 days from now)
+    // Calculate period with subscription stacking
+    // Industry standard: extend from MAX(now, current subscription end)
     const now = new Date();
-    const periodEnd = new Date();
-    periodEnd.setDate(periodEnd.getDate() + 30);
+    const currentEnd = subscriptionEndsAt ? new Date(subscriptionEndsAt) : null;
+    const isAlreadyProWithTimeRemaining =
+      currentPlan === "pro" && currentEnd && currentEnd > now;
+
+    // Period starts from where the subscription currently ends (if extending)
+    // or from now (if starting fresh)
+    const periodStart = isAlreadyProWithTimeRemaining ? currentEnd : now;
+    const periodEnd = new Date(periodStart);
+    periodEnd.setDate(periodEnd.getDate() + paymentMonths * 30);
 
     startTransition(async () => {
       const result = await recordBillingTransaction({
@@ -159,11 +239,12 @@ export function StoreActionsClient({
         amount,
         paymentMethod,
         paymentReference: paymentReference || undefined,
-        periodStart: now.toISOString(),
+        periodStart: periodStart.toISOString(),
         periodEnd: periodEnd.toISOString(),
         notes: paymentNotes || undefined,
         createInvoice,
         upgradeToProOnPayment: upgradeOnPayment,
+        periodMonths: paymentMonths,
       });
 
       if (result.success) {
@@ -171,6 +252,110 @@ export function StoreActionsClient({
         // Reset form
         setPaymentReference("");
         setPaymentNotes("");
+        setPaymentMonths(1);
+        setPaymentAmount(settings.proPlanPriceAfn);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleRecordRefund = () => {
+    const amount = parseFloat(refundAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid refund amount");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await recordBillingTransaction({
+        storeId,
+        type: "refund",
+        amount: -amount, // Negative amount for refund
+        paymentReference: refundReference || undefined,
+        notes: refundReason || undefined,
+        createInvoice: false,
+        upgradeToProOnPayment: false,
+      });
+
+      if (result.success) {
+        toast.success("Refund recorded successfully");
+        // Reset form
+        setRefundAmount("");
+        setRefundReason("");
+        setRefundReference("");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  // Pause subscription
+  const handlePauseSubscription = () => {
+    startTransition(async () => {
+      const result = await pauseSubscription(storeId, {
+        reason: pauseReason || undefined,
+        autoResumeAt: pauseAutoResumeDate || undefined,
+      });
+
+      if (result.success) {
+        toast.success("Subscription paused successfully");
+        setPauseReason("");
+        setPauseAutoResumeDate("");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  // Resume subscription
+  const handleResumeSubscription = () => {
+    startTransition(async () => {
+      const result = await resumeSubscription(storeId);
+
+      if (result.success) {
+        toast.success(
+          `Subscription resumed! ${result.creditsDays} days credited.`
+        );
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  // Load prorated refund preview
+  const handleLoadRefundPreview = async () => {
+    setRefundPreviewLoading(true);
+    try {
+      const result = await getRefundPreview(storeId);
+      if (result.success && result.calculation) {
+        setRefundPreview(result.calculation);
+      } else {
+        toast.error(result.error || "Failed to calculate refund");
+      }
+    } catch {
+      toast.error("Failed to load refund preview");
+    } finally {
+      setRefundPreviewLoading(false);
+    }
+  };
+
+  // Process prorated refund
+  const handleProratedRefund = () => {
+    startTransition(async () => {
+      const result = await requestSubscriptionRefund(storeId, {
+        reason: proratedRefundReason || "Admin-initiated refund",
+        reasonCode: "admin",
+        refundMethod: "original_payment",
+        adminNotes: `Prorated refund processed by admin`,
+      });
+
+      if (result.success) {
+        toast.success(
+          `Refund of ${result.calculation?.refundAmount.toFixed(2)} AFN requested`
+        );
+        setRefundPreview(null);
+        setProratedRefundReason("");
       } else {
         toast.error(result.error);
       }
@@ -374,6 +559,237 @@ export function StoreActionsClient({
         </CardContent>
       </Card>
 
+      {/* Pause/Resume Subscription - Only for active Pro subscriptions */}
+      {currentPlan === "pro" && currentSubscriptionStatus === "active" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {isPaused ? (
+                <Play className="size-5 text-green-600" />
+              ) : (
+                <Pause className="size-5 text-amber-600" />
+              )}
+              {isPaused ? "Resume Subscription" : "Pause Subscription"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isPaused ? (
+              <>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-medium">
+                    Subscription is currently paused
+                  </p>
+                  <p className="text-xs mt-1 opacity-80">
+                    Paused on {new Date(pausedAt!).toLocaleDateString()}
+                  </p>
+                  {autoResumeAt && (
+                    <p className="text-xs mt-0.5 opacity-80">
+                      Auto-resume scheduled for{" "}
+                      {new Date(autoResumeAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={handleResumeSubscription}
+                  disabled={isPending}
+                >
+                  {isPending ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Play className="mr-2 size-4" />
+                  )}
+                  Resume Now (Credit Pause Days)
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="pause-reason">
+                    Reason for Pausing (optional)
+                  </Label>
+                  <Textarea
+                    id="pause-reason"
+                    value={pauseReason}
+                    onChange={(e) => setPauseReason(e.target.value)}
+                    placeholder="Customer requested temporary pause..."
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="auto-resume">
+                    Auto-Resume Date (optional)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="size-4 text-muted-foreground" />
+                    <Input
+                      id="auto-resume"
+                      type="date"
+                      value={pauseAutoResumeDate}
+                      onChange={(e) => setPauseAutoResumeDate(e.target.value)}
+                      min={
+                        new Date(Date.now() + 86400000)
+                          .toISOString()
+                          .split("T")[0]
+                      }
+                      max={
+                        new Date(Date.now() + 90 * 86400000)
+                          .toISOString()
+                          .split("T")[0]
+                      }
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Max pause duration: 90 days. Days paused extend the
+                    subscription on resume.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handlePauseSubscription}
+                  disabled={isPending}
+                >
+                  {isPending ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Pause className="mr-2 size-4" />
+                  )}
+                  Pause Subscription
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Prorated Refund - Only for active Pro subscriptions */}
+      {currentPlan === "pro" &&
+        currentSubscriptionStatus === "active" &&
+        !isPaused && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calculator className="size-5" />
+                Prorated Refund
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!refundPreview ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleLoadRefundPreview}
+                  disabled={refundPreviewLoading}
+                >
+                  {refundPreviewLoading ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Calculator className="mr-2 size-4" />
+                  )}
+                  Calculate Prorated Refund
+                </Button>
+              ) : (
+                <>
+                  <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Original Payment
+                      </span>
+                      <span className="font-medium">
+                        {refundPreview.originalAmount.toFixed(2)} AFN
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Days Used</span>
+                      <span>{refundPreview.daysUsed} days</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Days Remaining
+                      </span>
+                      <span>{refundPreview.daysRemaining} days</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Daily Rate</span>
+                      <span>{refundPreview.dailyRate.toFixed(2)} AFN/day</span>
+                    </div>
+                    <div className="border-t pt-2 mt-2 flex justify-between font-medium">
+                      <span>Refund Amount</span>
+                      <span className="text-green-600">
+                        {refundPreview.refundAmount.toFixed(2)} AFN
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="prorated-reason">
+                      Reason for Refund (optional)
+                    </Label>
+                    <Textarea
+                      id="prorated-reason"
+                      value={proratedRefundReason}
+                      onChange={(e) => setProratedRefundReason(e.target.value)}
+                      placeholder="Customer requested cancellation..."
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setRefundPreview(null)}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          disabled={isPending}
+                          className="flex-1"
+                        >
+                          {isPending ? (
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                          ) : (
+                            <Undo2 className="mr-2 size-4" />
+                          )}
+                          Process Refund
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            Process Prorated Refund?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will refund{" "}
+                            <strong>
+                              {refundPreview.refundAmount.toFixed(2)} AFN
+                            </strong>{" "}
+                            and immediately downgrade the store to the Free
+                            plan. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleProratedRefund}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Confirm Refund
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
       {/* Record Payment */}
       <Card>
         <CardHeader>
@@ -383,6 +799,69 @@ export function StoreActionsClient({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Subscription Status Banner - Industry standard: show what will happen */}
+          {upgradeOnPayment && (
+            <div
+              className={`rounded-lg p-3 text-sm ${
+                hasActiveSubscription
+                  ? "bg-blue-50 border border-blue-200 text-blue-900"
+                  : "bg-amber-50 border border-amber-200 text-amber-900"
+              }`}
+            >
+              {hasActiveSubscription ? (
+                <>
+                  <p className="font-medium">Extending existing subscription</p>
+                  <p className="text-xs mt-1 opacity-80">
+                    Currently Pro until{" "}
+                    {new Date(subscriptionEndsAt!).toLocaleDateString()} (
+                    {daysRemaining} days remaining)
+                  </p>
+                  <p className="text-xs mt-0.5 opacity-80">
+                    → New end date:{" "}
+                    <strong>
+                      {calculateNewEndDate().toLocaleDateString()}
+                    </strong>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Starting new Pro subscription</p>
+                  <p className="text-xs mt-1 opacity-80">
+                    Will be Pro until{" "}
+                    <strong>
+                      {calculateNewEndDate().toLocaleDateString()}
+                    </strong>
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Period / Duration Selection */}
+          <div className="space-y-2">
+            <Label>Subscription Period</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 3, 6, 12].map((months) => (
+                <button
+                  key={months}
+                  type="button"
+                  onClick={() => handleMonthsChange(months)}
+                  className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                    paymentMonths === months
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted hover:bg-muted/80 border-border"
+                  }`}
+                >
+                  {months} {months === 1 ? "month" : "months"}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {paymentMonths} month{paymentMonths !== 1 && "s"} ={" "}
+              {paymentMonths * 30} days of Pro access
+            </p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="payment-amount">Amount (AFN)</Label>
@@ -395,6 +874,11 @@ export function StoreActionsClient({
                 onWheel={(e) => e.currentTarget.blur()}
                 placeholder="1100"
               />
+              {paymentMonths > 1 && (
+                <p className="text-xs text-muted-foreground">
+                  Base: {settings.proPlanPriceAfn} × {paymentMonths} months
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="payment-method">Payment Method</Label>
@@ -402,16 +886,15 @@ export function StoreActionsClient({
                 value={paymentMethod}
                 onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
               >
-                <SelectTrigger id="payment-method">
+                <SelectTrigger id="payment-method" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="mobile_money">HesabPay</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="mobile_money">
-                    Mobile Money (M-Paisa)
-                  </SelectItem>
+                  <SelectItem value="card">Card (Stripe)</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="credit">USDT (Crypto)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -484,6 +967,66 @@ export function StoreActionsClient({
               <Receipt className="mr-2 size-4" />
             )}
             Record Payment
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Record Refund */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Undo2 className="size-5" />
+            Record Refund
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="refund-amount">Refund Amount (AFN)</Label>
+              <Input
+                id="refund-amount"
+                type="number"
+                min={0}
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                placeholder="500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="refund-reference">Reference (optional)</Label>
+              <Input
+                id="refund-reference"
+                value={refundReference}
+                onChange={(e) => setRefundReference(e.target.value)}
+                placeholder="Original transaction ID"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="refund-reason">Reason for Refund (optional)</Label>
+            <Textarea
+              id="refund-reason"
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              placeholder="Why is this refund being issued?"
+              rows={2}
+            />
+          </div>
+
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={handleRecordRefund}
+            disabled={isPending || !refundAmount}
+          >
+            {isPending ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Undo2 className="mr-2 size-4" />
+            )}
+            Record Refund
           </Button>
         </CardContent>
       </Card>

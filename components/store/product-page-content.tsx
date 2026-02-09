@@ -10,6 +10,7 @@ import { buildVariantUrlParams } from "@/lib/utils/variant-url";
 
 import type { ProductWithDetails } from "@/lib/db/queries/products";
 import type { PriceTier } from "@/lib/db/schema";
+import type { CampaignDiscount } from "@/lib/utils/pricing-display";
 
 interface Breadcrumb {
   label: string;
@@ -42,6 +43,8 @@ interface ProductPageContentProps {
   initialVariantId?: string;
   /** Initial options from URL params (e.g., {Size: "Large", Color: "Black"}) */
   initialOptions?: Record<string, string>;
+  /** Campaign discount for this product */
+  campaignDiscount?: CampaignDiscount | null;
 }
 
 /**
@@ -122,6 +125,7 @@ export function ProductPageContent({
   imageSwatchUrls,
   initialVariantId,
   initialOptions,
+  campaignDiscount,
 }: ProductPageContentProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -259,7 +263,11 @@ export function ProductPageContent({
     <>
       {/* Image Gallery Column */}
       <div className="flex flex-col">
-        <ProductImageGallery images={images} productName={product.name} />
+        <ProductImageGallery
+          images={images}
+          productName={product.name}
+          showThumbnails={!product.hasVariants}
+        />
       </div>
 
       {/* Product Info Column */}
@@ -304,6 +312,7 @@ export function ProductPageContent({
           imageSwatchUrls={imageSwatchUrls}
           initialVariantId={initialVariantId}
           initialOptions={initialOptions}
+          campaignDiscount={campaignDiscount}
         />
       </div>
     </>

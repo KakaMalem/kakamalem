@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { Bell, BellOff, Smartphone, AlertCircle } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  Smartphone,
+  AlertCircle,
+  Trash2,
+  Monitor,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -11,8 +18,21 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { disablePushNotifications } from "@/lib/actions/push-notifications";
+import {
+  disablePushNotifications,
+  disablePushNotificationsForDevice,
+} from "@/lib/actions/push-notifications";
+import { formatDistanceToNow } from "date-fns";
+
+interface Device {
+  id: string;
+  deviceName: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+  isCurrent: boolean;
+}
 
 interface NotificationSettingsProps {
   tenantId: string;
@@ -85,32 +105,82 @@ function getDeviceName(): string {
   return os ? `${browser} on ${os}` : browser;
 }
 
+/**
+ * Get current device's push subscription endpoint (if any)
+ */
+async function getCurrentDeviceEndpoint(): Promise<string | null> {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return null;
+    }
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) return null;
+    const subscription = await registration.pushManager.getSubscription();
+    return subscription?.endpoint || null;
+  } catch {
+    return null;
+  }
+}
+
 export function NotificationSettings({
   tenantId,
   storeSlug,
   initialEnabled,
   deviceCount,
 }: NotificationSettingsProps) {
-  const [isEnabled, setIsEnabled] = useState(initialEnabled);
-  const [currentDeviceCount, setCurrentDeviceCount] = useState(deviceCount);
+  // isEnabled now means THIS device is enabled
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [totalDevices, setTotalDevices] = useState(deviceCount);
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] =
     useState<NotificationPermission>("default");
   const [isPending, startTransition] = useTransition();
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
 
+  // Check current device status on mount
   useEffect(() => {
-    // Check browser support
-    const supported =
-      "Notification" in window &&
-      "serviceWorker" in navigator &&
-      "PushManager" in window;
-    setIsSupported(supported);
+    const checkStatus = async () => {
+      // Check browser support
+      const supported =
+        "Notification" in window &&
+        "serviceWorker" in navigator &&
+        "PushManager" in window;
+      setIsSupported(supported);
 
-    if (supported) {
-      setPermission(Notification.permission);
-    }
-  }, []);
+      if (supported) {
+        setPermission(Notification.permission);
+
+        // Get current device's endpoint
+        const currentEndpoint = await getCurrentDeviceEndpoint();
+
+        // Fetch status from API with current endpoint
+        try {
+          const params = new URLSearchParams({ tenantId });
+          if (currentEndpoint) {
+            params.set("endpoint", currentEndpoint);
+          }
+
+          const response = await fetch(`/api/push/status?${params}`);
+          if (response.ok) {
+            const data = await response.json();
+            setIsEnabled(data.currentDeviceEnabled);
+            setDevices(data.devices || []);
+            setTotalDevices(data.totalDevices);
+          }
+        } catch (error) {
+          console.error("Failed to fetch push status:", error);
+          // Fall back to initial values
+          setIsEnabled(initialEnabled);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    checkStatus();
+  }, [tenantId, initialEnabled]);
 
   const handleToggle = async (enabled: boolean) => {
     if (!isSupported) {
@@ -119,7 +189,7 @@ export function NotificationSettings({
     }
 
     if (enabled) {
-      // Enable notifications
+      // Enable notifications for THIS device
       setIsSubscribing(true);
       try {
         // Request permission if needed
@@ -175,9 +245,30 @@ export function NotificationSettings({
           throw new Error(data.error || "Failed to save subscription");
         }
 
+        const result = await response.json();
+
         setIsEnabled(true);
-        setCurrentDeviceCount((prev) => prev + 1);
-        toast.success("Order notifications enabled for this device");
+        // Add this device to the list
+        setDevices((prev) => {
+          const exists = prev.some((d) => d.id === result.subscriptionId);
+          if (exists) {
+            return prev.map((d) =>
+              d.id === result.subscriptionId ? { ...d, isCurrent: true } : d
+            );
+          }
+          return [
+            ...prev,
+            {
+              id: result.subscriptionId,
+              deviceName: getDeviceName(),
+              lastUsedAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              isCurrent: true,
+            },
+          ];
+        });
+        setTotalDevices((prev) => (result.isNew ? prev + 1 : prev));
+        toast.success("Notifications enabled for this device");
       } catch (error) {
         console.error("Failed to enable notifications:", error);
         toast.error(
@@ -189,19 +280,81 @@ export function NotificationSettings({
         setIsSubscribing(false);
       }
     } else {
-      // Disable notifications
+      // Disable notifications for THIS device only
       startTransition(async () => {
-        const result = await disablePushNotifications(tenantId, storeSlug);
-        if (result.success) {
-          setIsEnabled(false);
-          setCurrentDeviceCount(0);
-          toast.success("Notifications disabled");
-        } else {
-          toast.error(result.error || "Failed to disable notifications");
+        try {
+          const currentEndpoint = await getCurrentDeviceEndpoint();
+          if (currentEndpoint) {
+            // Just disable this device
+            const response = await fetch(
+              `/api/push/subscribe?tenantId=${tenantId}&endpoint=${encodeURIComponent(currentEndpoint)}`,
+              { method: "DELETE" }
+            );
+            if (response.ok) {
+              setIsEnabled(false);
+              setDevices((prev) =>
+                prev.filter((d) => !d.isCurrent).map((d) => d)
+              );
+              setTotalDevices((prev) => Math.max(0, prev - 1));
+              toast.success("Notifications disabled for this device");
+            }
+          }
+        } catch (error) {
+          console.error("Failed to disable notifications:", error);
+          toast.error("Failed to disable notifications");
         }
       });
     }
   };
+
+  const handleRemoveDevice = async (deviceId: string) => {
+    setRemovingDeviceId(deviceId);
+    try {
+      const result = await disablePushNotificationsForDevice(
+        tenantId,
+        deviceId
+      );
+      if (result.success) {
+        setDevices((prev) => prev.filter((d) => d.id !== deviceId));
+        setTotalDevices((prev) => Math.max(0, prev - 1));
+        toast.success("Device removed");
+      } else {
+        toast.error(result.error || "Failed to remove device");
+      }
+    } catch {
+      toast.error("Failed to remove device");
+    } finally {
+      setRemovingDeviceId(null);
+    }
+  };
+
+  const handleRemoveAllDevices = async () => {
+    startTransition(async () => {
+      const result = await disablePushNotifications(tenantId, storeSlug);
+      if (result.success) {
+        setIsEnabled(false);
+        setDevices([]);
+        setTotalDevices(0);
+        toast.success("All devices removed");
+      } else {
+        toast.error(result.error || "Failed to remove devices");
+      }
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Order Notifications
+          </CardTitle>
+          <CardDescription>Loading notification settings...</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -233,10 +386,10 @@ export function NotificationSettings({
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="notifications" className="text-base">
-                  Enable notifications
+                  Enable on this device
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Receive alerts for new orders on this device
+                  Receive alerts for new orders on this browser
                 </p>
               </div>
               <Switch
@@ -247,13 +400,73 @@ export function NotificationSettings({
               />
             </div>
 
-            {isEnabled && currentDeviceCount > 0 && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground rounded-lg border bg-muted/30 p-3">
-                <Smartphone className="h-4 w-4 shrink-0" />
-                <span>
-                  Notifications enabled on {currentDeviceCount} device
-                  {currentDeviceCount > 1 ? "s" : ""}
-                </span>
+            {/* Device list */}
+            {devices.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Enabled devices ({totalDevices})
+                  </p>
+                  {totalDevices > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto py-1 px-2 text-xs text-destructive hover:text-destructive"
+                      onClick={handleRemoveAllDevices}
+                      disabled={isPending}
+                    >
+                      Remove all
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-lg border divide-y">
+                  {devices.map((device) => (
+                    <div
+                      key={device.id}
+                      className="flex items-center justify-between p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        {device.isCurrent ? (
+                          <Monitor className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Smartphone className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium">
+                            {device.deviceName || "Unknown device"}
+                            {device.isCurrent && (
+                              <span className="ml-2 text-xs text-primary">
+                                (This device)
+                              </span>
+                            )}
+                          </p>
+                          {device.lastUsedAt && (
+                            <p className="text-xs text-muted-foreground">
+                              Last used{" "}
+                              {formatDistanceToNow(
+                                new Date(device.lastUsedAt),
+                                {
+                                  addSuffix: true,
+                                }
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {!device.isCurrent && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemoveDevice(device.id)}
+                          disabled={removingDeviceId === device.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -274,7 +487,7 @@ export function NotificationSettings({
               </div>
             )}
 
-            {!isEnabled && permission !== "denied" && (
+            {!isEnabled && permission !== "denied" && devices.length === 0 && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
                 <div className="flex gap-3">
                   <Bell className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />

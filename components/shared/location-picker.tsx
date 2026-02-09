@@ -290,10 +290,9 @@ export function LocationPicker({
       <div
         ref={mapContainerRef}
         className={cn(
-          "w-full h-64 rounded-lg border bg-muted",
+          "w-full h-64 rounded-lg border bg-muted map-wrapper",
           disabled && "opacity-60 pointer-events-none"
         )}
-        style={{ zIndex: 1 }}
       />
 
       {/* Location info */}

@@ -197,6 +197,69 @@
       "when": 1769898164394,
       "tag": "0027_fuzzy_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1769899253194,
+      "tag": "0028_mean_slipstream",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1769955215258,
+      "tag": "0029_overjoyed_tinkerer",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1770163200000,
+      "tag": "0030_enable_shipping_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1770121598198,
+      "tag": "0031_greedy_deadpool",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1770200000000,
+      "tag": "0032_unified_delivery_zones",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1770300000000,
+      "tag": "0033_yearly_billing_and_crypto",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1770400000000,
+      "tag": "0034_drop_free_store_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1770500000000,
+      "tag": "0035_usdt_payouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1770600000000,
+      "tag": "0036_subscription_management",
+      "breakpoints": true
     }
   ]
 }

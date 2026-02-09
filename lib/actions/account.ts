@@ -3,6 +3,10 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
+import { db } from "@/lib/db";
+import { account } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 // =============================================================================
 // ACCOUNT SETTINGS SERVER ACTIONS
@@ -122,6 +126,13 @@ export async function changePasswordAction(input: ChangePasswordInput) {
 
 /**
  * Set password for OAuth-only users (no current password required)
+ *
+ * Better Auth's setPassword endpoint is defined without a path, causing issues.
+ * We implement this directly by:
+ * 1. Getting the current user session
+ * 2. Checking they don't already have a credential account
+ * 3. Hashing the password using Better Auth's password hasher
+ * 4. Creating a credential account linked to the user
  */
 export async function setPasswordAction(input: SetPasswordInput) {
   const validation = setPasswordSchema.safeParse(input);
@@ -136,16 +147,43 @@ export async function setPasswordAction(input: SetPasswordInput) {
 
   try {
     const headersList = await headers();
-    const result = await auth.api.setPassword({
-      headers: headersList,
-      body: {
-        newPassword: validation.data.newPassword,
-      },
+
+    // Get current session
+    const session = await auth.api.getSession({ headers: headersList });
+    if (!session?.user?.id) {
+      return { error: { message: "You must be logged in to set a password" } };
+    }
+
+    const userId = session.user.id;
+
+    // Check if user already has a credential account (password)
+    const existingCredentialAccount = await db.query.account.findFirst({
+      where: and(
+        eq(account.userId, userId),
+        eq(account.providerId, "credential")
+      ),
     });
 
-    if (!result) {
-      return { error: { message: "Failed to set password" } };
+    if (existingCredentialAccount) {
+      return {
+        error: { message: "You already have a password set" },
+      };
     }
+
+    // Hash the password using Better Auth's password hasher
+    const { hashPassword } = await import("better-auth/crypto");
+    const hashedPassword = await hashPassword(validation.data.newPassword);
+
+    // Create credential account for the user
+    await db.insert(account).values({
+      id: nanoid(),
+      accountId: userId,
+      providerId: "credential",
+      userId: userId,
+      password: hashedPassword,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     return { success: true };
   } catch (error) {

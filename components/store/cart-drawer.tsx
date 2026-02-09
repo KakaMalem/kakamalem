@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -11,6 +11,8 @@ import {
   ArrowRight,
   ShoppingBag,
   X,
+  Sparkles,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,11 +29,18 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { formatPrice, cn } from "@/lib/utils";
 import { useCart, useCartDrawer } from "@/lib/hooks/use-cart";
+import {
+  useCartCampaignDiscounts,
+  calculateDiscountedPrice,
+  type CampaignDiscount,
+} from "@/lib/hooks/use-campaign-discounts";
+import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
 import type { CartItem } from "@/lib/types/cart";
 
 interface CartDrawerProps {
   storeSlug: string;
   currency: string;
+  tenantId?: string;
 }
 
 // Hook to detect if we're on mobile (< 640px)
@@ -110,15 +119,64 @@ function useDrawerHistory(isOpen: boolean, onClose: () => void) {
   }, [handlePopState]);
 }
 
-export function CartDrawer({ storeSlug, currency }: CartDrawerProps) {
+export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
   const { isOpen, close } = useCartDrawer();
-  const { items, subtotal, itemCount } = useCart();
+  const { items, itemCount } = useCart();
   const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtTop, setIsAtTop] = useState(true);
 
   // Integrate with browser history for back button support (mobile UX)
   useDrawerHistory(isOpen, close);
+
+  // Fetch campaign discounts
+  const { discountsMap } = useCartCampaignDiscounts(tenantId || null, items);
+
+  // Calculate totals with campaign and tier discounts
+  const { originalSubtotal, campaignSavings, tierSavings, finalSubtotal } =
+    useMemo(() => {
+      let originalSubtotal = 0;
+      let campaignSavings = 0;
+      let tierSavings = 0;
+      let finalSubtotal = 0;
+
+      for (const item of items) {
+        const originalPrice = item.variant?.price
+          ? parseFloat(item.variant.price)
+          : parseFloat(item.product.price);
+
+        originalSubtotal += originalPrice * item.quantity;
+
+        // Apply campaign discount
+        const campaignDiscount = discountsMap.get(item.product.id);
+        const afterCampaignPrice = calculateDiscountedPrice(
+          originalPrice,
+          campaignDiscount || null
+        );
+
+        if (campaignDiscount && afterCampaignPrice < originalPrice) {
+          campaignSavings +=
+            (originalPrice - afterCampaignPrice) * item.quantity;
+        }
+
+        // Apply tier discount (on top of campaign price)
+        const effectivePrice = getApplicableTierPrice(
+          afterCampaignPrice,
+          item.quantity,
+          item.product.priceTiers || []
+        );
+
+        if (effectivePrice < afterCampaignPrice) {
+          tierSavings += (afterCampaignPrice - effectivePrice) * item.quantity;
+        }
+
+        finalSubtotal += effectivePrice * item.quantity;
+      }
+
+      return { originalSubtotal, campaignSavings, tierSavings, finalSubtotal };
+    }, [items, discountsMap]);
+
+  const totalSavings = campaignSavings + tierSavings;
 
   // Track scroll position to enable/disable drawer dismissal
   const handleScroll = () => {
@@ -195,6 +253,7 @@ export function CartDrawer({ storeSlug, currency }: CartDrawerProps) {
                       item={item}
                       storeSlug={storeSlug}
                       currency={currency}
+                      campaignDiscount={discountsMap.get(item.product.id)}
                     />
                     {index < items.length - 1 && <Separator className="my-4" />}
                   </div>
@@ -208,10 +267,46 @@ export function CartDrawer({ storeSlug, currency }: CartDrawerProps) {
               <div className="mx-auto w-full max-w-sm space-y-2 sm:mx-0 sm:max-w-none">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">
-                    {formatPrice(subtotal, currency)}
+                  <span>
+                    {totalSavings > 0 ? (
+                      <span className="line-through text-muted-foreground">
+                        {formatPrice(originalSubtotal, currency)}
+                      </span>
+                    ) : (
+                      <span className="font-medium">
+                        {formatPrice(originalSubtotal, currency)}
+                      </span>
+                    )}
                   </span>
                 </div>
+
+                {campaignSavings > 0 && (
+                  <div className="flex items-center justify-between text-sm text-red-600">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Sale discounts
+                    </span>
+                    <span>-{formatPrice(campaignSavings, currency)}</span>
+                  </div>
+                )}
+
+                {tierSavings > 0 && (
+                  <div className="flex items-center justify-between text-sm text-green-600">
+                    <span className="flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5" />
+                      Bulk discounts
+                    </span>
+                    <span>-{formatPrice(tierSavings, currency)}</span>
+                  </div>
+                )}
+
+                {totalSavings > 0 && (
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span>Total</span>
+                    <span>{formatPrice(finalSubtotal, currency)}</span>
+                  </div>
+                )}
+
                 <p className="text-xs text-muted-foreground">
                   Shipping and taxes calculated at checkout
                 </p>
@@ -252,9 +347,15 @@ interface CartDrawerItemProps {
   item: CartItem;
   storeSlug: string;
   currency: string;
+  campaignDiscount?: CampaignDiscount;
 }
 
-function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
+function CartDrawerItem({
+  item,
+  storeSlug,
+  currency,
+  campaignDiscount,
+}: CartDrawerItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");
   // Local quantity is the single source of truth during user interaction
@@ -300,11 +401,25 @@ function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
     }
   }
 
-  const price = item.variant?.price
+  const originalPrice = item.variant?.price
     ? parseFloat(item.variant.price)
     : parseFloat(item.product.price);
 
-  const lineTotal = price * localQuantity;
+  // Apply campaign discount first
+  const afterCampaignPrice = calculateDiscountedPrice(
+    originalPrice,
+    campaignDiscount || null
+  );
+
+  // Then apply tier discount
+  const effectivePrice = getApplicableTierPrice(
+    afterCampaignPrice,
+    localQuantity,
+    item.product.priceTiers || []
+  );
+
+  const hasDiscount = effectivePrice < originalPrice;
+  const lineTotal = effectivePrice * localQuantity;
 
   const availableStock = item.variant ? item.variant.stock : item.product.stock;
   const trackInventory = item.product.trackInventory;
@@ -474,9 +589,26 @@ function CartDrawerItem({ item, storeSlug, currency }: CartDrawerItemProps) {
         </div>
 
         {/* Price */}
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatPrice(price, currency)} each
-        </p>
+        <div className="mt-1 text-sm text-muted-foreground">
+          {hasDiscount ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="text-green-600 font-medium">
+                {formatPrice(effectivePrice, currency)}
+              </span>
+              <span className="line-through text-xs">
+                {formatPrice(originalPrice, currency)}
+              </span>
+              {campaignDiscount && (
+                <span className="inline-flex items-center gap-0.5 text-xs text-red-600">
+                  <Sparkles className="h-3 w-3" />
+                  {campaignDiscount.campaignName}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span>{formatPrice(originalPrice, currency)} each</span>
+          )}
+        </div>
 
         {/* Quantity & Line Total */}
         <div className="mt-auto flex items-center justify-between pt-2">

@@ -19,12 +19,14 @@ import { CartItem } from "./cart-item";
 import { CartSummary } from "./cart-summary";
 import { EmptyCart } from "./empty-cart";
 import { useCart } from "@/lib/hooks/use-cart";
+import { useCartCampaignDiscounts } from "@/lib/hooks/use-campaign-discounts";
 
 interface CartContentProps {
   storeSlug: string;
   currency: string;
   checkoutEnabled?: boolean;
   contactPhone?: string | null;
+  tenantId: string;
 }
 
 export function CartContent({
@@ -32,8 +34,12 @@ export function CartContent({
   currency,
   checkoutEnabled = true,
   contactPhone,
+  tenantId,
 }: CartContentProps) {
   const { items, clearCart, isClearing } = useCart();
+
+  // Fetch campaign discounts for cart items
+  const { discountsMap } = useCartCampaignDiscounts(tenantId, items);
 
   if (items.length === 0) {
     return <EmptyCart storeSlug={storeSlug} />;
@@ -105,7 +111,12 @@ export function CartContent({
         <div className="lg:col-span-2">
           <div className="space-y-4">
             {items.map((item) => (
-              <CartItem key={item.id} item={item} currency={currency} />
+              <CartItem
+                key={item.id}
+                item={item}
+                currency={currency}
+                campaignDiscount={discountsMap.get(item.product.id)}
+              />
             ))}
           </div>
         </div>
@@ -118,6 +129,7 @@ export function CartContent({
               currency={currency}
               checkoutEnabled={checkoutEnabled}
               contactPhone={contactPhone}
+              tenantId={tenantId}
             />
           </div>
         </div>

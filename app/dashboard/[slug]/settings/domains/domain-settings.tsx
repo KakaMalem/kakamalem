@@ -440,7 +440,7 @@ export function DomainSettings({
                     own domain like mybrand.com with free SSL.
                   </p>
                 </div>
-                <UpgradeButton>
+                <UpgradeButton storeSlug={storeSlug}>
                   <Crown className="mr-2 size-4" />
                   Upgrade to Pro
                 </UpgradeButton>

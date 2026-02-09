@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { BillingStatusCard } from "./billing-status-card";
 import { PlanComparison } from "./plan-comparison";
 import { InvoiceList } from "./invoice-list";
+import { InvoiceDetailDialog } from "./invoice-detail-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type {
   SubscriptionOverview,
@@ -63,10 +64,12 @@ export function BillingPageClient({
 
   // Parse payment result from URL parameters
   // HesabPay appends ?data={success, message, transaction_id}
+  // Stripe uses ?upgrade=success/cancelled
   // We also check for our own ?payment=success/cancelled param as fallback
   const paymentResult = useMemo(() => {
     const dataParam = searchParams.get("data");
     const paymentParam = searchParams.get("payment");
+    const upgradeParam = searchParams.get("upgrade");
 
     // First try to parse HesabPay's data parameter
     const hesabPayData = parseHesabPayData(dataParam);
@@ -77,6 +80,23 @@ export function BillingPageClient({
           : ("failed" as const),
         message: hesabPayData.message,
         transactionId: hesabPayData.transaction_id,
+      };
+    }
+
+    // Check for Stripe upgrade parameter
+    if (upgradeParam === "success") {
+      return {
+        status: "success" as const,
+        message:
+          "Your subscription has been upgraded to Pro via Stripe. Welcome aboard!",
+        transactionId: undefined,
+      };
+    }
+    if (upgradeParam === "cancelled") {
+      return {
+        status: "cancelled" as const,
+        message: "Your upgrade was cancelled. You can try again anytime.",
+        transactionId: undefined,
       };
     }
 
@@ -101,12 +121,32 @@ export function BillingPageClient({
 
   const [showAlert, setShowAlert] = useState(!!paymentResult);
 
+  // Invoice viewing state
+  const [selectedInvoice, setSelectedInvoice] =
+    useState<InvoiceWithStats | null>(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+
+  // Handler for viewing invoice
+  const handleViewInvoice = useCallback(
+    (invoiceId: string) => {
+      const invoice = invoices.find((inv) => inv.id === invoiceId);
+      if (invoice) {
+        setSelectedInvoice(invoice);
+        setInvoiceDialogOpen(true);
+      }
+    },
+    [invoices]
+  );
+
   // Track if we've already cleared the URL
   const clearedUrl = useRef(false);
 
   // Clear the URL params after mounting (only once)
   useEffect(() => {
-    const hasParams = searchParams.get("data") || searchParams.get("payment");
+    const hasParams =
+      searchParams.get("data") ||
+      searchParams.get("payment") ||
+      searchParams.get("upgrade");
     if (hasParams && !clearedUrl.current) {
       clearedUrl.current = true;
       // Use setTimeout to avoid blocking the render
@@ -185,6 +225,7 @@ export function BillingPageClient({
           subscription={subscription}
           currency={currency}
           tenantId={tenantId}
+          storeSlug={storeSlug}
         />
       )}
 
@@ -192,6 +233,15 @@ export function BillingPageClient({
       <InvoiceList
         invoices={invoices}
         total={invoicesTotal}
+        currency={currency}
+        onViewInvoice={handleViewInvoice}
+      />
+
+      {/* Invoice Detail Dialog */}
+      <InvoiceDetailDialog
+        invoice={selectedInvoice}
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
         currency={currency}
       />
     </div>

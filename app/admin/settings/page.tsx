@@ -6,8 +6,10 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Settings, History } from "lucide-react";
 import { SettingsForm } from "./settings-form";
+import { isStripeEnabled, getProPricingInfo } from "@/lib/stripe";
 
 // =============================================================================
 // ADMIN SETTINGS PAGE
@@ -16,9 +18,13 @@ import { SettingsForm } from "./settings-form";
 // =============================================================================
 
 export default async function AdminSettingsPage() {
-  const [settings, auditLogs] = await Promise.all([
+  // Check if Stripe is enabled and fetch pricing
+  const stripeEnabled = isStripeEnabled();
+
+  const [settings, auditLogs, stripePricingInfo] = await Promise.all([
     getPlatformSettings(),
     getAdminAuditLogs(10),
+    stripeEnabled ? getProPricingInfo() : Promise.resolve(null),
   ]);
 
   // Filter to only settings-related logs
@@ -50,7 +56,12 @@ export default async function AdminSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SettingsForm settings={settings} />
+              <SettingsForm
+                settings={settings}
+                stripeEnabled={stripeEnabled}
+                stripePriceInfo={stripePricingInfo?.monthly ?? null}
+                stripeYearlyPriceInfo={stripePricingInfo?.yearly ?? null}
+              />
             </CardContent>
           </Card>
         </div>
@@ -77,9 +88,10 @@ export default async function AdminSettingsPage() {
                       <p className="text-xs text-muted-foreground">
                         by {log.admin?.name || log.admin?.email || "Unknown"}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(log.createdAt).toLocaleString()}
-                      </p>
+                      <RelativeTime
+                        date={log.createdAt}
+                        className="text-xs text-muted-foreground"
+                      />
                     </div>
                   ))}
                 </div>

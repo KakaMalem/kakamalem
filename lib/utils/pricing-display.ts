@@ -1,6 +1,17 @@
 import type { PriceTier } from "@/lib/db/schema";
 
 /**
+ * Campaign discount info for price calculations
+ */
+export type CampaignDiscount = {
+  campaignId: string;
+  campaignName: string;
+  discountType: "percentage" | "fixed_amount";
+  discountValue: number;
+  badgeText: string | null;
+};
+
+/**
  * Calculate discount percentage
  */
 function calculateDiscountPercent(
@@ -9,6 +20,20 @@ function calculateDiscountPercent(
 ): number | null {
   if (!compareAtPrice || compareAtPrice <= price) return null;
   return Math.round(((compareAtPrice - price) / compareAtPrice) * 100);
+}
+
+/**
+ * Apply campaign discount to a price
+ */
+export function applyCampaignDiscount(
+  originalPrice: number,
+  campaign: CampaignDiscount
+): number {
+  if (campaign.discountType === "percentage") {
+    return originalPrice * (1 - campaign.discountValue / 100);
+  } else {
+    return Math.max(0, originalPrice - campaign.discountValue);
+  }
 }
 
 /**
@@ -40,6 +65,65 @@ export function getDisplayPrices(
     compareAtPrice: compareAtNum,
     discountPercent,
     hasDiscount: discountPercent !== null && discountPercent > 0,
+  };
+}
+
+/**
+ * Get display prices with campaign discount applied
+ * Campaign discounts take priority over compare-at prices
+ *
+ * This is a pure function safe for use in client components.
+ */
+export function getDisplayPricesWithCampaign(
+  price: string | number,
+  compareAtPrice: string | number | null,
+  campaign: CampaignDiscount | null
+): {
+  price: number;
+  originalPrice: number;
+  compareAtPrice: number | null;
+  discountPercent: number | null;
+  hasDiscount: boolean;
+  hasCampaignDiscount: boolean;
+  campaignBadgeText: string | null;
+} {
+  const originalPrice = typeof price === "string" ? parseFloat(price) : price;
+  const compareAtNum = compareAtPrice
+    ? typeof compareAtPrice === "string"
+      ? parseFloat(compareAtPrice)
+      : compareAtPrice
+    : null;
+
+  // If there's an active campaign, use campaign discount
+  if (campaign) {
+    const campaignPrice = applyCampaignDiscount(originalPrice, campaign);
+    const campaignDiscountPercent =
+      campaign.discountType === "percentage"
+        ? campaign.discountValue
+        : Math.round(((originalPrice - campaignPrice) / originalPrice) * 100);
+
+    return {
+      price: campaignPrice,
+      originalPrice,
+      compareAtPrice: originalPrice, // Show original as compare-at
+      discountPercent: campaignDiscountPercent,
+      hasDiscount: true,
+      hasCampaignDiscount: true,
+      campaignBadgeText: campaign.badgeText,
+    };
+  }
+
+  // No campaign - use regular compare-at price logic
+  const discountPercent = calculateDiscountPercent(originalPrice, compareAtNum);
+
+  return {
+    price: originalPrice,
+    originalPrice,
+    compareAtPrice: compareAtNum,
+    discountPercent,
+    hasDiscount: discountPercent !== null && discountPercent > 0,
+    hasCampaignDiscount: false,
+    campaignBadgeText: null,
   };
 }
 

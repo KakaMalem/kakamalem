@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { tenants, products, categories } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
+// Force dynamic generation at request time (not build time)
+// This ensures database is available when generating sitemaps
+export const dynamic = "force-dynamic";
+
 /**
  * Per-store dynamic sitemap generation
  * Includes all products, categories, and static pages for each store

@@ -2,21 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
-} from "@/components/ui/field";
+import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { NotificationPrompt } from "../notification-prompt";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
-import {
-  guestCheckoutSchema,
-  type GuestCheckoutInput,
-} from "@/lib/validations/checkout";
+import { guestCheckoutSchema } from "@/lib/validations/checkout";
 
 interface SectionContactProps {
   user: {
@@ -39,130 +30,74 @@ export function SectionContact({
 }: SectionContactProps) {
   const { customerInfo, setCustomerInfo } = useCheckoutStore();
 
-  // Guest checkout form state
-  const [guestForm, setGuestForm] = useState<GuestCheckoutInput>({
-    email: customerInfo?.email || "",
-    firstName: customerInfo?.firstName || "",
-    lastName: customerInfo?.lastName || "",
-    phone: customerInfo?.phone || userPhone || "",
-  });
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof GuestCheckoutInput, string>>
-  >({});
+  // Guest checkout form state - only phone required
+  const [phone, setPhone] = useState(customerInfo?.phone || userPhone || "");
+  const [error, setError] = useState<string | null>(null);
 
-  // Scroll to first error
+  // Scroll to error field
   useEffect(() => {
-    const errorFields = Object.keys(errors);
-    if (errorFields.length === 0) return;
+    if (!error) return;
 
     setTimeout(() => {
-      const firstErrorField = errorFields[0];
-      const element = document.getElementById(`contact-${firstErrorField}`);
+      const element = document.getElementById("contact-phone");
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "center" });
         setTimeout(() => element.focus(), 300);
       }
     }, 100);
-  }, [errors]);
+  }, [error]);
 
-  const handleChange = (field: keyof GuestCheckoutInput, value: string) => {
-    setGuestForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    if (error) {
+      setError(null);
     }
   };
 
   const handleContinue = () => {
     // For logged-in users, just proceed (their info is already known)
     if (user) {
-      // Set customer info from user data
+      // Set customer info from user's phone (or existing)
       setCustomerInfo({
-        email: user.email,
-        firstName: user.name?.split(" ")[0] || "",
-        lastName: user.name?.split(" ").slice(1).join(" ") || "",
-        phone: userPhone,
+        phone: userPhone || phone,
       });
       onContinue();
       return;
     }
 
-    // Validate guest form
-    const validation = guestCheckoutSchema.safeParse(guestForm);
+    // Validate guest form - only phone required
+    const validation = guestCheckoutSchema.safeParse({ phone });
     if (!validation.success) {
-      const fieldErrors: Partial<Record<keyof GuestCheckoutInput, string>> = {};
-      validation.error.issues.forEach((issue) => {
-        const field = issue.path[0] as keyof GuestCheckoutInput;
-        fieldErrors[field] = issue.message;
-      });
-      setErrors(fieldErrors);
-      toast.error(validation.error.issues[0].message);
+      const errorMessage =
+        validation.error.issues[0]?.message || "Invalid phone";
+      setError(errorMessage);
+      toast.error(errorMessage);
       return;
     }
 
     // Save to store and proceed
-    setCustomerInfo(validation.data);
+    setCustomerInfo({ phone: validation.data.phone });
     onContinue();
   };
 
   return (
     <div className="space-y-4">
-      {/* Guest checkout form */}
+      {/* Guest checkout form - phone only */}
       {!user && (
-        <>
-          <Field>
-            <FieldLabel htmlFor="contact-email">Email</FieldLabel>
-            <Input
-              id="contact-email"
-              type="email"
-              value={guestForm.email}
-              onChange={(e) => handleChange("email", e.target.value)}
-              placeholder="your@email.com"
-              aria-invalid={!!errors.email}
-            />
-            <FieldDescription>
-              We&apos;ll send order confirmation to this email
-            </FieldDescription>
-            <FieldError>{errors.email}</FieldError>
-          </Field>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="contact-firstName">First Name</FieldLabel>
-              <Input
-                id="contact-firstName"
-                value={guestForm.firstName}
-                onChange={(e) => handleChange("firstName", e.target.value)}
-                aria-invalid={!!errors.firstName}
-              />
-              <FieldError>{errors.firstName}</FieldError>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="contact-lastName">Last Name</FieldLabel>
-              <Input
-                id="contact-lastName"
-                value={guestForm.lastName}
-                onChange={(e) => handleChange("lastName", e.target.value)}
-                aria-invalid={!!errors.lastName}
-              />
-              <FieldError>{errors.lastName}</FieldError>
-            </Field>
-          </div>
-
-          <Field>
-            <FieldLabel htmlFor="contact-phone">Phone</FieldLabel>
-            <PhoneInput
-              id="contact-phone"
-              value={guestForm.phone}
-              onChange={(value) => handleChange("phone", value || "")}
-              defaultCountry="AF"
-              aria-invalid={!!errors.phone}
-            />
-            <FieldDescription>
-              Required for delivery coordination
-            </FieldDescription>
-            <FieldError>{errors.phone}</FieldError>
-          </Field>
-        </>
+        <Field>
+          <FieldLabel htmlFor="contact-phone">Phone Number</FieldLabel>
+          <PhoneInput
+            id="contact-phone"
+            value={phone}
+            onChange={(value) => handlePhoneChange(value || "")}
+            defaultCountry="AF"
+            aria-invalid={!!error}
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            We&apos;ll contact you here for delivery updates
+          </p>
+          <FieldError>{error}</FieldError>
+        </Field>
       )}
 
       {/* Logged-in user info */}
@@ -207,9 +142,6 @@ export function ContactSummary({
 }: {
   user: { email: string; name: string | null } | null;
   customerInfo: {
-    email: string;
-    firstName: string;
-    lastName: string;
     phone: string;
   } | null;
 }) {
@@ -218,11 +150,7 @@ export function ContactSummary({
   }
 
   if (customerInfo) {
-    return (
-      <span>
-        {customerInfo.email} &bull; {customerInfo.phone}
-      </span>
-    );
+    return <span>{customerInfo.phone}</span>;
   }
 
   return null;

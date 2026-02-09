@@ -82,6 +82,47 @@ export async function disablePushNotifications(
 }
 
 /**
+ * Disable push notifications for a specific device by subscription ID
+ */
+export async function disablePushNotificationsForDevice(
+  tenantId: string,
+  subscriptionId: string
+): Promise<PushSubscriptionResult> {
+  const user = await getUser();
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    // Verify the subscription belongs to this user and tenant
+    const subscription = await db.query.pushSubscriptions.findFirst({
+      where: and(
+        eq(pushSubscriptions.id, subscriptionId),
+        eq(pushSubscriptions.tenantId, tenantId),
+        eq(pushSubscriptions.userId, user.id)
+      ),
+    });
+
+    if (!subscription) {
+      return { success: false, error: "Subscription not found" };
+    }
+
+    await db
+      .update(pushSubscriptions)
+      .set({
+        isActive: false,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(pushSubscriptions.id, subscriptionId));
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to disable device notifications:", error);
+    return { success: false, error: "Failed to disable device" };
+  }
+}
+
+/**
  * Check if user can receive notifications for a tenant
  * (must be owner or admin)
  */

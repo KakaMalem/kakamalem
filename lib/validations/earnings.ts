@@ -64,12 +64,24 @@ export const cashMethodSchema = basePayoutMethodSchema.extend({
 export type CashMethodInput = z.infer<typeof cashMethodSchema>;
 
 /**
+ * Crypto (USDT) payout method
+ */
+export const cryptoMethodSchema = basePayoutMethodSchema.extend({
+  type: z.literal("crypto"),
+  walletAddress: z.string().min(1, "Wallet address is required").max(100),
+  network: z.enum(["trc20", "erc20", "bep20"]),
+});
+
+export type CryptoMethodInput = z.infer<typeof cryptoMethodSchema>;
+
+/**
  * Union schema for all payout methods
  */
 export const payoutMethodSchema = z.union([
   bankTransferMethodSchema,
   mobileMoneyMethodSchema,
   cashMethodSchema,
+  cryptoMethodSchema,
 ]);
 
 export type PayoutMethodInput = z.infer<typeof payoutMethodSchema>;

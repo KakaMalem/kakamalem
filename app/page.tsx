@@ -6,6 +6,7 @@ import { FeatureCard } from "@/components/landing/feature-card";
 import { PricingCard } from "@/components/landing/pricing-card";
 import { FaqSection } from "@/components/landing/faq-section";
 import { HowItWorks } from "@/components/landing/how-it-works";
+import { LandingNavbar } from "@/components/landing/landing-navbar";
 
 const features = [
   {
@@ -84,55 +85,12 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 px-6 backdrop-blur supports-backdrop-blur:bg-background/60">
-        <div className="mx-auto flex max-w-6xl items-center justify-between py-4">
-          <Link href="/" className="text-xl font-bold">
-            Kaka Malem
-          </Link>
-
-          {/* Desktop nav */}
-          <nav className="hidden items-center gap-4 md:flex">
-            {user ? (
-              <Button asChild>
-                <Link href="/dashboard">Dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button variant="outline" asChild>
-                  <Link href="/login">Login</Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/signup">Start Free</Link>
-                </Button>
-              </>
-            )}
-          </nav>
-
-          {/* Mobile nav */}
-          <div className="flex items-center gap-2 md:hidden">
-            {user ? (
-              <Button size="sm" asChild>
-                <Link href="/dashboard">Dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href="/login">Login</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link href="/signup">Start Free</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <LandingNavbar user={user} />
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="px-6 py-16 md:py-24 lg:py-32">
-          <div className="mx-auto max-w-6xl">
+        <section className="landing-section py-16 md:py-24 lg:py-32">
+          <div className="landing-section-content">
             <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
               {/* Text content */}
               <div className="text-center lg:text-left">
@@ -191,9 +149,9 @@ export default async function Home() {
         {/* Features Section */}
         <section
           id="features"
-          className="border-t bg-muted/30 px-6 py-16 md:py-24"
+          className="landing-section border-t bg-muted/30 py-16 md:py-24"
         >
-          <div className="mx-auto max-w-6xl">
+          <div className="landing-section-content">
             <div className="text-center">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Everything you need to sell online
@@ -218,8 +176,8 @@ export default async function Home() {
         </section>
 
         {/* How It Works Section */}
-        <section className="border-t px-6 py-16 md:py-24">
-          <div className="mx-auto max-w-6xl">
+        <section className="landing-section border-t py-16 md:py-24">
+          <div className="landing-section-content">
             <div className="text-center">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Get started in 3 easy steps
@@ -237,9 +195,9 @@ export default async function Home() {
         {/* Pricing Section */}
         <section
           id="pricing"
-          className="border-t bg-muted/30 px-6 py-16 md:py-24"
+          className="landing-section border-t bg-muted/30 py-16 md:py-24"
         >
-          <div className="mx-auto max-w-6xl">
+          <div className="landing-section-content">
             <div className="text-center">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Simple, transparent pricing
@@ -267,8 +225,8 @@ export default async function Home() {
         </section>
 
         {/* FAQ Section */}
-        <section id="faq" className="border-t px-6 py-16 md:py-24">
-          <div className="mx-auto max-w-6xl">
+        <section id="faq" className="landing-section border-t py-16 md:py-24">
+          <div className="landing-section-content">
             <div className="text-center">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Frequently asked questions
@@ -284,8 +242,8 @@ export default async function Home() {
         </section>
 
         {/* Final CTA Section */}
-        <section className="border-t bg-muted/30 px-6 py-16 md:py-24">
-          <div className="mx-auto max-w-6xl text-center">
+        <section className="landing-section border-t bg-muted/30 py-16 md:py-24">
+          <div className="landing-section-content text-center">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
               Ready to start your online business?
             </h2>
@@ -303,8 +261,8 @@ export default async function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t px-6 py-12">
-        <div className="mx-auto max-w-6xl">
+      <footer className="landing-section border-t py-12">
+        <div className="landing-section-content">
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
             {/* Brand */}
             <div className="lg:col-span-2">
@@ -358,6 +316,14 @@ export default async function Home() {
                     className="text-muted-foreground transition-colors hover:text-foreground"
                   >
                     FAQ
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/affiliate"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Become an Affiliate
                   </Link>
                 </li>
                 <li>

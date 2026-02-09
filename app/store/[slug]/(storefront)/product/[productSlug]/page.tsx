@@ -9,6 +9,7 @@ import {
 import { stripHtml } from "@/lib/utils/html";
 import { getProductReviewStats } from "@/lib/db/queries/reviews";
 import { getProductPriceTiers } from "@/lib/db/queries/pricing";
+import { getProductCampaignDiscount } from "@/lib/db/queries/campaigns";
 import { ProductPageContent } from "@/components/store/product-page-content";
 import { ProductReviews } from "@/components/store/product-reviews";
 import { ProductStructuredData } from "@/components/store/product-structured-data";
@@ -27,8 +28,10 @@ interface ProductPageProps {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: ProductPageProps): Promise<Metadata> {
   const { slug, productSlug } = await params;
+  const resolvedSearchParams = await searchParams;
   // Decode URL-encoded slugs (handles Persian/Unicode characters)
   const decodedProductSlug = decodeURIComponent(productSlug);
 
@@ -41,14 +44,63 @@ export async function generateMetadata({
   );
   if (!product) return { title: "Product Not Found" };
 
-  const primaryImage = product.images?.[0]?.media?.url;
+  // Parse variant from URL params (e.g., ?size=large&color=black)
+  const { variantId } = parseVariantFromUrl(resolvedSearchParams, product);
+
+  // Determine the image to show:
+  // 1. If variant is selected, use variant's image (single or first from gallery)
+  // 2. Fall back to product's primary image
+  let imageToShow: string | undefined;
+
+  if (variantId && product.variants) {
+    const selectedVariant = product.variants.find((v) => v.id === variantId);
+    if (selectedVariant) {
+      // Try variant's single image first, then variant's image gallery
+      imageToShow =
+        selectedVariant.image?.url ||
+        selectedVariant.images?.[0]?.media?.url ||
+        undefined;
+    }
+  }
+
+  // Fall back to product's primary image
+  if (!imageToShow) {
+    imageToShow = product.images?.[0]?.media?.url;
+  }
+
   const plainDescription = product.description
     ? stripHtml(product.description)
     : `Buy ${product.name} at ${store.name}`;
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
-  const productUrl = `${appUrl}/store/${slug}/product/${productSlug}`;
-  const imageUrl = primaryImage ? `${appUrl}${primaryImage}` : undefined;
+  // Include variant params in canonical URL for unique preview per variant
+  const variantParams = new URLSearchParams(
+    Object.entries(resolvedSearchParams).filter(
+      ([key, value]) =>
+        value !== undefined &&
+        // Only include variant-related params, exclude pagination/sort
+        !["sort", "rating", "page"].includes(key)
+    ) as [string, string][]
+  ).toString();
+  const productUrl = variantParams
+    ? `${appUrl}/store/${slug}/product/${productSlug}?${variantParams}`
+    : `${appUrl}/store/${slug}/product/${productSlug}`;
+  const imageUrl = imageToShow ? `${appUrl}${imageToShow}` : undefined;
+
+  // Build title with variant info if available
+  let title = product.name;
+  if (variantId && product.variants) {
+    const selectedVariant = product.variants.find((v) => v.id === variantId);
+    if (selectedVariant?.options?.length) {
+      const variantLabel = selectedVariant.options
+        .map((o) => o.optionValue?.value)
+        .filter(Boolean)
+        .join(" / ");
+      if (variantLabel) {
+        title = `${product.name} - ${variantLabel}`;
+      }
+    }
+  }
 
   // Truncate description to recommended length
   const truncatedDescription =
@@ -56,8 +108,15 @@ export async function generateMetadata({
       ? `${plainDescription.slice(0, 157)}...`
       : plainDescription;
 
+  // Get variant price if applicable
+  const variantPrice =
+    variantId && product.variants
+      ? product.variants.find((v) => v.id === variantId)?.price
+      : null;
+  const displayPrice = variantPrice ?? product.price;
+
   return {
-    title: `${product.name} | ${store.name}`,
+    title: `${title} | ${store.name}`,
     description: truncatedDescription,
     // Canonical URL prevents duplicate content issues
     alternates: {
@@ -65,7 +124,7 @@ export async function generateMetadata({
     },
     openGraph: {
       type: "website",
-      title: product.name,
+      title,
       description: truncatedDescription,
       url: productUrl,
       siteName: store.name,
@@ -76,20 +135,20 @@ export async function generateMetadata({
               url: imageUrl,
               width: 1200,
               height: 630,
-              alt: product.name,
+              alt: title,
             },
           ]
         : undefined,
     },
     twitter: {
       card: "summary_large_image",
-      title: product.name,
+      title,
       description: truncatedDescription,
       images: imageUrl ? [imageUrl] : undefined,
     },
     // Product-specific meta tags for richer previews
     other: {
-      "product:price:amount": product.price,
+      "product:price:amount": displayPrice,
       "product:price:currency": store.currency,
       "product:availability": "in stock",
     },
@@ -131,12 +190,14 @@ export default async function ProductPage({
     notFound();
   }
 
-  // Fetch review statistics, price tiers, and image swatch URLs in parallel
-  const [reviewStats, priceTiers, imageSwatchUrls] = await Promise.all([
-    getProductReviewStats(store.id, product.id),
-    getProductPriceTiers(product.id),
-    getProductImageSwatchUrls(product),
-  ]);
+  // Fetch review statistics, price tiers, image swatch URLs, and campaign discount in parallel
+  const [reviewStats, priceTiers, imageSwatchUrls, campaignDiscount] =
+    await Promise.all([
+      getProductReviewStats(store.id, product.id),
+      getProductPriceTiers(product.id),
+      getProductImageSwatchUrls(product),
+      getProductCampaignDiscount(store.id, product.id, product.categoryId),
+    ]);
 
   // Build breadcrumbs
   const breadcrumbs = [
@@ -195,6 +256,7 @@ export default async function ProductPage({
               imageSwatchUrls={imageSwatchUrls}
               initialVariantId={initialVariantId}
               initialOptions={initialOptions}
+              campaignDiscount={campaignDiscount}
             />
           </div>
 

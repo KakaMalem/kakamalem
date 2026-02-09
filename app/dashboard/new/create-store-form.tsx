@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, ArrowLeft, ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 
@@ -337,6 +337,14 @@ export function CreateStoreForm({
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
+  const skipStep = () => {
+    setDirection(1);
+    setCurrentStep((prev) => Math.min(prev + 1, 4));
+  };
+
+  // Steps 2 (Branding), 3 (Contact), and 4 (Location) are optional
+  const isOptionalStep = currentStep >= 2 && currentStep <= 4;
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -521,21 +529,36 @@ export function CreateStoreForm({
               <div />
             )}
 
-            {currentStep < 4 ? (
-              <Button
-                type="button"
-                onClick={(e) => nextStep(e)}
-                disabled={isPending}
-              >
-                Next
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            ) : (
-              <Button type="submit" disabled={isPending}>
-                {isPending && <Spinner className="mr-2" />}
-                {isPending ? "Creating store..." : "Create store"}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Skip button for optional steps (2, 3, 4) - but not on final step */}
+              {isOptionalStep && currentStep < 4 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={skipStep}
+                  disabled={isPending}
+                >
+                  Skip
+                  <SkipForward className="h-4 w-4 ml-2" />
+                </Button>
+              )}
+
+              {currentStep < 4 ? (
+                <Button
+                  type="button"
+                  onClick={(e) => nextStep(e)}
+                  disabled={isPending}
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button type="submit" disabled={isPending}>
+                  {isPending && <Spinner className="mr-2" />}
+                  {isPending ? "Creating store..." : "Create store"}
+                </Button>
+              )}
+            </div>
           </div>
         </form>
 

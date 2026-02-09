@@ -25,7 +25,8 @@ import { cn } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { createAddressAction } from "@/lib/actions/addresses";
-import type { Address, DeliveryZone } from "@/lib/db/schema";
+import type { Address } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 import {
   shippingAddressSchema,
   type ShippingAddressInput,
@@ -56,7 +57,7 @@ interface SectionDeliveryProps {
   } | null;
   userPhone: string;
   savedAddresses: SavedAddress[];
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
   storeLocation?: { lat: number; lng: number } | null;
   onContinue: () => void;
 }
@@ -80,11 +81,8 @@ export function SectionDelivery({
   // Default empty form values
   const getEmptyAddressForm = useCallback(
     (): ShippingAddressInput => ({
-      firstName: user?.name?.split(" ")[0] || customerInfo?.firstName || "",
-      lastName:
-        user?.name?.split(" ").slice(1).join(" ") ||
-        customerInfo?.lastName ||
-        "",
+      firstName: user?.name?.split(" ")[0] || "",
+      lastName: user?.name?.split(" ").slice(1).join(" ") || "",
       phone: userPhone || customerInfo?.phone || "",
       latitude: 0,
       longitude: 0,
@@ -92,7 +90,7 @@ export function SectionDelivery({
       source: undefined,
       notes: "",
     }),
-    [user?.name, userPhone, customerInfo]
+    [user?.name, userPhone, customerInfo?.phone]
   );
 
   // Address form state
@@ -242,15 +240,9 @@ export function SectionDelivery({
       return;
     }
 
-    // Merge with customer info for guests
+    // For guests, use phone from contact section (customerInfo), name from address form
     const addressToValidate: ShippingAddressInput = {
       ...addressForm,
-      firstName: user
-        ? addressForm.firstName
-        : customerInfo?.firstName || addressForm.firstName,
-      lastName: user
-        ? addressForm.lastName
-        : customerInfo?.lastName || addressForm.lastName,
       phone: user
         ? addressForm.phone
         : customerInfo?.phone || addressForm.phone,
@@ -320,16 +312,14 @@ export function SectionDelivery({
       {/* Saved Addresses */}
       {savedAddresses.length > 0 && !showNewAddressForm && (
         <>
-          {/* Map Preview */}
-          {deliveryZones.length > 0 && (
-            <AddressesMapPreview
-              addresses={savedAddresses}
-              deliveryZones={deliveryZones}
-              selectedAddressId={selectedAddressId}
-              onAddressClick={handleAddressSelect}
-              storeLocation={storeLocation}
-            />
-          )}
+          {/* Map Preview - Always show for visual address confirmation */}
+          <AddressesMapPreview
+            addresses={savedAddresses}
+            deliveryZones={deliveryZones}
+            selectedAddressId={selectedAddressId}
+            onAddressClick={handleAddressSelect}
+            storeLocation={storeLocation}
+          />
 
           <RadioGroup
             value={selectedAddressId || ""}
@@ -425,7 +415,8 @@ export function SectionDelivery({
             </Button>
           )}
 
-          {/* Name and phone fields for logged-in users */}
+          {/* Name and phone fields only for logged-in users */}
+          {/* Guests only need phone (from contact section) + location */}
           {user && (
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -463,9 +454,7 @@ export function SectionDelivery({
                   defaultCountry="AF"
                   aria-invalid={!!errors.phone}
                 />
-                <FieldDescription>
-                  Required for delivery coordination
-                </FieldDescription>
+                <FieldDescription>For delivery coordination</FieldDescription>
                 <FieldError>{errors.phone}</FieldError>
               </Field>
             </div>
@@ -553,9 +542,13 @@ export function DeliverySummary({
     ? formatPlusCodeForDisplay(shippingAddress.plusCode, shippingAddress.city)
     : `${shippingAddress.latitude.toFixed(6)}, ${shippingAddress.longitude.toFixed(6)}`;
 
+  const name =
+    `${shippingAddress.firstName || ""} ${shippingAddress.lastName || ""}`.trim();
+
   return (
     <span className="truncate">
-      {shippingAddress.firstName} {shippingAddress.lastName} &bull; {location}
+      {name ? `${name} \u2022 ` : ""}
+      {location}
     </span>
   );
 }

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, BellOff, Smartphone, AlertCircle } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  Smartphone,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -85,6 +91,23 @@ export function CustomerNotificationSettings({
   const [isLoading, setIsLoading] = useState(true);
   const [isSubscribing, setIsSubscribing] = useState(false);
 
+  /**
+   * Get current device's push subscription endpoint (if any)
+   */
+  async function getCurrentDeviceEndpoint(): Promise<string | null> {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        return null;
+      }
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) return null;
+      const subscription = await registration.pushManager.getSubscription();
+      return subscription?.endpoint || null;
+    } catch {
+      return null;
+    }
+  }
+
   // Check browser support and initial status
   useEffect(() => {
     const checkSupport = async () => {
@@ -97,12 +120,21 @@ export function CustomerNotificationSettings({
       if (supported) {
         setPermission(Notification.permission);
 
+        // Get current device's endpoint for accurate status
+        const currentEndpoint = await getCurrentDeviceEndpoint();
+
         // Check if already subscribed for this store
         try {
-          const response = await fetch(`/api/push/status?tenantId=${tenantId}`);
+          const params = new URLSearchParams({ tenantId });
+          if (currentEndpoint) {
+            params.set("endpoint", currentEndpoint);
+          }
+
+          const response = await fetch(`/api/push/status?${params}`);
           if (response.ok) {
             const data = await response.json();
-            setIsEnabled(data.subscribed);
+            // Use currentDeviceEnabled for accurate device-specific status
+            setIsEnabled(data.currentDeviceEnabled ?? data.subscribed ?? false);
           }
         } catch (error) {
           console.error("Failed to check subscription status:", error);
@@ -188,15 +220,19 @@ export function CustomerNotificationSettings({
         setIsSubscribing(false);
       }
     } else {
-      // Disable notifications
+      // Disable notifications for this device
       setIsSubscribing(true);
       try {
-        const response = await fetch(
-          `/api/push/subscribe?tenantId=${tenantId}`,
-          {
-            method: "DELETE",
-          }
-        );
+        // Get current device's endpoint for device-specific deletion
+        const currentEndpoint = await getCurrentDeviceEndpoint();
+        const params = new URLSearchParams({ tenantId });
+        if (currentEndpoint) {
+          params.set("endpoint", encodeURIComponent(currentEndpoint));
+        }
+
+        const response = await fetch(`/api/push/subscribe?${params}`, {
+          method: "DELETE",
+        });
 
         if (response.ok) {
           setIsEnabled(false);
@@ -288,7 +324,24 @@ export function CustomerNotificationSettings({
               </div>
             )}
 
-            {!isEnabled && permission !== "denied" && (
+            {permission === "granted" && !isEnabled && (
+              <div className="rounded-lg border bg-green-50 dark:bg-green-950/20 p-4">
+                <div className="flex gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                      Permission granted
+                    </p>
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Your browser already allows notifications. Toggle the
+                      switch above to enable order updates for this store.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!isEnabled && permission === "default" && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
                 <div className="flex gap-3">
                   <Smartphone className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />

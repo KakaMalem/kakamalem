@@ -27,11 +27,11 @@ import { cn } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { createAddressAction } from "@/lib/actions/addresses";
-import type { Address, DeliveryZone } from "@/lib/db/schema";
+import type { Address } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 import {
   guestCheckoutSchema,
   shippingAddressSchema,
-  type GuestCheckoutInput,
   type ShippingAddressInput,
 } from "@/lib/validations/checkout";
 
@@ -61,7 +61,7 @@ interface StepContactShippingProps {
   tenantId: string;
   storeSlug: string;
   storeName: string;
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
 }
 
 export function StepContactShipping({
@@ -87,16 +87,9 @@ export function StepContactShipping({
     completeStep,
   } = useCheckoutStore();
 
-  // Guest checkout form state
-  const [guestForm, setGuestForm] = useState<GuestCheckoutInput>({
-    email: customerInfo?.email || "",
-    firstName: customerInfo?.firstName || "",
-    lastName: customerInfo?.lastName || "",
-    phone: customerInfo?.phone || "",
-  });
-  const [guestErrors, setGuestErrors] = useState<
-    Partial<Record<keyof GuestCheckoutInput, string>>
-  >({});
+  // Guest checkout form state - phone only
+  const [guestPhone, setGuestPhone] = useState(customerInfo?.phone || "");
+  const [guestPhoneError, setGuestPhoneError] = useState<string | null>(null);
 
   // Default empty form values
   const getEmptyAddressForm = useCallback(
@@ -157,10 +150,12 @@ export function StepContactShipping({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Scroll to first error field when guestErrors or addressErrors change
+  // Scroll to first error field when guestPhoneError or addressErrors change
   useEffect(() => {
-    const allErrors = { ...guestErrors, ...addressErrors };
-    const errorFields = Object.keys(allErrors);
+    const errorFields = [
+      ...(guestPhoneError ? ["guest-phone"] : []),
+      ...Object.keys(addressErrors),
+    ];
     if (errorFields.length === 0) return;
 
     // Small delay to ensure DOM is updated
@@ -172,7 +167,7 @@ export function StepContactShipping({
         setTimeout(() => element.focus(), 300);
       }
     }, 100);
-  }, [guestErrors, addressErrors]);
+  }, [guestPhoneError, addressErrors]);
 
   // Track if location has been set
   const hasLocation = addressForm.latitude !== 0 || addressForm.longitude !== 0;
@@ -221,13 +216,10 @@ export function StepContactShipping({
   };
 
   // Handle form field changes
-  const handleGuestChange = (
-    field: keyof GuestCheckoutInput,
-    value: string
-  ) => {
-    setGuestForm((prev) => ({ ...prev, [field]: value }));
-    if (guestErrors[field]) {
-      setGuestErrors((prev) => ({ ...prev, [field]: undefined }));
+  const handleGuestPhoneChange = (value: string) => {
+    setGuestPhone(value);
+    if (guestPhoneError) {
+      setGuestPhoneError(null);
     }
   };
 
@@ -264,22 +256,21 @@ export function StepContactShipping({
     let hasErrors = false;
     let firstErrorMessage: string | null = null;
 
-    // Validate guest info (if not logged in)
+    // Validate guest phone (if not logged in)
     if (!user) {
-      const guestValidation = guestCheckoutSchema.safeParse(guestForm);
+      const guestValidation = guestCheckoutSchema.safeParse({
+        phone: guestPhone,
+      });
       if (!guestValidation.success) {
-        const errors: Partial<Record<keyof GuestCheckoutInput, string>> = {};
-        guestValidation.error.issues.forEach((issue) => {
-          const field = issue.path[0] as keyof GuestCheckoutInput;
-          errors[field] = issue.message;
-        });
-        setGuestErrors(errors);
+        const errorMsg =
+          guestValidation.error.issues[0]?.message || "Invalid phone";
+        setGuestPhoneError(errorMsg);
         if (!firstErrorMessage) {
-          firstErrorMessage = guestValidation.error.issues[0].message;
+          firstErrorMessage = errorMsg;
         }
         hasErrors = true;
       } else {
-        setCustomerInfo(guestValidation.data);
+        setCustomerInfo({ phone: guestValidation.data.phone });
       }
     }
 
@@ -294,13 +285,11 @@ export function StepContactShipping({
         }
         hasErrors = true;
       } else {
-        // For guests, merge name and phone from guestForm
-        // For logged-in users, use addressForm fields directly
+        // For guests, use address form fields (name entered there)
+        // Phone from guestPhone or addressForm
         const addressToValidate: ShippingAddressInput = {
           ...addressForm,
-          firstName: user ? addressForm.firstName : guestForm.firstName,
-          lastName: user ? addressForm.lastName : guestForm.lastName,
-          phone: user ? addressForm.phone : guestForm.phone,
+          phone: user ? addressForm.phone : guestPhone || addressForm.phone,
         };
 
         const addressValidation =
@@ -382,65 +371,26 @@ export function StepContactShipping({
 
   return (
     <div className="space-y-6">
-      {/* Contact Information (Guest Only) */}
+      {/* Contact Information (Guest Only) - Phone only */}
       {!user && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Contact Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <Field>
-              <FieldLabel>Email</FieldLabel>
-              <Input
-                type="email"
-                value={guestForm.email}
-                onChange={(e) => handleGuestChange("email", e.target.value)}
-                placeholder="your@email.com"
-                aria-invalid={!!guestErrors.email}
-              />
-              <FieldDescription>
-                We&apos;ll send order confirmation to this email
-              </FieldDescription>
-              <FieldError>{guestErrors.email}</FieldError>
-            </Field>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel>First Name</FieldLabel>
-                <Input
-                  value={guestForm.firstName}
-                  onChange={(e) =>
-                    handleGuestChange("firstName", e.target.value)
-                  }
-                  aria-invalid={!!guestErrors.firstName}
-                />
-                <FieldError>{guestErrors.firstName}</FieldError>
-              </Field>
-              <Field>
-                <FieldLabel>Last Name</FieldLabel>
-                <Input
-                  value={guestForm.lastName}
-                  onChange={(e) =>
-                    handleGuestChange("lastName", e.target.value)
-                  }
-                  aria-invalid={!!guestErrors.lastName}
-                />
-                <FieldError>{guestErrors.lastName}</FieldError>
-              </Field>
-            </div>
-
-            <Field>
-              <FieldLabel>Phone</FieldLabel>
+              <FieldLabel>Phone Number</FieldLabel>
               <PhoneInput
-                value={guestForm.phone}
-                onChange={(value) => handleGuestChange("phone", value || "")}
+                id="guest-phone"
+                value={guestPhone}
+                onChange={(value) => handleGuestPhoneChange(value || "")}
                 defaultCountry="AF"
-                aria-invalid={!!guestErrors.phone}
+                aria-invalid={!!guestPhoneError}
               />
               <FieldDescription>
-                Required for delivery coordination
+                We&apos;ll contact you here for delivery updates
               </FieldDescription>
-              <FieldError>{guestErrors.phone}</FieldError>
+              <FieldError>{guestPhoneError}</FieldError>
             </Field>
           </CardContent>
         </Card>
@@ -592,30 +542,33 @@ export function StepContactShipping({
                 </Button>
               )}
 
-              {/* Name and phone fields for logged-in users */}
+              {/* Name and phone fields only for logged-in users */}
+              {/* Guests only need phone (from contact section) + location */}
               {user && (
                 <div className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field>
-                      <FieldLabel>First Name</FieldLabel>
+                      <FieldLabel>Recipient Name</FieldLabel>
                       <Input
                         id="firstName"
                         value={addressForm.firstName}
                         onChange={(e) =>
                           handleAddressChange("firstName", e.target.value)
                         }
+                        placeholder="First name"
                         aria-invalid={!!addressErrors.firstName}
                       />
                       <FieldError>{addressErrors.firstName}</FieldError>
                     </Field>
                     <Field>
-                      <FieldLabel>Last Name</FieldLabel>
+                      <FieldLabel>&nbsp;</FieldLabel>
                       <Input
                         id="lastName"
                         value={addressForm.lastName}
                         onChange={(e) =>
                           handleAddressChange("lastName", e.target.value)
                         }
+                        placeholder="Last name"
                         aria-invalid={!!addressErrors.lastName}
                       />
                       <FieldError>{addressErrors.lastName}</FieldError>
@@ -633,7 +586,7 @@ export function StepContactShipping({
                       aria-invalid={!!addressErrors.phone}
                     />
                     <FieldDescription>
-                      Required for delivery coordination
+                      For delivery coordination
                     </FieldDescription>
                     <FieldError>{addressErrors.phone}</FieldError>
                   </Field>

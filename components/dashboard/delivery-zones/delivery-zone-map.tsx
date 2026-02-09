@@ -225,8 +225,7 @@ export function DeliveryZoneMap({
   return (
     <div
       ref={mapContainerRef}
-      className={`w-full h-100 rounded-lg border ${className}`}
-      style={{ zIndex: 1 }}
+      className={`w-full h-100 rounded-lg border map-wrapper ${className}`}
     />
   );
 }

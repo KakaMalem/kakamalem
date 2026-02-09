@@ -16,6 +16,7 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
+import type { Polygon } from "geojson";
 
 // ============================================================================
 // SHARED TYPES
@@ -65,6 +66,15 @@ export type SeoMetadata = {
   ogImageUrl?: string; // URL to social preview image
 };
 
+// USDT wallet configuration for self-hosted crypto payments
+export type UsdtWalletConfig = {
+  trc20?: { address: string; enabled: boolean }; // Tron network - low fees
+  erc20?: { address: string; enabled: boolean }; // Ethereum network - high fees
+  bep20?: { address: string; enabled: boolean }; // BSC network - low fees
+  minAmount?: number; // Minimum USDT amount for payments
+  expirationMinutes?: number; // How long payment session is valid (default: 60)
+};
+
 // Store analytics (system-managed, read-only)
 export type StoreAnalytics = {
   totalViews: number;
@@ -77,8 +87,8 @@ export type StoreAnalytics = {
 // Customer snapshot for orders/reviews (immutable historical record)
 export type CustomerSnapshot = {
   name: string;
-  email: string;
-  phone?: string;
+  email?: string; // Optional - phone is primary in Afghanistan
+  phone?: string; // Optional here, but required for checkout
 };
 
 // DNS records configuration for custom domains
@@ -525,6 +535,58 @@ export const affiliatePayoutStatusEnum = pgEnum("affiliate_payout_status", [
 ]);
 
 // ============================================================================
+// PLATFORM AFFILIATE ENUMS (Affiliate program for Kaka Malem itself)
+// ============================================================================
+
+// Platform affiliate status (application/account status)
+export const platformAffiliateStatusEnum = pgEnum("platform_affiliate_status", [
+  "pending", // Application submitted, awaiting review
+  "approved", // Approved and can earn commissions
+  "suspended", // Account suspended
+  "rejected", // Application rejected
+]);
+
+// Platform affiliate tier (based on successful referrals)
+export const platformAffiliateTierEnum = pgEnum("platform_affiliate_tier", [
+  "bronze", // 0-4 referrals: 30% commission
+  "silver", // 5-19 referrals: 40% commission
+  "gold", // 20+ referrals: 50% commission
+]);
+
+// Platform affiliate referral status
+export const platformAffiliateReferralStatusEnum = pgEnum(
+  "platform_affiliate_referral_status",
+  [
+    "trial", // Store is in trial period
+    "active", // Store has active subscription
+    "churned", // Store cancelled/expired
+    "completed", // 12-month commission period ended
+  ]
+);
+
+// Platform affiliate commission status
+export const platformAffiliateCommissionStatusEnum = pgEnum(
+  "platform_affiliate_commission_status",
+  [
+    "pending", // 30-day retention not yet met
+    "available", // Ready to be paid out
+    "paid", // Included in a payout
+    "voided", // Commission voided (e.g., refund)
+  ]
+);
+
+// Platform affiliate payout status
+export const platformAffiliatePayoutStatusEnum = pgEnum(
+  "platform_affiliate_payout_status",
+  [
+    "pending", // Requested, awaiting processing
+    "processing", // Being processed
+    "completed", // Successfully paid
+    "failed", // Payment failed
+  ]
+);
+
+// ============================================================================
 // DELIVERY PROVIDER ENUMS
 // ============================================================================
 
@@ -791,11 +853,16 @@ export const tenants = pgTable(
       .notNull(),
 
     // Enable GPS-based delivery zone restrictions
-    // When true, customers must be within a delivery zone to place orders
+    // When true, customers within a delivery zone see local delivery options
     // The delivery fee comes from the matching zone
     enableDeliveryZones: boolean("enable_delivery_zones")
       .default(false)
       .notNull(),
+
+    // Enable shipping for customers outside delivery zones (or when no zones configured)
+    // When true, customers can order from anywhere using configured shipping rates
+    // Both can be enabled simultaneously for a hybrid fulfillment model
+    enableShipping: boolean("enable_shipping").default(true).notNull(),
 
     // Store Mode - determines how the store operates
     storeMode: storeModeEnum("store_mode").default("full").notNull(),
@@ -857,6 +924,49 @@ export const tenants = pgTable(
 
     // Admin notes for manual billing decisions
     subscriptionNotes: text("subscription_notes"),
+
+    // ==========================================================================
+    // STRIPE INTEGRATION (for Pro subscriptions)
+    // ==========================================================================
+    // Stripe customer ID (created when store first upgrades to Pro)
+    stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+    // Stripe subscription ID (for recurring billing)
+    stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
+    // Stripe price ID being subscribed to
+    stripePriceId: varchar("stripe_price_id", { length: 255 }),
+
+    // Billing interval (monthly or yearly)
+    billingInterval: varchar("billing_interval", { length: 10 })
+      .default("monthly")
+      .notNull(), // 'monthly' | 'yearly'
+    // Stripe yearly price ID (separate from monthly)
+    stripeYearlyPriceId: varchar("stripe_yearly_price_id", { length: 255 }),
+
+    // ==========================================================================
+    // SUBSCRIPTION PAUSE/RESUME
+    // ==========================================================================
+    // When subscription was paused (NULL if active)
+    pausedAt: timestamp("paused_at", { withTimezone: true, mode: "string" }),
+    // Reason for pausing
+    pauseReason: text("pause_reason"),
+    // Optional auto-resume date
+    autoResumeAt: timestamp("auto_resume_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    // Days credited due to pause (extends renewal date on resume)
+    pauseCreditsDays: integer("pause_credits_days").default(0),
+
+    // ==========================================================================
+    // RENEWAL REMINDERS TRACKING
+    // ==========================================================================
+    // When the last reminder was sent (avoid duplicates)
+    lastReminderSentAt: timestamp("last_reminder_sent_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    // How many days before expiry (7, 3, 1)
+    lastReminderDaysBefore: integer("last_reminder_days_before"),
 
     // ==========================================================================
     // LEGACY: Billing & Commission (DEPRECATED - kept for migration)
@@ -2150,9 +2260,111 @@ export const customerGroupPrices = pgTable(
 );
 
 // ============================================================================
+// SALE CAMPAIGNS (Event-based promotional discounts)
+// ============================================================================
+// Create named sale events (Black Friday, Eid Sale, Summer Sale) that apply
+// automatic discounts to the entire store, specific categories, or products.
+// Unlike coupons, these apply automatically without a code.
+
+export const saleCampaignScopeEnum = pgEnum("sale_campaign_scope", [
+  "store_wide", // Applies to all products
+  "categories", // Applies to specific categories
+  "products", // Applies to specific products
+]);
+
+export const saleCampaignDiscountTypeEnum = pgEnum(
+  "sale_campaign_discount_type",
+  [
+    "percentage", // e.g., 20% off
+    "fixed_amount", // e.g., 100 AFN off each item
+  ]
+);
+
+export const saleCampaigns = pgTable(
+  "sale_campaigns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Campaign details
+    name: varchar("name", { length: 255 }).notNull(), // e.g., "Black Friday 2025"
+    description: text("description"), // Internal notes
+    slug: varchar("slug", { length: 255 }), // For landing page URL
+
+    // Discount configuration
+    discountType: saleCampaignDiscountTypeEnum("discount_type")
+      .default("percentage")
+      .notNull(),
+    discountValue: decimal("discount_value", {
+      precision: 12,
+      scale: 2,
+    }).notNull(), // 20 for 20%, or 100 for 100 AFN
+
+    // Scope: what does this campaign apply to?
+    scope: saleCampaignScopeEnum("scope").default("store_wide").notNull(),
+
+    // When scope is 'categories', store category IDs here
+    eligibleCategories: jsonb("eligible_categories").$type<string[]>(),
+
+    // When scope is 'products', store product IDs here
+    eligibleProducts: jsonb("eligible_products").$type<string[]>(),
+
+    // Excluded products (always excluded even in store_wide campaigns)
+    excludedProducts: jsonb("excluded_products").$type<string[]>(),
+
+    // Validity period
+    startsAt: timestamp("starts_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    endsAt: timestamp("ends_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    // Minimum purchase (optional)
+    minimumOrderAmount: decimal("minimum_order_amount", {
+      precision: 12,
+      scale: 2,
+    }),
+
+    // Display settings
+    showBadge: boolean("show_badge").default(true).notNull(), // Show "SALE" badge on products
+    badgeText: varchar("badge_text", { length: 50 }), // Custom badge text, e.g., "50% OFF"
+    bannerImage: varchar("banner_image", { length: 500 }), // Optional banner for landing page
+
+    // Control
+    isActive: boolean("is_active").default(true).notNull(),
+    priority: integer("priority").default(0).notNull(), // Higher = takes precedence over other campaigns
+
+    // Timestamps
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("sale_campaigns_tenant_idx").on(table.tenantId),
+    index("sale_campaigns_active_dates_idx").on(
+      table.isActive,
+      table.startsAt,
+      table.endsAt
+    ),
+    index("sale_campaigns_scope_idx").on(table.scope),
+    uniqueIndex("sale_campaigns_slug_idx").on(table.tenantId, table.slug),
+  ]
+);
+
+// ============================================================================
 // SCHEDULED SALES (Time-based promotional pricing)
 // ============================================================================
 // Schedule sale prices with start and end dates (e.g., Black Friday sale).
+// NOTE: This is for per-product fixed sale prices. For percentage-based
+// event discounts, use sale_campaigns instead.
 export const scheduledSales = pgTable(
   "scheduled_sales",
   {
@@ -2603,10 +2815,26 @@ export const orders = pgTable(
     // Final total (subtotal - discounts + shipping + tax + surcharges + tip)
     total: decimal("total", { precision: 14, scale: 2 }).notNull(),
 
-    // Currency (ISO 4217 code)
+    // Currency (ISO 4217 code) - store's base currency
     currencyCode: varchar("currency_code", { length: 3 })
       .default("AFN")
       .notNull(),
+
+    // ========== MULTI-CURRENCY SUPPORT ==========
+    // Customer's display/payment currency (if different from store currency)
+    customerCurrency: varchar("customer_currency", { length: 3 }),
+    // Amount in customer's currency (total converted)
+    customerAmount: decimal("customer_amount", { precision: 14, scale: 2 }),
+    // Exchange rate at time of order (1 store currency = X customer currency)
+    exchangeRateUsed: decimal("exchange_rate_used", {
+      precision: 18,
+      scale: 10,
+    }),
+    // When the exchange rate was locked
+    exchangeRateLockedAt: timestamp("exchange_rate_locked_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // ========== PAYMENT TRACKING (Enhanced) ==========
     // Total amount paid so far
@@ -3972,6 +4200,220 @@ export const shipmentTrackingEvents = pgTable(
 );
 
 // ============================================================================
+// UNIFIED DELIVERY SYSTEM
+// ============================================================================
+// New unified system that combines local GPS zones + country shipping zones
+// Supports: polygon, radius, postal, city, region, country, worldwide
+// Uses zone specificity scoring for accurate delivery matching
+
+export const unifiedZoneTypeEnum = pgEnum("unified_zone_type", [
+  "polygon", // Custom drawn polygon
+  "radius", // Circle around a point
+  "postal", // Postal code patterns
+  "city", // City name + country
+  "region", // State/province
+  "country", // Full country
+  "worldwide", // Global fallback
+]);
+
+export const deliveryMethodTypeEnum = pgEnum("delivery_method_type", [
+  "local_delivery", // Same-day/fast local delivery
+  "standard", // Standard shipping (3-7 days)
+  "express", // Express/priority shipping
+  "pickup", // Store pickup / customer collects
+  "custom", // Custom method
+]);
+
+export const rateCalculationTypeEnum = pgEnum("rate_calculation_type", [
+  "flat", // Fixed rate
+  "per_item", // Rate × quantity
+  "weight_based", // Rate × weight
+  "weight_tiered", // Different rates for weight ranges
+  "price_based", // Rate based on order subtotal
+  "free", // Always free
+]);
+
+export const unifiedDeliveryZones = pgTable(
+  "unified_delivery_zones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(), // "Kabul City", "Afghanistan", "Europe"
+
+    // Zone type and specificity
+    zoneType: unifiedZoneTypeEnum("zone_type").notNull(),
+    // Higher = more specific = checked first (polygon: 600, radius: 500, postal: 400, city: 300, region: 200, country: 100, worldwide: 10)
+    specificityScore: integer("specificity_score").notNull(),
+
+    // Polygon zone data (when zoneType = 'polygon')
+    polygonGeojson: jsonb("polygon_geojson").$type<Polygon>(),
+
+    // Radius zone data (when zoneType = 'radius')
+    centerLat: decimal("center_lat", { precision: 10, scale: 8 }),
+    centerLng: decimal("center_lng", { precision: 11, scale: 8 }),
+    radiusMeters: integer("radius_meters"),
+
+    // Location-based zone data (when zoneType = 'postal', 'city', 'region', 'country')
+    // Countries stored as ISO 3166-1 alpha-2 codes (e.g., ['AF', 'IR', 'PK'])
+    countries: jsonb("countries").$type<string[]>().default([]),
+    // Regions/states (e.g., ['CA', 'NY', 'TX'])
+    regions: jsonb("regions").$type<string[]>().default([]),
+    // Cities (e.g., ['Kabul', 'Mazar-i-Sharif'])
+    cities: jsonb("cities").$type<string[]>().default([]),
+    // Postal code patterns (e.g., ['10001', '100*', '1001-1005'])
+    postalPatterns: jsonb("postal_patterns").$type<string[]>().default([]),
+
+    // Display settings
+    color: varchar("color", { length: 7 }).default("#3b82f6"),
+    displayOrder: integer("display_order").default(0).notNull(),
+
+    // Status
+    isActive: boolean("is_active").default(true).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("unified_zones_tenant_id_idx").on(table.tenantId),
+    index("unified_zones_tenant_active_idx").on(table.tenantId, table.isActive),
+    // Index for zone matching - sorted by specificity (highest first)
+    index("unified_zones_tenant_specificity_idx").on(
+      table.tenantId,
+      table.specificityScore
+    ),
+  ]
+);
+
+export const unifiedDeliveryMethods = pgTable(
+  "unified_delivery_methods",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    zoneId: uuid("zone_id")
+      .notNull()
+      .references(() => unifiedDeliveryZones.id, { onDelete: "cascade" }),
+
+    name: varchar("name", { length: 255 }).notNull(), // "Standard Delivery", "Express", "Pickup"
+    description: text("description"),
+
+    // Method type
+    methodType: deliveryMethodTypeEnum("method_type").notNull(),
+
+    // Delivery time estimates
+    minDeliveryDays: integer("min_delivery_days"),
+    maxDeliveryDays: integer("max_delivery_days"),
+    estimatedTime: varchar("estimated_time", { length: 50 }), // "30-45 minutes" for local
+
+    // Rate calculation
+    rateType: rateCalculationTypeEnum("rate_type").default("flat").notNull(),
+    baseRate: decimal("base_rate", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
+    perItemRate: decimal("per_item_rate", { precision: 12, scale: 2 }),
+    perKgRate: decimal("per_kg_rate", { precision: 12, scale: 2 }),
+
+    // Thresholds
+    freeShippingThreshold: decimal("free_shipping_threshold", {
+      precision: 12,
+      scale: 2,
+    }),
+    minOrderAmount: decimal("min_order_amount", { precision: 12, scale: 2 }),
+
+    // Weight limits
+    minWeight: decimal("min_weight_kg", { precision: 10, scale: 3 }),
+    maxWeight: decimal("max_weight_kg", { precision: 10, scale: 3 }),
+
+    // Handling and insurance
+    handlingFee: decimal("handling_fee", { precision: 12, scale: 2 }).default(
+      "0"
+    ),
+    includesInsurance: boolean("includes_insurance").default(false).notNull(),
+    insuranceRate: decimal("insurance_rate", { precision: 5, scale: 2 }),
+    includesTracking: boolean("includes_tracking").default(true).notNull(),
+
+    // Pickup location (when methodType = 'pickup')
+    pickupLocationName: varchar("pickup_location_name", { length: 255 }),
+    pickupLocationAddress: text("pickup_location_address"),
+    pickupLocationLat: decimal("pickup_location_lat", {
+      precision: 10,
+      scale: 8,
+    }),
+    pickupLocationLng: decimal("pickup_location_lng", {
+      precision: 11,
+      scale: 8,
+    }),
+
+    // Display settings
+    displayOrder: integer("display_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("unified_methods_tenant_zone_name_idx").on(
+      table.tenantId,
+      table.zoneId,
+      table.name
+    ),
+    index("unified_methods_zone_id_idx").on(table.zoneId),
+    index("unified_methods_tenant_active_idx").on(
+      table.tenantId,
+      table.isActive
+    ),
+  ]
+);
+
+export const unifiedWeightTiers = pgTable(
+  "unified_weight_tiers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    methodId: uuid("method_id")
+      .notNull()
+      .references(() => unifiedDeliveryMethods.id, { onDelete: "cascade" }),
+
+    // Weight range (in kg)
+    minWeight: decimal("min_weight_kg", { precision: 10, scale: 3 }).notNull(),
+    maxWeight: decimal("max_weight_kg", { precision: 10, scale: 3 }), // null = unlimited
+
+    // Rate for this tier
+    rate: decimal("rate", { precision: 12, scale: 2 }).notNull(),
+
+    // Optional per-kg rate within tier (for incremental pricing)
+    perKgRateInTier: decimal("per_kg_rate_in_tier", {
+      precision: 12,
+      scale: 2,
+    }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("unified_weight_tiers_method_id_idx").on(table.methodId),
+    index("unified_weight_tiers_method_weight_idx").on(
+      table.methodId,
+      table.minWeight
+    ),
+  ]
+);
+
+// ============================================================================
 // REVIEWS (Product reviews by users)
 // ============================================================================
 export const reviews = pgTable(
@@ -4510,6 +4952,14 @@ export const sellerPayouts = pgTable(
     // External reference
     externalReference: varchar("external_reference", { length: 255 }), // Bank reference, transaction ID, etc.
     failureReason: text("failure_reason"),
+
+    // Crypto payout fields (for USDT payouts)
+    cryptoNetwork: varchar("crypto_network", { length: 10 }), // trc20, erc20, bep20
+    cryptoTxHash: varchar("crypto_tx_hash", { length: 100 }), // Transaction hash when admin sends
+    cryptoSentAt: timestamp("crypto_sent_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
 
     // Who processed
     processedById: text("processed_by_id").references(() => user.id, {
@@ -5465,6 +5915,431 @@ export const affiliateRatings = pgTable(
 );
 
 // ============================================================================
+// PLATFORM AFFILIATES (Affiliates for Kaka Malem itself - merchant acquisition)
+// ============================================================================
+
+// Social links for platform affiliates
+export type PlatformAffiliateSocialLinks = {
+  instagram?: string;
+  youtube?: string;
+  tiktok?: string;
+  facebook?: string;
+  twitter?: string;
+  linkedin?: string;
+  website?: string;
+};
+
+// Payout details type for platform affiliates
+export type PlatformAffiliatePayoutDetails = {
+  // Bank transfer
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
+  iban?: string;
+  // Mobile money
+  mobileNumber?: string;
+  mobileProvider?: string; // e.g., "m-paisa", "m-hawala"
+  // Crypto (USDT)
+  walletAddress?: string;
+  network?: "trc20" | "erc20" | "bep20";
+};
+
+// Platform affiliates table - affiliates who promote Kaka Malem to acquire new stores
+export const platformAffiliates = pgTable(
+  "platform_affiliates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // Profile & Vanity URL
+    slug: varchar("slug", { length: 63 }).notNull().unique(), // kakamalem.com/matee
+    displayName: varchar("display_name", { length: 100 }).notNull(),
+    bio: text("bio"),
+    websiteUrl: text("website_url"),
+    socialLinks: jsonb("social_links").$type<PlatformAffiliateSocialLinks>(),
+
+    // Commission settings (can be customized per affiliate by admin)
+    baseCommissionRate: decimal("base_commission_rate", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("30.00")
+      .notNull(),
+    commissionDurationMonths: integer("commission_duration_months")
+      .default(12)
+      .notNull(),
+    cookieDurationDays: integer("cookie_duration_days").default(90).notNull(),
+
+    // Current tier (calculated from successfulReferrals)
+    currentTier: platformAffiliateTierEnum("current_tier")
+      .default("bronze")
+      .notNull(),
+    currentCommissionRate: decimal("current_commission_rate", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("30.00")
+      .notNull(),
+
+    // Stats (denormalized for quick access)
+    totalClicks: integer("total_clicks").default(0).notNull(),
+    totalSignups: integer("total_signups").default(0).notNull(),
+    successfulReferrals: integer("successful_referrals").default(0).notNull(), // Passed 30-day retention
+    totalEarned: decimal("total_earned", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    totalPending: decimal("total_pending", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+    totalPaidOut: decimal("total_paid_out", { precision: 14, scale: 2 })
+      .default("0.00")
+      .notNull(),
+
+    // Status
+    status: platformAffiliateStatusEnum("status").default("pending").notNull(),
+    appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    approvedBy: text("approved_by").references(() => user.id),
+    suspendedAt: timestamp("suspended_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    suspensionReason: text("suspension_reason"),
+    rejectionReason: text("rejection_reason"),
+
+    // Payout preferences
+    payoutMethod: varchar("payout_method", { length: 50 }), // bank_transfer, mobile_money
+    payoutDetails:
+      jsonb("payout_details").$type<PlatformAffiliatePayoutDetails>(),
+
+    // Application info
+    applicationNotes: text("application_notes"), // How they plan to promote
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => sql`now()`),
+  },
+  (table) => [
+    index("platform_affiliates_user_id_idx").on(table.userId),
+    index("platform_affiliates_status_idx").on(table.status),
+    uniqueIndex("platform_affiliates_slug_idx").on(table.slug),
+    index("platform_affiliates_tier_idx").on(table.currentTier),
+  ]
+);
+
+// Platform affiliate clicks - tracking when someone visits the affiliate link
+export const platformAffiliateClicks = pgTable(
+  "platform_affiliate_clicks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    affiliateId: uuid("affiliate_id")
+      .notNull()
+      .references(() => platformAffiliates.id, { onDelete: "cascade" }),
+
+    // Visitor identification
+    visitorId: varchar("visitor_id", { length: 100 }), // Generated unique ID in cookie
+    ipAddress: varchar("ip_address", { length: 45 }), // IPv4 or IPv6
+    userAgent: text("user_agent"),
+    referrer: text("referrer"),
+    landingPage: text("landing_page"),
+
+    // Geo-location (from Vercel headers or IP lookup)
+    country: varchar("country", { length: 2 }), // ISO 3166-1 alpha-2 (e.g., "AF", "US")
+    city: varchar("city", { length: 100 }),
+    region: varchar("region", { length: 100 }), // State/province
+
+    // Device info (parsed from User-Agent)
+    deviceType: varchar("device_type", { length: 20 }), // mobile, tablet, desktop
+    browser: varchar("browser", { length: 50 }), // Chrome, Safari, Firefox, etc.
+    os: varchar("os", { length: 50 }), // Windows, macOS, iOS, Android, etc.
+
+    // Bot detection
+    isBot: boolean("is_bot").default(false).notNull(),
+
+    // UTM tracking
+    utmSource: varchar("utm_source", { length: 100 }),
+    utmMedium: varchar("utm_medium", { length: 100 }),
+    utmCampaign: varchar("utm_campaign", { length: 100 }),
+    utmContent: varchar("utm_content", { length: 100 }),
+
+    // Conversion tracking
+    converted: boolean("converted").default(false).notNull(),
+    convertedAt: timestamp("converted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    referralId: uuid("referral_id"), // Links to platformAffiliateReferrals when converted
+
+    // Cookie expiry
+    cookieExpiresAt: timestamp("cookie_expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    clickedAt: timestamp("clicked_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("platform_affiliate_clicks_affiliate_id_idx").on(table.affiliateId),
+    index("platform_affiliate_clicks_visitor_id_idx").on(table.visitorId),
+    index("platform_affiliate_clicks_clicked_at_idx").on(table.clickedAt),
+    index("platform_affiliate_clicks_country_idx").on(table.country),
+    index("platform_affiliate_clicks_is_bot_idx").on(table.isBot),
+    // Composite index for deduplication
+    index("platform_affiliate_clicks_dedup_idx").on(
+      table.affiliateId,
+      table.visitorId,
+      table.clickedAt
+    ),
+  ]
+);
+
+// Platform affiliate referrals - when someone signs up a new store
+export const platformAffiliateReferrals = pgTable(
+  "platform_affiliate_referrals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    affiliateId: uuid("affiliate_id")
+      .notNull()
+      .references(() => platformAffiliates.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .unique()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    clickId: uuid("click_id").references(() => platformAffiliateClicks.id),
+
+    // Signup details
+    signedUpAt: timestamp("signed_up_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .defaultNow()
+      .notNull(),
+
+    // Commission tracking (locked at signup time based on affiliate's tier)
+    commissionRate: decimal("commission_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    commissionEndsAt: timestamp("commission_ends_at", {
+      withTimezone: true,
+      mode: "string",
+    }), // 12 months from first paid subscription
+
+    // Retention tracking
+    firstPaidAt: timestamp("first_paid_at", {
+      withTimezone: true,
+      mode: "string",
+    }), // When trial ended and first payment made
+    retentionPassed: boolean("retention_passed").default(false).notNull(), // 30-day retention met?
+    retentionCheckedAt: timestamp("retention_checked_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // Status
+    status: platformAffiliateReferralStatusEnum("status")
+      .default("trial")
+      .notNull(),
+    isActive: boolean("is_active").default(true).notNull(), // Still within commission period
+
+    // Aggregates
+    totalSubscriptionPaid: decimal("total_subscription_paid", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0.00")
+      .notNull(),
+    totalCommissionEarned: decimal("total_commission_earned", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0.00")
+      .notNull(),
+    totalCommissionPaid: decimal("total_commission_paid", {
+      precision: 14,
+      scale: 2,
+    })
+      .default("0.00")
+      .notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => sql`now()`),
+  },
+  (table) => [
+    index("platform_affiliate_referrals_affiliate_id_idx").on(
+      table.affiliateId
+    ),
+    index("platform_affiliate_referrals_tenant_id_idx").on(table.tenantId),
+    index("platform_affiliate_referrals_status_idx").on(table.status),
+  ]
+);
+
+// Platform affiliate commissions - individual commission records (created each subscription payment)
+export const platformAffiliateCommissions = pgTable(
+  "platform_affiliate_commissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    affiliateId: uuid("affiliate_id")
+      .notNull()
+      .references(() => platformAffiliates.id, { onDelete: "cascade" }),
+    referralId: uuid("referral_id")
+      .notNull()
+      .references(() => platformAffiliateReferrals.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Payment details
+    subscriptionAmount: decimal("subscription_amount", {
+      precision: 12,
+      scale: 2,
+    }).notNull(), // What store paid
+    commissionRate: decimal("commission_rate", {
+      precision: 5,
+      scale: 2,
+    }).notNull(), // Rate at time of this payment
+    commissionAmount: decimal("commission_amount", {
+      precision: 12,
+      scale: 2,
+    }).notNull(), // Calculated commission
+    commissionMonth: integer("commission_month").notNull(), // Month 1-12 of the 12-month period
+    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+
+    // Subscription period this commission covers
+    periodStart: timestamp("period_start", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    periodEnd: timestamp("period_end", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    // Status
+    status: platformAffiliateCommissionStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    availableAt: timestamp("available_at", {
+      withTimezone: true,
+      mode: "string",
+    }), // When 30-day retention passes
+
+    // Payout tracking
+    payoutId: uuid("payout_id").references(() => platformAffiliatePayouts.id),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "string" }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("platform_affiliate_commissions_affiliate_id_idx").on(
+      table.affiliateId
+    ),
+    index("platform_affiliate_commissions_referral_id_idx").on(
+      table.referralId
+    ),
+    index("platform_affiliate_commissions_status_idx").on(table.status),
+    index("platform_affiliate_commissions_tenant_id_idx").on(table.tenantId),
+  ]
+);
+
+// Platform affiliate payouts - payout requests and history
+export const platformAffiliatePayouts = pgTable(
+  "platform_affiliate_payouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    affiliateId: uuid("affiliate_id")
+      .notNull()
+      .references(() => platformAffiliates.id, { onDelete: "cascade" }),
+
+    // Payout details
+    payoutNumber: varchar("payout_number", { length: 20 }).notNull().unique(), // PAF-0001
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+
+    // Payout method snapshot (in case affiliate changes method later)
+    payoutMethod: varchar("payout_method", { length: 50 }).notNull(),
+    payoutDetails: jsonb("payout_details")
+      .$type<PlatformAffiliatePayoutDetails>()
+      .notNull(),
+
+    // Status
+    status: platformAffiliatePayoutStatusEnum("status")
+      .default("pending")
+      .notNull(),
+
+    // Processing
+    requestedAt: timestamp("requested_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .defaultNow()
+      .notNull(),
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    processedBy: text("processed_by").references(() => user.id),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // Notes
+    adminNotes: text("admin_notes"),
+    failureReason: text("failure_reason"),
+    transactionReference: varchar("transaction_reference", { length: 255 }),
+
+    // Crypto payout fields (for USDT payouts)
+    cryptoTxHash: varchar("crypto_tx_hash", { length: 100 }), // Transaction hash when admin sends
+    cryptoSentAt: timestamp("crypto_sent_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("platform_affiliate_payouts_payout_number_idx").on(
+      table.payoutNumber
+    ),
+    index("platform_affiliate_payouts_affiliate_id_idx").on(table.affiliateId),
+    index("platform_affiliate_payouts_status_idx").on(table.status),
+  ]
+);
+
+// Reserved slugs - paths that can't be used as affiliate vanity URLs
+export const reservedSlugs = pgTable("reserved_slugs", {
+  slug: varchar("slug", { length: 63 }).primaryKey(),
+  reason: varchar("reason", { length: 100 }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    .defaultNow()
+    .notNull(),
+});
+
+// ============================================================================
 // DELIVERY PROVIDERS (Drivers/Companies for delivery)
 // ============================================================================
 // Platform-wide delivery provider profiles. Can be individual drivers or companies.
@@ -6046,9 +6921,16 @@ export const platformSettings = pgTable("platform_settings", {
     .default("1100")
     .notNull(),
 
+  // Pro plan yearly price in AFN (admin-configurable, no fixed discount)
+  proPlanYearlyPriceAfn: decimal("pro_plan_yearly_price_afn", {
+    precision: 10,
+    scale: 2,
+  })
+    .default("11000")
+    .notNull(),
+
   // Free tier limits
   freeProductLimit: integer("free_product_limit").default(20).notNull(),
-  freeStoreLimit: integer("free_store_limit").default(1).notNull(),
 
   // Trial settings
   trialDurationDays: integer("trial_duration_days").default(7).notNull(),
@@ -6069,6 +6951,12 @@ export const platformSettings = pgTable("platform_settings", {
   // ==========================================================================
   // Days before trial ends to show warning
   trialWarningDays: integer("trial_warning_days").default(3).notNull(),
+
+  // ==========================================================================
+  // CRYPTO PAYMENTS (Self-hosted USDT)
+  // ==========================================================================
+  // USDT wallet configuration for self-hosted crypto payments
+  usdtWalletConfig: jsonb("usdt_wallet_config").$type<UsdtWalletConfig>(),
 
   // ==========================================================================
   // METADATA
@@ -6257,6 +7145,106 @@ export const invoices = pgTable(
 );
 
 // ============================================================================
+// SUBSCRIPTION REFUNDS
+// ============================================================================
+// Tracks prorated refunds for cancelled/downgraded Pro subscriptions
+
+export const subscriptionRefundReasonEnum = pgEnum(
+  "subscription_refund_reason",
+  [
+    "cancellation", // User cancelled subscription
+    "downgrade", // Downgraded to free plan
+    "admin", // Admin-initiated refund
+    "dispute", // Payment dispute/chargeback
+    "service_issue", // Platform issue compensation
+  ]
+);
+
+export const subscriptionRefundStatusEnum = pgEnum(
+  "subscription_refund_status",
+  [
+    "pending", // Awaiting approval
+    "approved", // Approved, awaiting processing
+    "processing", // Being processed
+    "completed", // Refund completed
+    "rejected", // Refund rejected
+  ]
+);
+
+export const subscriptionRefunds = pgTable(
+  "subscription_refunds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Refund calculation
+    originalAmount: decimal("original_amount", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    refundAmount: decimal("refund_amount", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    daysUsed: integer("days_used").notNull(),
+    daysRemaining: integer("days_remaining").notNull(),
+    dailyRate: decimal("daily_rate", { precision: 14, scale: 4 }).notNull(),
+
+    // Billing period being refunded
+    periodStart: timestamp("period_start", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    periodEnd: timestamp("period_end", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    // Processing
+    reason: text("reason").notNull(),
+    reasonCode: subscriptionRefundReasonEnum("reason_code").notNull(),
+    status: subscriptionRefundStatusEnum("status").default("pending").notNull(),
+
+    // Payment method for refund
+    refundMethod: varchar("refund_method", { length: 50 }), // 'original_payment' | 'store_credit' | 'manual'
+    gatewayRefundId: varchar("gateway_refund_id", { length: 255 }), // Stripe refund ID if applicable
+
+    // Audit trail (no FK - preserve audit even if user deleted)
+    requestedBy: uuid("requested_by"),
+    approvedBy: uuid("approved_by"),
+    processedBy: uuid("processed_by"),
+
+    requestedAt: timestamp("requested_at", {
+      withTimezone: true,
+      mode: "string",
+    }).defaultNow(),
+    approvedAt: timestamp("approved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    processedAt: timestamp("processed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    adminNotes: text("admin_notes"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("subscription_refunds_tenant_idx").on(table.tenantId),
+    index("subscription_refunds_status_idx").on(table.status),
+  ]
+);
+
+// ============================================================================
 // PAYMENT GATEWAY CONFIGURATION
 // ============================================================================
 // Stores payment gateway credentials and settings per tenant.
@@ -6268,6 +7256,23 @@ export const paymentGatewayEnum = pgEnum("payment_gateway", [
   "cod", // Cash on Delivery
   "bank_transfer", // Manual bank transfer
   "mobile_money", // Mobile money (M-Paisa, M-Hawala)
+  "crypto_usdt", // Self-hosted USDT crypto payments
+]);
+
+// Crypto payment status (for manual verification flow)
+export const cryptoPaymentStatusEnum = pgEnum("crypto_payment_status", [
+  "pending", // Waiting for customer to send payment
+  "submitted", // Customer submitted transaction hash
+  "verified", // Admin verified the transaction
+  "expired", // Payment session expired
+  "rejected", // Admin rejected the transaction
+]);
+
+// Crypto network types
+export const cryptoNetworkEnum = pgEnum("crypto_network", [
+  "trc20", // Tron (USDT-TRC20) - Low fees
+  "erc20", // Ethereum (USDT-ERC20) - High fees but widely used
+  "bep20", // BNB Smart Chain (USDT-BEP20) - Low fees
 ]);
 
 export const paymentGatewayConfigs = pgTable(
@@ -6485,6 +7490,129 @@ export const paymentSessions = pgTable(
 );
 
 // ============================================================================
+// CRYPTO PAYMENTS (Self-hosted USDT verification)
+// ============================================================================
+// Tracks crypto payment sessions and manual verification workflow.
+// Customer sends USDT to platform wallet, submits tx hash, admin verifies.
+
+export const cryptoPayments = pgTable(
+  "crypto_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    paymentSessionId: uuid("payment_session_id")
+      .notNull()
+      .references(() => paymentSessions.id, { onDelete: "cascade" }),
+
+    // Purpose: 'order' for store checkout, 'subscription' for Pro plan
+    purpose: varchar("purpose", { length: 20 }).default("order"),
+    // Tenant ID for subscription payments (store upgrading to Pro)
+    tenantId: uuid("tenant_id").references(() => tenants.id, {
+      onDelete: "cascade",
+    }),
+
+    // Network and wallet
+    network: cryptoNetworkEnum("network").notNull(), // trc20, erc20, bep20
+    walletAddress: varchar("wallet_address", { length: 100 }).notNull(),
+
+    // Amount
+    expectedAmount: decimal("expected_amount", {
+      precision: 20,
+      scale: 8,
+    }).notNull(), // USDT amount with high precision
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+
+    // Exchange rate at time of payment (AFN to USDT)
+    exchangeRate: decimal("exchange_rate", { precision: 20, scale: 8 }),
+    originalAmountAfn: decimal("original_amount_afn", {
+      precision: 14,
+      scale: 2,
+    }), // Original order amount in AFN
+
+    // Verification
+    transactionHash: varchar("transaction_hash", { length: 100 }),
+    submittedAt: timestamp("submitted_at", {
+      withTimezone: true,
+      mode: "string",
+    }), // When customer submitted tx hash
+    verifiedAt: timestamp("verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    verifiedBy: text("verified_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+
+    // Status
+    status: cryptoPaymentStatusEnum("status").default("pending").notNull(),
+
+    // Expiration
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+
+    // Notes
+    customerNotes: text("customer_notes"), // Notes from customer when submitting
+    adminNotes: text("admin_notes"), // Notes from admin when verifying/rejecting
+    rejectionReason: text("rejection_reason"), // Why payment was rejected
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("crypto_payments_session_idx").on(table.paymentSessionId),
+    index("crypto_payments_status_idx").on(table.status),
+    index("crypto_payments_hash_idx").on(table.transactionHash),
+    index("crypto_payments_expires_idx").on(table.expiresAt),
+    index("crypto_payments_tenant_idx").on(table.tenantId),
+    index("crypto_payments_purpose_idx").on(table.purpose),
+  ]
+);
+
+// ============================================================================
+// EXCHANGE RATES (For multi-currency support)
+// ============================================================================
+// Caches exchange rates from external APIs (Fawaz Ahmed Currency API).
+// Used to display prices in customer's local currency and record rates at checkout.
+
+export const exchangeRates = pgTable(
+  "exchange_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    // Base currency (always AFN for this platform)
+    baseCurrency: varchar("base_currency", { length: 3 }).notNull(),
+
+    // Target currency (EUR, USD, GBP, AED, etc.)
+    targetCurrency: varchar("target_currency", { length: 3 }).notNull(),
+
+    // Exchange rate (1 base = X target)
+    // e.g., 1 AFN = 0.011 USD means rate = 0.011
+    rate: decimal("rate", { precision: 18, scale: 10 }).notNull(),
+
+    // Source of the rate
+    source: varchar("source", { length: 50 }).default("fawazahmed0"),
+
+    // When the rate was fetched
+    fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // One rate per currency pair
+    uniqueIndex("exchange_rates_base_target_idx").on(
+      table.baseCurrency,
+      table.targetCurrency
+    ),
+    index("exchange_rates_fetched_at_idx").on(table.fetchedAt),
+  ]
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -6501,6 +7629,10 @@ export const userRelations = relations(user, ({ one, many }) => ({
   affiliate: one(affiliates, {
     fields: [user.id],
     references: [affiliates.userId],
+  }),
+  platformAffiliate: one(platformAffiliates, {
+    fields: [user.id],
+    references: [platformAffiliates.userId],
   }),
   deliveryProvider: one(deliveryProviders, {
     fields: [user.id],
@@ -6613,6 +7745,7 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   customerGroupMembers: many(customerGroupMembers),
   customerGroupPrices: many(customerGroupPrices),
   scheduledSales: many(scheduledSales),
+  saleCampaigns: many(saleCampaigns),
   // Inventory
   inventoryLocations: many(inventoryLocations),
   inventoryLevels: many(inventoryLevels),
@@ -6657,6 +7790,11 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   geographicSales: many(analyticsGeographicSales),
   // Store Locations
   storeLocations: many(storeLocations),
+  // Platform Affiliate
+  platformAffiliateReferral: one(platformAffiliateReferrals, {
+    fields: [tenants.id],
+    references: [platformAffiliateReferrals.tenantId],
+  }),
 }));
 
 export const storeLocationsRelations = relations(storeLocations, ({ one }) => ({
@@ -7075,6 +8213,13 @@ export const customerGroupPricesRelations = relations(
   })
 );
 
+export const saleCampaignsRelations = relations(saleCampaigns, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [saleCampaigns.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
 export const scheduledSalesRelations = relations(scheduledSales, ({ one }) => ({
   tenant: one(tenants, {
     fields: [scheduledSales.tenantId],
@@ -7303,6 +8448,50 @@ export const shipmentTrackingEventsRelations = relations(
     shipment: one(shipments, {
       fields: [shipmentTrackingEvents.shipmentId],
       references: [shipments.id],
+    }),
+  })
+);
+
+// ============================================================================
+// UNIFIED DELIVERY SYSTEM RELATIONS
+// ============================================================================
+
+export const unifiedDeliveryZonesRelations = relations(
+  unifiedDeliveryZones,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [unifiedDeliveryZones.tenantId],
+      references: [tenants.id],
+    }),
+    methods: many(unifiedDeliveryMethods),
+  })
+);
+
+export const unifiedDeliveryMethodsRelations = relations(
+  unifiedDeliveryMethods,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [unifiedDeliveryMethods.tenantId],
+      references: [tenants.id],
+    }),
+    zone: one(unifiedDeliveryZones, {
+      fields: [unifiedDeliveryMethods.zoneId],
+      references: [unifiedDeliveryZones.id],
+    }),
+    weightTiers: many(unifiedWeightTiers),
+  })
+);
+
+export const unifiedWeightTiersRelations = relations(
+  unifiedWeightTiers,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [unifiedWeightTiers.tenantId],
+      references: [tenants.id],
+    }),
+    method: one(unifiedDeliveryMethods, {
+      fields: [unifiedWeightTiers.methodId],
+      references: [unifiedDeliveryMethods.id],
     }),
   })
 );
@@ -7884,6 +9073,95 @@ export const affiliateRatingsRelations = relations(
   })
 );
 
+// Platform Affiliate Relations
+export const platformAffiliatesRelations = relations(
+  platformAffiliates,
+  ({ one, many }) => ({
+    user: one(user, {
+      fields: [platformAffiliates.userId],
+      references: [user.id],
+    }),
+    approvedByUser: one(user, {
+      fields: [platformAffiliates.approvedBy],
+      references: [user.id],
+    }),
+    clicks: many(platformAffiliateClicks),
+    referrals: many(platformAffiliateReferrals),
+    commissions: many(platformAffiliateCommissions),
+    payouts: many(platformAffiliatePayouts),
+  })
+);
+
+export const platformAffiliateClicksRelations = relations(
+  platformAffiliateClicks,
+  ({ one }) => ({
+    affiliate: one(platformAffiliates, {
+      fields: [platformAffiliateClicks.affiliateId],
+      references: [platformAffiliates.id],
+    }),
+    referral: one(platformAffiliateReferrals, {
+      fields: [platformAffiliateClicks.referralId],
+      references: [platformAffiliateReferrals.id],
+    }),
+  })
+);
+
+export const platformAffiliateReferralsRelations = relations(
+  platformAffiliateReferrals,
+  ({ one, many }) => ({
+    affiliate: one(platformAffiliates, {
+      fields: [platformAffiliateReferrals.affiliateId],
+      references: [platformAffiliates.id],
+    }),
+    tenant: one(tenants, {
+      fields: [platformAffiliateReferrals.tenantId],
+      references: [tenants.id],
+    }),
+    click: one(platformAffiliateClicks, {
+      fields: [platformAffiliateReferrals.clickId],
+      references: [platformAffiliateClicks.id],
+    }),
+    commissions: many(platformAffiliateCommissions),
+  })
+);
+
+export const platformAffiliateCommissionsRelations = relations(
+  platformAffiliateCommissions,
+  ({ one }) => ({
+    affiliate: one(platformAffiliates, {
+      fields: [platformAffiliateCommissions.affiliateId],
+      references: [platformAffiliates.id],
+    }),
+    referral: one(platformAffiliateReferrals, {
+      fields: [platformAffiliateCommissions.referralId],
+      references: [platformAffiliateReferrals.id],
+    }),
+    tenant: one(tenants, {
+      fields: [platformAffiliateCommissions.tenantId],
+      references: [tenants.id],
+    }),
+    payout: one(platformAffiliatePayouts, {
+      fields: [platformAffiliateCommissions.payoutId],
+      references: [platformAffiliatePayouts.id],
+    }),
+  })
+);
+
+export const platformAffiliatePayoutsRelations = relations(
+  platformAffiliatePayouts,
+  ({ one, many }) => ({
+    affiliate: one(platformAffiliates, {
+      fields: [platformAffiliatePayouts.affiliateId],
+      references: [platformAffiliates.id],
+    }),
+    processedByUser: one(user, {
+      fields: [platformAffiliatePayouts.processedBy],
+      references: [user.id],
+    }),
+    commissions: many(platformAffiliateCommissions),
+  })
+);
+
 // Delivery Provider Relations
 export const deliveryProvidersRelations = relations(
   deliveryProviders,
@@ -8063,6 +9341,21 @@ export const orderTransactionsRelations = relations(
     }),
   })
 );
+
+export const cryptoPaymentsRelations = relations(cryptoPayments, ({ one }) => ({
+  paymentSession: one(paymentSessions, {
+    fields: [cryptoPayments.paymentSessionId],
+    references: [paymentSessions.id],
+  }),
+  verifier: one(user, {
+    fields: [cryptoPayments.verifiedBy],
+    references: [user.id],
+  }),
+  tenant: one(tenants, {
+    fields: [cryptoPayments.tenantId],
+    references: [tenants.id],
+  }),
+}));
 
 export const refundsRelations = relations(refunds, ({ one, many }) => ({
   order: one(orders, {
@@ -8310,6 +9603,12 @@ export type CustomerGroupPrice = typeof customerGroupPrices.$inferSelect;
 export type NewCustomerGroupPrice = typeof customerGroupPrices.$inferInsert;
 export type ScheduledSale = typeof scheduledSales.$inferSelect;
 export type NewScheduledSale = typeof scheduledSales.$inferInsert;
+export type SaleCampaign = typeof saleCampaigns.$inferSelect;
+export type NewSaleCampaign = typeof saleCampaigns.$inferInsert;
+export type SaleCampaignScope =
+  (typeof saleCampaignScopeEnum.enumValues)[number];
+export type SaleCampaignDiscountType =
+  (typeof saleCampaignDiscountTypeEnum.enumValues)[number];
 
 // Inventory types
 export type InventoryMovement = typeof inventoryMovements.$inferSelect;
@@ -8465,6 +9764,38 @@ export type NewAffiliatePayout = typeof affiliatePayouts.$inferInsert;
 export type AffiliateRating = typeof affiliateRatings.$inferSelect;
 export type NewAffiliateRating = typeof affiliateRatings.$inferInsert;
 
+// Platform affiliate types
+export type PlatformAffiliateStatus =
+  (typeof platformAffiliateStatusEnum.enumValues)[number];
+export type PlatformAffiliateTier =
+  (typeof platformAffiliateTierEnum.enumValues)[number];
+export type PlatformAffiliateReferralStatus =
+  (typeof platformAffiliateReferralStatusEnum.enumValues)[number];
+export type PlatformAffiliateCommissionStatus =
+  (typeof platformAffiliateCommissionStatusEnum.enumValues)[number];
+export type PlatformAffiliatePayoutStatus =
+  (typeof platformAffiliatePayoutStatusEnum.enumValues)[number];
+export type PlatformAffiliate = typeof platformAffiliates.$inferSelect;
+export type NewPlatformAffiliate = typeof platformAffiliates.$inferInsert;
+export type PlatformAffiliateClick =
+  typeof platformAffiliateClicks.$inferSelect;
+export type NewPlatformAffiliateClick =
+  typeof platformAffiliateClicks.$inferInsert;
+export type PlatformAffiliateReferral =
+  typeof platformAffiliateReferrals.$inferSelect;
+export type NewPlatformAffiliateReferral =
+  typeof platformAffiliateReferrals.$inferInsert;
+export type PlatformAffiliateCommission =
+  typeof platformAffiliateCommissions.$inferSelect;
+export type NewPlatformAffiliateCommission =
+  typeof platformAffiliateCommissions.$inferInsert;
+export type PlatformAffiliatePayout =
+  typeof platformAffiliatePayouts.$inferSelect;
+export type NewPlatformAffiliatePayout =
+  typeof platformAffiliatePayouts.$inferInsert;
+export type ReservedSlug = typeof reservedSlugs.$inferSelect;
+export type NewReservedSlug = typeof reservedSlugs.$inferInsert;
+
 // Delivery provider types
 export type DeliveryProviderType =
   (typeof deliveryProviderTypeEnum.enumValues)[number];
@@ -8602,6 +9933,20 @@ export type PaymentWebhookEvent = typeof paymentWebhookEvents.$inferSelect;
 export type NewPaymentWebhookEvent = typeof paymentWebhookEvents.$inferInsert;
 export type PaymentSession = typeof paymentSessions.$inferSelect;
 export type NewPaymentSession = typeof paymentSessions.$inferInsert;
+
+// Crypto payment types
+export type CryptoPaymentStatus =
+  (typeof cryptoPaymentStatusEnum.enumValues)[number];
+export type CryptoNetwork = (typeof cryptoNetworkEnum.enumValues)[number];
+export type CryptoPayment = typeof cryptoPayments.$inferSelect;
+export type NewCryptoPayment = typeof cryptoPayments.$inferInsert;
+
+// Billing interval type
+export type BillingInterval = "monthly" | "yearly";
+
+// Exchange rate types
+export type ExchangeRate = typeof exchangeRates.$inferSelect;
+export type NewExchangeRate = typeof exchangeRates.$inferInsert;
 
 // Order invoice token types
 export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;

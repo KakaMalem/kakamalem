@@ -1,10 +1,25 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getAdminStoreById, getPlatformSettings } from "@/lib/db/queries/admin";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getBillingTransactions } from "@/lib/db/queries/billing";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   ArrowLeft,
   ExternalLink,
@@ -14,6 +29,10 @@ import {
   ShoppingCart,
   Calendar,
   CreditCard,
+  Receipt,
+  CheckCircle,
+  Clock,
+  XCircle,
 } from "lucide-react";
 import { StoreActionsClient } from "./store-actions-client";
 
@@ -31,9 +50,10 @@ export default async function AdminStoreDetailPage({
   params,
 }: StoreDetailPageProps) {
   const { id } = await params;
-  const [store, settings] = await Promise.all([
+  const [store, settings, billingData] = await Promise.all([
     getAdminStoreById(id),
     getPlatformSettings(),
+    getBillingTransactions(id, { limit: 10 }),
   ]);
 
   if (!store) {
@@ -276,6 +296,72 @@ export default async function AdminStoreDetailPage({
             </CardContent>
           </Card>
 
+          {/* Transaction History */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="size-5" />
+                Transaction History
+              </CardTitle>
+              <CardDescription>
+                Recent billing transactions ({billingData.total} total)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {billingData.transactions.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Receipt className="mx-auto mb-3 size-10 opacity-50" />
+                  <p>No transactions yet</p>
+                  <p className="mt-1 text-sm">
+                    Transactions will appear here when you record payments
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Recorded By</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {billingData.transactions.map((tx) => (
+                      <TableRow key={tx.id}>
+                        <TableCell className="text-sm">
+                          {new Date(tx.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className="capitalize text-xs"
+                          >
+                            {tx.type.replace(/_/g, " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {parseFloat(tx.amount).toLocaleString()} {tx.currency}
+                        </TableCell>
+                        <TableCell>
+                          <TransactionStatusBadge status={tx.status} />
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {tx.processedByName || "System"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Admin Notes */}
           {store.subscriptionNotes && (
             <Card>
@@ -295,10 +381,16 @@ export default async function AdminStoreDetailPage({
         <div>
           <StoreActionsClient
             storeId={store.id}
+            storeSlug={store.slug}
             storeName={store.name}
             currentStatus={store.status}
             currentPlan={store.subscriptionPlan}
             currentSubscriptionStatus={store.subscriptionStatus}
+            subscriptionEndsAt={store.subscriptionEndsAt}
+            pausedAt={(store as { pausedAt?: string | null }).pausedAt ?? null}
+            autoResumeAt={
+              (store as { autoResumeAt?: string | null }).autoResumeAt ?? null
+            }
             currentNotes={store.subscriptionNotes}
             settings={settings}
           />
@@ -356,6 +448,48 @@ function SubscriptionBadge({ status }: { status: string }) {
   return (
     <Badge variant={variants[status] || "outline"} className="text-sm">
       {labels[status] || status}
+    </Badge>
+  );
+}
+
+function TransactionStatusBadge({ status }: { status: string }) {
+  const config: Record<
+    string,
+    { icon: typeof CheckCircle; color: string; label: string }
+  > = {
+    completed: {
+      icon: CheckCircle,
+      color: "bg-green-100 text-green-800",
+      label: "Completed",
+    },
+    pending: {
+      icon: Clock,
+      color: "bg-amber-100 text-amber-800",
+      label: "Pending",
+    },
+    failed: {
+      icon: XCircle,
+      color: "bg-red-100 text-red-800",
+      label: "Failed",
+    },
+    refunded: {
+      icon: XCircle,
+      color: "bg-gray-100 text-gray-800",
+      label: "Refunded",
+    },
+  };
+
+  const statusConfig = config[status] || {
+    icon: Clock,
+    color: "bg-gray-100 text-gray-800",
+    label: status,
+  };
+  const Icon = statusConfig.icon;
+
+  return (
+    <Badge className={`${statusConfig.color} text-xs`}>
+      <Icon className="mr-1 size-3" />
+      {statusConfig.label}
     </Badge>
   );
 }

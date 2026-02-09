@@ -12,7 +12,7 @@ import {
   type CheckoutSection,
 } from "@/lib/stores/use-checkout-store";
 import type { Cart } from "@/lib/db/queries/carts";
-import type { DeliveryZone } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 import type { EnabledGateway } from "@/lib/payments/types";
 
 interface SavedAddress {
@@ -45,9 +45,10 @@ interface CheckoutAccordionProps {
     email: string;
   } | null;
   userPhone: string;
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
   enabledPaymentMethods: EnabledGateway[];
   storeLocation?: { lat: number; lng: number } | null;
+  showPromoCode?: boolean;
 }
 
 export function CheckoutAccordion({
@@ -62,6 +63,7 @@ export function CheckoutAccordion({
   deliveryZones,
   enabledPaymentMethods,
   storeLocation,
+  showPromoCode = false,
 }: CheckoutAccordionProps) {
   const {
     expandedSection,
@@ -91,9 +93,6 @@ export function CheckoutAccordion({
 
   // Toggle section expansion
   const handleToggleSection = (section: CheckoutSection) => {
-    const status = getSectionStatus(section);
-    if (status === "locked") return;
-
     if (expandedSection === section) {
       setExpandedSection(null);
     } else {
@@ -190,6 +189,7 @@ export function CheckoutAccordion({
           cart={cart}
           user={user}
           enabledPaymentMethods={enabledPaymentMethods}
+          showPromoCode={showPromoCode}
           onEditDelivery={() => handleEditSection("delivery")}
           onEditShipping={() => handleEditSection("shipping")}
         />

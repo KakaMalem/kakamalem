@@ -15,13 +15,10 @@ export type CheckoutStep = 1 | 2 | 3;
 // New section-based navigation
 export type CheckoutSection = "contact" | "delivery" | "shipping" | "payment";
 
-export type SectionStatus = "locked" | "active" | "completed";
+export type SectionStatus = "incomplete" | "active" | "completed";
 
 export type CustomerInfo = {
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string; // Required for delivery coordination
+  phone: string; // Required - primary contact method in Afghanistan
 };
 
 export type ShippingMethod = {
@@ -34,9 +31,23 @@ export type ShippingMethod = {
 };
 
 export type PaymentMethod = {
-  gateway: "hesabpay" | "stripe" | "cod" | "bank_transfer" | "mobile_money";
+  gateway:
+    | "hesabpay"
+    | "stripe"
+    | "cod"
+    | "bank_transfer"
+    | "mobile_money"
+    | "crypto_usdt";
   displayName: string;
   description?: string;
+};
+
+export type AppliedCoupon = {
+  id: string;
+  code: string;
+  name: string;
+  type: "percentage" | "fixed_amount" | "free_shipping" | "buy_x_get_y";
+  discountAmount: number;
 };
 
 type CheckoutState = {
@@ -76,7 +87,11 @@ type CheckoutState = {
   subtotal: number;
   shippingTotal: number;
   taxTotal: number;
+  discountTotal: number;
   total: number;
+
+  // Applied coupon/promo code
+  appliedCoupon: AppliedCoupon | null;
 };
 
 type CheckoutActions = {
@@ -115,6 +130,10 @@ type CheckoutActions = {
 
   // Totals
   updateTotals: (subtotal: number, shippingTotal?: number) => void;
+
+  // Coupon/promo code
+  applyCoupon: (coupon: AppliedCoupon) => void;
+  removeCoupon: () => void;
 
   // Reset
   resetCheckout: () => void;
@@ -162,7 +181,9 @@ const initialState: CheckoutState = {
   subtotal: 0,
   shippingTotal: 0,
   taxTotal: 0,
+  discountTotal: 0,
   total: 0,
+  appliedCoupon: null,
 };
 
 // =============================================================================
@@ -187,10 +208,10 @@ export const useCheckoutStore = create<CheckoutStore>()(
             total: subtotal,
           });
         } else {
-          // Same store, just update subtotal
+          // Same store, just update subtotal (preserve discount)
           set({
             subtotal,
-            total: subtotal + state.shippingTotal,
+            total: subtotal + state.shippingTotal - state.discountTotal,
           });
         }
       },
@@ -221,18 +242,9 @@ export const useCheckoutStore = create<CheckoutStore>()(
         set({ completedSections: newCompletedSections });
       },
 
-      canExpandSection: (section) => {
-        const { completedSections } = get();
-
-        // Contact is always accessible
-        if (section === "contact") return true;
-
-        // For other sections, check if the previous section is completed
-        const sectionIndex = SECTION_ORDER.indexOf(section);
-        if (sectionIndex <= 0) return true;
-
-        const previousSection = SECTION_ORDER[sectionIndex - 1];
-        return completedSections.includes(previousSection);
+      canExpandSection: () => {
+        // All sections can be expanded - we use soft validation instead of hard locking
+        return true;
       },
 
       getSectionStatus: (section) => {
@@ -248,17 +260,8 @@ export const useCheckoutStore = create<CheckoutStore>()(
           return "completed";
         }
 
-        // Check if locked (previous section not completed)
-        const sectionIndex = SECTION_ORDER.indexOf(section);
-        if (sectionIndex > 0) {
-          const previousSection = SECTION_ORDER[sectionIndex - 1];
-          if (!completedSections.includes(previousSection)) {
-            return "locked";
-          }
-        }
-
-        // Default to locked if not first section
-        return section === "contact" ? "active" : "locked";
+        // Not completed yet - show as incomplete (but still accessible)
+        return "incomplete";
       },
 
       // ==========================================================================
@@ -325,11 +328,14 @@ export const useCheckoutStore = create<CheckoutStore>()(
 
       // Shipping method
       setShippingMethod: (method) => {
-        const { subtotal, taxTotal } = get();
+        const { subtotal, taxTotal, discountTotal, appliedCoupon } = get();
+        // For free_shipping coupons, set shipping to 0
+        const effectiveShipping =
+          appliedCoupon?.type === "free_shipping" ? 0 : method.price;
         set({
           selectedMethod: method,
-          shippingTotal: method.price,
-          total: subtotal + method.price + taxTotal,
+          shippingTotal: effectiveShipping,
+          total: subtotal + effectiveShipping + taxTotal - discountTotal,
         });
       },
 
@@ -350,7 +356,39 @@ export const useCheckoutStore = create<CheckoutStore>()(
         set({
           subtotal,
           shippingTotal: shipping,
-          total: subtotal + shipping + state.taxTotal,
+          total: subtotal + shipping + state.taxTotal - state.discountTotal,
+        });
+      },
+
+      // Coupon/promo code
+      applyCoupon: (coupon) => {
+        const { subtotal, shippingTotal, taxTotal, selectedMethod } = get();
+        // For free_shipping coupons, the "discount" is applied to shipping
+        let effectiveShipping = shippingTotal;
+        let effectiveDiscount = coupon.discountAmount;
+
+        if (coupon.type === "free_shipping" && selectedMethod) {
+          effectiveShipping = 0;
+          effectiveDiscount = selectedMethod.price;
+        }
+
+        set({
+          appliedCoupon: coupon,
+          discountTotal: effectiveDiscount,
+          shippingTotal: effectiveShipping,
+          total: subtotal + effectiveShipping + taxTotal - effectiveDiscount,
+        });
+      },
+
+      removeCoupon: () => {
+        const { subtotal, taxTotal, selectedMethod } = get();
+        // Restore original shipping if it was set to 0 by free_shipping coupon
+        const originalShipping = selectedMethod?.price ?? 0;
+        set({
+          appliedCoupon: null,
+          discountTotal: 0,
+          shippingTotal: originalShipping,
+          total: subtotal + originalShipping + taxTotal,
         });
       },
 
@@ -383,7 +421,9 @@ export const useCheckoutStore = create<CheckoutStore>()(
         customerNotes: state.customerNotes,
         subtotal: state.subtotal,
         shippingTotal: state.shippingTotal,
+        discountTotal: state.discountTotal,
         total: state.total,
+        appliedCoupon: state.appliedCoupon,
       }),
       migrate: (persistedState, version) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -482,4 +522,15 @@ export function useSelectedPaymentMethod() {
 
 export function useCustomerInfo() {
   return useCheckoutStore((state) => state.customerInfo);
+}
+
+export function useAppliedCoupon() {
+  return useCheckoutStore(
+    useShallow((state) => ({
+      appliedCoupon: state.appliedCoupon,
+      discountTotal: state.discountTotal,
+      applyCoupon: state.applyCoupon,
+      removeCoupon: state.removeCoupon,
+    }))
+  );
 }

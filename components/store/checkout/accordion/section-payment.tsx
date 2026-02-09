@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2, Lock, Tag } from "lucide-react";
+import { AlertCircle, Loader2, Lock, Tag, MapPin, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,8 +10,12 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { formatPrice } from "@/lib/utils";
-import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
+import {
+  useCheckoutStore,
+  useAppliedCoupon,
+} from "@/lib/stores/use-checkout-store";
 import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
+import { PromoCodeInput } from "../promo-code-input";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
 import { PaymentMethodSelector } from "../payment-method-selector";
@@ -29,6 +33,7 @@ interface SectionPaymentProps {
     email: string;
   } | null;
   enabledPaymentMethods: EnabledGateway[];
+  showPromoCode?: boolean;
   onEditDelivery: () => void;
   onEditShipping: () => void;
 }
@@ -40,6 +45,7 @@ export function SectionPayment({
   cart,
   user,
   enabledPaymentMethods,
+  showPromoCode = false,
   onEditDelivery,
   onEditShipping,
 }: SectionPaymentProps) {
@@ -57,6 +63,8 @@ export function SectionPayment({
     setCustomerNotes,
     setPaymentMethod,
   } = useCheckoutStore();
+
+  const { appliedCoupon, discountTotal } = useAppliedCoupon();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cartErrors, setCartErrors] = useState<
@@ -118,6 +126,7 @@ export function SectionPayment({
         shippingMethodId: selectedMethod.id,
         customerNotes: customerNotes || null,
         paymentMethod: selectedPaymentMethod.gateway,
+        appliedCouponCode: appliedCoupon?.code || null,
       });
 
       if (!result.success) {
@@ -176,10 +185,17 @@ export function SectionPayment({
       const orderId = result.order?.id;
 
       // Handle payment based on selected method
-      if (selectedPaymentMethod.gateway === "hesabpay") {
+      const gateway = selectedPaymentMethod.gateway;
+
+      // Online payment gateways that require redirect
+      if (
+        gateway === "hesabpay" ||
+        gateway === "stripe" ||
+        gateway === "crypto_usdt"
+      ) {
         const paymentResult = await createOrderPaymentSession(
           orderId!,
-          "hesabpay"
+          gateway
         );
 
         if (!paymentResult.success) {
@@ -192,9 +208,14 @@ export function SectionPayment({
           return;
         }
 
-        toast.success("Redirecting to payment...");
+        toast.success(
+          gateway === "crypto_usdt"
+            ? "Redirecting to crypto payment..."
+            : "Redirecting to payment..."
+        );
         window.location.href = paymentResult.paymentUrl!;
       } else {
+        // COD, bank transfer, etc. - no online payment needed
         toast.success("Order placed successfully!");
         router.replace(`/store/${storeSlug}/checkout/success?order=${orderId}`);
       }
@@ -205,8 +226,40 @@ export function SectionPayment({
     }
   };
 
+  // Check if previous steps are completed
+  const missingDelivery = !shippingAddress;
+  const missingShipping = !selectedMethod;
+  const hasMissingSteps = missingDelivery || missingShipping;
+
   return (
     <div className="space-y-6">
+      {/* Missing Steps Message */}
+      {hasMissingSteps && (
+        <div className="rounded-lg border border-muted bg-muted/30 p-6 text-center">
+          <Lock className="mx-auto size-10 text-muted-foreground/50 mb-3" />
+          <p className="font-medium text-foreground">
+            Complete the previous steps first
+          </p>
+          <p className="text-sm text-muted-foreground mt-1 mb-4">
+            To place your order, please complete the following:
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            {missingDelivery && (
+              <Button variant="outline" onClick={onEditDelivery}>
+                <MapPin className="mr-2 size-4" />
+                Add Delivery Address
+              </Button>
+            )}
+            {!missingDelivery && missingShipping && (
+              <Button variant="outline" onClick={onEditShipping}>
+                <Truck className="mr-2 size-4" />
+                Select Shipping Method
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Cart Errors Alert */}
       {cartErrors.length > 0 && (
         <Alert variant="destructive">
@@ -233,105 +286,155 @@ export function SectionPayment({
         </Alert>
       )}
 
-      {/* Payment Method Selector */}
-      <div>
-        <h4 className="font-medium mb-3">Select Payment Method</h4>
-        <PaymentMethodSelector
-          selectedMethod={selectedPaymentMethod}
-          onMethodSelect={setPaymentMethod}
-          disabled={isSubmitting}
-          currency={currency}
-          enabledMethods={enabledPaymentMethods}
-        />
-      </div>
-
-      {/* Order Notes */}
-      <Field>
-        <FieldLabel>
-          Order Notes
-          <span className="text-muted-foreground font-normal ml-1">
-            (optional)
-          </span>
-        </FieldLabel>
-        <Textarea
-          value={customerNotes}
-          onChange={(e) => setCustomerNotes(e.target.value)}
-          placeholder="Special delivery instructions, gift message, etc."
-          rows={3}
-          disabled={isSubmitting}
-          maxLength={1000}
-        />
-      </Field>
-
-      {/* Order Total Summary */}
-      <div className="rounded-lg border bg-muted/30 p-4">
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatPrice(subtotal, currency)}</span>
+      {/* Payment form - only show when previous steps are complete */}
+      {!hasMissingSteps && (
+        <>
+          {/* Payment Method Selector */}
+          <div>
+            <h4 className="font-medium mb-3">Select Payment Method</h4>
+            <PaymentMethodSelector
+              selectedMethod={selectedPaymentMethod}
+              onMethodSelect={setPaymentMethod}
+              disabled={isSubmitting}
+              currency={currency}
+              enabledMethods={enabledPaymentMethods}
+            />
           </div>
-          {totalBulkSavings > 0 && (
-            <div className="flex items-center justify-between text-green-600">
-              <span className="flex items-center gap-1.5">
-                <Tag className="size-3.5" />
-                Bulk discounts
-              </span>
-              <span>-{formatPrice(totalBulkSavings, currency)}</span>
-            </div>
+
+          {/* Promo Code Input - only show if store has active coupons */}
+          {showPromoCode && (
+            <PromoCodeInput
+              tenantId={tenantId}
+              subtotal={subtotal}
+              cartItems={cart.items.map((item) => ({
+                productId: item.productId,
+                categoryId: null, // Cart items don't include categoryId
+                quantity: item.quantity,
+                lineTotal:
+                  getApplicableTierPrice(
+                    item.variant?.price
+                      ? parseFloat(item.variant.price)
+                      : parseFloat(item.product.price),
+                    item.quantity,
+                    item.product.priceTiers || []
+                  ) * item.quantity,
+              }))}
+              customerId={user?.id || null}
+              currency={currency}
+            />
           )}
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Shipping</span>
-            <span>
-              {shippingTotal === 0 ? (
-                <span className="text-green-600">Free</span>
-              ) : (
-                formatPrice(shippingTotal, currency)
+
+          {/* Order Notes */}
+          <Field>
+            <FieldLabel>
+              Order Notes
+              <span className="text-muted-foreground font-normal ml-1">
+                (optional)
+              </span>
+            </FieldLabel>
+            <Textarea
+              value={customerNotes}
+              onChange={(e) => setCustomerNotes(e.target.value)}
+              placeholder="Special delivery instructions, gift message, etc."
+              rows={3}
+              disabled={isSubmitting}
+              maxLength={1000}
+            />
+          </Field>
+
+          {/* Order Total Summary */}
+          <div className="rounded-lg border bg-muted/30 p-4">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatPrice(subtotal, currency)}</span>
+              </div>
+              {totalBulkSavings > 0 && (
+                <div className="flex items-center justify-between text-green-600">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="size-3.5" />
+                    Bulk discounts
+                  </span>
+                  <span>-{formatPrice(totalBulkSavings, currency)}</span>
+                </div>
               )}
-            </span>
+              {appliedCoupon && discountTotal > 0 && (
+                <div className="flex items-center justify-between text-green-600">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="size-3.5" />
+                    {appliedCoupon.code}
+                  </span>
+                  <span>-{formatPrice(discountTotal, currency)}</span>
+                </div>
+              )}
+              {appliedCoupon?.type === "free_shipping" && (
+                <div className="flex items-center justify-between text-green-600">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="size-3.5" />
+                    {appliedCoupon.code}
+                  </span>
+                  <span>Free shipping</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Shipping</span>
+                <span>
+                  {shippingTotal === 0 ? (
+                    <span className="text-green-600">Free</span>
+                  ) : (
+                    formatPrice(shippingTotal, currency)
+                  )}
+                </span>
+              </div>
+              <Separator className="my-2" />
+              <div className="flex justify-between text-base font-semibold">
+                <span>Total</span>
+                <span>{formatPrice(total, currency)}</span>
+              </div>
+            </div>
           </div>
-          <Separator className="my-2" />
-          <div className="flex justify-between text-base font-semibold">
-            <span>Total</span>
-            <span>{formatPrice(total, currency)}</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Place Order Button */}
-      <Button
-        onClick={handlePlaceOrder}
-        disabled={
-          isSubmitting || cartErrors.length > 0 || !selectedPaymentMethod
-        }
-        size="lg"
-        className="w-full"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="mr-2 size-4 animate-spin" />
-            {selectedPaymentMethod?.gateway === "hesabpay"
-              ? "Processing..."
-              : "Placing Order..."}
-          </>
-        ) : selectedPaymentMethod?.gateway === "hesabpay" ? (
-          <>
-            <Lock className="mr-2 size-4" />
-            Pay {formatPrice(total, currency)}
-          </>
-        ) : (
-          <>
-            <Lock className="mr-2 size-4" />
-            Place Order &bull; {formatPrice(total, currency)}
-          </>
-        )}
-      </Button>
+          {/* Place Order Button */}
+          <Button
+            onClick={handlePlaceOrder}
+            disabled={
+              isSubmitting || cartErrors.length > 0 || !selectedPaymentMethod
+            }
+            size="lg"
+            className="w-full"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                {selectedPaymentMethod?.gateway === "hesabpay" ||
+                selectedPaymentMethod?.gateway === "stripe" ||
+                selectedPaymentMethod?.gateway === "crypto_usdt"
+                  ? "Processing..."
+                  : "Placing Order..."}
+              </>
+            ) : selectedPaymentMethod?.gateway === "hesabpay" ||
+              selectedPaymentMethod?.gateway === "stripe" ||
+              selectedPaymentMethod?.gateway === "crypto_usdt" ? (
+              <>
+                <Lock className="mr-2 size-4" />
+                Pay {formatPrice(total, currency)}
+              </>
+            ) : (
+              <>
+                <Lock className="mr-2 size-4" />
+                Place Order &bull; {formatPrice(total, currency)}
+              </>
+            )}
+          </Button>
 
-      {/* Security Note */}
-      <p className="text-xs text-center text-muted-foreground">
-        <Lock className="inline size-3 mr-1" />
-        Your payment information is secure. By placing this order, you agree to
-        our Terms of Service.
-      </p>
+          {/* Security Note */}
+          <p className="text-xs text-center text-muted-foreground">
+            <Lock className="inline size-3 mr-1" />
+            Your payment information is secure. By placing this order, you agree
+            to our Terms of Service.
+          </p>
+        </>
+      )}
     </div>
   );
 }

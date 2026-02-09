@@ -66,8 +66,8 @@ self.addEventListener("push", (event: PushEvent) => {
   // valid in browsers but not in TypeScript's NotificationOptions type
   const options = {
     body: data.body,
-    icon: data.icon || "/icons/icon-192x192.png",
-    badge: data.badge || "/icons/badge-72x72.png",
+    icon: data.icon || "/icons/android-chrome-192x192.png",
+    badge: data.badge || "/icons/favicon-32x32.png",
     tag: data.tag || "order-notification",
     renotify: true,
     requireInteraction: data.requireInteraction ?? true,

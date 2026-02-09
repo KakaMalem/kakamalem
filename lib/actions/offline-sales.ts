@@ -406,8 +406,8 @@ export async function recordOfflineSale(
       // Build customer snapshot
       const customerSnapshot: CustomerSnapshot = {
         name: validatedInput.customerName || "Walk-in Customer",
-        email: validatedInput.customerEmail || "",
-        phone: validatedInput.customerPhone || undefined,
+        email: validatedInput.customerEmail ?? undefined,
+        phone: validatedInput.customerPhone ?? undefined,
       };
 
       // Determine payment method for order record

@@ -42,6 +42,21 @@ interface Product {
   rating?: number;
   reviewCount?: number;
   isNew?: boolean;
+  categoryId?: string | null;
+}
+
+/** Campaign data for calculating discounts */
+export interface ActiveCampaign {
+  id: string;
+  name: string;
+  discountType: "percentage" | "fixed_amount";
+  discountValue: string;
+  scope: "store_wide" | "categories" | "products";
+  eligibleCategories: string[] | null;
+  eligibleProducts: string[] | null;
+  excludedProducts: string[] | null;
+  showBadge: boolean;
+  badgeText: string | null;
 }
 
 interface InfiniteScrollWrapperProps {
@@ -60,6 +75,8 @@ interface InfiniteScrollWrapperProps {
   currentSort?: string;
   /** When true, hides add-to-cart buttons (catalog/showcase mode) */
   catalogMode?: boolean;
+  /** Active campaigns for discount calculation (sorted by priority) */
+  activeCampaigns?: ActiveCampaign[];
 }
 
 export function InfiniteScrollWrapper(props: InfiniteScrollWrapperProps) {

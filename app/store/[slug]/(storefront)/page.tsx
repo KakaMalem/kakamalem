@@ -3,6 +3,7 @@ import { Package } from "lucide-react";
 
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getProducts } from "@/lib/db/queries/products";
+import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
 import { InfiniteScrollProducts } from "@/components/store/infinite-scroll-products";
 import { Button } from "@/components/ui/button";
 
@@ -26,13 +27,16 @@ export default async function StorePage({
     return null;
   }
 
-  // Fetch products - initial load for infinite scroll
-  const productsResult = await getProducts(store.id, {
-    page: 1,
-    limit: 20,
-    filters: { isActive: true, showOnStorefront: true, search: searchQuery },
-    sort: { field: "displayOrder", direction: "asc" },
-  });
+  // Fetch products and active campaigns in parallel
+  const [productsResult, activeCampaigns] = await Promise.all([
+    getProducts(store.id, {
+      page: 1,
+      limit: 20,
+      filters: { isActive: true, showOnStorefront: true, search: searchQuery },
+      sort: { field: "displayOrder", direction: "asc" },
+    }),
+    getActiveCampaigns(store.id),
+  ]);
 
   const hasProducts = productsResult.products.length > 0;
 
@@ -83,6 +87,7 @@ export default async function StorePage({
               }}
               sort={{ field: "displayOrder", direction: "asc" }}
               catalogMode={isCartDisabled}
+              activeCampaigns={activeCampaigns}
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center">

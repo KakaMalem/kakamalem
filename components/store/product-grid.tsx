@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useCart } from "@/lib/hooks/use-cart";
 import type { CartItemProduct } from "@/lib/types/cart";
+import type { CampaignDiscount } from "@/lib/utils/pricing-display";
 
 interface ProductGridProps {
   products: {
@@ -21,12 +22,19 @@ interface ProductGridProps {
     name: string;
     slug: string;
     price: string;
+    compareAtPrice?: string | null;
     stock: number;
     hasVariants: boolean;
     trackInventory: boolean;
     showStock: boolean;
     status: "draft" | "active" | "archived";
     image: { url: string; altText: string | null } | null;
+    minVariantPrice?: string;
+    maxVariantPrice?: string;
+    rating?: number;
+    reviewCount?: number;
+    isNew?: boolean;
+    categoryId?: string | null;
   }[];
   pagination: {
     page: number;
@@ -41,6 +49,8 @@ interface ProductGridProps {
   currentSort?: string;
   /** When true, hides add-to-cart buttons (catalog/showcase mode) */
   catalogMode?: boolean;
+  /** Map of product ID to campaign discount */
+  campaignDiscounts?: Map<string, CampaignDiscount>;
 }
 
 const SORT_OPTIONS = [
@@ -61,6 +71,7 @@ export function ProductGrid({
   basePath,
   currentSort = "createdAt-desc",
   catalogMode = false,
+  campaignDiscounts,
 }: ProductGridProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -156,6 +167,7 @@ export function ProductGrid({
             onAddToCart={catalogMode ? undefined : handleAddToCart}
             isAddingToCart={isAddingProduct(product.id)}
             catalogMode={catalogMode}
+            campaignDiscount={campaignDiscounts?.get(product.id)}
           />
         ))}
       </div>

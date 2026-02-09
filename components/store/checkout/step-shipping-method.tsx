@@ -18,13 +18,13 @@ import { formatPrice } from "@/lib/utils";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { calculateShippingAction } from "@/lib/actions/checkout";
 import { OutOfZoneMap } from "./out-of-zone-map";
-import type { DeliveryZone } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 
 interface StepShippingMethodProps {
   tenantId: string;
   storeSlug: string;
   currency: string;
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
 }
 
 type ShippingMethodOption = {

@@ -7,7 +7,13 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
 import { getPrimaryStoreLocation } from "@/lib/db/queries/store-locations";
+import { hasActiveCoupons } from "@/lib/db/queries/coupons";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
+import {
+  isUnifiedDeliveryEnabled,
+  getUnifiedZonesForCheckout,
+  type CheckoutDeliveryZone,
+} from "@/lib/actions/unified-delivery";
 import {
   getStorePaymentGateways,
   getLatestPendingPaymentSession,
@@ -118,20 +124,49 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     redirect(`/store/${slug}/cart?error=validation&errors=${errorsParam}`);
   }
 
-  // Fetch delivery zones if GPS-based delivery is enabled
-  // Note: If no zones configured, free delivery will be offered as fallback
-  const deliveryZones = store.enableDeliveryZones
-    ? await getActiveDeliveryZones(store.id)
-    : [];
+  // Fetch delivery zones for checkout visualization
+  // Priority: 1. Unified zones (new system), 2. Legacy zones, 3. No restrictions (allow anywhere)
+  let deliveryZones: CheckoutDeliveryZone[] = [];
+  const unifiedEnabled = await isUnifiedDeliveryEnabled(store.id);
 
-  // Get user's saved addresses, profile, enabled payment methods, and primary store location
-  const [savedAddresses, userProfile, enabledPaymentMethods, primaryLocation] =
-    await Promise.all([
-      user ? getUserAddresses(user.id) : Promise.resolve([]),
-      user ? getUserProfile() : Promise.resolve(null),
-      getStorePaymentGateways(store.id),
-      getPrimaryStoreLocation(store.id),
-    ]);
+  if (unifiedEnabled) {
+    // Use unified delivery system zones
+    deliveryZones = await getUnifiedZonesForCheckout(store.id);
+  } else if (store.enableDeliveryZones) {
+    // Fall back to legacy delivery zones (convert to unified format)
+    const legacyZones = await getActiveDeliveryZones(store.id);
+    deliveryZones = legacyZones.map((z) => ({
+      id: z.id,
+      name: z.name,
+      zoneType: "radius" as const,
+      color: z.color,
+      centerLat: z.centerLat,
+      centerLng: z.centerLng,
+      radiusMeters: z.radiusMeters,
+      polygonGeojson: null,
+      deliveryFee: z.deliveryFee,
+      freeShippingThreshold: z.freeShippingThreshold,
+      estimatedDeliveryTime: z.estimatedDeliveryTime,
+      isActive: z.isActive,
+    }));
+  }
+  // If neither unified nor legacy zones exist, deliveryZones stays empty
+  // This allows delivery to anywhere (no zone restrictions)
+
+  // Get user's saved addresses, profile, enabled payment methods, primary store location, and coupon availability
+  const [
+    savedAddresses,
+    userProfile,
+    enabledPaymentMethods,
+    primaryLocation,
+    showPromoCode,
+  ] = await Promise.all([
+    user ? getUserAddresses(user.id) : Promise.resolve([]),
+    user ? getUserProfile() : Promise.resolve(null),
+    getStorePaymentGateways(store.id),
+    getPrimaryStoreLocation(store.id),
+    hasActiveCoupons(store.id),
+  ]);
 
   // Calculate cart subtotal with tier pricing
   const subtotal = cartValidation.cart.items.reduce((sum, item) => {
@@ -185,6 +220,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       deliveryZones={deliveryZones}
       enabledPaymentMethods={enabledPaymentMethods}
       storeLocation={storeLocation}
+      showPromoCode={showPromoCode}
     />
   );
 }

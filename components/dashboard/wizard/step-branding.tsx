@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -124,7 +124,7 @@ export function StepBranding({
           <Label
             htmlFor="name_only"
             className={cn(
-              "flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors",
+              "relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 cursor-pointer transition-colors",
               headerDisplay === "name_only"
                 ? "border-primary bg-primary/5"
                 : "border-muted hover:border-muted-foreground/50"
@@ -135,6 +135,17 @@ export function StepBranding({
               id="name_only"
               className="sr-only"
             />
+            {headerDisplay === "name_only" && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute top-2 right-2"
+              >
+                <div className="size-5 rounded-full bg-primary flex items-center justify-center">
+                  <Check className="size-3 text-primary-foreground" />
+                </div>
+              </motion.div>
+            )}
             <div className="h-8 flex items-center">
               <span className="font-semibold text-sm">Store Name</span>
             </div>
@@ -144,7 +155,7 @@ export function StepBranding({
           <Label
             htmlFor="logo_only"
             className={cn(
-              "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
+              "relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
               !hasLogo && "cursor-not-allowed",
               hasLogo && "cursor-pointer",
               headerDisplay === "logo_only"
@@ -160,6 +171,17 @@ export function StepBranding({
               className="sr-only"
               disabled={!hasLogo}
             />
+            {headerDisplay === "logo_only" && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute top-2 right-2"
+              >
+                <div className="size-5 rounded-full bg-primary flex items-center justify-center">
+                  <Check className="size-3 text-primary-foreground" />
+                </div>
+              </motion.div>
+            )}
             <div className="h-8 flex items-center">
               <div
                 className={cn(
@@ -183,7 +205,7 @@ export function StepBranding({
           <Label
             htmlFor="logo_and_name"
             className={cn(
-              "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
+              "relative flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors",
               !hasLogo && "cursor-not-allowed",
               hasLogo && "cursor-pointer",
               headerDisplay === "logo_and_name"
@@ -199,6 +221,17 @@ export function StepBranding({
               className="sr-only"
               disabled={!hasLogo}
             />
+            {headerDisplay === "logo_and_name" && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute top-2 right-2"
+              >
+                <div className="size-5 rounded-full bg-primary flex items-center justify-center">
+                  <Check className="size-3 text-primary-foreground" />
+                </div>
+              </motion.div>
+            )}
             <div className="h-8 flex items-center gap-2">
               <div
                 className={cn(

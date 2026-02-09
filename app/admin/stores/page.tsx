@@ -3,6 +3,7 @@ import { getAdminStores } from "@/lib/db/queries/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Table,
   TableBody,
@@ -204,7 +205,7 @@ export default async function AdminStoresPage({
                           />
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {new Date(store.createdAt).toLocaleDateString()}
+                          <RelativeTime date={store.createdAt} />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">

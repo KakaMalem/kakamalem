@@ -14,6 +14,7 @@ import {
   type FetchProductsResult,
 } from "@/lib/actions/store-products";
 import type { ProductFilters, ProductSort } from "@/lib/db/queries/products";
+import { type CampaignDiscount } from "@/lib/utils/pricing-display";
 
 interface Product {
   id: string;
@@ -27,9 +28,26 @@ interface Product {
   showStock: boolean;
   status: "draft" | "active" | "archived";
   image: { url: string; altText: string | null } | null;
+  minVariantPrice?: string;
+  maxVariantPrice?: string;
   rating?: number;
   reviewCount?: number;
   isNew?: boolean;
+  categoryId?: string | null;
+}
+
+/** Campaign data for calculating discounts */
+export interface ActiveCampaign {
+  id: string;
+  name: string;
+  discountType: "percentage" | "fixed_amount";
+  discountValue: string;
+  scope: "store_wide" | "categories" | "products";
+  eligibleCategories: string[] | null;
+  eligibleProducts: string[] | null;
+  excludedProducts: string[] | null;
+  showBadge: boolean;
+  badgeText: string | null;
 }
 
 interface InfiniteScrollProductsProps {
@@ -42,6 +60,56 @@ interface InfiniteScrollProductsProps {
   sort?: ProductSort;
   /** When true, hides add-to-cart buttons (catalog/showcase mode) */
   catalogMode?: boolean;
+  /** Active campaigns for discount calculation (sorted by priority) */
+  activeCampaigns?: ActiveCampaign[];
+}
+
+/**
+ * Get the best applicable campaign discount for a product
+ */
+function getProductCampaignDiscount(
+  product: Product,
+  campaigns: ActiveCampaign[]
+): CampaignDiscount | null {
+  for (const campaign of campaigns) {
+    // Check if product is excluded
+    if (
+      campaign.excludedProducts &&
+      campaign.excludedProducts.includes(product.id)
+    ) {
+      continue;
+    }
+
+    let applies = false;
+
+    // Check scope
+    if (campaign.scope === "store_wide") {
+      applies = true;
+    } else if (
+      campaign.scope === "categories" &&
+      product.categoryId &&
+      campaign.eligibleCategories?.includes(product.categoryId)
+    ) {
+      applies = true;
+    } else if (
+      campaign.scope === "products" &&
+      campaign.eligibleProducts?.includes(product.id)
+    ) {
+      applies = true;
+    }
+
+    if (applies) {
+      return {
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        discountType: campaign.discountType,
+        discountValue: parseFloat(campaign.discountValue),
+        badgeText: campaign.showBadge ? campaign.badgeText : null,
+      };
+    }
+  }
+
+  return null;
 }
 
 export function InfiniteScrollProducts({
@@ -53,6 +121,7 @@ export function InfiniteScrollProducts({
   filters,
   sort,
   catalogMode = false,
+  activeCampaigns = [],
 }: InfiniteScrollProductsProps) {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -185,6 +254,10 @@ export function InfiniteScrollProducts({
             onAddToCart={catalogMode ? undefined : handleAddToCart}
             isAddingToCart={isAddingProduct(product.id)}
             catalogMode={catalogMode}
+            campaignDiscount={getProductCampaignDiscount(
+              product,
+              activeCampaigns
+            )}
           />
         ))}
       </div>

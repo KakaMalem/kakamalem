@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { ChevronsUpDown, Plus, Check, Store } from "lucide-react";
+import { ChevronsUpDown, Plus, Check, Store, Crown } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/ui/logo";
 import { useLastStore } from "@/lib/hooks/use-last-store";
+import { useSubscription } from "@/lib/stores/use-subscription-store";
 import { cn } from "@/lib/utils";
 
 export type StoreInfo = {
@@ -59,11 +60,15 @@ export function StoreSwitcher({
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
   const [isMounted, setIsMounted] = React.useState(false);
+  const subscription = useSubscription();
 
   // Wait for client-side mount to avoid hydration mismatch
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Subscription helper for plan badge
+  const isPro = subscription?.plan === "pro";
 
   // Derive current store from URL path for client-side navigation
   const urlSlug = getStoreSlugFromPath(pathname);
@@ -173,8 +178,21 @@ export function StoreSwitcher({
                 <span className="truncate font-semibold">
                   {currentStore.name}
                 </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  /{currentStore.slug}
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="truncate">/{currentStore.slug}</span>
+                  {subscription && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium leading-none",
+                        isPro
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {isPro && <Crown className="mr-0.5 size-2.5" />}
+                      {isPro ? "Pro" : "Free"}
+                    </span>
+                  )}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto" />

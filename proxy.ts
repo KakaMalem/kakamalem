@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  couldBeAffiliateSlug,
+  generateVisitorId,
+  extractUtmParams,
+  VISITOR_ID_COOKIE_NAME,
+} from "@/lib/affiliate/tracking";
 
 /**
  * Proxy for handling:
  * 1. SEO: www → non-www redirect (canonical consolidation)
- * 2. Custom domain routing to internal _custom route
+ * 2. Platform affiliate vanity URLs (e.g., kakamalem.com/matee)
+ * 3. Custom domain routing to internal _custom route
  *
  * When a request comes from a custom domain (not kakamalem.com),
  * we rewrite it to the internal _custom route handler which will
@@ -31,7 +38,42 @@ const EXCLUDED_PATHS = [
   "/sw.js",
 ];
 
-export function proxy(request: NextRequest) {
+// Reserved paths that are NOT affiliate slugs
+const RESERVED_PATHS = new Set([
+  // Legal pages
+  "terms",
+  "privacy",
+  "data-deletion",
+  // Auth routes
+  "auth",
+  "login",
+  "signup",
+  "logout",
+  "confirm",
+  "error",
+  "complete-profile",
+  "forgot-password",
+  "reset-password",
+  // App routes
+  "dashboard",
+  "store",
+  "admin",
+  "invoice",
+  // API/System routes
+  "api",
+  "uploads",
+  // Affiliate routes
+  "affiliate",
+  "affiliates",
+  "become-affiliate",
+  // Error pages
+  "404",
+  "500",
+  // Other Next.js routes
+  "_next",
+]);
+
+export default function proxy(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
   const pathname = request.nextUrl.pathname;
 
@@ -48,12 +90,61 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url, { status: 301 });
   }
 
-  // Skip proxy for main domain
-  if (
-    MAIN_DOMAINS.some(
-      (d) => hostnameWithoutPort === d || hostnameWithoutPort.endsWith(`.${d}`)
-    )
-  ) {
+  // Check if this is the main domain
+  const isMainDomain = MAIN_DOMAINS.some(
+    (d) => hostnameWithoutPort === d || hostnameWithoutPort.endsWith(`.${d}`)
+  );
+
+  // ==========================================================================
+  // Platform Affiliate Vanity URLs (e.g., kakamalem.com/matee)
+  // Only for main domain, root-level paths that could be affiliate slugs
+  // ==========================================================================
+  if (isMainDomain) {
+    const pathSegments = pathname.split("/").filter(Boolean);
+
+    // Only handle root-level paths (e.g., /matee, NOT /store/xyz)
+    if (pathSegments.length === 1) {
+      const potentialSlug = pathSegments[0].toLowerCase();
+
+      // Check if this could be an affiliate slug (not reserved, valid format)
+      if (
+        !RESERVED_PATHS.has(potentialSlug) &&
+        couldBeAffiliateSlug(potentialSlug)
+      ) {
+        // Rewrite to affiliate verification page
+        // The page will verify the affiliate and handle tracking/redirect
+        const url = request.nextUrl.clone();
+        url.pathname = `/affiliate/redirect/${potentialSlug}`;
+
+        // Preserve UTM params
+        const utmParams = extractUtmParams(request.nextUrl);
+        if (utmParams.utmSource)
+          url.searchParams.set("utm_source", utmParams.utmSource);
+        if (utmParams.utmMedium)
+          url.searchParams.set("utm_medium", utmParams.utmMedium);
+        if (utmParams.utmCampaign)
+          url.searchParams.set("utm_campaign", utmParams.utmCampaign);
+        if (utmParams.utmContent)
+          url.searchParams.set("utm_content", utmParams.utmContent);
+
+        // Pass visitor ID if exists, or generate new one
+        const existingVisitorId = request.cookies.get(
+          VISITOR_ID_COOKIE_NAME
+        )?.value;
+        const visitorId = existingVisitorId || generateVisitorId();
+        url.searchParams.set("vid", visitorId);
+
+        // Pass referrer info
+        const referrer = request.headers.get("referer");
+        if (referrer) {
+          url.searchParams.set("referrer", referrer);
+        }
+
+        return NextResponse.rewrite(url);
+      }
+    }
+
+    // Not an affiliate slug, continue normally
     return NextResponse.next();
   }
 

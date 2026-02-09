@@ -21,7 +21,10 @@ import { RichTextContent } from "@/components/ui/rich-text-content";
 import { VariantSelector } from "@/components/store/variant-selector";
 import { BulkPricingTiers } from "@/components/store/bulk-pricing-tiers";
 import { cn, formatPrice } from "@/lib/utils";
-import { getDisplayPrices } from "@/lib/utils/pricing-display";
+import {
+  getDisplayPricesWithCampaign,
+  type CampaignDiscount,
+} from "@/lib/utils/pricing-display";
 import { useWishlist } from "@/lib/hooks/use-wishlist";
 import { useCart } from "@/lib/hooks/use-cart";
 import type { CartItemProduct, CartItemVariant } from "@/lib/types/cart";
@@ -61,6 +64,8 @@ interface ProductInfoProps {
   initialVariantId?: string;
   /** Initial options from URL params (e.g., {Size: "Large", Color: "Black"}) */
   initialOptions?: Record<string, string>;
+  /** Campaign discount for this product */
+  campaignDiscount?: CampaignDiscount | null;
 }
 
 export function ProductInfo({
@@ -76,6 +81,7 @@ export function ProductInfo({
   imageSwatchUrls,
   initialVariantId,
   initialOptions: initialOptionsProp,
+  campaignDiscount,
 }: ProductInfoProps) {
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
   const [selectedOptions, setSelectedOptions] = useState<
@@ -191,13 +197,19 @@ export function ProductInfo({
       : (product as ProductWithDetails & { compareAtPrice?: string | null })
           .compareAtPrice;
 
-  // Get display prices with discount calculation
+  // Get display prices with campaign discount calculation
   const {
     price: displayPrice,
     compareAtPrice: displayCompareAtPrice,
     discountPercent,
     hasDiscount,
-  } = getDisplayPrices(basePrice, baseCompareAtPrice ?? null);
+    hasCampaignDiscount,
+    campaignBadgeText,
+  } = getDisplayPricesWithCampaign(
+    basePrice,
+    baseCompareAtPrice ?? null,
+    campaignDiscount ?? null
+  );
 
   const currentStock =
     product.hasVariants && selectedVariant
@@ -450,12 +462,16 @@ export function ProductInfo({
               )}
             </span>
           )}
-          {hasDiscount && discountPercent && !applicableTier && (
+          {hasDiscount && !applicableTier && (
             <Badge
               variant="destructive"
               className="text-xs sm:text-sm font-semibold"
             >
-              -{discountPercent}%
+              {hasCampaignDiscount && campaignBadgeText
+                ? campaignBadgeText
+                : discountPercent
+                  ? `-${discountPercent}%`
+                  : "Sale"}
             </Badge>
           )}
           {applicableTier && (
@@ -504,16 +520,7 @@ export function ProductInfo({
         )}
       </div>
 
-      {/* Description - show variant description if selected, otherwise product description */}
-      {(selectedVariant?.description || product.description) && (
-        <RichTextContent
-          html={selectedVariant?.description || product.description || ""}
-        />
-      )}
-
-      <Separator />
-
-      {/* Variant Selectors */}
+      {/* Variant Selectors - positioned between price and quantity per Amazon/Shopify pattern */}
       {product.hasVariants && variantOptions && (
         <>
           {Object.entries(variantOptions).map(
@@ -860,6 +867,16 @@ export function ProductInfo({
             </div>
           )}
         </div>
+      )}
+
+      {/* Description - positioned after purchase section per modern e-commerce patterns */}
+      {(selectedVariant?.description || product.description) && (
+        <>
+          <Separator />
+          <RichTextContent
+            html={selectedVariant?.description || product.description || ""}
+          />
+        </>
       )}
     </div>
   );

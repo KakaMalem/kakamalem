@@ -7,6 +7,8 @@ import {
   Building2,
   Smartphone,
   AlertCircle,
+  Globe,
+  Wallet,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -19,10 +21,24 @@ import type { EnabledGateway } from "@/lib/payments/types";
 // Icons for each payment method (using string index for flexibility)
 const PAYMENT_ICONS: Record<string, typeof CreditCard> = {
   hesabpay: CreditCard,
-  stripe: CreditCard,
+  stripe: Globe,
   cod: Banknote,
   bank_transfer: Building2,
   mobile_money: Smartphone,
+  crypto_usdt: Wallet,
+};
+
+// Badges for payment methods
+const PAYMENT_BADGES: Record<
+  string,
+  { text: string; variant: "recommended" | "info" } | null
+> = {
+  hesabpay: { text: "Recommended", variant: "recommended" },
+  stripe: { text: "International", variant: "info" },
+  cod: null,
+  bank_transfer: null,
+  mobile_money: null,
+  crypto_usdt: { text: "Crypto", variant: "info" },
 };
 
 // Fallback payment methods if none configured
@@ -96,7 +112,7 @@ export function PaymentMethodSelector({
         {availableMethods.map((method) => {
           const Icon = PAYMENT_ICONS[method.gateway] || CreditCard;
           const isSelected = selectedMethod?.gateway === method.gateway;
-          const isHesabPay = method.gateway === "hesabpay";
+          const badge = PAYMENT_BADGES[method.gateway];
 
           return (
             <Label
@@ -113,15 +129,16 @@ export function PaymentMethodSelector({
                   disabled && "opacity-50 cursor-not-allowed"
                 )}
               >
-                <CardContent className="flex items-center gap-4 p-4">
+                <CardContent className="flex items-start gap-3 p-4">
                   <RadioGroupItem
                     value={method.gateway}
                     id={`payment-${method.gateway}`}
                     disabled={disabled}
+                    className="mt-1"
                   />
                   <div
                     className={cn(
-                      "flex items-center justify-center size-10 rounded-full",
+                      "flex items-center justify-center size-10 rounded-full shrink-0",
                       isSelected
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
@@ -129,19 +146,28 @@ export function PaymentMethodSelector({
                   >
                     <Icon className="size-5" />
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{method.displayName}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{method.displayName}</p>
+                      {badge && (
+                        <span
+                          className={cn(
+                            "text-xs px-2 py-1 rounded-full shrink-0",
+                            badge.variant === "recommended"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-blue-100 text-blue-700"
+                          )}
+                        >
+                          {badge.text}
+                        </span>
+                      )}
+                    </div>
                     {method.description && (
                       <p className="text-sm text-muted-foreground">
                         {method.description}
                       </p>
                     )}
                   </div>
-                  {isHesabPay && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                      Recommended
-                    </span>
-                  )}
                 </CardContent>
               </Card>
             </Label>

@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import type { Address, DeliveryZone } from "@/lib/db/schema";
+import type { Address } from "@/lib/db/schema";
+import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
@@ -41,9 +42,10 @@ interface CheckoutContainerProps {
   } | null;
   userPhone: string;
   subtotal: number;
-  deliveryZones: DeliveryZone[];
+  deliveryZones: CheckoutDeliveryZone[];
   enabledPaymentMethods: EnabledGateway[];
   storeLocation?: { lat: number; lng: number } | null;
+  showPromoCode?: boolean;
 }
 
 export function CheckoutContainer({
@@ -59,6 +61,7 @@ export function CheckoutContainer({
   deliveryZones,
   enabledPaymentMethods,
   storeLocation,
+  showPromoCode = false,
 }: CheckoutContainerProps) {
   const mounted = useMounted();
 
@@ -131,7 +134,11 @@ export function CheckoutContainer({
 
       {/* Mobile Order Summary */}
       <div className="lg:hidden mb-6">
-        <MobileOrderSummary cart={cart} currency={currency} />
+        <MobileOrderSummary
+          cart={cart}
+          currency={currency}
+          tenantId={tenantId}
+        />
       </div>
 
       {/* Main Layout */}
@@ -150,12 +157,17 @@ export function CheckoutContainer({
             deliveryZones={deliveryZones}
             enabledPaymentMethods={enabledPaymentMethods}
             storeLocation={storeLocation}
+            showPromoCode={showPromoCode}
           />
         </div>
 
         {/* Desktop Order Summary Sidebar */}
         <div className="hidden lg:block lg:col-span-1">
-          <CheckoutSummary cart={cart} currency={currency} />
+          <CheckoutSummary
+            cart={cart}
+            currency={currency}
+            tenantId={tenantId}
+          />
         </div>
       </div>
     </div>

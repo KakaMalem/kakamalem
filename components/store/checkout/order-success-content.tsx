@@ -338,9 +338,12 @@ export function OrderSuccessContent({
                   <div>
                     <p className="font-medium mb-2">Delivering to</p>
                     <div className="text-sm text-muted-foreground space-y-1">
-                      <p>
-                        {shippingAddress.firstName} {shippingAddress.lastName}
-                      </p>
+                      {(shippingAddress.firstName ||
+                        shippingAddress.lastName) && (
+                        <p>
+                          {shippingAddress.firstName} {shippingAddress.lastName}
+                        </p>
+                      )}
                       <p className="font-mono">
                         {shippingAddress.plusCode
                           ? formatPlusCodeForDisplay(
@@ -449,8 +452,19 @@ export function OrderSuccessContent({
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
         >
-          {user && order && (
+          {/* Complete Payment button for unpaid online orders */}
+          {order && !isPaid && !isCOD && (
             <Button asChild>
+              <Link
+                href={`/store/${storeSlug}/checkout/payment?order=${order.id}`}
+              >
+                Complete Payment
+                <ArrowRight className="ml-2 size-4" />
+              </Link>
+            </Button>
+          )}
+          {user && order && (
+            <Button variant={!isPaid && !isCOD ? "outline" : "default"} asChild>
               <Link href={`/store/${storeSlug}/account/orders/${order.id}`}>
                 View Order Details
                 <ArrowRight className="ml-2 size-4" />
