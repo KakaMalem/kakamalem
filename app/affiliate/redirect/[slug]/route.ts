@@ -57,9 +57,13 @@ export async function GET(
     },
   });
 
-  // If not a valid affiliate, return 404 response
+  // If not a valid affiliate, redirect to homepage instead of showing a blank 404
   if (!affiliate) {
-    return new NextResponse("Affiliate not found", { status: 404 });
+    const homeUrl = new URL(
+      "/",
+      process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
+    );
+    return NextResponse.redirect(homeUrl);
   }
 
   // Get or generate visitor ID from cookie or URL param

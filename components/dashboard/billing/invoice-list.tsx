@@ -191,11 +191,18 @@ export function InvoiceList({
                         <TableCell>
                           <div>
                             <p className="font-medium">
-                              {formatPrice(invoice.total, currency)}
+                              {formatPrice(
+                                invoice.total,
+                                invoice.currency || currency
+                              )}
                             </p>
                             {invoice.status === "partially_paid" && (
                               <p className="text-xs text-muted-foreground">
-                                Due: {formatPrice(invoice.amountDue, currency)}
+                                Due:{" "}
+                                {formatPrice(
+                                  invoice.amountDue,
+                                  invoice.currency || currency
+                                )}
                               </p>
                             )}
                           </div>

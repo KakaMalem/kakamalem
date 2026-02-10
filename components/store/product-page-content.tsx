@@ -151,21 +151,27 @@ export function ProductPageContent({
         .options
   );
 
-  // Sync URL when options change (after initial render)
+  // Sync URL when options change (including initial render if variant was auto-selected)
   // Uses human-readable format: ?size=large&color=black
   useEffect(() => {
-    // Skip on initial render - URL already has the correct state
-    if (isInitialRender.current) {
-      isInitialRender.current = false;
-      return;
-    }
-
     // Build new URL with slugified option params
     const params = buildVariantUrlParams(selectedOptions, searchParams);
 
     // Use replace to avoid adding to history on every variant change
     const queryString = params.toString();
     const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      // On initial render, only update URL if a default variant was auto-selected
+      // but the URL doesn't already have variant params
+      const currentUrl = searchParams.toString()
+        ? `${pathname}?${searchParams.toString()}`
+        : pathname;
+      if (newUrl === currentUrl) {
+        return;
+      }
+    }
 
     // Prevent infinite loop: don't update if URL is the same as what we last set
     if (lastSetUrlRef.current === newUrl) {

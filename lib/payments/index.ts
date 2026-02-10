@@ -170,6 +170,43 @@ export async function getEnabledGateways(
     return DEFAULT_ENABLED_GATEWAYS;
   }
 
+  // Get crypto wallet config if crypto_usdt is enabled
+  let cryptoNetworks: EnabledGateway["cryptoNetworks"] | undefined;
+  const hasCryptoEnabled = enabledConfigs.some(
+    (c) => c.gateway === "crypto_usdt"
+  );
+  if (hasCryptoEnabled) {
+    const settings = await db.query.platformSettings.findFirst();
+    const walletConfig = settings?.usdtWalletConfig as UsdtWalletConfig | null;
+    if (walletConfig) {
+      const networks: NonNullable<EnabledGateway["cryptoNetworks"]> = [];
+      if (walletConfig.trc20?.enabled && walletConfig.trc20?.address) {
+        networks.push({
+          network: "trc20",
+          label: "TRC20 (Tron)",
+          feeHint: "~$1",
+        });
+      }
+      if (walletConfig.bep20?.enabled && walletConfig.bep20?.address) {
+        networks.push({
+          network: "bep20",
+          label: "BEP20 (BSC)",
+          feeHint: "~$0.50",
+        });
+      }
+      if (walletConfig.erc20?.enabled && walletConfig.erc20?.address) {
+        networks.push({
+          network: "erc20",
+          label: "ERC20 (Ethereum)",
+          feeHint: "~$5+",
+        });
+      }
+      if (networks.length > 0) {
+        cryptoNetworks = networks;
+      }
+    }
+  }
+
   return enabledConfigs.map((config) => ({
     gateway: config.gateway,
     displayName: config.displayName || getDefaultDisplayName(config.gateway),
@@ -178,6 +215,9 @@ export async function getEnabledGateways(
     minAmount: config.minAmount ? parseFloat(config.minAmount) : undefined,
     maxAmount: config.maxAmount ? parseFloat(config.maxAmount) : undefined,
     supportedCurrencies: config.supportedCurrencies as string[] | undefined,
+    ...(config.gateway === "crypto_usdt" && cryptoNetworks
+      ? { cryptoNetworks }
+      : {}),
   }));
 }
 

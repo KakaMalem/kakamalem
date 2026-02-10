@@ -7,6 +7,24 @@ import type { StoreRole } from "@/lib/auth/context";
 // Role hierarchy: owner (3) > admin (2) > staff (1)
 // =============================================================================
 
+export type SettingsGroup =
+  | "store-profile"
+  | "operations"
+  | "growth"
+  | "advanced";
+
+export interface SettingsGroupConfig {
+  key: SettingsGroup;
+  title: string;
+}
+
+export const SETTINGS_GROUPS: SettingsGroupConfig[] = [
+  { key: "store-profile", title: "Store Profile" },
+  { key: "operations", title: "Operations" },
+  { key: "growth", title: "Growth" },
+  { key: "advanced", title: "Advanced" },
+];
+
 export type SettingsPageKey =
   | "general"
   | "location"
@@ -18,6 +36,7 @@ export type SettingsPageKey =
   | "delivery"
   | "payments"
   | "store-mode"
+  | "marketplace"
   | "danger";
 
 export interface SettingsPageConfig {
@@ -28,6 +47,8 @@ export interface SettingsPageConfig {
   href: string;
   /** Minimum role required to access this page */
   minRole: "owner" | "admin";
+  /** Nav group this page belongs to */
+  group: SettingsGroup;
 }
 
 /** Role hierarchy for permission checks */
@@ -38,22 +59,17 @@ const ROLE_HIERARCHY: Record<"owner" | "admin" | "staff", number> = {
 };
 
 /**
- * All settings pages with their access requirements
+ * All settings pages with their access requirements, ordered by group
  */
 export const SETTINGS_PAGES: SettingsPageConfig[] = [
+  // --- Store Profile ---
   {
     key: "general",
     title: "General",
     description: "Store name, description, and contact info",
     href: "",
     minRole: "admin",
-  },
-  {
-    key: "location",
-    title: "Location",
-    description: "Physical store location on map",
-    href: "/location",
-    minRole: "admin",
+    group: "store-profile",
   },
   {
     key: "branding",
@@ -61,6 +77,7 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     description: "Logo, colors, and visual identity",
     href: "/branding",
     minRole: "admin",
+    group: "store-profile",
   },
   {
     key: "social",
@@ -68,6 +85,7 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     description: "Connect your social media accounts",
     href: "/social",
     minRole: "admin",
+    group: "store-profile",
   },
   {
     key: "seo",
@@ -75,27 +93,16 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     description: "Search engine optimization settings",
     href: "/seo",
     minRole: "admin",
+    group: "store-profile",
   },
+  // --- Operations ---
   {
-    key: "domains",
-    title: "Domains",
-    description: "Custom domain configuration",
-    href: "/domains",
+    key: "store-mode",
+    title: "Store Mode",
+    description: "Configure how your store operates",
+    href: "/store-mode",
     minRole: "owner",
-  },
-  {
-    key: "team",
-    title: "Team",
-    description: "Manage staff and collaborators",
-    href: "/team",
-    minRole: "owner",
-  },
-  {
-    key: "delivery",
-    title: "Delivery & Shipping",
-    description: "Delivery zones, rates, and shipping options",
-    href: "/delivery",
-    minRole: "admin",
+    group: "operations",
   },
   {
     key: "payments",
@@ -103,20 +110,57 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     description: "Configure payment methods for checkout",
     href: "/payments",
     minRole: "owner",
+    group: "operations",
   },
   {
-    key: "store-mode",
-    title: "Store Mode",
-    description: "Configure how your store operates",
-    href: "/store-mode",
-    minRole: "owner",
+    key: "delivery",
+    title: "Delivery & Shipping",
+    description: "Delivery zones, rates, and shipping options",
+    href: "/delivery",
+    minRole: "admin",
+    group: "operations",
   },
+  {
+    key: "location",
+    title: "Location",
+    description: "Physical store location on map",
+    href: "/location",
+    minRole: "admin",
+    group: "operations",
+  },
+  // --- Growth ---
+  {
+    key: "team",
+    title: "Team",
+    description: "Manage staff and collaborators",
+    href: "/team",
+    minRole: "owner",
+    group: "growth",
+  },
+  {
+    key: "domains",
+    title: "Domains",
+    description: "Custom domain configuration",
+    href: "/domains",
+    minRole: "owner",
+    group: "growth",
+  },
+  {
+    key: "marketplace",
+    title: "Marketplace",
+    description: "List your store on the Kaka Malem marketplace",
+    href: "/marketplace",
+    minRole: "owner",
+    group: "growth",
+  },
+  // --- Advanced ---
   {
     key: "danger",
     title: "Danger Zone",
     description: "Delete or transfer store",
     href: "/danger",
     minRole: "owner",
+    group: "advanced",
   },
 ];
 
@@ -150,6 +194,20 @@ export function getAccessibleSettingsPages(
   return SETTINGS_PAGES.filter(
     (page) => userLevel >= ROLE_HIERARCHY[page.minRole]
   );
+}
+
+/**
+ * Get settings pages grouped by section, filtered by role
+ */
+export function getGroupedSettingsPages(
+  role: StoreRole
+): { group: SettingsGroupConfig; pages: SettingsPageConfig[] }[] {
+  const accessible = getAccessibleSettingsPages(role);
+
+  return SETTINGS_GROUPS.map((group) => ({
+    group,
+    pages: accessible.filter((p) => p.group === group.key),
+  })).filter((entry) => entry.pages.length > 0);
 }
 
 /**

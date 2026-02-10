@@ -84,8 +84,8 @@ export function UpgradePageClient({
 }: UpgradePageClientProps) {
   const router = useRouter();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
-    // Default to Stripe if available, otherwise HesabPay
-    stripeEnabled && stripePriceInfo ? "stripe" : "hesabpay"
+    // Default to HesabPay (best price), fallback to Stripe
+    "hesabpay"
   );
   const [billingInterval, setBillingInterval] =
     useState<BillingInterval>("monthly");
@@ -251,17 +251,36 @@ export function UpgradePageClient({
             </div>
           </div>
 
-          {/* Billing Interval Selector */}
-          {hasYearlyOption && (
-            <BillingIntervalSelector
-              value={billingInterval}
-              onChange={setBillingInterval}
-              monthlyPrice={getMonthlyPrice()}
-              yearlyPrice={getYearlyPrice()}
-              currency="AFN"
-              disabled={isLoading}
-            />
-          )}
+          {/* Billing Interval Selector - shows prices in selected payment currency */}
+          {hasYearlyOption &&
+            (() => {
+              let intervalCurrency = "AFN";
+              let intervalMonthly = getMonthlyPrice();
+              let intervalYearly = getYearlyPrice();
+
+              if (selectedMethod === "stripe" && stripePriceInfo) {
+                intervalCurrency =
+                  stripePriceInfo.currency?.toUpperCase() || "USD";
+                intervalMonthly = stripePriceInfo.amount;
+                intervalYearly =
+                  stripeYearlyPriceInfo?.amount || stripePriceInfo.amount * 12;
+              } else if (selectedMethod === "crypto") {
+                intervalCurrency = "USD";
+                intervalMonthly = USDT_MONTHLY_PRICE;
+                intervalYearly = USDT_YEARLY_PRICE;
+              }
+
+              return (
+                <BillingIntervalSelector
+                  value={billingInterval}
+                  onChange={setBillingInterval}
+                  monthlyPrice={intervalMonthly}
+                  yearlyPrice={intervalYearly}
+                  currency={intervalCurrency}
+                  disabled={isLoading}
+                />
+              );
+            })()}
         </CardContent>
       </Card>
 
@@ -280,6 +299,62 @@ export function UpgradePageClient({
               : "sm:grid-cols-2"
           )}
         >
+          {/* HesabPay Option - Best Price */}
+          {hesabPayAvailable && (
+            <button
+              type="button"
+              onClick={() => setSelectedMethod("hesabpay")}
+              disabled={isLoading}
+              className={cn(
+                "relative flex flex-col items-start rounded-lg border-2 p-4 text-left transition-all hover:bg-accent/50",
+                selectedMethod === "hesabpay"
+                  ? "border-primary bg-primary/5"
+                  : "border-muted"
+              )}
+            >
+              <div className="absolute -top-2.5 left-3">
+                <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white">
+                  Best Price
+                </span>
+              </div>
+              {selectedMethod === "hesabpay" && (
+                <div className="absolute -top-2.5 right-3">
+                  <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
+                    Selected
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 w-full">
+                <div className="flex size-10 items-center justify-center rounded-md bg-emerald-500/10">
+                  <Building2 className="size-5 text-emerald-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">HesabPay</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Local payment (Afghanistan)
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 w-full">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold">
+                    {formatPrice(getCurrentAfnPrice())}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    AFN / {billingInterval === "yearly" ? "year" : "month"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center gap-1.5 text-xs text-green-600">
+                <Shield className="size-3" />
+                <span>No processing fees</span>
+              </div>
+            </button>
+          )}
+
           {/* Stripe Option */}
           {stripeAvailable && (
             <button
@@ -344,57 +419,6 @@ export function UpgradePageClient({
               <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Shield className="size-3" />
                 <span>Secure payment via Stripe</span>
-              </div>
-            </button>
-          )}
-
-          {/* HesabPay Option */}
-          {hesabPayAvailable && (
-            <button
-              type="button"
-              onClick={() => setSelectedMethod("hesabpay")}
-              disabled={isLoading}
-              className={cn(
-                "relative flex flex-col items-start rounded-lg border-2 p-4 text-left transition-all hover:bg-accent/50",
-                selectedMethod === "hesabpay"
-                  ? "border-primary bg-primary/5"
-                  : "border-muted"
-              )}
-            >
-              {selectedMethod === "hesabpay" && (
-                <div className="absolute -top-2.5 right-3">
-                  <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
-                    Selected
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 w-full">
-                <div className="flex size-10 items-center justify-center rounded-md bg-emerald-500/10">
-                  <Building2 className="size-5 text-emerald-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">HesabPay</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Local payment (Afghanistan)
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 w-full">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold">
-                    {formatPrice(getCurrentAfnPrice())}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    AFN / {billingInterval === "yearly" ? "year" : "month"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Shield className="size-3" />
-                <span>Secure local payment</span>
               </div>
             </button>
           )}

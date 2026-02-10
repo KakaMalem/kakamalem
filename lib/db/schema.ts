@@ -1061,6 +1061,12 @@ export const tenants = pgTable(
     // Plus Code for easy sharing (e.g., "8J7XMJRV+97")
     storeLocationPlusCode: varchar("store_location_plus_code", { length: 20 }),
 
+    // ==========================================================================
+    // MARKETPLACE
+    // ==========================================================================
+    // Whether this store is listed on the Kaka Malem marketplace
+    marketplaceEnabled: boolean("marketplace_enabled").default(false).notNull(),
+
     // Analytics (system-managed, read-only for owners)
     analytics: jsonb("analytics").$type<StoreAnalytics>().default({
       totalViews: 0,
@@ -1086,6 +1092,8 @@ export const tenants = pgTable(
     index("tenants_status_idx").on(table.status),
     // Index for custom domain lookups (partial - only non-null domains)
     index("tenants_custom_domain_idx").on(table.customDomain),
+    // Index for marketplace listings
+    index("tenants_marketplace_idx").on(table.marketplaceEnabled, table.status),
   ]
 );
 
@@ -9508,6 +9516,169 @@ export const storeCreditTransactionsRelations = relations(
 );
 
 // ============================================================================
+// MARKETPLACE
+// ============================================================================
+
+/**
+ * Platform-level marketplace categories (admin-managed)
+ * These are predefined categories stores can assign themselves to.
+ */
+export const marketplaceCategories = pgTable("marketplace_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  nameFa: text("name_fa"), // Dari/Farsi
+  namePs: text("name_ps"), // Pashto
+  icon: text("icon"), // Emoji or icon name
+  displayOrder: integer("display_order").default(0),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+/**
+ * Extended marketplace profile for stores (1:1 with tenants)
+ * Stores fill this out to control how they appear on the marketplace.
+ */
+export const marketplaceProfiles = pgTable(
+  "marketplace_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" })
+      .unique(),
+    coverImage: text("cover_image"), // Cover image path
+    about: text("about"), // Store story (max 2000 chars)
+    tags: jsonb("tags").$type<string[]>().default([]),
+    featuredProductIds: jsonb("featured_product_ids")
+      .$type<string[]>()
+      .default([]),
+    priceRange: integer("price_range").default(2), // 1=budget, 2=mid, 3=premium
+    highlights: jsonb("highlights").$type<string[]>().default([]),
+    socialLinks: jsonb("social_links")
+      .$type<Record<string, string>>()
+      .default({}),
+    isVerified: boolean("is_verified").default(false).notNull(),
+    verifiedAt: timestamp("verified_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    displayOrder: integer("display_order").default(0), // Manual sort for featured
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "string",
+    }).defaultNow(),
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "string",
+    }).defaultNow(),
+  },
+  (table) => [index("marketplace_profiles_tenant_idx").on(table.tenantId)]
+);
+
+/**
+ * Assigns stores to marketplace categories.
+ * A store can belong to multiple categories.
+ */
+export const marketplaceStoreCategories = pgTable(
+  "marketplace_store_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => marketplaceCategories.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "string",
+    }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("marketplace_store_categories_tenant_cat_idx").on(
+      table.tenantId,
+      table.categoryId
+    ),
+    index("marketplace_store_categories_cat_idx").on(table.categoryId),
+  ]
+);
+
+/**
+ * Users can follow stores to build a personalized feed.
+ */
+export const storeFollows = pgTable(
+  "store_follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "string",
+    }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("store_follows_user_tenant_idx").on(
+      table.userId,
+      table.tenantId
+    ),
+    index("store_follows_tenant_idx").on(table.tenantId),
+  ]
+);
+
+// ── Marketplace relations ──────────────────────────────────────────────────
+
+export const marketplaceProfilesRelations = relations(
+  marketplaceProfiles,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [marketplaceProfiles.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
+
+export const marketplaceStoreCategoriesRelations = relations(
+  marketplaceStoreCategories,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [marketplaceStoreCategories.tenantId],
+      references: [tenants.id],
+    }),
+    category: one(marketplaceCategories, {
+      fields: [marketplaceStoreCategories.categoryId],
+      references: [marketplaceCategories.id],
+    }),
+  })
+);
+
+export const marketplaceCategoriesRelations = relations(
+  marketplaceCategories,
+  ({ many }) => ({
+    storeCategories: many(marketplaceStoreCategories),
+  })
+);
+
+export const storeFollowsRelations = relations(storeFollows, ({ one }) => ({
+  user: one(user, {
+    fields: [storeFollows.userId],
+    references: [user.id],
+  }),
+  tenant: one(tenants, {
+    fields: [storeFollows.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
@@ -9951,3 +10122,15 @@ export type NewExchangeRate = typeof exchangeRates.$inferInsert;
 // Order invoice token types
 export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;
 export type NewOrderInvoiceToken = typeof orderInvoiceTokens.$inferInsert;
+
+// Marketplace types
+export type MarketplaceCategory = typeof marketplaceCategories.$inferSelect;
+export type NewMarketplaceCategory = typeof marketplaceCategories.$inferInsert;
+export type MarketplaceProfile = typeof marketplaceProfiles.$inferSelect;
+export type NewMarketplaceProfile = typeof marketplaceProfiles.$inferInsert;
+export type MarketplaceStoreCategory =
+  typeof marketplaceStoreCategories.$inferSelect;
+export type NewMarketplaceStoreCategory =
+  typeof marketplaceStoreCategories.$inferInsert;
+export type StoreFollow = typeof storeFollows.$inferSelect;
+export type NewStoreFollow = typeof storeFollows.$inferInsert;

@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Image from "next/image";
 import { Package, Tag, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice } from "@/lib/utils";
-import { useCheckoutTotals } from "@/lib/stores/use-checkout-store";
+import {
+  useCheckoutTotals,
+  useCheckoutStore,
+} from "@/lib/stores/use-checkout-store";
 import {
   useCartCampaignDiscounts,
   calculateDiscountedPrice,
@@ -50,6 +53,7 @@ export function CheckoutSummary({
   tenantId,
 }: CheckoutSummaryProps) {
   const { subtotal, shippingTotal, taxTotal, total } = useCheckoutTotals();
+  const updateTotals = useCheckoutStore((s) => s.updateTotals);
 
   // Fetch campaign discounts
   const { discountsMap } = useCartCampaignDiscounts(
@@ -97,6 +101,15 @@ export function CheckoutSummary({
   }, [cart.items, discountsMap]);
 
   const totalSavings = campaignSavings + tierSavings;
+  const effectiveSubtotal = originalSubtotal - totalSavings;
+
+  // Sync the effective (discounted) subtotal to the checkout store
+  // so that the total displayed everywhere (including mobile summary) is correct
+  useEffect(() => {
+    if (effectiveSubtotal > 0 && effectiveSubtotal !== subtotal) {
+      updateTotals(effectiveSubtotal);
+    }
+  }, [effectiveSubtotal, subtotal, updateTotals]);
 
   return (
     <Card className="sticky top-4">
@@ -205,8 +218,11 @@ export function CheckoutSummary({
             <span className="text-muted-foreground">Subtotal</span>
             <span>
               {totalSavings > 0 ? (
-                <span className="line-through text-muted-foreground">
-                  {formatPrice(originalSubtotal, currency)}
+                <span className="flex items-center gap-1.5">
+                  <span className="line-through text-muted-foreground text-xs">
+                    {formatPrice(originalSubtotal, currency)}
+                  </span>
+                  <span>{formatPrice(effectiveSubtotal, currency)}</span>
                 </span>
               ) : (
                 formatPrice(subtotal, currency)

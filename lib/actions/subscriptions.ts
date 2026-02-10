@@ -451,6 +451,101 @@ export async function initiateProUpgradeWithCrypto(
 }
 
 // =============================================================================
+// SUBSCRIPTION CANCEL (NON-STRIPE)
+// =============================================================================
+
+/**
+ * Cancel a non-Stripe Pro subscription at period end.
+ *
+ * For HesabPay/Crypto subscriptions, there's no recurring billing to stop.
+ * This simply marks the subscription as cancelled so it won't be renewed,
+ * and the store keeps Pro access until subscriptionEndsAt.
+ */
+export async function cancelNonStripeSubscription(
+  tenantId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const currentUser = await getUser();
+    if (!currentUser) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const canManage = await canManageStore(tenantId);
+    if (!canManage) {
+      return { success: false, error: "Permission denied" };
+    }
+
+    const [tenant] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+
+    if (!tenant) {
+      return { success: false, error: "Store not found" };
+    }
+
+    if (tenant.subscriptionPlan !== "pro") {
+      return { success: false, error: "No active Pro subscription to cancel" };
+    }
+
+    if (
+      tenant.subscriptionStatus !== "active" &&
+      tenant.subscriptionStatus !== "past_due"
+    ) {
+      return { success: false, error: "Subscription is not active" };
+    }
+
+    // Stripe subscriptions should use the Stripe cancel flow
+    if (tenant.stripeSubscriptionId) {
+      return {
+        success: false,
+        error: "Use Stripe portal to cancel Stripe subscriptions",
+      };
+    }
+
+    const now = new Date().toISOString();
+    await db
+      .update(tenants)
+      .set({
+        subscriptionStatus: "cancelled",
+        updatedAt: now,
+      })
+      .where(eq(tenants.id, tenantId));
+
+    // Log the cancellation
+    await db.insert(billingTransactions).values({
+      id: crypto.randomUUID(),
+      tenantId,
+      type: "subscription_downgrade",
+      amount: "0",
+      currency: tenant.currency,
+      fromPlan: "pro",
+      toPlan: "free",
+      status: "completed",
+      processedBy: currentUser.id,
+      notes:
+        "Subscription cancelled by store owner. Access continues until period end.",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    revalidatePath(`/dashboard/${tenant.slug}/billing`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("[cancelNonStripeSubscription] Error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to cancel subscription",
+    };
+  }
+}
+
+// =============================================================================
 // SUBSCRIPTION PAUSE/RESUME
 // =============================================================================
 

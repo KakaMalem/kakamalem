@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/stores/use-user-role-store";
 import {
+  SETTINGS_GROUPS,
   SETTINGS_PAGES,
   canAccessSettingsPage,
 } from "@/lib/config/settings-permissions";
@@ -44,33 +45,53 @@ export function SettingsNav() {
     return pathname === fullHref;
   };
 
+  // Group pages by section
+  const groupedPages = SETTINGS_GROUPS.map((group) => ({
+    group,
+    pages: accessiblePages.filter((p) => p.group === group.key),
+  })).filter((entry) => entry.pages.length > 0);
+
   return (
-    <nav className="flex flex-col space-y-1">
-      {accessiblePages.map((page) => {
-        const fullHref = page.href ? `${baseUrl}${page.href}` : baseUrl;
-        return (
-          <Link
-            key={page.key}
-            href={fullHref}
+    <nav className="flex flex-col">
+      {groupedPages.map((entry, groupIndex) => (
+        <div key={entry.group.key}>
+          <p
             className={cn(
-              "flex flex-col rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted/50",
-              isActive(page.href) && "bg-muted"
+              "px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
+              groupIndex === 0 ? "pt-0" : "pt-5"
             )}
           >
-            <span
-              className={cn(
-                "font-medium",
-                !isActive(page.href) && "text-foreground/80"
-              )}
-            >
-              {page.title}
-            </span>
-            <span className="text-xs text-muted-foreground font-normal">
-              {page.description}
-            </span>
-          </Link>
-        );
-      })}
+            {entry.group.title}
+          </p>
+          <div className="space-y-1">
+            {entry.pages.map((page) => {
+              const fullHref = page.href ? `${baseUrl}${page.href}` : baseUrl;
+              return (
+                <Link
+                  key={page.key}
+                  href={fullHref}
+                  className={cn(
+                    "flex flex-col rounded-md px-3 py-2 text-sm transition-colors hover:bg-muted/50",
+                    isActive(page.href) && "bg-muted"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "font-medium",
+                      !isActive(page.href) && "text-foreground/80"
+                    )}
+                  >
+                    {page.title}
+                  </span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {page.description}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 }
@@ -97,25 +118,38 @@ export function SettingsNavTabs() {
     return pathname === fullHref;
   };
 
+  // Group for dividers
+  const groupedPages = SETTINGS_GROUPS.map((group) => ({
+    group,
+    pages: accessiblePages.filter((p) => p.group === group.key),
+  })).filter((entry) => entry.pages.length > 0);
+
   return (
-    <nav className="flex overflow-x-auto scrollbar-none border-b pb-px -mb-px">
-      {accessiblePages.map((page) => {
-        const fullHref = page.href ? `${baseUrl}${page.href}` : baseUrl;
-        return (
-          <Link
-            key={page.key}
-            href={fullHref}
-            className={cn(
-              "shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-              isActive(page.href)
-                ? "border-primary text-primary"
-                : "border-transparent text-foreground/80 hover:text-foreground hover:border-muted-foreground/30"
-            )}
-          >
-            {page.title}
-          </Link>
-        );
-      })}
+    <nav className="-mb-px flex overflow-x-auto border-b pb-px scrollbar-none">
+      {groupedPages.map((entry, groupIndex) => (
+        <div key={entry.group.key} className="flex items-center">
+          {groupIndex > 0 && (
+            <div className="mx-1 h-5 w-px shrink-0 bg-border" />
+          )}
+          {entry.pages.map((page) => {
+            const fullHref = page.href ? `${baseUrl}${page.href}` : baseUrl;
+            return (
+              <Link
+                key={page.key}
+                href={fullHref}
+                className={cn(
+                  "shrink-0 border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                  isActive(page.href)
+                    ? "border-primary text-primary"
+                    : "border-transparent text-foreground/80 hover:border-muted-foreground/30 hover:text-foreground"
+                )}
+              >
+                {page.title}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }

@@ -59,6 +59,7 @@ const RESERVED_PATHS = new Set([
   "store",
   "admin",
   "invoice",
+  "marketplace",
   // API/System routes
   "api",
   "uploads",

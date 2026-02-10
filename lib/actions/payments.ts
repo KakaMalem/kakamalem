@@ -61,7 +61,8 @@ export type PaymentVerifyResult = {
  */
 export async function createOrderPaymentSession(
   orderId: string,
-  gateway: PaymentGateway
+  gateway: PaymentGateway,
+  options?: { network?: string }
 ): Promise<PaymentResult> {
   try {
     // Get the order
@@ -129,6 +130,7 @@ export async function createOrderPaymentSession(
       metadata: {
         storeSlug: tenant.slug,
         orderNumber: order.orderNumber,
+        ...(options?.network ? { network: options.network } : {}),
       },
     });
 

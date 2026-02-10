@@ -170,11 +170,14 @@ export async function getAffiliateDashboardStats(affiliateId: string) {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const recentClicksResult = await db
-    .select({ count: count() })
+    .select({
+      count: sql<number>`count(distinct ${platformAffiliateClicks.visitorId})`,
+    })
     .from(platformAffiliateClicks)
     .where(
       and(
         eq(platformAffiliateClicks.affiliateId, affiliateId),
+        eq(platformAffiliateClicks.isBot, false),
         sql`${platformAffiliateClicks.clickedAt} >= ${thirtyDaysAgo.toISOString()}`
       )
     );

@@ -251,4 +251,10 @@ export interface EnabledGateway {
   minAmount?: number;
   maxAmount?: number;
   supportedCurrencies?: string[];
+  /** Available crypto networks (only for crypto_usdt gateway) */
+  cryptoNetworks?: Array<{
+    network: "trc20" | "erc20" | "bep20";
+    label: string;
+    feeHint: string;
+  }>;
 }

@@ -70,6 +70,12 @@ export function SectionPayment({
   const [cartErrors, setCartErrors] = useState<
     Array<{ itemId: string; productName: string; error: string }>
   >([]);
+  const [selectedNetwork, setSelectedNetwork] = useState<string>(() => {
+    const cryptoGateway = enabledPaymentMethods.find(
+      (g) => g.gateway === "crypto_usdt"
+    );
+    return cryptoGateway?.cryptoNetworks?.[0]?.network || "trc20";
+  });
 
   // Calculate total bulk savings from tier pricing
   const totalBulkSavings = useMemo(() => {
@@ -195,7 +201,8 @@ export function SectionPayment({
       ) {
         const paymentResult = await createOrderPaymentSession(
           orderId!,
-          gateway
+          gateway,
+          gateway === "crypto_usdt" ? { network: selectedNetwork } : undefined
         );
 
         if (!paymentResult.success) {
@@ -298,6 +305,8 @@ export function SectionPayment({
               disabled={isSubmitting}
               currency={currency}
               enabledMethods={enabledPaymentMethods}
+              selectedNetwork={selectedNetwork}
+              onNetworkSelect={setSelectedNetwork}
             />
           </div>
 

@@ -189,7 +189,7 @@ export async function submitAffiliateApplication(
         bio: data.bio || null,
         websiteUrl: data.websiteUrl || null,
         socialLinks: data.socialLinks || null,
-        applicationNotes: data.applicationNotes,
+        applicationNotes: data.applicationNotes || null,
         status: "approved",
         appliedAt: now,
         approvedAt: now,
@@ -213,7 +213,7 @@ export async function submitAffiliateApplication(
       bio: data.bio || null,
       websiteUrl: data.websiteUrl || null,
       socialLinks: data.socialLinks || null,
-      applicationNotes: data.applicationNotes,
+      applicationNotes: data.applicationNotes || null,
       status: "approved",
       appliedAt: now,
       approvedAt: now,
@@ -504,6 +504,40 @@ export async function adminReviewAffiliate(
 
       break;
   }
+
+  return { success: true };
+}
+
+/**
+ * Admin: Permanently delete an affiliate and all related data
+ */
+export async function adminDeleteAffiliate(
+  affiliateId: string
+): Promise<ActionResult> {
+  const isAdmin = await isPlatformAdmin();
+  if (!isAdmin) {
+    return {
+      success: false,
+      error: { message: "You do not have permission to perform this action" },
+    };
+  }
+
+  const affiliate = await db.query.platformAffiliates.findFirst({
+    where: eq(platformAffiliates.id, affiliateId),
+    columns: { id: true },
+  });
+
+  if (!affiliate) {
+    return {
+      success: false,
+      error: { message: "Affiliate not found" },
+    };
+  }
+
+  // Delete affiliate - cascades to clicks, referrals, commissions, payouts
+  await db
+    .delete(platformAffiliates)
+    .where(eq(platformAffiliates.id, affiliateId));
 
   return { success: true };
 }

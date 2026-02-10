@@ -117,7 +117,7 @@ export default async function Home() {
                     className="w-full sm:w-auto"
                     asChild
                   >
-                    <Link href="/store/kakamalem">View Demo Store</Link>
+                    <Link href="/marketplace">Browse Marketplace</Link>
                   </Button>
                 </div>
 

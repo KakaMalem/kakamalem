@@ -260,6 +260,20 @@
       "when": 1770600000000,
       "tag": "0036_subscription_management",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1770705154228,
+      "tag": "0037_dashing_kylun",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1770732735413,
+      "tag": "0038_chunky_rocket_racer",
+      "breakpoints": true
     }
   ]
 }

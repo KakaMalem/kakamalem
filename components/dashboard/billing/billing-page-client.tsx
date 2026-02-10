@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { BillingStatusCard } from "./billing-status-card";
+import { SubscriptionActions } from "./subscription-actions";
 import { PlanComparison } from "./plan-comparison";
 import { InvoiceList } from "./invoice-list";
 import { InvoiceDetailDialog } from "./invoice-detail-dialog";
@@ -218,6 +219,9 @@ export function BillingPageClient({
 
       {/* Subscription Status Card */}
       <BillingStatusCard subscription={subscription} currency={currency} />
+
+      {/* Subscription Management Actions (Cancel/Resume/Manage) */}
+      <SubscriptionActions subscription={subscription} tenantId={tenantId} />
 
       {/* Plan Comparison - only show for non-Pro users */}
       {subscription.plan !== "pro" && (

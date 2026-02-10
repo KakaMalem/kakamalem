@@ -54,7 +54,7 @@ export function AddPayoutMethodDialog({
   const [label, setLabel] = useState("");
 
   // Mobile money fields
-  const [mobileProvider, setMobileProvider] = useState("");
+  const [mobileProvider, setMobileProvider] = useState("hesabpay");
   const [mobileNumber, setMobileNumber] = useState("");
 
   // Crypto fields
@@ -68,7 +68,7 @@ export function AddPayoutMethodDialog({
     setAccountNumber("");
     setAccountName("");
     setLabel("");
-    setMobileProvider("");
+    setMobileProvider("hesabpay");
     setMobileNumber("");
     setWalletAddress("");
     setCryptoNetwork("trc20");
@@ -237,13 +237,16 @@ export function AddPayoutMethodDialog({
           {methodType === "mobile_money" && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="mobileProvider">Provider *</Label>
+                <Label htmlFor="mobileProvider">Provider</Label>
                 <Input
                   id="mobileProvider"
-                  placeholder="e.g., M-Paisa, M-Hawala"
-                  value={mobileProvider}
-                  onChange={(e) => setMobileProvider(e.target.value)}
+                  value="HesabPay"
+                  disabled
+                  className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Payouts are processed via HesabPay
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mobileNumber">Mobile Number *</Label>

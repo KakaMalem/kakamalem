@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { withTransaction, type Transaction } from "@/lib/db";
 import {
   orders,
@@ -47,6 +47,8 @@ import {
   isUnifiedDeliveryEnabled,
   getDeliveryOptions,
 } from "@/lib/actions/unified-delivery";
+import { getProductsCampaignDiscounts } from "@/lib/db/queries/campaigns";
+import { applyCampaignDiscount } from "@/lib/utils/pricing-display";
 
 // =============================================================================
 // DELIVERY SETTINGS HELPER
@@ -787,13 +789,43 @@ export async function createOrderAction(
 
     const cart = cartValidation.cart;
 
-    // Calculate subtotal with tier pricing
+    // Fetch product categoryIds for campaign matching
+    const cartProductIds = cart.items.map((item) => item.productId);
+    const productCategoryRows =
+      cartProductIds.length > 0
+        ? await db.query.products.findMany({
+            where: inArray(products.id, cartProductIds),
+            columns: { id: true, categoryId: true },
+          })
+        : [];
+    const categoryMap = new Map(
+      productCategoryRows.map((p) => [p.id, p.categoryId])
+    );
+
+    // Fetch active campaign discounts
+    const campaignDiscounts = await getProductsCampaignDiscounts(
+      tenantId,
+      cart.items.map((item) => ({
+        productId: item.productId,
+        categoryId: categoryMap.get(item.productId) ?? null,
+      }))
+    );
+
+    // Calculate subtotal with campaign discounts + tier pricing
     const subtotal = cart.items.reduce((sum, item) => {
       const basePrice = item.variant?.price
         ? parseFloat(item.variant.price)
         : parseFloat(item.product.price);
+
+      // Apply campaign discount first
+      const campaign = campaignDiscounts.get(item.productId);
+      const afterCampaignPrice = campaign
+        ? applyCampaignDiscount(basePrice, campaign)
+        : basePrice;
+
+      // Then apply tier pricing
       const effectivePrice = getApplicableTierPrice(
-        basePrice,
+        afterCampaignPrice,
         item.quantity,
         item.product.priceTiers || []
       );
@@ -1090,19 +1122,23 @@ export async function createOrderAction(
     } | null = null;
 
     if (input.appliedCouponCode) {
-      // Build cart items for coupon validation
+      // Build cart items for coupon validation (using campaign + tier prices)
       const cartItemsForCoupon: CartItemForCoupon[] = cart.items.map((item) => {
         const basePrice = item.variant?.price
           ? parseFloat(item.variant.price)
           : parseFloat(item.product.price);
+        const itemCampaign = campaignDiscounts.get(item.productId);
+        const afterCampaignPrice = itemCampaign
+          ? applyCampaignDiscount(basePrice, itemCampaign)
+          : basePrice;
         const effectivePrice = getApplicableTierPrice(
-          basePrice,
+          afterCampaignPrice,
           item.quantity,
           item.product.priceTiers || []
         );
         return {
           productId: item.productId,
-          categoryId: null, // Cart items don't include categoryId
+          categoryId: categoryMap.get(item.productId) ?? null,
           quantity: item.quantity,
           lineTotal: effectivePrice * item.quantity,
         };
@@ -1202,13 +1238,21 @@ export async function createOrderAction(
           })
           .returning();
 
-        // 6. Create order items with snapshots (using tier pricing)
+        // 6. Create order items with snapshots (using campaign + tier pricing)
         for (const item of cart.items) {
           const basePrice = item.variant?.price
             ? parseFloat(item.variant.price)
             : parseFloat(item.product.price);
+
+          // Apply campaign discount first
+          const itemCampaign = campaignDiscounts.get(item.productId);
+          const afterCampaignPrice = itemCampaign
+            ? applyCampaignDiscount(basePrice, itemCampaign)
+            : basePrice;
+
+          // Then apply tier pricing
           const effectivePrice = getApplicableTierPrice(
-            basePrice,
+            afterCampaignPrice,
             item.quantity,
             item.product.priceTiers || []
           );

@@ -12,6 +12,13 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -57,6 +64,10 @@ interface PaymentMethodSelectorProps {
   disabled?: boolean;
   currency: string;
   enabledMethods: EnabledGateway[];
+  /** Selected crypto network (for crypto_usdt) */
+  selectedNetwork?: string;
+  /** Called when user selects a crypto network */
+  onNetworkSelect?: (network: string) => void;
 }
 
 export function PaymentMethodSelector({
@@ -64,6 +75,8 @@ export function PaymentMethodSelector({
   onMethodSelect,
   disabled = false,
   enabledMethods,
+  selectedNetwork,
+  onNetworkSelect,
 }: PaymentMethodSelectorProps) {
   // Use enabled methods from DB, or fallback to COD if nothing enabled
   const availableMethods =
@@ -174,6 +187,42 @@ export function PaymentMethodSelector({
           );
         })}
       </RadioGroup>
+
+      {/* Crypto network selector - shown when crypto_usdt is selected */}
+      {selectedMethod?.gateway === "crypto_usdt" &&
+        onNetworkSelect &&
+        (() => {
+          const cryptoGateway = availableMethods.find(
+            (m) => m.gateway === "crypto_usdt"
+          );
+          const networks = cryptoGateway?.cryptoNetworks;
+          if (!networks || networks.length <= 1) return null;
+          return (
+            <div className="rounded-lg border p-4 mt-3">
+              <label className="text-sm font-medium">Select Network</label>
+              <Select
+                value={selectedNetwork || networks[0].network}
+                onValueChange={onNetworkSelect}
+                disabled={disabled}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Select network" />
+                </SelectTrigger>
+                <SelectContent>
+                  {networks.map((n) => (
+                    <SelectItem key={n.network} value={n.network}>
+                      {n.label} - Fees {n.feeHint}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-2">
+                Choose the network you&apos;ll use to send USDT. Lower fee
+                networks are recommended.
+              </p>
+            </div>
+          );
+        })()}
     </div>
   );
 }

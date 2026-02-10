@@ -64,6 +64,10 @@ export type SubscriptionOverview = {
   // Yearly Stripe pricing
   stripeYearlyPriceInfo: ProPriceInfo | null;
   hasYearlyOption: boolean;
+
+  // Subscription management
+  hasStripeSubscription: boolean;
+  isPaused: boolean;
 };
 
 export type PlanFeature = {
@@ -102,6 +106,8 @@ export const getSubscriptionOverview = cache(
             subscriptionEndsAt: true,
             subscriptionNotes: true,
             billingInterval: true,
+            stripeSubscriptionId: true,
+            pausedAt: true,
           },
         }),
         db.query.platformSettings.findFirst(),
@@ -197,6 +203,10 @@ export const getSubscriptionOverview = cache(
       stripePriceInfo,
       stripeYearlyPriceInfo,
       hasYearlyOption,
+
+      // Subscription management
+      hasStripeSubscription: !!tenant.stripeSubscriptionId,
+      isPaused: !!tenant.pausedAt,
     };
   }
 );

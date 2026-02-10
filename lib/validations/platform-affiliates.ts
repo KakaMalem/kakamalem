@@ -64,11 +64,9 @@ export const affiliateApplicationSchema = z.object({
   applicationNotes: z
     .string()
     .trim()
-    .min(
-      20,
-      "Please provide more details about your promotion plan (at least 20 characters)"
-    )
-    .max(2000, "Application notes must be at most 2000 characters"),
+    .max(2000, "Application notes must be at most 2000 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type AffiliateApplicationInput = z.infer<

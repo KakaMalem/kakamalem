@@ -30,6 +30,7 @@ interface LandingNavbarProps {
 }
 
 const defaultNavLinks: NavLink[] = [
+  { label: "Marketplace", href: "/marketplace" },
   { label: "Features", href: "#features" },
   { label: "Pricing", href: "#pricing" },
   { label: "Affiliates", href: "/affiliate" },

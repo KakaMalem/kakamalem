@@ -68,7 +68,7 @@ export function PayoutMethodDialog({
   const [mobileNumber, setMobileNumber] = useState(
     currentDetails?.mobileNumber || ""
   );
-  const [provider, setProvider] = useState(currentDetails?.provider || "");
+  const provider = currentDetails?.provider || "hesabpay";
 
   // Crypto fields
   const [walletAddress, setWalletAddress] = useState(
@@ -189,17 +189,15 @@ export function PayoutMethodDialog({
           <TabsContent value="mobile_money" className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="provider">Provider</Label>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger id="provider">
-                  <SelectValue placeholder="Select provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="m_paisa">M-Paisa (Roshan)</SelectItem>
-                  <SelectItem value="my_money">My Money (MTN)</SelectItem>
-                  <SelectItem value="m_hawala">M-Hawala</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="provider"
+                value="HesabPay"
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground">
+                Payouts are processed via HesabPay
+              </p>
             </div>
 
             <div className="space-y-2">

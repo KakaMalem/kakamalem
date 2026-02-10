@@ -171,7 +171,8 @@ export function SignupForm() {
         {!isDev && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              Didn&apos;t receive the email? Check your spam folder or resend it.
+              Didn&apos;t receive the email? Check your spam folder or resend
+              it.
             </p>
             <Button
               variant="outline"

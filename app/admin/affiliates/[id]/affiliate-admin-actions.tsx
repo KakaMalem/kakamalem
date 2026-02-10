@@ -17,11 +17,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CheckCircle, XCircle, Ban, RefreshCw, Loader2 } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Ban,
+  RefreshCw,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   adminReviewAffiliate,
   adminReactivateAffiliate,
+  adminDeleteAffiliate,
 } from "@/lib/actions/platform-affiliates";
 
 interface AffiliateAdminActionsProps {
@@ -74,6 +82,24 @@ export function AffiliateAdminActions({
     } finally {
       setIsLoading(false);
       setReason("");
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsLoading(true);
+    try {
+      const result = await adminDeleteAffiliate(affiliateId);
+      if (result.success) {
+        toast.success("Affiliate deleted permanently");
+        router.push("/admin/affiliates");
+      } else {
+        toast.error(result.error?.message || "Failed to delete affiliate");
+      }
+    } catch (error) {
+      console.error("Error deleting affiliate:", error);
+      toast.error("An error occurred");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -305,6 +331,48 @@ export function AffiliateAdminActions({
               No actions available
             </span>
           )}
+
+          {/* Delete - always available */}
+          <div className="ml-auto">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isLoading}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="mr-2 size-4" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Delete Affiliate Permanently
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete this affiliate account and all
+                    related data including clicks, referrals, commissions, and
+                    payouts. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={isLoading}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isLoading && (
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                    )}
+                    Delete Permanently
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </CardContent>
     </Card>

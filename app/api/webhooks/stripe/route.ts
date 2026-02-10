@@ -16,11 +16,12 @@ import { db } from "@/lib/db";
 import {
   tenants,
   orders,
+  invoices,
   paymentSessions,
   paymentWebhookEvents,
   orderTransactions,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import {
   creditSellerEarnings,
   debitSellerEarningsForRefund,
@@ -453,6 +454,26 @@ async function handleSubscriptionUpdate(subscription: {
       updatedAt: new Date().toISOString(),
     })
     .where(eq(tenants.id, tenantId));
+
+  // Void any stale non-Stripe invoices (e.g. leftover HesabPay invoices)
+  if (subscription.status === "active") {
+    try {
+      await db
+        .update(invoices)
+        .set({
+          status: "void",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(invoices.tenantId, tenantId),
+            inArray(invoices.status, ["sent", "draft"])
+          )
+        );
+    } catch (voidErr) {
+      console.error("[Stripe Webhook] Failed to void stale invoices:", voidErr);
+    }
+  }
 
   console.log(
     `[Stripe Webhook] Tenant ${tenantId} subscription updated: ${subscription.status} (${billingInterval})`

@@ -150,7 +150,7 @@ export function AffiliateApplicationForm({
               facebook: facebook || undefined,
             }
           : undefined,
-      applicationNotes,
+      applicationNotes: applicationNotes || undefined,
     };
 
     // Client-side validation
@@ -403,7 +403,10 @@ export function AffiliateApplicationForm({
 
       {/* Application Notes */}
       <Field>
-        <FieldLabel required>How do you plan to promote Kaka Malem?</FieldLabel>
+        <FieldLabel>
+          How do you plan to promote Kaka Malem?{" "}
+          <span className="text-muted-foreground font-normal">(optional)</span>
+        </FieldLabel>
         <Textarea
           value={applicationNotes}
           onChange={(e) => {
@@ -419,10 +422,6 @@ export function AffiliateApplicationForm({
           aria-invalid={!!errors.applicationNotes}
         />
         <FieldError error={errors.applicationNotes} />
-        <p className="text-xs text-muted-foreground mt-1">
-          Minimum 20 characters. Be specific about your audience and promotion
-          strategy.
-        </p>
       </Field>
 
       {/* Info Box */}

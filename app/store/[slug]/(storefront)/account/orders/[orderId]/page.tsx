@@ -8,6 +8,8 @@ import {
   MapPin,
   HelpCircle,
   Download,
+  CreditCard,
+  AlertCircle,
 } from "lucide-react";
 import {
   Card,
@@ -27,6 +29,11 @@ import {
   getOrderItemsWithImages,
 } from "@/lib/db/queries/orders";
 import { formatPrice } from "@/lib/utils";
+import {
+  computePaymentStatus,
+  PAYMENT_STATUS_CONFIG,
+} from "@/lib/utils/payment-status";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { Address } from "@/lib/db/schema";
 
 interface OrderDetailPageProps {
@@ -64,6 +71,19 @@ export default async function OrderDetailPage({
   const orderDate = new Date(order.createdAt);
   const shippingAddress = order.shippingAddress as Address;
 
+  const paymentInfo = computePaymentStatus({
+    total: order.total,
+    amountPaid: order.amountPaid,
+    amountRefunded: order.amountRefunded,
+  });
+  const paymentConfig = PAYMENT_STATUS_CONFIG[paymentInfo.status];
+  const isCOD = order.paymentMethod === "cash";
+  const showPayNow =
+    !paymentInfo.isPaid &&
+    !paymentInfo.isFullyRefunded &&
+    !isCOD &&
+    order.status !== "cancelled";
+
   return (
     <div className="space-y-6">
       {/* Back Button */}
@@ -98,6 +118,11 @@ export default async function OrderDetailPage({
               <Badge variant={statusInfo.color} className="w-fit">
                 {statusInfo.label}
               </Badge>
+              <span
+                className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${paymentConfig.bgColor} ${paymentConfig.textColor}`}
+              >
+                {paymentConfig.label}
+              </span>
               <Button variant="outline" size="sm" asChild>
                 <a
                   href={`/api/store/${slug}/orders/${orderId}/invoice`}
@@ -111,6 +136,30 @@ export default async function OrderDetailPage({
           </div>
         </CardHeader>
       </Card>
+
+      {/* Payment Status - show when unpaid */}
+      {showPayNow && (
+        <Alert
+          variant="destructive"
+          className="border-amber-200 bg-amber-50 text-amber-900 [&>svg]:text-amber-600"
+        >
+          <AlertCircle className="size-4" />
+          <AlertTitle>Payment Incomplete</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              {paymentInfo.status === "unpaid"
+                ? "This order hasn't been paid yet."
+                : `Partially paid — ${formatPrice(paymentInfo.amountDue, store.currency)} remaining.`}
+            </span>
+            <Button size="sm" asChild>
+              <Link href={`/store/${slug}/checkout/payment?order=${order.id}`}>
+                <CreditCard className="mr-2 size-4" />
+                Pay Now
+              </Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Order Items */}
       <Card>

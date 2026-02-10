@@ -8,6 +8,11 @@ import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
 import { getPrimaryStoreLocation } from "@/lib/db/queries/store-locations";
 import { hasActiveCoupons } from "@/lib/db/queries/coupons";
+import { getProductsCampaignDiscounts } from "@/lib/db/queries/campaigns";
+import { applyCampaignDiscount } from "@/lib/utils/pricing-display";
+import { db } from "@/lib/db";
+import { products as productsTable } from "@/lib/db/schema";
+import { inArray } from "drizzle-orm";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import {
   isUnifiedDeliveryEnabled,
@@ -168,14 +173,42 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     hasActiveCoupons(store.id),
   ]);
 
-  // Calculate cart subtotal with tier pricing
+  // Fetch product categoryIds for campaign matching (cart doesn't include them)
+  const productIds = cartValidation.cart.items.map((item) => item.productId);
+  const productCategoryRows =
+    productIds.length > 0
+      ? await db.query.products.findMany({
+          where: inArray(productsTable.id, productIds),
+          columns: { id: true, categoryId: true },
+        })
+      : [];
+  const categoryMap = new Map(
+    productCategoryRows.map((p) => [p.id, p.categoryId])
+  );
+
+  // Fetch campaign discounts for cart products
+  const campaignDiscounts = await getProductsCampaignDiscounts(
+    store.id,
+    cartValidation.cart.items.map((item) => ({
+      productId: item.productId,
+      categoryId: categoryMap.get(item.productId) ?? null,
+    }))
+  );
+
+  // Calculate cart subtotal with tier pricing AND campaign discounts
   const subtotal = cartValidation.cart.items.reduce((sum, item) => {
     const basePrice = item.variant?.price
       ? parseFloat(item.variant.price)
       : parseFloat(item.product.price);
 
-    // Find applicable tier for this quantity
-    let effectivePrice = basePrice;
+    // Apply campaign discount first
+    const campaign = campaignDiscounts.get(item.productId);
+    const afterCampaignPrice = campaign
+      ? applyCampaignDiscount(basePrice, campaign)
+      : basePrice;
+
+    // Then find applicable tier for this quantity
+    let effectivePrice = afterCampaignPrice;
     if (item.product.priceTiers && item.product.priceTiers.length > 0) {
       const sortedTiers = [...item.product.priceTiers].sort(
         (a, b) => b.minQuantity - a.minQuantity

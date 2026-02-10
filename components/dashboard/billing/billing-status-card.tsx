@@ -223,12 +223,25 @@ export function BillingStatusCard({
             </div>
             <p className="mt-1 text-2xl font-bold">
               {isPro
-                ? formatPrice(
-                    isYearly
-                      ? subscription.proPlanYearlyPriceAfn
-                      : subscription.proPlanPriceAfn,
-                    currency
-                  )
+                ? subscription.hasStripeSubscription
+                  ? formatPrice(
+                      isYearly
+                        ? (subscription.stripeYearlyPriceInfo?.amount ??
+                            subscription.proPlanYearlyPriceAfn)
+                        : (subscription.stripePriceInfo?.amount ??
+                            subscription.proPlanPriceAfn),
+                      isYearly
+                        ? (subscription.stripeYearlyPriceInfo?.currency.toUpperCase() ??
+                            currency)
+                        : (subscription.stripePriceInfo?.currency.toUpperCase() ??
+                            currency)
+                    )
+                  : formatPrice(
+                      isYearly
+                        ? subscription.proPlanYearlyPriceAfn
+                        : subscription.proPlanPriceAfn,
+                      currency
+                    )
                 : "0"}
             </p>
             <p className="text-xs text-muted-foreground">
