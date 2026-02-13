@@ -59,6 +59,10 @@ export interface AmazonProduct {
 export interface ScrapeResult {
   success: boolean;
   product?: AmazonProduct;
+  /** Price converted to store currency (AFN) */
+  convertedPrice?: number;
+  /** Compare-at price converted to store currency (AFN) */
+  convertedCompareAtPrice?: number;
   error?: string;
 }
 

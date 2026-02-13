@@ -80,9 +80,15 @@ export function AmazonImportClient({
 
       setProduct(result.product);
       setNameOverride(result.product.title);
-      setPriceOverride(
-        result.product.price !== null ? result.product.price.toString() : ""
-      );
+
+      // Use converted price (AFN) if available, otherwise fall back to original
+      if (result.convertedPrice !== undefined) {
+        setPriceOverride(result.convertedPrice.toString());
+      } else if (result.product.price !== null) {
+        setPriceOverride(result.product.price.toString());
+      } else {
+        setPriceOverride("");
+      }
     } catch {
       setScrapeError("An unexpected error occurred. Please try again.");
     } finally {
@@ -212,9 +218,11 @@ export function AmazonImportClient({
                     onChange={(e) => setPriceOverride(e.target.value)}
                     placeholder="0.00"
                   />
-                  {product.currency !== currency && product.price !== null && (
+                  {product.price !== null && (
                     <p className="text-xs text-muted-foreground">
                       Original: {product.currency} {product.price.toFixed(2)}
+                      {product.currency !== currency &&
+                        " (auto-converted to " + currency + ")"}
                     </p>
                   )}
                 </div>

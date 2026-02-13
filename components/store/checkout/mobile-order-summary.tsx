@@ -33,24 +33,26 @@ export function MobileOrderSummary({
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger className="w-full">
         <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="relative shrink-0">
               <ShoppingBag className="size-5" />
               <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
                 {itemCount}
               </span>
             </div>
-            <span className="font-medium">
-              {isOpen ? "Hide order summary" : "Show order summary"}
+            <span className="font-medium truncate">
+              {isOpen ? "Hide summary" : "Order summary"}
             </span>
             <ChevronDown
               className={cn(
-                "size-4 text-muted-foreground transition-transform duration-200",
+                "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
                 isOpen && "rotate-180"
               )}
             />
           </div>
-          <span className="font-semibold">{formatPrice(total)}</span>
+          <span className="font-semibold shrink-0 ml-2">
+            {formatPrice(total)}
+          </span>
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>

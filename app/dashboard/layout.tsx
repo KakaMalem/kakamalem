@@ -107,7 +107,7 @@ export default async function DashboardLayout({
               currentStore={currentStore}
               storeSlug={storeSlug}
             />
-            <SidebarInset>
+            <SidebarInset className="min-w-0">
               <DashboardHeader />
               <main className="flex-1 overflow-auto p-4 md:p-6">
                 <TransferRequestsBanner

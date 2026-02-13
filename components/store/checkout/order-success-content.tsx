@@ -72,12 +72,18 @@ const CONFETTI_COLORS = [
 ];
 
 function generateConfettiParticles() {
+  // Use viewport-relative spread to avoid horizontal overflow on mobile
+  const spread =
+    typeof window !== "undefined"
+      ? Math.min(window.innerWidth * 0.8, 600)
+      : 600;
+  const halfSpread = spread / 2;
   return Array.from({ length: 60 }, (_, i) => ({
     id: i,
     delay: Math.random() * 0.8,
-    x: Math.random() * 600 - 300,
+    x: Math.random() * spread - halfSpread,
     color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-    xOffset: (Math.random() - 0.5) * 150,
+    xOffset: (Math.random() - 0.5) * Math.min(halfSpread * 0.5, 75),
     rotation: Math.random() * 720,
     duration: 2.5 + Math.random() * 1.5,
   }));
@@ -178,7 +184,7 @@ export function OrderSuccessContent({
       {/* Confetti animation */}
       <AnimatePresence>
         {showConfetti && (
-          <div className="fixed top-0 left-1/2 -translate-x-1/2 pointer-events-none z-50">
+          <div className="fixed inset-0 overflow-hidden pointer-events-none z-50 flex justify-center">
             {confettiParticles.map((particle) => (
               <ConfettiParticle
                 key={particle.id}

@@ -3,7 +3,14 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, Plus, Upload, Download, Globe } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Upload,
+  Download,
+  Globe,
+  MoreVertical,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,6 +120,51 @@ export function ProductsFilters({
             Archived
           </button>
         </div>
+        {/* Import/Export Menu - Mobile */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9 shrink-0 sm:hidden"
+            >
+              <MoreVertical className="size-4" />
+              <span className="sr-only">More actions</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <a
+                href={`/api/dashboard/${storeSlug}/products/export?format=csv${showArchived ? "&status=archived" : ""}`}
+                download
+              >
+                <Download className="size-4" />
+                Export as CSV
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a
+                href={`/api/dashboard/${storeSlug}/products/export?format=xlsx${showArchived ? "&status=archived" : ""}`}
+                download
+              >
+                <Download className="size-4" />
+                Export as Excel
+              </a>
+            </DropdownMenuItem>
+            {onBulkUploadClick && (
+              <DropdownMenuItem onClick={onBulkUploadClick}>
+                <Upload className="size-4" />
+                Bulk Upload (CSV)
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/${storeSlug}/products/import`}>
+                <Globe className="size-4" />
+                Import from Amazon
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Add Product + Import/Export Buttons - Desktop */}
@@ -143,26 +195,20 @@ export function ProductsFilters({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        {onBulkUploadClick && (
-          <Button variant="outline" onClick={onBulkUploadClick}>
-            <Upload className="size-4" />
-            Import
-          </Button>
-        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button>
-              <Plus className="size-4" />
-              Add Product
+            <Button variant="outline">
+              <Upload className="size-4" />
+              Import
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/dashboard/${storeSlug}/products/new`}>
-                <Plus className="size-4" />
-                Create New Product
-              </Link>
-            </DropdownMenuItem>
+            {onBulkUploadClick && (
+              <DropdownMenuItem onClick={onBulkUploadClick}>
+                <Upload className="size-4" />
+                Bulk Upload (CSV)
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href={`/dashboard/${storeSlug}/products/import`}>
                 <Globe className="size-4" />
@@ -171,6 +217,12 @@ export function ProductsFilters({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button asChild>
+          <Link href={`/dashboard/${storeSlug}/products/new`}>
+            <Plus className="size-4" />
+            Add Product
+          </Link>
+        </Button>
       </div>
     </div>
   );

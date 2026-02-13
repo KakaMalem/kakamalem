@@ -391,21 +391,23 @@ export function SectionPayment({
                 </div>
               )}
               {appliedCoupon && discountTotal > 0 && (
-                <div className="flex items-center justify-between text-green-600">
-                  <span className="flex items-center gap-1.5">
-                    <Tag className="size-3.5" />
-                    {appliedCoupon.code}
+                <div className="flex items-center justify-between gap-2 text-green-600">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Tag className="size-3.5 shrink-0" />
+                    <span className="truncate">{appliedCoupon.code}</span>
                   </span>
-                  <span>-{formatPrice(discountTotal)}</span>
+                  <span className="shrink-0">
+                    -{formatPrice(discountTotal)}
+                  </span>
                 </div>
               )}
               {appliedCoupon?.type === "free_shipping" && (
-                <div className="flex items-center justify-between text-green-600">
-                  <span className="flex items-center gap-1.5">
-                    <Tag className="size-3.5" />
-                    {appliedCoupon.code}
+                <div className="flex items-center justify-between gap-2 text-green-600">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Tag className="size-3.5 shrink-0" />
+                    <span className="truncate">{appliedCoupon.code}</span>
                   </span>
-                  <span>Free shipping</span>
+                  <span className="shrink-0">Free shipping</span>
                 </div>
               )}
               <div className="flex justify-between">

@@ -20,7 +20,11 @@ interface SaleBannerProps {
   currency?: string;
 }
 
-export function SaleBanner({ campaign, storeSlug, currency: _currency }: SaleBannerProps) {
+export function SaleBanner({
+  campaign,
+  storeSlug,
+  currency: _currency,
+}: SaleBannerProps) {
   const { format: formatPrice } = useCurrencyStore();
   const [isDismissed, setIsDismissed] = useState(false);
   const pathname = usePathname();

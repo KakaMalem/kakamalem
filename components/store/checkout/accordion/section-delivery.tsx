@@ -354,22 +354,22 @@ export function SectionDelivery({
                       )}
                     </div>
                     <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-medium truncate max-w-45 sm:max-w-none">
                           {address.firstName} {address.lastName}
                         </span>
                         {address.label && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground shrink-0">
                             ({address.label})
                           </span>
                         )}
                         {address.isDefault && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary shrink-0">
                             Default
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground font-mono">
+                      <p className="text-sm text-muted-foreground font-mono truncate">
                         {address.plusCode
                           ? formatPlusCodeForDisplay(
                               address.plusCode,

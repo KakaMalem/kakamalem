@@ -24,7 +24,11 @@ interface CartItemProps {
   campaignDiscount?: CampaignDiscount | null;
 }
 
-export function CartItem({ item, currency: _currency, campaignDiscount }: CartItemProps) {
+export function CartItem({
+  item,
+  currency: _currency,
+  campaignDiscount,
+}: CartItemProps) {
   const { format: formatPrice } = useCurrencyStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");

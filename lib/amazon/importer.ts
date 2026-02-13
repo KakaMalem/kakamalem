@@ -12,6 +12,11 @@ import { generateUniqueProductSlug } from "@/lib/db/queries/slugs";
 import { generateSku } from "@/lib/utils/slug";
 import { getMaxProductDisplayOrder } from "@/lib/db/queries/products";
 import { canAddProduct } from "@/lib/db/queries/billing";
+import {
+  convertToAFN,
+  getExchangeRates,
+  type ExchangeRates,
+} from "@/lib/currency";
 import type { AmazonProduct, AmazonImage, ImportResult } from "./types";
 
 // =============================================================================
@@ -281,10 +286,56 @@ export async function importAmazonProduct(
     // 2. Build description
     const description = buildDescription(amazonProduct);
 
-    // 3. Determine price
-    const price =
-      options.price ||
-      (amazonProduct.price !== null ? amazonProduct.price.toString() : "0");
+    // 3. Determine price — convert from Amazon currency to AFN if needed
+    let rates: ExchangeRates | undefined;
+    let price: string;
+
+    if (options.price) {
+      // User provided an explicit override (already in store currency)
+      price = options.price;
+    } else if (
+      amazonProduct.price !== null &&
+      amazonProduct.currency &&
+      amazonProduct.currency !== "AFN"
+    ) {
+      try {
+        rates = await getExchangeRates();
+        const convertedPrice = await convertToAFN(
+          amazonProduct.price,
+          amazonProduct.currency,
+          rates
+        );
+        price = Math.round(convertedPrice).toString();
+      } catch {
+        warnings.push(
+          `Currency conversion from ${amazonProduct.currency} failed. Using original price.`
+        );
+        price = amazonProduct.price.toString();
+      }
+    } else {
+      price =
+        amazonProduct.price !== null ? amazonProduct.price.toString() : "0";
+    }
+
+    // Convert compareAtPrice too
+    let convertedCompareAtPrice: string | null = null;
+    if (amazonProduct.compareAtPrice !== null) {
+      if (amazonProduct.currency && amazonProduct.currency !== "AFN") {
+        try {
+          if (!rates) rates = await getExchangeRates();
+          const converted = await convertToAFN(
+            amazonProduct.compareAtPrice,
+            amazonProduct.currency,
+            rates
+          );
+          convertedCompareAtPrice = Math.round(converted).toString();
+        } catch {
+          convertedCompareAtPrice = amazonProduct.compareAtPrice.toString();
+        }
+      } else {
+        convertedCompareAtPrice = amazonProduct.compareAtPrice.toString();
+      }
+    }
 
     // 4. Generate slug and SKU
     const slug = await generateUniqueProductSlug(tenantId, productName);
@@ -305,13 +356,13 @@ export async function importAmazonProduct(
         slug,
         description,
         price,
-        compareAtPrice: amazonProduct.compareAtPrice?.toString() || null,
+        compareAtPrice: convertedCompareAtPrice,
         status,
         hasVariants,
         sku,
         stock: hasVariants ? 0 : 0,
-        trackInventory: true,
-        showOnStorefront: status === "active",
+        trackInventory: false,
+        showOnStorefront: true,
         showOnPos: true,
         displayOrder: maxDisplayOrder + 1,
       })
@@ -339,12 +390,20 @@ export async function importAmazonProduct(
     // 9. Create variants if product has them
     if (hasVariants) {
       try {
+        if (
+          !rates &&
+          amazonProduct.currency &&
+          amazonProduct.currency !== "AFN"
+        ) {
+          rates = await getExchangeRates();
+        }
         await createVariantsFromAmazonData(
           tenantId,
           newProduct.id,
           amazonProduct,
           mediaIds,
-          warnings
+          warnings,
+          rates
         );
       } catch (error) {
         warnings.push(
@@ -385,7 +444,8 @@ async function createVariantsFromAmazonData(
   productId: string,
   amazonProduct: AmazonProduct,
   mainMediaIds: string[],
-  warnings: string[]
+  warnings: string[],
+  rates?: ExchangeRates
 ): Promise<void> {
   // Build InlineOption format for bulk creation
   const inlineOptions = amazonProduct.variantOptions.map((opt, optIndex) => ({
@@ -449,6 +509,14 @@ async function createVariantsFromAmazonData(
       }
     }
 
+    // Pre-compute currency conversion rate for variants
+    // rates[CURRENCY] = how much 1 AFN is in that currency
+    // So to convert from Amazon currency to AFN: amount / rates[currency]
+    const afnRate =
+      rates && amazonProduct.currency && amazonProduct.currency !== "AFN"
+        ? rates[amazonProduct.currency]
+        : null;
+
     // Use actual variant data from Amazon
     generatedVariants = amazonProduct.variants.map((variant, index) => {
       const optionValues = Object.entries(variant.options).map(
@@ -468,11 +536,21 @@ async function createVariantsFromAmazonData(
       // Get the uploaded media ID for this variant
       const variantMediaId = variantMediaMap.get(variant.asin);
 
+      // Convert variant price from Amazon currency to AFN
+      let variantPrice = "";
+      if (variant.price !== null) {
+        if (afnRate && afnRate > 0) {
+          variantPrice = Math.round(variant.price / afnRate).toString();
+        } else {
+          variantPrice = variant.price.toString();
+        }
+      }
+
       return {
         tempId: `amazon-var-${index}`,
         optionValues,
         displayName: Object.values(variant.options).join(" / "),
-        price: variant.price?.toString() || "",
+        price: variantPrice,
         stock: "0",
         weight: "",
         length: "",

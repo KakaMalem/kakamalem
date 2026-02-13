@@ -69,14 +69,14 @@ export function SectionWrapper({
               handleClick();
             }
           }}
-          className="flex-1 flex items-center gap-4 p-4 text-left transition-colors hover:bg-muted/50 cursor-pointer"
+          className="flex-1 flex items-center gap-3 p-3 sm:gap-4 sm:p-4 text-left transition-colors hover:bg-muted/50 cursor-pointer"
           aria-expanded={isExpanded}
           aria-controls={`section-content-${section}`}
         >
           {/* Step indicator */}
           <div
             className={cn(
-              "flex items-center justify-center size-10 rounded-full shrink-0 transition-all duration-200",
+              "flex items-center justify-center size-8 sm:size-10 rounded-full shrink-0 transition-all duration-200",
               // Active or completed: primary background with white text
               (isCompleted || isActive) && "bg-primary text-primary-foreground",
               // Incomplete: muted background with muted text
@@ -100,14 +100,14 @@ export function SectionWrapper({
 
           {/* Title and summary */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <Icon
                 className={cn(
                   "size-4 shrink-0",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               />
-              <h3 className="font-medium">{title}</h3>
+              <h3 className="font-medium truncate">{title}</h3>
             </div>
 
             {/* Summary (shown when collapsed and completed) */}

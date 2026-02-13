@@ -15,6 +15,7 @@ import { useEffect } from "react";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import {
   getCurrencyForCountry,
+  getCountryFromTimezone,
   isSupportedCurrency,
   type SupportedCurrency,
 } from "@/lib/currency/country-currency";
@@ -36,29 +37,30 @@ export function CurrencyInitializer({
 
     // Only auto-detect if user hasn't manually chosen a currency
     if (currencySource === "auto") {
-      // Auto-detect customer currency from browser locale
-      // navigator.language returns e.g. "fa-AF", "en-US", "de-DE"
-      const locale = navigator.language || "";
-      const parts = locale.split("-");
-      const countryCode =
-        parts.length > 1 ? parts[parts.length - 1].toUpperCase() : null;
+      let detectedCurrency: string | null = null;
 
-      if (countryCode) {
-        const detectedCurrency = getCurrencyForCountry(countryCode);
+      // 1. Try timezone (most reliable — reflects physical location)
+      const tzCountry = getCountryFromTimezone();
+      if (tzCountry) {
+        detectedCurrency = getCurrencyForCountry(tzCountry);
+      }
 
-        if (detectedCurrency && isSupportedCurrency(detectedCurrency)) {
-          setCurrency(detectedCurrency as SupportedCurrency);
-        } else {
-          // Fallback: use the store's currency
-          if (isSupportedCurrency(storeCurrency)) {
-            setCurrency(storeCurrency as SupportedCurrency);
-          }
+      // 2. Fallback: try navigator.language country code (e.g. "fa-AF" → "AF")
+      if (!detectedCurrency || !isSupportedCurrency(detectedCurrency)) {
+        const locale = navigator.language || "";
+        const parts = locale.split("-");
+        const countryCode =
+          parts.length > 1 ? parts[parts.length - 1].toUpperCase() : null;
+        if (countryCode) {
+          detectedCurrency = getCurrencyForCountry(countryCode);
         }
-      } else {
-        // No country code in locale, use store's currency
-        if (isSupportedCurrency(storeCurrency)) {
-          setCurrency(storeCurrency as SupportedCurrency);
-        }
+      }
+
+      // 3. Apply detected currency or fall back to store currency
+      if (detectedCurrency && isSupportedCurrency(detectedCurrency)) {
+        setCurrency(detectedCurrency as SupportedCurrency);
+      } else if (isSupportedCurrency(storeCurrency)) {
+        setCurrency(storeCurrency as SupportedCurrency);
       }
     }
 

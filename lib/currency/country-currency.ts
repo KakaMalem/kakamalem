@@ -193,6 +193,219 @@ export const currencyInfo: Record<
 };
 
 /**
+ * IANA Timezone to ISO 3166-1 alpha-2 country code mapping.
+ * Used for auto-detecting customer location from browser timezone,
+ * which is far more reliable than navigator.language for geolocation.
+ *
+ * Only includes timezones for countries in our countryCurrencyMap.
+ */
+export const timezoneToCountryMap: Record<string, string> = {
+  // Afghanistan
+  "Asia/Kabul": "AF",
+
+  // Pakistan
+  "Asia/Karachi": "PK",
+
+  // Iran
+  "Asia/Tehran": "IR",
+
+  // Tajikistan
+  "Asia/Dushanbe": "TJ",
+
+  // Uzbekistan
+  "Asia/Tashkent": "UZ",
+  "Asia/Samarkand": "UZ",
+
+  // Turkmenistan
+  "Asia/Ashgabat": "TM",
+
+  // UAE
+  "Asia/Dubai": "AE",
+
+  // Saudi Arabia
+  "Asia/Riyadh": "SA",
+
+  // Qatar
+  "Asia/Qatar": "QA",
+
+  // Kuwait
+  "Asia/Kuwait": "KW",
+
+  // Bahrain
+  "Asia/Bahrain": "BH",
+
+  // Oman
+  "Asia/Muscat": "OM",
+
+  // Iraq
+  "Asia/Baghdad": "IQ",
+
+  // Jordan
+  "Asia/Amman": "JO",
+
+  // Lebanon
+  "Asia/Beirut": "LB",
+
+  // Turkey
+  "Europe/Istanbul": "TR",
+
+  // Germany
+  "Europe/Berlin": "DE",
+
+  // France
+  "Europe/Paris": "FR",
+
+  // Netherlands
+  "Europe/Amsterdam": "NL",
+
+  // Belgium
+  "Europe/Brussels": "BE",
+
+  // Austria
+  "Europe/Vienna": "AT",
+
+  // Italy
+  "Europe/Rome": "IT",
+
+  // Spain
+  "Europe/Madrid": "ES",
+
+  // Portugal
+  "Europe/Lisbon": "PT",
+
+  // Greece
+  "Europe/Athens": "GR",
+
+  // Ireland
+  "Europe/Dublin": "IE",
+
+  // Finland
+  "Europe/Helsinki": "FI",
+
+  // United Kingdom
+  "Europe/London": "GB",
+
+  // Sweden
+  "Europe/Stockholm": "SE",
+
+  // Norway
+  "Europe/Oslo": "NO",
+
+  // Denmark
+  "Europe/Copenhagen": "DK",
+
+  // Switzerland
+  "Europe/Zurich": "CH",
+
+  // Poland
+  "Europe/Warsaw": "PL",
+
+  // United States
+  "America/New_York": "US",
+  "America/Chicago": "US",
+  "America/Denver": "US",
+  "America/Los_Angeles": "US",
+  "America/Phoenix": "US",
+  "America/Anchorage": "US",
+  "Pacific/Honolulu": "US",
+  "America/Detroit": "US",
+  "America/Indiana/Indianapolis": "US",
+  "America/Boise": "US",
+
+  // Canada
+  "America/Toronto": "CA",
+  "America/Vancouver": "CA",
+  "America/Edmonton": "CA",
+  "America/Winnipeg": "CA",
+  "America/Halifax": "CA",
+  "America/St_Johns": "CA",
+
+  // Mexico
+  "America/Mexico_City": "MX",
+  "America/Tijuana": "MX",
+
+  // India
+  "Asia/Kolkata": "IN",
+  "Asia/Calcutta": "IN",
+
+  // China
+  "Asia/Shanghai": "CN",
+
+  // Japan
+  "Asia/Tokyo": "JP",
+
+  // South Korea
+  "Asia/Seoul": "KR",
+
+  // Australia
+  "Australia/Sydney": "AU",
+  "Australia/Melbourne": "AU",
+  "Australia/Brisbane": "AU",
+  "Australia/Perth": "AU",
+  "Australia/Adelaide": "AU",
+  "Australia/Hobart": "AU",
+  "Australia/Darwin": "AU",
+
+  // New Zealand
+  "Pacific/Auckland": "NZ",
+
+  // Singapore
+  "Asia/Singapore": "SG",
+
+  // Malaysia
+  "Asia/Kuala_Lumpur": "MY",
+
+  // Thailand
+  "Asia/Bangkok": "TH",
+
+  // Indonesia
+  "Asia/Jakarta": "ID",
+
+  // Philippines
+  "Asia/Manila": "PH",
+
+  // Vietnam
+  "Asia/Ho_Chi_Minh": "VN",
+
+  // South Africa
+  "Africa/Johannesburg": "ZA",
+
+  // Egypt
+  "Africa/Cairo": "EG",
+
+  // Nigeria
+  "Africa/Lagos": "NG",
+
+  // Kenya
+  "Africa/Nairobi": "KE",
+
+  // Brazil
+  "America/Sao_Paulo": "BR",
+
+  // Argentina
+  "America/Argentina/Buenos_Aires": "AR",
+
+  // Chile
+  "America/Santiago": "CL",
+
+  // Colombia
+  "America/Bogota": "CO",
+};
+
+/**
+ * Get country code from browser timezone
+ * @returns ISO 3166-1 alpha-2 country code or null if not found
+ */
+export function getCountryFromTimezone(): string | null {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return timezoneToCountryMap[tz] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get currency code for a country
  * @param countryCode ISO 3166-1 alpha-2 country code (e.g., "DE", "US")
  * @returns ISO 4217 currency code (defaults to USD if not found)

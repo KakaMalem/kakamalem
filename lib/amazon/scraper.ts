@@ -101,10 +101,11 @@ export async function fetchAmazonPage(
         "User-Agent": getRandomUserAgent(),
         Accept:
           "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
+        "Accept-Encoding": "gzip, deflate",
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
+        Connection: "keep-alive",
         "Sec-Ch-Ua": '"Chromium";v="131", "Not_A Brand";v="24"',
         "Sec-Ch-Ua-Mobile": "?0",
         "Sec-Ch-Ua-Platform": '"Windows"',
@@ -139,15 +140,27 @@ export async function fetchAmazonPage(
 
     const html = await response.text();
 
-    // Check if we got a CAPTCHA page
+    // Check if we got a CAPTCHA or bot detection page
     if (
       html.includes("Type the characters you see in this image") ||
-      (html.includes("robot") && html.includes("captcha"))
+      (html.includes("robot") && html.includes("captcha")) ||
+      html.includes("api-services-support@amazon.com") ||
+      html.includes("automated access to Amazon") ||
+      (html.includes("we just need to make sure you") && html.includes("robot"))
     ) {
       return {
         success: false,
         error:
           "Amazon is showing a CAPTCHA. Please try again in a few minutes.",
+      };
+    }
+
+    // Check we got a real product page (must have at least a <body> and some content)
+    if (html.length < 5000 || !html.includes("<body")) {
+      return {
+        success: false,
+        error:
+          "Amazon returned an incomplete page. Please try again in a moment.",
       };
     }
 
@@ -183,19 +196,25 @@ function extractEmbeddedData(
 
   const allScripts = scripts.join("\n");
 
-  // Extract colorImages (product gallery images)
-  try {
-    const colorImagesMatch = allScripts.match(
-      /'colorImages'\s*:\s*({[\s\S]*?})\s*[,}]/
-    );
-    if (colorImagesMatch) {
-      data.colorImages = JSON.parse(colorImagesMatch[1].replace(/'/g, '"'));
+  // Extract colorImages (product gallery images) — try multiple patterns
+  const colorImagePatterns = [
+    /'colorImages'\s*:\s*({[\s\S]*?})\s*[,}]/,
+    /"colorImages"\s*:\s*({[\s\S]*?})\s*[,}]/,
+    /colorImages'\s*:\s*({[\s\S]*?})\s*[,}]/,
+  ];
+  for (const pattern of colorImagePatterns) {
+    if (data.colorImages) break;
+    try {
+      const match = allScripts.match(pattern);
+      if (match) {
+        data.colorImages = JSON.parse(match[1].replace(/'/g, '"'));
+      }
+    } catch {
+      /* ignore parse errors */
     }
-  } catch {
-    /* ignore parse errors */
   }
 
-  // Try alternate image data format
+  // Try alternate image data format — "var data = {...}"
   if (!data.colorImages) {
     try {
       const imageMatch = allScripts.match(
@@ -227,13 +246,35 @@ function extractEmbeddedData(
     }
   }
 
+  // Try to extract from jQuery data binding patterns
+  if (!data.colorImages) {
+    try {
+      const jqMatch = allScripts.match(
+        /jQuery\.parseJSON\s*\(\s*'({[\s\S]*?colorImages[\s\S]*?})'\s*\)/
+      );
+      if (jqMatch) {
+        const parsed = JSON.parse(jqMatch[1].replace(/\\'/g, "'"));
+        if (parsed.colorImages) {
+          data.colorImages = parsed.colorImages;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   // Extract variation dimension display data
   try {
-    const dimMatch = allScripts.match(
-      /dimensionValuesDisplayData\s*[:=]\s*({[\s\S]*?})\s*[,;]/
-    );
-    if (dimMatch) {
-      data.dimensionValuesDisplayData = JSON.parse(dimMatch[1]);
+    const dimPatterns = [
+      /dimensionValuesDisplayData\s*[:=]\s*({[\s\S]*?})\s*[,;]/,
+      /"dimensionValuesDisplayData"\s*:\s*({[\s\S]*?})\s*[,;]/,
+    ];
+    for (const pattern of dimPatterns) {
+      if (data.dimensionValuesDisplayData) break;
+      const dimMatch = allScripts.match(pattern);
+      if (dimMatch) {
+        data.dimensionValuesDisplayData = JSON.parse(dimMatch[1]);
+      }
     }
   } catch {
     /* ignore */
@@ -241,11 +282,16 @@ function extractEmbeddedData(
 
   // Extract variation values (e.g., {"size_name": ["S", "M", "L"]})
   try {
-    const varValMatch = allScripts.match(
-      /variationValues\s*[:=]\s*({[\s\S]*?})\s*[,;]/
-    );
-    if (varValMatch) {
-      data.variationValues = JSON.parse(varValMatch[1]);
+    const varPatterns = [
+      /variationValues\s*[:=]\s*({[\s\S]*?})\s*[,;]/,
+      /"variationValues"\s*:\s*({[\s\S]*?})\s*[,;]/,
+    ];
+    for (const pattern of varPatterns) {
+      if (data.variationValues) break;
+      const varValMatch = allScripts.match(pattern);
+      if (varValMatch) {
+        data.variationValues = JSON.parse(varValMatch[1]);
+      }
     }
   } catch {
     /* ignore */
@@ -253,11 +299,16 @@ function extractEmbeddedData(
 
   // Extract ASIN to variation value mapping
   try {
-    const asinVarMatch = allScripts.match(
-      /asinVariationValues\s*[:=]\s*({[\s\S]*?})\s*[,;\n}]/
-    );
-    if (asinVarMatch) {
-      data.asinVariationValues = JSON.parse(asinVarMatch[1]);
+    const asinPatterns = [
+      /asinVariationValues\s*[:=]\s*({[\s\S]*?})\s*[,;\n}]/,
+      /"asinVariationValues"\s*:\s*({[\s\S]*?})\s*[,;\n}]/,
+    ];
+    for (const pattern of asinPatterns) {
+      if (data.asinVariationValues) break;
+      const asinVarMatch = allScripts.match(pattern);
+      if (asinVarMatch) {
+        data.asinVariationValues = JSON.parse(asinVarMatch[1]);
+      }
     }
   } catch {
     /* ignore */

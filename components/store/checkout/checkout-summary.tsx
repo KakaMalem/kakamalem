@@ -113,7 +113,7 @@ export function CheckoutSummary({
   }, [effectiveSubtotal, subtotal, updateTotals]);
 
   return (
-    <Card className="sticky top-4">
+    <Card>
       <CardHeader>
         <CardTitle className="text-lg">Order Summary</CardTitle>
       </CardHeader>
@@ -214,11 +214,11 @@ export function CheckoutSummary({
 
         {/* Totals */}
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-muted-foreground shrink-0">Subtotal</span>
+            <span className="text-right">
               {totalSavings > 0 ? (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-baseline gap-1.5 justify-end flex-wrap">
                   <span className="line-through text-muted-foreground text-xs">
                     {formatPrice(originalSubtotal)}
                   </span>
@@ -231,22 +231,22 @@ export function CheckoutSummary({
           </div>
 
           {campaignSavings > 0 && (
-            <div className="flex items-center justify-between text-red-600">
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" />
-                Sale discounts
+            <div className="flex items-center justify-between gap-2 text-red-600">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Sale discounts</span>
               </span>
-              <span>-{formatPrice(campaignSavings)}</span>
+              <span className="shrink-0">-{formatPrice(campaignSavings)}</span>
             </div>
           )}
 
           {tierSavings > 0 && (
-            <div className="flex items-center justify-between text-green-600">
-              <span className="flex items-center gap-1.5">
-                <Tag className="h-3.5 w-3.5" />
-                Bulk discounts
+            <div className="flex items-center justify-between gap-2 text-green-600">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <Tag className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Bulk discounts</span>
               </span>
-              <span>-{formatPrice(tierSavings)}</span>
+              <span className="shrink-0">-{formatPrice(tierSavings)}</span>
             </div>
           )}
 

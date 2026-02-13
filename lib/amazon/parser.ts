@@ -32,19 +32,67 @@ function extractAsin($: CheerioAPI, url: string): string {
 }
 
 /**
- * Extract product title
+ * Extract product title — uses many fallbacks since Amazon pages vary widely
  */
-function extractTitle($: CheerioAPI): string {
+function extractTitle(
+  $: CheerioAPI,
+  embeddedData?: RawAmazonData["embeddedData"]
+): string {
   // Primary selector
   const title = $("#productTitle").text().trim();
   if (title) return title;
 
-  // Fallback selectors
+  // h1#title span (some layouts)
+  const h1TitleSpan = $("h1#title span").first().text().trim();
+  if (h1TitleSpan) return h1TitleSpan;
+
+  // Fallback: h1.a-size-large span
   const altTitle = $("h1.a-size-large span").first().text().trim();
   if (altTitle) return altTitle;
 
+  // Product title with data attribute
+  const dataTitle = $("[data-feature-name='title'] span").first().text().trim();
+  if (dataTitle) return dataTitle;
+
+  // og:title meta tag (almost always present)
+  const ogTitle = $('meta[property="og:title"]').attr("content");
+  if (ogTitle) {
+    const cleaned = ogTitle.replace(/\s*[-–|:]\s*Amazon[\s\S]*$/i, "").trim();
+    if (cleaned && cleaned.length > 3) return cleaned;
+  }
+
+  // <title> tag (always present, but has "Amazon.ae:" prefix)
+  const pageTitle = $("title").text().trim();
+  if (pageTitle) {
+    const cleaned = pageTitle
+      .replace(/^Amazon\.[^:]+:\s*/i, "")
+      .replace(/\s*[-–|:]\s*Amazon[\s\S]*$/i, "")
+      .trim();
+    if (cleaned && cleaned.length > 5) return cleaned;
+  }
+
+  // JSON-LD structured data
+  if (embeddedData?.jsonLd) {
+    const name = embeddedData.jsonLd.name;
+    if (typeof name === "string" && name.trim()) return name.trim();
+  }
+
+  // meta name="title"
   const metaTitle = $('meta[name="title"]').attr("content");
   if (metaTitle) return metaTitle.trim();
+
+  // twitter:title
+  const twitterTitle = $('meta[name="twitter:title"]').attr("content");
+  if (twitterTitle) {
+    const cleaned = twitterTitle
+      .replace(/\s*[-–|:]\s*Amazon[\s\S]*$/i, "")
+      .trim();
+    if (cleaned) return cleaned;
+  }
+
+  // Last resort: any h1
+  const anyH1 = $("h1").first().text().trim();
+  if (anyH1 && anyH1.length < 500) return anyH1;
 
   return "";
 }
@@ -125,6 +173,36 @@ function extractPrice($: CheerioAPI): {
   if (price === null) {
     const apexPrice = $(".a-price .a-offscreen").first().text().trim();
     const parsed = parsePriceString(apexPrice);
+    if (parsed.amount !== null) {
+      price = parsed.amount;
+      if (parsed.currency) currency = parsed.currency;
+    }
+  }
+
+  // Try corePriceDisplay (newer Amazon layout)
+  if (price === null) {
+    const corePriceText = $(
+      ".priceToPay .a-offscreen, #corePriceDisplay_desktop_feature_div .a-offscreen"
+    )
+      .first()
+      .text()
+      .trim();
+    const parsed = parsePriceString(corePriceText);
+    if (parsed.amount !== null) {
+      price = parsed.amount;
+      if (parsed.currency) currency = parsed.currency;
+    }
+  }
+
+  // Try reinventPricePriceToPayMargin (another layout)
+  if (price === null) {
+    const reinventPrice = $(
+      "#reinventPricePriceToPayMargin .a-offscreen, .reinventPricePriceToPayMargin .a-offscreen"
+    )
+      .first()
+      .text()
+      .trim();
+    const parsed = parsePriceString(reinventPrice);
     if (parsed.amount !== null) {
       price = parsed.amount;
       if (parsed.currency) currency = parsed.currency;
@@ -293,10 +371,26 @@ function extractImages(
   // Fallback: extract from image elements
   const fallbackImages: AmazonImage[] = [];
 
-  // Main image
-  const mainImgSrc =
+  // Main image — try multiple attributes
+  let mainImgSrc =
     $("#landingImage, #imgBlkFront").attr("data-old-hires") ||
-    $("#landingImage, #imgBlkFront").attr("src");
+    $("#landingImage, #imgBlkFront").attr("src") ||
+    null;
+
+  // Try data-a-dynamic-image (JSON map of URL → dimensions)
+  if (!mainImgSrc) {
+    const dynamicImg = $("#landingImage, #imgBlkFront").attr(
+      "data-a-dynamic-image"
+    );
+    if (dynamicImg) {
+      try {
+        const urls = Object.keys(JSON.parse(dynamicImg));
+        if (urls.length > 0) mainImgSrc = urls[0];
+      } catch {
+        /* ignore */
+      }
+    }
+  }
   if (mainImgSrc) {
     fallbackImages.push({
       hiRes: mainImgSrc,
@@ -304,6 +398,20 @@ function extractImages(
       thumb: null,
       variant: "MAIN",
     });
+  }
+
+  // og:image fallback
+  if (fallbackImages.length === 0) {
+    const ogImage = $('meta[property="og:image"]').attr("content");
+    if (ogImage) {
+      const hiRes = ogImage.replace(/\._.*_\./, ".");
+      fallbackImages.push({
+        hiRes,
+        large: ogImage,
+        thumb: null,
+        variant: "MAIN",
+      });
+    }
   }
 
   // Thumbnail strip
@@ -380,6 +488,18 @@ function extractDescription($: CheerioAPI): string {
       .replace(/class="[^"]*"/g, "")
       .replace(/style="[^"]*"/g, "")
       .trim();
+  }
+
+  // og:description fallback
+  const ogDesc = $('meta[property="og:description"]').attr("content");
+  if (ogDesc && ogDesc.trim().length > 10) {
+    return `<p>${ogDesc.trim()}</p>`;
+  }
+
+  // meta description fallback
+  const metaDesc = $('meta[name="description"]').attr("content");
+  if (metaDesc && metaDesc.trim().length > 10) {
+    return `<p>${metaDesc.trim()}</p>`;
   }
 
   return "";
@@ -601,7 +721,7 @@ export function parseAmazonPage(
 ): AmazonProduct {
   const { $, embeddedData } = rawData;
 
-  const title = extractTitle($);
+  const title = extractTitle($, embeddedData);
   const brand = extractBrand($);
   const { price, compareAtPrice, currency } = extractPrice($);
   const images = extractImages($, embeddedData);

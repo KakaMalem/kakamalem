@@ -163,11 +163,13 @@ export function CheckoutContainer({
 
         {/* Desktop Order Summary Sidebar */}
         <div className="hidden lg:block lg:col-span-1">
-          <CheckoutSummary
-            cart={cart}
-            currency={currency}
-            tenantId={tenantId}
-          />
+          <div className="sticky top-4">
+            <CheckoutSummary
+              cart={cart}
+              currency={currency}
+              tenantId={tenantId}
+            />
+          </div>
         </div>
       </div>
     </div>
