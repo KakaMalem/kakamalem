@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { Tag, TrendingDown, Zap, ChevronRight, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import type { PriceTier } from "@/lib/db/schema";
 
 interface BulkPricingTiersProps {
@@ -19,11 +20,13 @@ interface BulkPricingTiersProps {
 export function BulkPricingTiers({
   tiers,
   basePrice,
-  currency,
+  currency: _currency,
   quantity,
   onQuantityChange,
   className,
 }: BulkPricingTiersProps) {
+  const { format: formatPrice } = useCurrencyStore();
+
   // Sort tiers by minQuantity
   const sortedTiers = useMemo(
     () => [...tiers].sort((a, b) => a.minQuantity - b.minQuantity),
@@ -133,7 +136,7 @@ export function BulkPricingTiers({
               <Zap className="size-4" />
               <span className="text-xs sm:text-sm font-medium">
                 Add {unitsToNextTier} more for{" "}
-                {formatPrice(parseFloat(nextTier.price), currency)}/unit
+                {formatPrice(parseFloat(nextTier.price))}/unit
               </span>
             </div>
             <Button
@@ -184,7 +187,7 @@ export function BulkPricingTiers({
                 onQuantityChange &&
                   "cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
               )}
-              aria-label={`${tier.minQuantity}${tier.maxQuantity === null ? "+" : `-${tier.maxQuantity}`} units at ${formatPrice(tierPrice, currency)} per unit, ${savingsPercent}% discount${isActive ? ", currently active" : ""}`}
+              aria-label={`${tier.minQuantity}${tier.maxQuantity === null ? "+" : `-${tier.maxQuantity}`} units at ${formatPrice(tierPrice)} per unit, ${savingsPercent}% discount${isActive ? ", currently active" : ""}`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 {/* Tier indicator */}
@@ -235,7 +238,7 @@ export function BulkPricingTiers({
                       isActive ? "text-primary" : "text-foreground"
                     )}
                   >
-                    {formatPrice(tierPrice, currency)}
+                    {formatPrice(tierPrice)}
                   </div>
                   <div className="text-xs text-muted-foreground">per unit</div>
                 </div>

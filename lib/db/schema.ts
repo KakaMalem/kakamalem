@@ -9550,6 +9550,7 @@ export const marketplaceProfiles = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" })
       .unique(),
+    profileImage: text("profile_image"), // Square marketplace avatar (separate from store logo)
     coverImage: text("cover_image"), // Cover image path
     about: text("about"), // Store story (max 2000 chars)
     tags: jsonb("tags").$type<string[]>().default([]),

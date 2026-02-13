@@ -89,7 +89,6 @@ export function PhoneCollectionForm({ userName }: PhoneCollectionFormProps) {
             setPhone(value || "");
             if (fieldError) setFieldError(null);
           }}
-          defaultCountry="AF"
           disabled={isPending}
           aria-invalid={!!fieldError}
         />

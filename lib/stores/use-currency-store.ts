@@ -3,6 +3,7 @@
  *
  * Client-side state for currency preferences and conversion.
  * Persists user's preferred currency in localStorage.
+ * Supports any store base currency (AFN, USD, etc.) with cross-rate conversion.
  */
 
 import { create } from "zustand";
@@ -16,10 +17,18 @@ import {
 type ExchangeRates = Record<string, number>;
 
 interface CurrencyState {
-  // Current display currency
+  // Customer's display currency
   currency: SupportedCurrency;
 
-  // Cached exchange rates
+  // Whether currency was auto-detected or manually chosen
+  // "auto" = system default (detect from browser locale)
+  // specific code = manual preference
+  currencySource: "auto" | SupportedCurrency;
+
+  // Store's base/pricing currency (set by CurrencyInitializer)
+  storeCurrency: string;
+
+  // Cached exchange rates (AFN-based: 1 AFN = X target)
   rates: ExchangeRates;
   ratesUpdatedAt: Date | null;
 
@@ -29,12 +38,14 @@ interface CurrencyState {
 
   // Actions
   setCurrency: (currency: SupportedCurrency) => void;
+  setCurrencyPreference: (preference: "auto" | SupportedCurrency) => void;
+  setStoreCurrency: (currency: string) => void;
   setRates: (rates: ExchangeRates) => void;
   fetchRates: () => Promise<void>;
 
   // Conversion helpers
-  convert: (amountAFN: number) => number;
-  format: (amountAFN: number, showOriginal?: boolean) => string;
+  convert: (amount: number) => number;
+  format: (amount: number, showOriginal?: boolean) => string;
   formatDirect: (amount: number, currency?: string) => string;
 }
 
@@ -42,6 +53,8 @@ export const useCurrencyStore = create<CurrencyState>()(
   persist(
     (set, get) => ({
       currency: "AFN",
+      currencySource: "auto",
+      storeCurrency: "AFN",
       rates: {},
       ratesUpdatedAt: null,
       isLoading: false,
@@ -51,6 +64,19 @@ export const useCurrencyStore = create<CurrencyState>()(
         if (supportedCurrencies.includes(currency)) {
           set({ currency });
         }
+      },
+
+      setCurrencyPreference: (preference) => {
+        if (preference === "auto") {
+          set({ currencySource: "auto" });
+          // Re-detect will happen on next CurrencyInitializer mount
+        } else if (supportedCurrencies.includes(preference)) {
+          set({ currencySource: preference, currency: preference });
+        }
+      },
+
+      setStoreCurrency: (currency) => {
+        set({ storeCurrency: currency });
       },
 
       setRates: (rates) => {
@@ -91,24 +117,32 @@ export const useCurrencyStore = create<CurrencyState>()(
         }
       },
 
-      convert: (amountAFN) => {
-        const { currency, rates } = get();
+      convert: (amount) => {
+        const { currency, storeCurrency, rates } = get();
 
-        if (currency === "AFN") {
-          return amountAFN;
+        // No conversion needed if same currency
+        if (currency === storeCurrency) {
+          return amount;
         }
 
-        const rate = rates[currency];
-        if (!rate) {
-          return amountAFN; // Fallback to original amount
+        // Cross-rate conversion via AFN-based rates:
+        // rates[X] = how much X you get for 1 AFN
+        // To convert from storeCurrency to customer currency:
+        //   amount_in_AFN = amount / rates[storeCurrency]  (or amount if storeCurrency is AFN)
+        //   amount_in_target = amount_in_AFN * rates[currency]  (or amount_in_AFN if currency is AFN)
+        const storeRate = storeCurrency === "AFN" ? 1 : rates[storeCurrency];
+        const targetRate = currency === "AFN" ? 1 : rates[currency];
+
+        if (!storeRate || !targetRate) {
+          return amount; // Fallback to original amount
         }
 
-        return amountAFN * rate;
+        return amount * (targetRate / storeRate);
       },
 
-      format: (amountAFN, showOriginal = false) => {
-        const { currency, convert } = get();
-        const converted = convert(amountAFN);
+      format: (amount, showOriginal = false) => {
+        const { currency, storeCurrency, convert } = get();
+        const converted = convert(amount);
 
         const info = currencyInfo[currency];
         const decimals = info?.decimals ?? 2;
@@ -121,15 +155,17 @@ export const useCurrencyStore = create<CurrencyState>()(
           maximumFractionDigits: decimals,
         }).format(converted);
 
-        // Optionally show original AFN amount
-        if (showOriginal && currency !== "AFN") {
-          const afnFormatted = new Intl.NumberFormat("en-US", {
+        // Optionally show original amount in store currency
+        if (showOriginal && currency !== storeCurrency) {
+          const storeInfo = currencyInfo[storeCurrency as SupportedCurrency];
+          const storeDecimals = storeInfo?.decimals ?? 2;
+          const originalFormatted = new Intl.NumberFormat("en-US", {
             style: "currency",
-            currency: "AFN",
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-          }).format(amountAFN);
-          return `${formatted} (${afnFormatted})`;
+            currency: storeCurrency,
+            minimumFractionDigits: storeDecimals,
+            maximumFractionDigits: storeDecimals,
+          }).format(amount);
+          return `${formatted} (${originalFormatted})`;
         }
 
         return formatted;
@@ -152,29 +188,10 @@ export const useCurrencyStore = create<CurrencyState>()(
       name: "currency-preference",
       partialize: (state) => ({
         currency: state.currency,
+        currencySource: state.currencySource,
         rates: state.rates,
         ratesUpdatedAt: state.ratesUpdatedAt,
       }),
     }
   )
 );
-
-/**
- * Hook to initialize currency from server-detected location.
- * Call this in the storefront layout.
- */
-export function useInitializeCurrency(detectedCurrency?: string) {
-  const { setCurrency, fetchRates, currency } = useCurrencyStore();
-
-  // Initialize currency on first load if detected
-  if (
-    detectedCurrency &&
-    supportedCurrencies.includes(detectedCurrency as SupportedCurrency) &&
-    currency === "AFN" // Only set if user hasn't chosen a currency yet
-  ) {
-    setCurrency(detectedCurrency as SupportedCurrency);
-  }
-
-  // Fetch rates on mount
-  fetchRates();
-}

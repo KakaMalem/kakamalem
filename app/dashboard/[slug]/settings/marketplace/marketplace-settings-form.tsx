@@ -57,6 +57,7 @@ interface MarketplaceSettingsFormProps {
   storeSlug: string;
   marketplaceEnabled: boolean;
   profile: {
+    profileImage: string | null;
     coverImage: string | null;
     tags: string[];
     featuredProductIds: string[];
@@ -92,6 +93,13 @@ export function MarketplaceSettingsForm({
 
   // Toggle
   const [enabled, setEnabled] = useState(initialEnabled);
+
+  // Profile image
+  const [profileImg, setProfileImg] = useState<ImageState | null>(() =>
+    profile.profileImage ? { url: profile.profileImage, isStaged: false } : null
+  );
+  const [profileUploadProgress, setProfileUploadProgress] =
+    useState<UploadProgress>({ isUploading: false, progress: 0 });
 
   // Cover image
   const [cover, setCover] = useState<ImageState | null>(() =>
@@ -194,8 +202,40 @@ export function MarketplaceSettingsForm({
   useEffect(() => {
     return () => {
       if (cover?.isStaged && cover.url) URL.revokeObjectURL(cover.url);
+      if (profileImg?.isStaged && profileImg.url)
+        URL.revokeObjectURL(profileImg.url);
     };
-  }, [cover]);
+  }, [cover, profileImg]);
+
+  function handleProfileImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error(UPLOAD_ERROR_MESSAGES.invalidType);
+      return;
+    }
+
+    if (file.size > MAX_SIZES.avatars) {
+      toast.error(
+        UPLOAD_ERROR_MESSAGES.fileTooLarge(formatFileSize(MAX_SIZES.avatars))
+      );
+      return;
+    }
+
+    if (profileImg?.isStaged && profileImg.url)
+      URL.revokeObjectURL(profileImg.url);
+
+    const previewUrl = URL.createObjectURL(file);
+    setProfileImg({ url: previewUrl, file, isStaged: true });
+    e.target.value = "";
+  }
+
+  function removeProfileImage() {
+    if (profileImg?.isStaged && profileImg.url)
+      URL.revokeObjectURL(profileImg.url);
+    setProfileImg(null);
+  }
 
   function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -206,9 +246,9 @@ export function MarketplaceSettingsForm({
       return;
     }
 
-    if (file.size > MAX_SIZES.logos) {
+    if (file.size > MAX_SIZES.media) {
       toast.error(
-        UPLOAD_ERROR_MESSAGES.fileTooLarge(formatFileSize(MAX_SIZES.logos))
+        UPLOAD_ERROR_MESSAGES.fileTooLarge(formatFileSize(MAX_SIZES.media))
       );
       return;
     }
@@ -258,10 +298,33 @@ export function MarketplaceSettingsForm({
     });
   }
 
-  const isUploading = coverUploadProgress.isUploading;
+  const isUploading =
+    coverUploadProgress.isUploading || profileUploadProgress.isUploading;
 
   async function handleSave() {
     try {
+      // Upload profile image if staged
+      let profileImageUrl =
+        profileImg && !profileImg.isStaged ? profileImg.url : null;
+
+      if (profileImg?.isStaged && profileImg.file) {
+        setProfileUploadProgress({ isUploading: true, progress: 0 });
+        const url = await uploadFileWithProgress(
+          profileImg.file,
+          "avatars",
+          (progress) => {
+            setProfileUploadProgress({ isUploading: true, progress });
+          }
+        );
+        setProfileUploadProgress({ isUploading: false, progress: 0 });
+
+        if (!url) return;
+        profileImageUrl = url;
+
+        if (profileImg.url) URL.revokeObjectURL(profileImg.url);
+        setProfileImg({ url: profileImageUrl, isStaged: false });
+      }
+
       // Upload cover image if staged
       let coverUrl = cover && !cover.isStaged ? cover.url : null;
 
@@ -286,6 +349,7 @@ export function MarketplaceSettingsForm({
       startTransition(async () => {
         const result = await updateMarketplaceProfile(storeId, storeSlug, {
           marketplaceEnabled: enabled,
+          profileImage: profileImageUrl,
           coverImage: coverUrl,
           tags,
           featuredProductIds: featuredIds,
@@ -301,6 +365,7 @@ export function MarketplaceSettingsForm({
         }
       });
     } catch {
+      setProfileUploadProgress({ isUploading: false, progress: 0 });
       setCoverUploadProgress({ isUploading: false, progress: 0 });
       toast.error("Something went wrong. Please try again.");
     }
@@ -373,6 +438,111 @@ export function MarketplaceSettingsForm({
         </CardContent>
       </Card>
 
+      {/* Profile Image */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="size-5" />
+            Profile Image
+          </CardTitle>
+          <CardDescription>
+            A square photo shown on your marketplace card and profile. If not
+            set, your store logo is used.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-6">
+            {profileImg ? (
+              <div className="relative">
+                <div className="relative size-28 overflow-hidden rounded-xl border bg-muted/30">
+                  <Image
+                    src={profileImg.url}
+                    alt="Profile image"
+                    fill
+                    className="object-cover"
+                    unoptimized={profileImg.isStaged}
+                  />
+                  {profileImg.isStaged && (
+                    <span className="absolute left-1 top-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground">
+                      New
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={removeProfileImage}
+                  className="absolute -right-2 -top-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm"
+                  disabled={isPending || isUploading}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex size-28 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed bg-muted/50 transition-colors hover:border-muted-foreground/50">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileImageUpload}
+                  className="sr-only"
+                  disabled={isPending || isUploading}
+                />
+                <div className="text-center">
+                  <Upload className="mx-auto mb-1 size-6 text-muted-foreground" />
+                  <p className="text-[10px] text-muted-foreground">512x512px</p>
+                </div>
+              </label>
+            )}
+            <div className="flex flex-col gap-2 pt-2">
+              <p className="text-sm text-muted-foreground">
+                Recommended: 512x512px, square format.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                PNG, JPG up to {formatFileSize(MAX_SIZES.avatars)}
+              </p>
+              {profileImg && (
+                <label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProfileImageUpload}
+                    className="sr-only"
+                    disabled={isPending || isUploading}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    disabled={isPending || isUploading}
+                  >
+                    <span className="cursor-pointer">
+                      <Upload className="mr-2 size-3.5" />
+                      Change
+                    </span>
+                  </Button>
+                </label>
+              )}
+            </div>
+          </div>
+          {profileUploadProgress.isUploading && (
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Uploading profile image...
+                </span>
+                <span className="text-muted-foreground">
+                  {profileUploadProgress.progress}%
+                </span>
+              </div>
+              <Progress
+                value={profileUploadProgress.progress}
+                className="h-2"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Cover Image */}
       <Card>
         <CardHeader>
@@ -382,7 +552,7 @@ export function MarketplaceSettingsForm({
           </CardTitle>
           <CardDescription>
             A banner image displayed at the top of your marketplace profile.
-            Recommended: 1200x400px.
+            Recommended: 1920x640px or larger.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -449,7 +619,7 @@ export function MarketplaceSettingsForm({
                   Click to upload a cover image
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  PNG, JPG up to {formatFileSize(MAX_SIZES.logos)}
+                  PNG, JPG up to {formatFileSize(MAX_SIZES.media)}
                 </p>
               </div>
             </label>

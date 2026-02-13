@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import {
   useCheckoutStore,
   useAppliedCoupon,
@@ -50,6 +50,12 @@ export function SectionPayment({
   onEditShipping,
 }: SectionPaymentProps) {
   const router = useRouter();
+  const {
+    format: formatPrice,
+    currency: customerCurrency,
+    storeCurrency,
+    rates,
+  } = useCurrencyStore();
 
   const {
     customerInfo,
@@ -124,6 +130,22 @@ export function SectionPayment({
         return;
       }
 
+      // Build multi-currency fields if customer is viewing in a different currency
+      const currencyFields: {
+        customerCurrency?: string;
+        exchangeRateUsed?: number;
+        exchangeRateLockedAt?: string;
+      } = {};
+      if (customerCurrency !== storeCurrency) {
+        const storeRate =
+          storeCurrency === "AFN" ? 1 : rates[storeCurrency] || 1;
+        const targetRate =
+          customerCurrency === "AFN" ? 1 : rates[customerCurrency] || 1;
+        currencyFields.customerCurrency = customerCurrency;
+        currencyFields.exchangeRateUsed = targetRate / storeRate;
+        currencyFields.exchangeRateLockedAt = new Date().toISOString();
+      }
+
       // Create order
       const result = await createOrderAction(tenantId, storeSlug, {
         customerInfo: user ? null : customerInfo,
@@ -133,6 +155,7 @@ export function SectionPayment({
         customerNotes: customerNotes || null,
         paymentMethod: selectedPaymentMethod.gateway,
         appliedCouponCode: appliedCoupon?.code || null,
+        ...currencyFields,
       });
 
       if (!result.success) {
@@ -356,7 +379,7 @@ export function SectionPayment({
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatPrice(subtotal, currency)}</span>
+                <span>{formatPrice(subtotal)}</span>
               </div>
               {totalBulkSavings > 0 && (
                 <div className="flex items-center justify-between text-green-600">
@@ -364,7 +387,7 @@ export function SectionPayment({
                     <Tag className="size-3.5" />
                     Bulk discounts
                   </span>
-                  <span>-{formatPrice(totalBulkSavings, currency)}</span>
+                  <span>-{formatPrice(totalBulkSavings)}</span>
                 </div>
               )}
               {appliedCoupon && discountTotal > 0 && (
@@ -373,7 +396,7 @@ export function SectionPayment({
                     <Tag className="size-3.5" />
                     {appliedCoupon.code}
                   </span>
-                  <span>-{formatPrice(discountTotal, currency)}</span>
+                  <span>-{formatPrice(discountTotal)}</span>
                 </div>
               )}
               {appliedCoupon?.type === "free_shipping" && (
@@ -391,14 +414,14 @@ export function SectionPayment({
                   {shippingTotal === 0 ? (
                     <span className="text-green-600">Free</span>
                   ) : (
-                    formatPrice(shippingTotal, currency)
+                    formatPrice(shippingTotal)
                   )}
                 </span>
               </div>
               <Separator className="my-2" />
               <div className="flex justify-between text-base font-semibold">
                 <span>Total</span>
-                <span>{formatPrice(total, currency)}</span>
+                <span>{formatPrice(total)}</span>
               </div>
             </div>
           </div>
@@ -426,12 +449,12 @@ export function SectionPayment({
               selectedPaymentMethod?.gateway === "crypto_usdt" ? (
               <>
                 <Lock className="mr-2 size-4" />
-                Pay {formatPrice(total, currency)}
+                Pay {formatPrice(total)}
               </>
             ) : (
               <>
                 <Lock className="mr-2 size-4" />
-                Place Order &bull; {formatPrice(total, currency)}
+                Place Order &bull; {formatPrice(total)}
               </>
             )}
           </Button>

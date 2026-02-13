@@ -38,6 +38,7 @@ export function MarketplaceStoreCard({
               src={store.coverImage}
               alt={store.name}
               fill
+              quality={90}
               className="object-cover transition-transform duration-500 group-hover:scale-105"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
@@ -73,12 +74,12 @@ export function MarketplaceStoreCard({
           </div>
         </div>
 
-        {/* Logo overlay - outside overflow-hidden container */}
+        {/* Profile image overlay - outside overflow-hidden container */}
         <div className="absolute -bottom-5 left-3 z-10">
           <div className="flex size-10 items-center justify-center overflow-hidden rounded-lg border-2 border-background bg-background shadow-sm">
-            {store.logoUrl ? (
+            {store.profileImage ? (
               <Image
-                src={store.logoUrl}
+                src={store.profileImage}
                 alt={store.name}
                 width={40}
                 height={40}

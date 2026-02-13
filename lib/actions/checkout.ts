@@ -1228,6 +1228,18 @@ export async function createOrderAction(
             total: total.toFixed(2),
             amountDue: total.toFixed(2),
             currencyCode: storeCurrency,
+            // Multi-currency: record customer's display currency and locked exchange rate
+            customerCurrency: input.customerCurrency || null,
+            customerAmount:
+              input.customerCurrency &&
+              input.exchangeRateUsed &&
+              input.customerCurrency !== storeCurrency
+                ? (total * input.exchangeRateUsed).toFixed(2)
+                : null,
+            exchangeRateUsed: input.exchangeRateUsed
+              ? input.exchangeRateUsed.toString()
+              : null,
+            exchangeRateLockedAt: input.exchangeRateLockedAt || null,
             status: "pending",
             paymentStatus: paymentGateway === "cod" ? "unpaid" : "unpaid", // Both start unpaid
             paymentMethod,

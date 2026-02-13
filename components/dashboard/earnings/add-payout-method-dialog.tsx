@@ -207,7 +207,7 @@ export function AddPayoutMethodDialog({
                 <Label htmlFor="bankName">Bank Name *</Label>
                 <Input
                   id="bankName"
-                  placeholder="e.g., Afghanistan International Bank"
+                  placeholder="e.g., Chase, HSBC, Deutsche Bank"
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
                 />
@@ -252,7 +252,7 @@ export function AddPayoutMethodDialog({
                 <Label htmlFor="mobileNumber">Mobile Number *</Label>
                 <Input
                   id="mobileNumber"
-                  placeholder="e.g., +93 70 123 4567"
+                  placeholder="Your mobile number"
                   value={mobileNumber}
                   onChange={(e) => setMobileNumber(e.target.value)}
                 />

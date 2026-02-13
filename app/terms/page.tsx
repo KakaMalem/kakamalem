@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 export const metadata = {
   title: "Terms of Service | Kaka Malem",
-  description: "Terms of Service for Kaka Malem - Afghan e-commerce platform",
+  description: "Terms of Service for Kaka Malem - e-commerce platform",
 };
 
 export default function TermsPage() {

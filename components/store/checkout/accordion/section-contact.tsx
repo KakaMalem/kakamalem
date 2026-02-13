@@ -90,7 +90,6 @@ export function SectionContact({
             id="contact-phone"
             value={phone}
             onChange={(value) => handlePhoneChange(value || "")}
-            defaultCountry="AF"
             aria-invalid={!!error}
           />
           <p className="text-sm text-muted-foreground mt-1">

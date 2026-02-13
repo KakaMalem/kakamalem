@@ -94,6 +94,7 @@ export async function unfollowStore(tenantId: string) {
 
 export type MarketplaceSettingsInput = {
   marketplaceEnabled: boolean;
+  profileImage?: string | null;
   coverImage?: string | null;
   tags?: string[];
   featuredProductIds?: string[];
@@ -136,6 +137,7 @@ export async function updateMarketplaceProfile(
       .limit(1);
 
     const profileData = {
+      profileImage: settings.profileImage ?? null,
       coverImage: settings.coverImage ?? null,
       tags: settings.tags ?? [],
       featuredProductIds: settings.featuredProductIds ?? [],

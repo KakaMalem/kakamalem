@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useAppliedCoupon } from "@/lib/stores/use-checkout-store";
 import { validateCouponAction } from "@/lib/actions/coupons";
 import type { CartItemForCoupon } from "@/lib/validations/coupons";
@@ -24,8 +24,9 @@ export function PromoCodeInput({
   subtotal,
   cartItems,
   customerId,
-  currency,
+  currency: _currency,
 }: PromoCodeInputProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [code, setCode] = useState("");
   const [isPending, startTransition] = useTransition();
   const { appliedCoupon, discountTotal, applyCoupon, removeCoupon } =
@@ -99,7 +100,7 @@ export function PromoCodeInput({
                   ? "Free shipping"
                   : appliedCoupon.type === "percentage"
                     ? `${appliedCoupon.name}`
-                    : `${formatPrice(discountTotal, currency)} off`}
+                    : `${formatPrice(discountTotal)} off`}
               </p>
             </div>
           </div>

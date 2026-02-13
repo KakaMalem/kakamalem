@@ -451,7 +451,6 @@ export function SectionDelivery({
                   id="delivery-phone"
                   value={addressForm.phone}
                   onChange={(value) => handleChange("phone", value || "")}
-                  defaultCountry="AF"
                   aria-invalid={!!errors.phone}
                 />
                 <FieldDescription>For delivery coordination</FieldDescription>

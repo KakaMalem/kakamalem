@@ -8,7 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useCheckoutTotals } from "@/lib/stores/use-checkout-store";
 import { CheckoutSummary } from "./checkout-summary";
 import type { Cart } from "@/lib/db/queries/carts";
@@ -24,6 +24,7 @@ export function MobileOrderSummary({
   currency,
   tenantId,
 }: MobileOrderSummaryProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [isOpen, setIsOpen] = useState(false);
   const { total } = useCheckoutTotals();
   const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
@@ -49,7 +50,7 @@ export function MobileOrderSummary({
               )}
             />
           </div>
-          <span className="font-semibold">{formatPrice(total, currency)}</span>
+          <span className="font-semibold">{formatPrice(total)}</span>
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>

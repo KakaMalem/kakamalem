@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 export const metadata = {
   title: "Privacy Policy | Kaka Malem",
-  description: "Privacy Policy for Kaka Malem - Afghan e-commerce platform",
+  description: "Privacy Policy for Kaka Malem - e-commerce platform",
 };
 
 export default function PrivacyPage() {

@@ -225,7 +225,6 @@ export function SocialLinksForm({
             <PhoneInput
               value={formData.whatsapp}
               onChange={(value) => updateField("whatsapp", value || "")}
-              defaultCountry="AF"
               disabled={isPending}
               aria-invalid={!!fieldErrors.whatsapp}
             />

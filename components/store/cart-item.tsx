@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useCart, getApplicableTierPrice } from "@/lib/hooks/use-cart";
 import {
   applyCampaignDiscount,
@@ -24,7 +24,8 @@ interface CartItemProps {
   campaignDiscount?: CampaignDiscount | null;
 }
 
-export function CartItem({ item, currency, campaignDiscount }: CartItemProps) {
+export function CartItem({ item, currency: _currency, campaignDiscount }: CartItemProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");
   // Local quantity is the single source of truth during user interaction
@@ -278,16 +279,16 @@ export function CartItem({ item, currency, campaignDiscount }: CartItemProps) {
               {hasTierDiscount || hasCampaignDiscount ? (
                 <>
                   <span className="text-sm font-medium text-green-600">
-                    {formatPrice(effectivePrice, currency)}
+                    {formatPrice(effectivePrice)}
                   </span>
                   <span className="text-sm text-muted-foreground line-through">
-                    {formatPrice(originalBasePrice, currency)}
+                    {formatPrice(originalBasePrice)}
                   </span>
                   <span className="text-xs text-green-600">each</span>
                 </>
               ) : (
                 <span className="text-sm text-muted-foreground">
-                  {formatPrice(effectivePrice, currency)} each
+                  {formatPrice(effectivePrice)} each
                 </span>
               )}
             </div>
@@ -382,11 +383,11 @@ export function CartItem({ item, currency, campaignDiscount }: CartItemProps) {
           {/* Subtotal */}
           <div className="text-right">
             <p className="font-semibold">
-              {formatPrice(effectivePrice * localQuantity, currency)}
+              {formatPrice(effectivePrice * localQuantity)}
             </p>
             {hasTierDiscount && totalSavings > 0 && (
               <p className="text-xs text-green-600">
-                Save {formatPrice(totalSavings, currency)}
+                Save {formatPrice(totalSavings)}
               </p>
             )}
           </div>

@@ -7,9 +7,12 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/server";
 import { canManageStore } from "@/lib/auth/context";
 import { isStripeEnabled } from "@/lib/stripe";
+import { db } from "@/lib/db";
+import { tenants } from "@/lib/db/schema";
 import {
   createProSubscriptionCheckout,
   createCustomerPortalSession,
@@ -45,9 +48,19 @@ export async function createProCheckout(
     return { success: false, error: "Stripe is not configured" };
   }
 
+  const [tenant] = await db
+    .select({ slug: tenants.slug })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  if (!tenant) {
+    return { success: false, error: "Store not found" };
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-  const successUrl = `${baseUrl}/dashboard/${tenantId}/billing?success=true`;
-  const cancelUrl = `${baseUrl}/dashboard/${tenantId}/billing?cancelled=true`;
+  const successUrl = `${baseUrl}/dashboard/${tenant.slug}/billing?success=true`;
+  const cancelUrl = `${baseUrl}/dashboard/${tenant.slug}/billing?cancelled=true`;
 
   const result = await createProSubscriptionCheckout(
     tenantId,
@@ -84,8 +97,18 @@ export async function openCustomerPortal(
     return { success: false, error: "Stripe is not configured" };
   }
 
+  const [tenant] = await db
+    .select({ slug: tenants.slug })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  if (!tenant) {
+    return { success: false, error: "Store not found" };
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-  const returnUrl = `${baseUrl}/dashboard/${tenantId}/billing`;
+  const returnUrl = `${baseUrl}/dashboard/${tenant.slug}/billing`;
 
   const result = await createCustomerPortalSession(tenantId, returnUrl);
 
@@ -119,7 +142,7 @@ export async function cancelProSubscription(
   const result = await cancelSubscription(tenantId);
 
   if (result.success) {
-    revalidatePath(`/dashboard/${tenantId}/billing`);
+    revalidatePath("/dashboard/[slug]/billing", "page");
   }
 
   return result;
@@ -148,7 +171,7 @@ export async function resumeProSubscription(
   const result = await resumeSubscription(tenantId);
 
   if (result.success) {
-    revalidatePath(`/dashboard/${tenantId}/billing`);
+    revalidatePath("/dashboard/[slug]/billing", "page");
   }
 
   return result;

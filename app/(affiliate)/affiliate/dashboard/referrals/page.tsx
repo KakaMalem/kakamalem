@@ -50,7 +50,7 @@ export default async function AffiliateReferralsPage() {
   const user = await getUser();
 
   if (!user) {
-    redirect("/login?returnTo=/affiliate/dashboard/referrals");
+    redirect("/login?redirect=/affiliate/dashboard/referrals");
   }
 
   const affiliate = await getPlatformAffiliateByUserId(user.id);

@@ -54,7 +54,7 @@ export default async function AffiliatePayoutsPage() {
   const user = await getUser();
 
   if (!user) {
-    redirect("/login?returnTo=/affiliate/dashboard/payouts");
+    redirect("/login?redirect=/affiliate/dashboard/payouts");
   }
 
   const affiliate = await getPlatformAffiliateByUserId(user.id);

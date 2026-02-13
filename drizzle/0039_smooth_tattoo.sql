@@ -1,0 +1,1 @@
+ALTER TABLE "marketplace_profiles" ADD COLUMN "profile_image" text;

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 
 interface PaymentRetryButtonProps {
   orderId: string;
@@ -17,8 +17,9 @@ interface PaymentRetryButtonProps {
 export function PaymentRetryButton({
   orderId,
   amount,
-  currency,
+  currency: _currency,
 }: PaymentRetryButtonProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRetryPayment = async () => {
@@ -60,7 +61,7 @@ export function PaymentRetryButton({
       ) : (
         <>
           <CreditCard className="mr-2 size-4" />
-          Pay {formatPrice(amount, currency)}
+          Pay {formatPrice(amount)}
         </>
       )}
     </Button>

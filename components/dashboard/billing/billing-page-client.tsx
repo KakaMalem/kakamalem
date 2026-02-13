@@ -238,6 +238,7 @@ export function BillingPageClient({
         invoices={invoices}
         total={invoicesTotal}
         currency={currency}
+        hasStripeSubscription={subscription.hasStripeSubscription}
         onViewInvoice={handleViewInvoice}
       />
 

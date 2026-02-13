@@ -101,7 +101,7 @@ export function CreateStoreForm({
     headerDisplay: "logo_only" | "name_only" | "logo_and_name";
     contactEmail: string;
     contactPhone: string;
-    currency: "AFN" | "USD";
+    currency: string;
     // Location
     storeLocationLat: number | null;
     storeLocationLng: number | null;
@@ -118,7 +118,7 @@ export function CreateStoreForm({
     headerDisplay: "name_only",
     contactEmail: userEmail,
     contactPhone: userPhone,
-    currency: "AFN",
+    currency: "USD",
     // Location defaults
     storeLocationLat: null,
     storeLocationLng: null,
@@ -202,7 +202,7 @@ export function CreateStoreForm({
     }
   };
 
-  const updateCurrency = (value: "AFN" | "USD") => {
+  const updateCurrency = (value: string) => {
     setFormData((prev) => ({ ...prev, currency: value }));
   };
 
@@ -373,8 +373,14 @@ export function CreateStoreForm({
         }
       }
 
-      // Use the createStoreWithLogo action
-      const result = await createStoreWithLogo(formData, logo?.file || null);
+      // Package data + logo file into FormData for reliable file transport
+      const fd = new FormData();
+      fd.append("values", JSON.stringify(formData));
+      if (logo?.file) {
+        fd.append("logo", logo.file);
+      }
+
+      const result = await createStoreWithLogo(fd);
 
       if (result.error) {
         // Check for connection/network errors

@@ -36,8 +36,20 @@ export const headerDisplayOptions = [
   "logo_and_name",
 ] as const;
 
-// Currency options
-export const currencyOptions = ["AFN", "USD"] as const;
+// Currency options (all supported currencies for store pricing)
+export const currencyOptions = [
+  "USD",
+  "EUR",
+  "GBP",
+  "AED",
+  "SAR",
+  "AFN",
+  "PKR",
+  "INR",
+  "TRY",
+  "CAD",
+  "AUD",
+] as const;
 
 // Create store validation schema (for wizard)
 export const createStoreSchema = z.object({
@@ -82,7 +94,7 @@ export const createStoreSchema = z.object({
     .optional()
     .or(z.literal("")),
   contactPhone: optionalPhoneSchema,
-  currency: z.enum(currencyOptions).default("AFN"),
+  currency: z.enum(currencyOptions).default("USD"),
 
   // Step 4: Location (optional)
   storeLocationLat: z.number().min(-90).max(90).optional().nullable(),
@@ -118,7 +130,7 @@ export const generalSettingsSchema = z.object({
     .optional()
     .or(z.literal("")),
   contactPhone: optionalPhoneSchema,
-  currency: z.enum(currencyOptions).default("AFN"),
+  currency: z.enum(currencyOptions).default("USD"),
 });
 
 export type GeneralSettingsInput = z.infer<typeof generalSettingsSchema>;

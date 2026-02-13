@@ -337,7 +337,7 @@ export function StoreHeader({
               )}
             </Link>
 
-            {/* Right: Cart, Notifications & Profile */}
+            {/* Right: Cart & Profile */}
             <div className="flex items-center gap-0.5">
               {/* Cart Button - Hidden in catalog mode */}
               {!isCartDisabled && (

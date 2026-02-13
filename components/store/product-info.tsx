@@ -20,7 +20,8 @@ import { Input } from "@/components/ui/input";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { VariantSelector } from "@/components/store/variant-selector";
 import { BulkPricingTiers } from "@/components/store/bulk-pricing-tiers";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import {
   getDisplayPricesWithCampaign,
   type CampaignDiscount,
@@ -83,6 +84,8 @@ export function ProductInfo({
   initialOptions: initialOptionsProp,
   campaignDiscount,
 }: ProductInfoProps) {
+  const { format: formatPrice } = useCurrencyStore();
+
   // Track selected options by option name (e.g., {Color: "Blue", Size: "M"})
   const [selectedOptions, setSelectedOptions] = useState<
     Record<string, string>
@@ -450,15 +453,14 @@ export function ProductInfo({
         {/* Current Price */}
         <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
           <span className="text-2xl sm:text-3xl font-bold">
-            {formatPrice(effectivePrice, currency)}
+            {formatPrice(effectivePrice)}
           </span>
           {(hasDiscount || applicableTier) && (
             <span className="text-base sm:text-lg text-muted-foreground line-through">
               {formatPrice(
                 applicableTier
                   ? displayPrice
-                  : (displayCompareAtPrice ?? displayPrice),
-                currency
+                  : (displayCompareAtPrice ?? displayPrice)
               )}
             </span>
           )}
@@ -491,17 +493,17 @@ export function ProductInfo({
           <div className="p-3 bg-muted/30 rounded-xl">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
-                {quantity} × {formatPrice(effectivePrice, currency)}
+                {quantity} × {formatPrice(effectivePrice)}
               </span>
               <span className="text-base sm:text-lg font-bold">
-                {formatPrice(totalPrice, currency)}
+                {formatPrice(totalPrice)}
               </span>
             </div>
             {totalSavings > 0 && (
               <div className="flex items-center justify-between mt-1.5 text-green-600">
                 <span className="text-xs sm:text-sm">You save</span>
                 <span className="text-xs sm:text-sm font-semibold">
-                  {formatPrice(totalSavings, currency)}
+                  {formatPrice(totalSavings)}
                 </span>
               </div>
             )}

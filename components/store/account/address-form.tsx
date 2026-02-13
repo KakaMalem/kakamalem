@@ -195,7 +195,6 @@ export function AddressForm({
           value={formData.phone}
           onChange={(value) => handleChange("phone", value || "")}
           disabled={isPending}
-          defaultCountry="AF"
         />
         <FieldDescription>Required for delivery coordination</FieldDescription>
         <FieldError>{fieldErrors.phone}</FieldError>

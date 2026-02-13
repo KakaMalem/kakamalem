@@ -52,7 +52,7 @@ export default async function AffiliateEarningsPage() {
   const user = await getUser();
 
   if (!user) {
-    redirect("/login?returnTo=/affiliate/dashboard/earnings");
+    redirect("/login?redirect=/affiliate/dashboard/earnings");
   }
 
   const affiliate = await getPlatformAffiliateByUserId(user.id);

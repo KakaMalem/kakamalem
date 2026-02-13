@@ -26,7 +26,7 @@ export default async function MarketplaceLayout({
                 Kaka Malem
               </Link>
               <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-                Discover stores and products from merchants across Afghanistan.
+                Discover stores and products from merchants around the world.
               </p>
             </div>
             <div>

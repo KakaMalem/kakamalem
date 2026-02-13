@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import {
   useCheckoutStore,
   type ShippingMethod,
@@ -449,7 +449,7 @@ export function SectionShipping({
 function FulfillmentOption({
   method,
   isSelected,
-  currency,
+  currency: _currency,
   formatDeliveryEstimate,
 }: {
   method: ShippingMethodOption;
@@ -457,6 +457,7 @@ function FulfillmentOption({
   currency: string;
   formatDeliveryEstimate: (min: number | null, max: number | null) => string;
 }) {
+  const { format: formatPrice } = useCurrencyStore();
   const deliveryEstimate = formatDeliveryEstimate(
     method.minDeliveryDays,
     method.maxDeliveryDays
@@ -492,7 +493,7 @@ function FulfillmentOption({
               {method.price === 0 ? (
                 <span className="text-green-600">Free</span>
               ) : (
-                formatPrice(method.price, currency)
+                formatPrice(method.price)
               )}
             </span>
           </div>
@@ -515,11 +516,12 @@ function FulfillmentOption({
 // Summary component for collapsed state
 export function ShippingSummary({
   selectedMethod,
-  currency,
+  currency: _currency,
 }: {
   selectedMethod: ShippingMethod | null;
   currency: string;
 }) {
+  const { format: formatPrice } = useCurrencyStore();
   if (!selectedMethod) return null;
 
   const formatDeliveryEstimate = (
@@ -547,7 +549,7 @@ export function ShippingSummary({
       {selectedMethod.price === 0 ? (
         <span className="text-green-600">Free</span>
       ) : (
-        formatPrice(selectedMethod.price, currency)
+        formatPrice(selectedMethod.price)
       )}
       {estimate && ` (${estimate})`}
     </span>

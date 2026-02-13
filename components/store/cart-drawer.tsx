@@ -27,7 +27,8 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
-import { formatPrice, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useCart, useCartDrawer } from "@/lib/hooks/use-cart";
 import {
   useCartCampaignDiscounts,
@@ -120,6 +121,7 @@ function useDrawerHistory(isOpen: boolean, onClose: () => void) {
 }
 
 export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const { isOpen, close } = useCartDrawer();
   const { items, itemCount } = useCart();
   const isMobile = useIsMobile();
@@ -270,11 +272,11 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
                   <span>
                     {totalSavings > 0 ? (
                       <span className="line-through text-muted-foreground">
-                        {formatPrice(originalSubtotal, currency)}
+                        {formatPrice(originalSubtotal)}
                       </span>
                     ) : (
                       <span className="font-medium">
-                        {formatPrice(originalSubtotal, currency)}
+                        {formatPrice(originalSubtotal)}
                       </span>
                     )}
                   </span>
@@ -286,7 +288,7 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
                       <Sparkles className="h-3.5 w-3.5" />
                       Sale discounts
                     </span>
-                    <span>-{formatPrice(campaignSavings, currency)}</span>
+                    <span>-{formatPrice(campaignSavings)}</span>
                   </div>
                 )}
 
@@ -296,14 +298,14 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
                       <Tag className="h-3.5 w-3.5" />
                       Bulk discounts
                     </span>
-                    <span>-{formatPrice(tierSavings, currency)}</span>
+                    <span>-{formatPrice(tierSavings)}</span>
                   </div>
                 )}
 
                 {totalSavings > 0 && (
                   <div className="flex items-center justify-between text-sm font-semibold">
                     <span>Total</span>
-                    <span>{formatPrice(finalSubtotal, currency)}</span>
+                    <span>{formatPrice(finalSubtotal)}</span>
                   </div>
                 )}
 
@@ -353,9 +355,10 @@ interface CartDrawerItemProps {
 function CartDrawerItem({
   item,
   storeSlug,
-  currency,
+  currency: _currency,
   campaignDiscount,
 }: CartDrawerItemProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");
   // Local quantity is the single source of truth during user interaction
@@ -593,10 +596,10 @@ function CartDrawerItem({
           {hasDiscount ? (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <span className="text-green-600 font-medium">
-                {formatPrice(effectivePrice, currency)}
+                {formatPrice(effectivePrice)}
               </span>
               <span className="line-through text-xs">
-                {formatPrice(originalPrice, currency)}
+                {formatPrice(originalPrice)}
               </span>
               {campaignDiscount && (
                 <span className="inline-flex items-center gap-0.5 text-xs text-red-600">
@@ -606,7 +609,7 @@ function CartDrawerItem({
               )}
             </div>
           ) : (
-            <span>{formatPrice(originalPrice, currency)} each</span>
+            <span>{formatPrice(originalPrice)} each</span>
           )}
         </div>
 
@@ -652,7 +655,7 @@ function CartDrawerItem({
 
           {/* Line Total */}
           <span className="text-sm font-semibold">
-            {formatPrice(lineTotal, currency)}
+            {formatPrice(lineTotal)}
           </span>
         </div>
       </div>

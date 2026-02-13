@@ -24,7 +24,7 @@ export default async function AffiliateDashboardLayout({
   const user = await getUser();
 
   if (!user) {
-    redirect("/login?returnTo=/affiliate/dashboard");
+    redirect("/login?redirect=/affiliate/dashboard");
   }
 
   // Get affiliate account

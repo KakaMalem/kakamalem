@@ -297,21 +297,46 @@ export function BillingStatusCard({
                   : "Next Billing"}
               </span>
             </div>
-            <p className="mt-1 text-2xl font-bold">
-              {subscription.status === "trialing" &&
-              subscription.daysRemainingInTrial !== null
-                ? `${subscription.daysRemainingInTrial}d`
-                : subscription.daysRemainingInPeriod !== null
-                  ? `${subscription.daysRemainingInPeriod}d`
-                  : "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {subscription.status === "trialing"
-                ? "days left in trial"
-                : subscription.status === "active" && isPro
-                  ? "until renewal"
-                  : "—"}
-            </p>
+            {subscription.status === "trialing" &&
+            subscription.daysRemainingInTrial !== null ? (
+              <>
+                <p className="mt-1 text-2xl font-bold">
+                  {subscription.daysRemainingInTrial}d
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {subscription.trialEndsAt
+                    ? new Date(subscription.trialEndsAt).toLocaleDateString(
+                        undefined,
+                        { month: "short", day: "numeric", year: "numeric" }
+                      )
+                    : "days left in trial"}
+                </p>
+              </>
+            ) : subscription.subscriptionEndsAt ? (
+              <>
+                <p className="mt-1 text-2xl font-bold">
+                  {new Date(subscription.subscriptionEndsAt).toLocaleDateString(
+                    undefined,
+                    { month: "short", day: "numeric" }
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(subscription.subscriptionEndsAt).toLocaleDateString(
+                    undefined,
+                    {
+                      year: "numeric",
+                    }
+                  )}
+                  {subscription.daysRemainingInPeriod !== null &&
+                    ` (${subscription.daysRemainingInPeriod}d)`}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 text-2xl font-bold">—</p>
+                <p className="text-xs text-muted-foreground">—</p>
+              </>
+            )}
           </div>
         </div>
 

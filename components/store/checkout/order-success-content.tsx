@@ -18,8 +18,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { formatPrice } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import type { Address, PaymentMethod, PaymentStatus } from "@/lib/db/schema";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { cartActions } from "@/lib/stores/use-cart-store";
@@ -115,11 +115,12 @@ interface OrderSuccessContentProps {
 
 export function OrderSuccessContent({
   storeSlug,
-  currency,
+  currency: _currency,
   order,
   user,
   paymentStatus,
 }: OrderSuccessContentProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [showConfetti, setShowConfetti] = useState(true);
   const { resetCheckout } = useCheckoutStore();
   const confettiParticles = useMemo(() => generateConfettiParticles(), []);
@@ -374,7 +375,7 @@ export function OrderSuccessContent({
                 {/* Total */}
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total</span>
-                  <span>{formatPrice(parseFloat(order.total), currency)}</span>
+                  <span>{formatPrice(parseFloat(order.total))}</span>
                 </div>
               </CardContent>
             </Card>

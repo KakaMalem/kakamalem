@@ -33,8 +33,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle, Check } from "lucide-react";
 import {
   generalSettingsSchema,
+  currencyOptions,
   type GeneralSettingsInput,
 } from "@/lib/validations/stores";
+import {
+  currencyInfo,
+  type SupportedCurrency,
+} from "@/lib/currency/country-currency";
 import { updateGeneralSettings } from "@/lib/actions/stores";
 import { ZodError } from "zod";
 
@@ -46,7 +51,7 @@ interface GeneralSettingsFormProps {
     description: string;
     contactEmail: string;
     contactPhone: string;
-    currency: "AFN" | "USD";
+    currency: string;
     slug: string;
   };
 }
@@ -271,7 +276,6 @@ export function GeneralSettingsForm({
               id="contactPhone"
               value={formData.contactPhone}
               onChange={(value) => updateField("contactPhone", value || "")}
-              defaultCountry="AF"
               disabled={isPending}
               aria-invalid={!!fieldErrors.contactPhone}
             />
@@ -298,8 +302,14 @@ export function GeneralSettingsForm({
                 <SelectValue placeholder="Select currency" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="AFN">AFN - Afghan Afghani</SelectItem>
-                <SelectItem value="USD">USD - US Dollar</SelectItem>
+                {currencyOptions.map((code) => {
+                  const info = currencyInfo[code as SupportedCurrency];
+                  return (
+                    <SelectItem key={code} value={code}>
+                      {info ? `${info.symbol} ${code} - ${info.name}` : code}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </Field>

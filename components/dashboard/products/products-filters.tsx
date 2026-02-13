@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search, Plus, Upload, Download } from "lucide-react";
+import { Search, Plus, Upload, Download, Globe } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -149,12 +149,28 @@ export function ProductsFilters({
             Import
           </Button>
         )}
-        <Button asChild>
-          <Link href={`/dashboard/${storeSlug}/products/new`}>
-            <Plus className="size-4" />
-            Add Product
-          </Link>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button>
+              <Plus className="size-4" />
+              Add Product
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/${storeSlug}/products/new`}>
+                <Plus className="size-4" />
+                Create New Product
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/${storeSlug}/products/import`}>
+                <Globe className="size-4" />
+                Import from Amazon
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

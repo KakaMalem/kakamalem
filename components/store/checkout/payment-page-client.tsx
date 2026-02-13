@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { PaymentMethodSelector } from "./payment-method-selector";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
 import type { EnabledGateway } from "@/lib/payments/types";
@@ -42,6 +42,7 @@ export function PaymentPageClient({
   wasCancelled,
   enabledGateways,
 }: PaymentPageClientProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
     null
@@ -163,9 +164,7 @@ export function PaymentPageClient({
           </div>
           <div className="flex justify-between border-t pt-4">
             <span className="font-semibold">Amount Due</span>
-            <span className="font-semibold">
-              {formatPrice(amount, currency)}
-            </span>
+            <span className="font-semibold">{formatPrice(amount)}</span>
           </div>
         </CardContent>
       </Card>
@@ -203,7 +202,7 @@ export function PaymentPageClient({
           ) : (
             <>
               <Lock className="mr-2 size-4" />
-              Pay {formatPrice(amount, currency)}
+              Pay {formatPrice(amount)}
             </>
           )}
         </Button>

@@ -19,8 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { formatPrice } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
@@ -52,6 +52,12 @@ export function StepReview({
   enabledPaymentMethods,
 }: StepReviewProps) {
   const router = useRouter();
+  const {
+    format: formatPrice,
+    currency: customerCurrency,
+    storeCurrency,
+    rates,
+  } = useCurrencyStore();
 
   const {
     customerInfo,
@@ -130,6 +136,22 @@ export function StepReview({
         return;
       }
 
+      // Build multi-currency fields if customer is viewing in a different currency
+      const currencyFields: {
+        customerCurrency?: string;
+        exchangeRateUsed?: number;
+        exchangeRateLockedAt?: string;
+      } = {};
+      if (customerCurrency !== storeCurrency) {
+        const storeRate =
+          storeCurrency === "AFN" ? 1 : rates[storeCurrency] || 1;
+        const targetRate =
+          customerCurrency === "AFN" ? 1 : rates[customerCurrency] || 1;
+        currencyFields.customerCurrency = customerCurrency;
+        currencyFields.exchangeRateUsed = targetRate / storeRate;
+        currencyFields.exchangeRateLockedAt = new Date().toISOString();
+      }
+
       // Create order with selected payment method
       const result = await createOrderAction(tenantId, storeSlug, {
         customerInfo: user ? null : customerInfo,
@@ -138,6 +160,7 @@ export function StepReview({
         shippingMethodId: selectedMethod.id,
         customerNotes: customerNotes || null,
         paymentMethod: selectedPaymentMethod.gateway,
+        ...currencyFields,
       });
 
       if (!result.success) {
@@ -369,20 +392,20 @@ export function StepReview({
                   {/* Price */}
                   <div className="shrink-0 text-right">
                     <p className="font-medium">
-                      {formatPrice(effectivePrice * item.quantity, currency)}
+                      {formatPrice(effectivePrice * item.quantity)}
                     </p>
                     {hasTierDiscount ? (
                       <>
                         <p className="text-sm text-green-600">
-                          {formatPrice(effectivePrice, currency)} each
+                          {formatPrice(effectivePrice)} each
                         </p>
                         <p className="text-xs text-muted-foreground line-through">
-                          {formatPrice(basePrice, currency)}
+                          {formatPrice(basePrice)}
                         </p>
                       </>
                     ) : (
                       <p className="text-sm text-muted-foreground">
-                        {formatPrice(basePrice, currency)} each
+                        {formatPrice(basePrice)} each
                       </p>
                     )}
                   </div>
@@ -493,7 +516,7 @@ export function StepReview({
                 {selectedMethod.price === 0 ? (
                   <span className="text-green-600">Free</span>
                 ) : (
-                  formatPrice(selectedMethod.price, currency)
+                  formatPrice(selectedMethod.price)
                 )}
               </div>
             </div>
@@ -548,7 +571,7 @@ export function StepReview({
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatPrice(subtotal, currency)}</span>
+              <span>{formatPrice(subtotal)}</span>
             </div>
             {totalBulkSavings > 0 && (
               <div className="flex items-center justify-between text-green-600">
@@ -556,7 +579,7 @@ export function StepReview({
                   <Tag className="size-3.5" />
                   Bulk discounts
                 </span>
-                <span>-{formatPrice(totalBulkSavings, currency)}</span>
+                <span>-{formatPrice(totalBulkSavings)}</span>
               </div>
             )}
             <div className="flex justify-between">
@@ -565,14 +588,14 @@ export function StepReview({
                 {shippingTotal === 0 ? (
                   <span className="text-green-600">Free</span>
                 ) : (
-                  formatPrice(shippingTotal, currency)
+                  formatPrice(shippingTotal)
                 )}
               </span>
             </div>
             <Separator className="my-2" />
             <div className="flex justify-between text-base font-semibold">
               <span>Total</span>
-              <span>{formatPrice(total, currency)}</span>
+              <span>{formatPrice(total)}</span>
             </div>
           </div>
         </CardContent>
@@ -599,9 +622,9 @@ export function StepReview({
                 : "Placing Order..."}
             </>
           ) : selectedPaymentMethod?.gateway === "hesabpay" ? (
-            <>Pay {formatPrice(total, currency)}</>
+            <>Pay {formatPrice(total)}</>
           ) : (
-            <>Place Order - {formatPrice(total, currency)}</>
+            <>Place Order - {formatPrice(total)}</>
           )}
         </Button>
       </div>

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { removeWishlistItemAction } from "@/lib/actions/wishlists";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { toast } from "sonner";
 
 interface WishlistItemCardProps {
@@ -41,8 +41,9 @@ interface WishlistItemCardProps {
 export function WishlistItemCard({
   item,
   storeSlug,
-  currency,
+  currency: _currency,
 }: WishlistItemCardProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [isRemoving, setIsRemoving] = useState(false);
 
   const isOutOfStock = item.product.trackInventory && item.product.stock <= 0;
@@ -111,7 +112,7 @@ export function WishlistItemCard({
             <div className="mt-1 flex items-center gap-2">
               <span className="font-semibold">
                 {item.product.hasVariants ? "From " : ""}
-                {formatPrice(parseFloat(item.product.price), currency)}
+                {formatPrice(parseFloat(item.product.price))}
               </span>
             </div>
 

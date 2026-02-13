@@ -246,6 +246,7 @@ export async function getStoresWithTrialEndingSoon(days: number = 3) {
 export async function getStoresWithExpiredTrials() {
   return db.query.tenants.findMany({
     where: and(
+      eq(tenants.status, "active"),
       eq(tenants.subscriptionStatus, "trialing"),
       sql`${tenants.trialEndsAt} IS NOT NULL`,
       sql`${tenants.trialEndsAt} < NOW()`

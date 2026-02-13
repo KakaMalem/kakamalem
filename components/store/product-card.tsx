@@ -13,13 +13,14 @@ import {
   ImageOff,
 } from "lucide-react";
 
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   getDisplayPricesWithCampaign,
   type CampaignDiscount,
 } from "@/lib/utils/pricing-display";
 import { useWishlist } from "@/lib/hooks/use-wishlist";
 import { buildVariantUrl } from "@/lib/utils/variant-url";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 
 interface ProductCardProps {
   product: {
@@ -62,7 +63,7 @@ export function ProductCard({
   product,
   tenantId,
   storeSlug,
-  currency,
+  currency: _currency,
   className,
   onAddToCart,
   isAddingToCart = false,
@@ -71,6 +72,7 @@ export function ProductCard({
   variantOptions,
   campaignDiscount = null,
 }: ProductCardProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
@@ -248,11 +250,11 @@ export function ProductCard({
             <span className="text-[10px] text-muted-foreground">From</span>
           )}
           <span className="text-sm font-bold tracking-tight">
-            {formatPrice(price, currency)}
+            {formatPrice(price)}
           </span>
           {hasDiscount && compareAtPrice && (
             <span className="text-[10px] text-muted-foreground line-through">
-              {formatPrice(compareAtPrice, currency)}
+              {formatPrice(compareAtPrice)}
             </span>
           )}
         </div>

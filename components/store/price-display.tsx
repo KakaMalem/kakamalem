@@ -5,15 +5,16 @@
  *
  * Displays a price converted to the customer's preferred currency.
  * Uses Zustand store for currency preference and cached exchange rates.
+ * Prices are passed in the store's base currency and auto-converted.
  */
 
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { cn } from "@/lib/utils";
 
 interface PriceDisplayProps {
-  /** Price in AFN (store's base currency) */
-  priceAFN: number;
-  /** Show original AFN price in parentheses */
+  /** Price in the store's base currency */
+  price: number;
+  /** Show original store-currency price in parentheses */
   showOriginal?: boolean;
   /** Additional class names */
   className?: string;
@@ -24,15 +25,15 @@ interface PriceDisplayProps {
 }
 
 export function PriceDisplay({
-  priceAFN,
+  price,
   showOriginal = false,
   className,
   size = "md",
   strikethrough = false,
 }: PriceDisplayProps) {
-  const { currency: _currency, format } = useCurrencyStore();
+  const { format } = useCurrencyStore();
 
-  const formattedPrice = format(priceAFN, showOriginal);
+  const formattedPrice = format(price, showOriginal);
 
   const sizeClasses = {
     sm: "text-sm",
@@ -57,25 +58,23 @@ export function PriceDisplay({
  * Price range display (min - max)
  */
 interface PriceRangeProps {
-  minPriceAFN: number;
-  maxPriceAFN: number;
+  minPrice: number;
+  maxPrice: number;
   className?: string;
   size?: "sm" | "md" | "lg";
 }
 
 export function PriceRange({
-  minPriceAFN,
-  maxPriceAFN,
+  minPrice,
+  maxPrice,
   className,
   size = "md",
 }: PriceRangeProps) {
   const { format } = useCurrencyStore();
 
   // If min and max are the same, just show one price
-  if (minPriceAFN === maxPriceAFN) {
-    return (
-      <PriceDisplay priceAFN={minPriceAFN} className={className} size={size} />
-    );
+  if (minPrice === maxPrice) {
+    return <PriceDisplay price={minPrice} className={className} size={size} />;
   }
 
   const sizeClasses = {
@@ -86,7 +85,7 @@ export function PriceRange({
 
   return (
     <span className={cn(sizeClasses[size], className)}>
-      {format(minPriceAFN)} - {format(maxPriceAFN)}
+      {format(minPrice)} - {format(maxPrice)}
     </span>
   );
 }
@@ -95,15 +94,15 @@ export function PriceRange({
  * Sale price display with original and discounted price
  */
 interface SalePriceProps {
-  originalPriceAFN: number;
-  salePriceAFN: number;
+  originalPrice: number;
+  salePrice: number;
   className?: string;
   size?: "sm" | "md" | "lg";
 }
 
 export function SalePrice({
-  originalPriceAFN,
-  salePriceAFN,
+  originalPrice,
+  salePrice,
   className,
   size = "md",
 }: SalePriceProps) {
@@ -116,13 +115,13 @@ export function SalePrice({
   };
 
   const discount = Math.round(
-    ((originalPriceAFN - salePriceAFN) / originalPriceAFN) * 100
+    ((originalPrice - salePrice) / originalPrice) * 100
   );
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <span className={cn(sizeClasses[size], "font-semibold text-red-600")}>
-        {format(salePriceAFN)}
+        {format(salePrice)}
       </span>
       <span
         className={cn(
@@ -130,7 +129,7 @@ export function SalePrice({
           "line-through text-muted-foreground text-sm"
         )}
       >
-        {format(originalPriceAFN)}
+        {format(originalPrice)}
       </span>
       {discount > 0 && (
         <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
@@ -146,24 +145,21 @@ export function SalePrice({
  * Used when showing converted prices to indicate the amount is approximate
  */
 interface ApproximatePriceProps {
-  priceAFN: number;
+  price: number;
   className?: string;
 }
 
-export function ApproximatePrice({
-  priceAFN,
-  className,
-}: ApproximatePriceProps) {
-  const { currency, format } = useCurrencyStore();
+export function ApproximatePrice({ price, className }: ApproximatePriceProps) {
+  const { currency, storeCurrency, format } = useCurrencyStore();
 
-  // Don't show approximate indicator for AFN
-  if (currency === "AFN") {
-    return <span className={className}>{format(priceAFN)}</span>;
+  // Don't show approximate indicator when displaying in store currency
+  if (currency === storeCurrency) {
+    return <span className={className}>{format(price)}</span>;
   }
 
   return (
     <span className={cn("text-muted-foreground", className)}>
-      ≈ {format(priceAFN)}
+      ≈ {format(price)}
     </span>
   );
 }

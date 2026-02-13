@@ -125,6 +125,11 @@ export const checkoutSubmitSchema = z.object({
 
   // Applied promo code (optional)
   appliedCouponCode: z.string().max(50).optional().nullable(),
+
+  // Multi-currency (populated when customer uses a non-store currency)
+  customerCurrency: z.string().length(3).optional().nullable(),
+  exchangeRateUsed: z.number().positive().optional().nullable(),
+  exchangeRateLockedAt: z.string().optional().nullable(),
 });
 
 export type CheckoutSubmitInput = z.infer<typeof checkoutSubmitSchema>;

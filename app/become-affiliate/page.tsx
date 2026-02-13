@@ -17,7 +17,7 @@ export default async function BecomeAffiliatePage() {
 
   // If not logged in, redirect to login with return URL
   if (!user) {
-    redirect("/login?returnTo=/become-affiliate");
+    redirect("/login?redirect=/become-affiliate");
   }
 
   // Check if user already has an affiliate account

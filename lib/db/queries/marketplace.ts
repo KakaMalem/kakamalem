@@ -45,6 +45,17 @@ export type MarketplaceCategoryItem = Awaited<
 // HELPERS
 // =============================================================================
 
+/**
+ * SQL subquery: resolves city from the primary store_location, falling back to
+ * the legacy tenants.store_location_city column.
+ */
+const resolvedCityExpr = sql<string | null>`COALESCE(
+  (SELECT sl.city FROM store_locations sl
+   WHERE sl.tenant_id = ${tenants.id} AND sl.is_primary = true
+   LIMIT 1),
+  ${tenants.storeLocationCity}
+)`;
+
 /** Filter tenants.socialLinks to only URL/phone values (exclude booleans, config keys) */
 function filterSocialLinksToUrls(
   links: Record<string, unknown>
@@ -105,7 +116,7 @@ export async function getMarketplaceStores(
 
   if (city) {
     conditions.push(
-      sql`LOWER(TRIM(${tenants.storeLocationCity})) = LOWER(TRIM(${city}))`
+      sql`LOWER(TRIM(${resolvedCityExpr})) = LOWER(TRIM(${city}))`
     );
   }
 
@@ -146,12 +157,13 @@ export async function getMarketplaceStores(
       description: tenants.description,
       logoUrl: tenants.logoUrl,
       currency: tenants.currency,
-      storeLocationCity: tenants.storeLocationCity,
+      storeLocationCity: resolvedCityExpr.as("resolved_city"),
       subscriptionPlan: tenants.subscriptionPlan,
       subscriptionStatus: tenants.subscriptionStatus,
       analytics: tenants.analytics,
       createdAt: tenants.createdAt,
       // Marketplace profile
+      mpProfileImage: marketplaceProfiles.profileImage,
       coverImage: marketplaceProfiles.coverImage,
       tags: marketplaceProfiles.tags,
       featuredProductIds: marketplaceProfiles.featuredProductIds,
@@ -267,6 +279,7 @@ export async function getMarketplaceStores(
       tagline: store.tagline,
       description: store.description,
       logoUrl: store.logoUrl,
+      profileImage: store.mpProfileImage ?? store.logoUrl,
       currency: store.currency,
       storeLocationCity: store.storeLocationCity,
       createdAt: store.createdAt,
@@ -319,7 +332,7 @@ export async function getMarketplaceStoreProfile(slug: string) {
       description: tenants.description,
       logoUrl: tenants.logoUrl,
       currency: tenants.currency,
-      storeLocationCity: tenants.storeLocationCity,
+      storeLocationCity: resolvedCityExpr.as("resolved_city"),
       subscriptionPlan: tenants.subscriptionPlan,
       subscriptionStatus: tenants.subscriptionStatus,
       analytics: tenants.analytics,
@@ -328,6 +341,7 @@ export async function getMarketplaceStoreProfile(slug: string) {
       createdAt: tenants.createdAt,
       storeSocialLinks: tenants.socialLinks,
       // Marketplace profile
+      mpProfileImage: marketplaceProfiles.profileImage,
       coverImage: marketplaceProfiles.coverImage,
       tags: marketplaceProfiles.tags,
       featuredProductIds: marketplaceProfiles.featuredProductIds,
@@ -486,6 +500,7 @@ export async function getMarketplaceStoreProfile(slug: string) {
     tagline: s.tagline,
     description: s.description,
     logoUrl: s.logoUrl,
+    profileImage: s.mpProfileImage ?? s.logoUrl,
     currency: s.currency,
     storeLocationCity: s.storeLocationCity,
     createdAt: s.createdAt,
@@ -606,7 +621,7 @@ export async function getSimilarStores(tenantId: string, limit = 4) {
       name: tenants.name,
       tagline: tenants.tagline,
       logoUrl: tenants.logoUrl,
-      storeLocationCity: tenants.storeLocationCity,
+      storeLocationCity: resolvedCityExpr.as("resolved_city"),
       coverImage: marketplaceProfiles.coverImage,
       isVerified: marketplaceProfiles.isVerified,
     })
@@ -665,6 +680,7 @@ export async function getMarketplaceSettingsData(tenantId: string) {
   const [profileResult, storeCategoryResult] = await Promise.all([
     db
       .select({
+        profileImage: marketplaceProfiles.profileImage,
         coverImage: marketplaceProfiles.coverImage,
         tags: marketplaceProfiles.tags,
         featuredProductIds: marketplaceProfiles.featuredProductIds,
@@ -681,6 +697,7 @@ export async function getMarketplaceSettingsData(tenantId: string) {
 
   const profile = profileResult[0] ?? null;
   return {
+    profileImage: profile?.profileImage ?? null,
     coverImage: profile?.coverImage ?? null,
     tags: (profile?.tags ?? []) as string[],
     featuredProductIds: (profile?.featuredProductIds ?? []) as string[],
@@ -729,20 +746,22 @@ export async function getProductsForFeaturedPicker(tenantId: string) {
  * Get distinct cities that have marketplace-enabled stores
  */
 export async function getMarketplaceCities(): Promise<string[]> {
+  const cityExpr = sql<string>`TRIM(${resolvedCityExpr})`;
+
   const result = await db
     .select({
-      city: sql<string>`TRIM(${tenants.storeLocationCity})`.as("city"),
+      city: cityExpr.as("city"),
     })
     .from(tenants)
     .where(
       and(
         eq(tenants.marketplaceEnabled, true),
         eq(tenants.status, "active"),
-        sql`${tenants.storeLocationCity} IS NOT NULL AND TRIM(${tenants.storeLocationCity}) != ''`
+        sql`${resolvedCityExpr} IS NOT NULL AND TRIM(${resolvedCityExpr}) != ''`
       )
     )
-    .groupBy(sql`TRIM(${tenants.storeLocationCity})`)
-    .orderBy(sql`TRIM(${tenants.storeLocationCity})`);
+    .groupBy(cityExpr)
+    .orderBy(cityExpr);
 
   return result.map((r) => r.city);
 }

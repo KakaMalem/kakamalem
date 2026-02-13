@@ -6,24 +6,24 @@ import { Search, ShoppingCart, User, Star, Heart } from "lucide-react";
 const mockProducts = [
   {
     name: "Premium Saffron",
-    price: "2,500",
-    oldPrice: "3,000",
+    price: "29.99",
+    oldPrice: "34.99",
     discount: 17,
     rating: 4.8,
     reviews: 24,
     image: "bg-gradient-to-br from-amber-200 to-amber-400",
   },
   {
-    name: "Afghan Carpet",
-    price: "15,000",
+    name: "Handmade Carpet",
+    price: "189.00",
     rating: 5.0,
     reviews: 12,
     image: "bg-gradient-to-br from-red-300 to-red-500",
   },
   {
-    name: "Dried Fruits Mix",
-    price: "800",
-    oldPrice: "1,000",
+    name: "Organic Tea Set",
+    price: "12.99",
+    oldPrice: "15.99",
     discount: 20,
     rating: 4.5,
     reviews: 45,
@@ -32,7 +32,7 @@ const mockProducts = [
   },
   {
     name: "Handmade Jewelry",
-    price: "3,200",
+    price: "45.00",
     rating: 4.9,
     reviews: 8,
     image: "bg-gradient-to-br from-blue-200 to-blue-400",
@@ -165,7 +165,7 @@ export function HeroMockup() {
                     <div className="flex items-baseline gap-1">
                       <span className="text-sm font-bold">{product.price}</span>
                       <span className="text-[10px] text-muted-foreground">
-                        AFN
+                        USD
                       </span>
                       {product.oldPrice && (
                         <span className="text-[10px] text-muted-foreground line-through">

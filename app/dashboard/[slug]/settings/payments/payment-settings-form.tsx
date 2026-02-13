@@ -41,7 +41,7 @@ const PAYMENT_GATEWAYS: Array<{
     gateway: "hesabpay",
     displayName: "Pay with Card (HesabPay)",
     description:
-      "Accept card payments via HesabPay. Best for customers in Afghanistan.",
+      "Accept card payments via HesabPay. Supports local card payments.",
     icon: CreditCard,
     recommended: true,
     badge: "Local",
@@ -396,7 +396,7 @@ export function PaymentSettingsForm({
               <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
               <span>
                 <strong>HesabPay:</strong> Customers pay securely online with
-                local payment methods. Best for customers in Afghanistan.
+                local card payment methods.
               </span>
             </li>
             {stripeEnabled && (

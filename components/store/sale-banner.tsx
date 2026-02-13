@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 
 interface Campaign {
   id: string;
@@ -19,7 +20,8 @@ interface SaleBannerProps {
   currency?: string;
 }
 
-export function SaleBanner({ campaign, storeSlug, currency }: SaleBannerProps) {
+export function SaleBanner({ campaign, storeSlug, currency: _currency }: SaleBannerProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const [isDismissed, setIsDismissed] = useState(false);
   const pathname = usePathname();
 
@@ -34,7 +36,7 @@ export function SaleBanner({ campaign, storeSlug, currency }: SaleBannerProps) {
   const discountText =
     campaign.discountType === "percentage"
       ? `${Math.round(discountValue)}% OFF`
-      : `${currency || "AFN"} ${discountValue.toLocaleString()} OFF`;
+      : `${formatPrice(discountValue)} OFF`;
 
   return (
     <div className="bg-black text-white">

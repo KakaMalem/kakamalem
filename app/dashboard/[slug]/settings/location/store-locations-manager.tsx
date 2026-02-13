@@ -452,7 +452,7 @@ export function StoreLocationsManager({
                 <Input
                   id="location-phone"
                   type="tel"
-                  placeholder="+93 70 123 4567"
+                  placeholder="+1 234 567 8900"
                   value={formData.phone}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, phone: e.target.value }))

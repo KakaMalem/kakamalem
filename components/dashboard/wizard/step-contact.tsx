@@ -16,15 +16,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { CreateStoreInput } from "@/lib/validations/stores";
+import {
+  currencyOptions,
+  type CreateStoreInput,
+} from "@/lib/validations/stores";
+import {
+  currencyInfo,
+  type SupportedCurrency,
+} from "@/lib/currency/country-currency";
 
 interface StepContactProps {
   contactEmail: string;
   contactPhone: string;
-  currency: "AFN" | "USD";
+  currency: string;
   onContactEmailChange: (value: string) => void;
   onContactPhoneChange: (value: string) => void;
-  onCurrencyChange: (value: "AFN" | "USD") => void;
+  onCurrencyChange: (value: string) => void;
   fieldErrors: Partial<Record<keyof CreateStoreInput, string>>;
   disabled?: boolean;
 }
@@ -69,7 +76,6 @@ export function StepContact({
           id="contactPhone"
           value={contactPhone}
           onChange={(value) => onContactPhoneChange(value || "")}
-          defaultCountry="AF"
           disabled={disabled}
           aria-invalid={!!fieldErrors.contactPhone}
         />
@@ -80,15 +86,21 @@ export function StepContact({
         <FieldLabel htmlFor="currency">Store currency</FieldLabel>
         <Select
           value={currency}
-          onValueChange={(value) => onCurrencyChange(value as "AFN" | "USD")}
+          onValueChange={onCurrencyChange}
           disabled={disabled}
         >
           <SelectTrigger id="currency">
             <SelectValue placeholder="Select currency" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="AFN">AFN - Afghan Afghani</SelectItem>
-            <SelectItem value="USD">USD - US Dollar</SelectItem>
+            {currencyOptions.map((code) => {
+              const info = currencyInfo[code as SupportedCurrency];
+              return (
+                <SelectItem key={code} value={code}>
+                  {info ? `${info.symbol} ${code} - ${info.name}` : code}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
         <FieldDescription>

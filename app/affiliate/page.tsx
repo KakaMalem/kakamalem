@@ -492,8 +492,7 @@ export default async function AffiliateProgramPage() {
                 Kaka Malem
               </Link>
               <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-                The easiest way to create and manage your online store in
-                Afghanistan.
+                The easiest way to create and manage your online store.
               </p>
             </div>
 

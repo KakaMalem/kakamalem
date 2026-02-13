@@ -6,7 +6,7 @@ import { ArrowRight, ShieldCheck, Tag, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import {
   useCartItemCount,
   useCartItems,
@@ -27,11 +27,12 @@ interface CartSummaryProps {
 
 export function CartSummary({
   storeSlug,
-  currency,
+  currency: _currency,
   checkoutEnabled = true,
   contactPhone,
   tenantId,
 }: CartSummaryProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const itemCount = useCartItemCount();
   const items = useCartItems();
 
@@ -102,10 +103,10 @@ export function CartSummary({
           <span>
             {totalSavings > 0 ? (
               <span className="line-through text-muted-foreground">
-                {formatPrice(originalSubtotal, currency)}
+                {formatPrice(originalSubtotal)}
               </span>
             ) : (
-              formatPrice(originalSubtotal, currency)
+              formatPrice(originalSubtotal)
             )}
           </span>
         </div>
@@ -116,7 +117,7 @@ export function CartSummary({
               <Sparkles className="h-3.5 w-3.5" />
               Sale discounts
             </span>
-            <span>-{formatPrice(campaignSavings, currency)}</span>
+            <span>-{formatPrice(campaignSavings)}</span>
           </div>
         )}
 
@@ -126,7 +127,7 @@ export function CartSummary({
               <Tag className="h-3.5 w-3.5" />
               Bulk discounts
             </span>
-            <span>-{formatPrice(tierSavings, currency)}</span>
+            <span>-{formatPrice(tierSavings)}</span>
           </div>
         )}
 
@@ -144,7 +145,7 @@ export function CartSummary({
 
         <div className="flex justify-between text-base font-semibold">
           <span>Total</span>
-          <span>{formatPrice(total, currency)}</span>
+          <span>{formatPrice(total)}</span>
         </div>
       </div>
 

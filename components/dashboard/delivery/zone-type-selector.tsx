@@ -43,7 +43,7 @@ const ZONE_TYPE_OPTIONS: ZoneTypeOption[] = [
     icon: <Globe className="h-6 w-6" />,
     title: "Countries",
     description: "Select one or more countries for shipping",
-    examples: "Afghanistan, Iran, UAE",
+    examples: "United States, United Kingdom, Germany",
     specificity: 100,
   },
   {

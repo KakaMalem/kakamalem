@@ -14,11 +14,10 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "Marketplace - Discover Stores | Kaka Malem",
   description:
-    "Browse and discover stores from merchants across Afghanistan on the Kaka Malem marketplace.",
+    "Browse and discover stores from merchants around the world on the Kaka Malem marketplace.",
   openGraph: {
     title: "Marketplace - Discover Stores | Kaka Malem",
-    description:
-      "Browse and discover stores from merchants across Afghanistan.",
+    description: "Browse and discover stores from merchants around the world.",
     type: "website",
   },
 };

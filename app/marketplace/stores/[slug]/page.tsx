@@ -84,6 +84,7 @@ export default async function StoreProfilePage({
             alt={`${store.name} cover`}
             fill
             priority
+            quality={90}
             className="object-cover"
             sizes="100vw"
           />
@@ -100,9 +101,9 @@ export default async function StoreProfilePage({
           <div className="flex flex-col gap-4 py-6 sm:flex-row sm:items-end sm:gap-6">
             {/* Logo */}
             <div className="relative z-10 -mt-16 flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border-4 border-background bg-background shadow-md sm:-mt-20 sm:size-28">
-              {store.logoUrl ? (
+              {store.profileImage ? (
                 <Image
-                  src={store.logoUrl}
+                  src={store.profileImage}
                   alt={store.name}
                   width={112}
                   height={112}

@@ -215,7 +215,8 @@ export async function createStore(
         | "logo_and_name") || "name_only",
     contactEmail: (formData.get("contactEmail") as string) || undefined,
     contactPhone: (formData.get("contactPhone") as string) || undefined,
-    currency: (formData.get("currency") as "AFN" | "USD") || "AFN",
+    currency: ((formData.get("currency") as string) ||
+      "USD") as CreateStoreInput["currency"],
   };
 
   // Server-side validation
@@ -277,11 +278,12 @@ export async function createStore(
 }
 
 /**
- * Create a new store with optional logo upload
+ * Create a new store with optional logo upload.
+ * Accepts FormData to ensure reliable file transport across the server action boundary.
+ * (Passing File objects as direct server action args can silently lose content.)
  */
 export async function createStoreWithLogo(
-  formValues: CreateStoreInput,
-  logoFile: File | null
+  fd: FormData
 ): Promise<StoreActionResult> {
   const user = await getUser();
 
@@ -296,6 +298,10 @@ export async function createStoreWithLogo(
       error: { message: limitCheck.reason || "Cannot create more stores" },
     };
   }
+
+  // Extract form values and logo file from FormData
+  const formValues = JSON.parse(fd.get("values") as string) as CreateStoreInput;
+  const logoFile = fd.get("logo") as File | null;
 
   // Server-side validation
   try {
@@ -355,7 +361,7 @@ export async function createStoreWithLogo(
 
     // Upload logo if provided
     let logoUrl: string | null = null;
-    if (logoFile) {
+    if (logoFile && logoFile.size > 0) {
       logoUrl = await uploadBrandingImage(newStore.id, logoFile, "logo");
       if (logoUrl) {
         // Update store with logo URL
@@ -425,7 +431,7 @@ export async function updateGeneralSettings(
     description: (formData.get("description") as string) || "",
     contactEmail: (formData.get("contactEmail") as string) || "",
     contactPhone: (formData.get("contactPhone") as string) || "",
-    currency: (formData.get("currency") as "AFN" | "USD") || "AFN",
+    currency: (formData.get("currency") as string) || "USD",
   };
 
   try {

@@ -332,7 +332,7 @@ export function UpgradePageClient({
                 <div className="flex-1">
                   <h3 className="font-semibold">HesabPay</h3>
                   <p className="text-xs text-muted-foreground">
-                    Local payment (Afghanistan)
+                    Local card payment
                   </p>
                 </div>
               </div>
@@ -468,9 +468,6 @@ export function UpgradePageClient({
                     USDT / {billingInterval === "yearly" ? "year" : "month"}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  ≈ {formatPrice(getCurrentAfnPrice())} AFN
-                </p>
               </div>
 
               <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">

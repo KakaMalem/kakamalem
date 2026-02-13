@@ -27,7 +27,7 @@ const faqs = [
   {
     question: "What payment methods can my customers use?",
     answer:
-      "Your customers can pay using cash on delivery, bank transfer, or mobile money services popular in Afghanistan. We're continuously adding more payment options to serve the local market better.",
+      "Your customers can pay using cash on delivery, bank transfer, mobile money, card payments, and cryptocurrency (USDT). We support multiple payment gateways to serve customers globally.",
   },
   {
     question: "Is my store data secure?",
@@ -37,7 +37,7 @@ const faqs = [
   {
     question: "What happens when my trial ends?",
     answer:
-      "When your 7-day trial ends, you can upgrade to our Pro plan for 1,100 AFN/month to continue selling. If you don't upgrade, your store will become inactive but your data will be preserved for 30 days.",
+      "When your 7-day trial ends, you can upgrade to our Pro plan to continue selling. If you don't upgrade, your store will become inactive but your data will be preserved for 30 days.",
   },
 ];
 

@@ -384,7 +384,6 @@ export function StepContactShipping({
                 id="guest-phone"
                 value={guestPhone}
                 onChange={(value) => handleGuestPhoneChange(value || "")}
-                defaultCountry="AF"
                 aria-invalid={!!guestPhoneError}
               />
               <FieldDescription>
@@ -582,7 +581,6 @@ export function StepContactShipping({
                       onChange={(value) =>
                         handleAddressChange("phone", value || "")
                       }
-                      defaultCountry="AF"
                       aria-invalid={!!addressErrors.phone}
                     />
                     <FieldDescription>

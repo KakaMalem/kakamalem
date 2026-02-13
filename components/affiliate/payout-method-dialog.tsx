@@ -148,21 +148,12 @@ export function PayoutMethodDialog({
           <TabsContent value="bank_transfer" className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="bank-name">Bank Name</Label>
-              <Select value={bankName} onValueChange={setBankName}>
-                <SelectTrigger id="bank-name">
-                  <SelectValue placeholder="Select bank" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="azizi_bank">Azizi Bank</SelectItem>
-                  <SelectItem value="aib">
-                    Afghanistan International Bank
-                  </SelectItem>
-                  <SelectItem value="kabul_bank">New Kabul Bank</SelectItem>
-                  <SelectItem value="ghazanfar_bank">Ghazanfar Bank</SelectItem>
-                  <SelectItem value="maiwand_bank">Maiwand Bank</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="bank-name"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="e.g., Chase, HSBC, Deutsche Bank"
+              />
             </div>
 
             <div className="space-y-2">
@@ -206,7 +197,7 @@ export function PayoutMethodDialog({
                 id="mobile-number"
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value)}
-                placeholder="+93 7XX XXX XXXX"
+                placeholder="Your mobile number"
               />
             </div>
           </TabsContent>

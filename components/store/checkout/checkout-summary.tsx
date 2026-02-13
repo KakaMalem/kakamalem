@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Package, Tag, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import {
   useCheckoutTotals,
   useCheckoutStore,
@@ -49,9 +49,10 @@ interface CheckoutSummaryProps {
 
 export function CheckoutSummary({
   cart,
-  currency,
+  currency: _currency,
   tenantId,
 }: CheckoutSummaryProps) {
+  const { format: formatPrice } = useCurrencyStore();
   const { subtotal, shippingTotal, taxTotal, total } = useCheckoutTotals();
   const updateTotals = useCheckoutStore((s) => s.updateTotals);
 
@@ -185,17 +186,16 @@ export function CheckoutSummary({
                     {hasDiscount ? (
                       <span>
                         <span className="text-green-600">
-                          {formatPrice(effectivePrice, currency)}
+                          {formatPrice(effectivePrice)}
                         </span>{" "}
                         <span className="line-through text-xs">
-                          {formatPrice(originalPrice, currency)}
+                          {formatPrice(originalPrice)}
                         </span>{" "}
                         &times; {item.quantity}
                       </span>
                     ) : (
                       <span>
-                        {formatPrice(originalPrice, currency)} &times;{" "}
-                        {item.quantity}
+                        {formatPrice(originalPrice)} &times; {item.quantity}
                       </span>
                     )}
                   </div>
@@ -203,7 +203,7 @@ export function CheckoutSummary({
 
                 {/* Total */}
                 <div className="shrink-0 text-sm font-medium">
-                  {formatPrice(effectivePrice * item.quantity, currency)}
+                  {formatPrice(effectivePrice * item.quantity)}
                 </div>
               </div>
             );
@@ -220,12 +220,12 @@ export function CheckoutSummary({
               {totalSavings > 0 ? (
                 <span className="flex items-center gap-1.5">
                   <span className="line-through text-muted-foreground text-xs">
-                    {formatPrice(originalSubtotal, currency)}
+                    {formatPrice(originalSubtotal)}
                   </span>
-                  <span>{formatPrice(effectiveSubtotal, currency)}</span>
+                  <span>{formatPrice(effectiveSubtotal)}</span>
                 </span>
               ) : (
-                formatPrice(subtotal, currency)
+                formatPrice(subtotal)
               )}
             </span>
           </div>
@@ -236,7 +236,7 @@ export function CheckoutSummary({
                 <Sparkles className="h-3.5 w-3.5" />
                 Sale discounts
               </span>
-              <span>-{formatPrice(campaignSavings, currency)}</span>
+              <span>-{formatPrice(campaignSavings)}</span>
             </div>
           )}
 
@@ -246,7 +246,7 @@ export function CheckoutSummary({
                 <Tag className="h-3.5 w-3.5" />
                 Bulk discounts
               </span>
-              <span>-{formatPrice(tierSavings, currency)}</span>
+              <span>-{formatPrice(tierSavings)}</span>
             </div>
           )}
 
@@ -258,7 +258,7 @@ export function CheckoutSummary({
                   Calculated at next step
                 </span>
               ) : (
-                formatPrice(shippingTotal, currency)
+                formatPrice(shippingTotal)
               )}
             </span>
           </div>
@@ -266,7 +266,7 @@ export function CheckoutSummary({
           {taxTotal > 0 && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Tax</span>
-              <span>{formatPrice(taxTotal, currency)}</span>
+              <span>{formatPrice(taxTotal)}</span>
             </div>
           )}
         </div>
@@ -275,7 +275,7 @@ export function CheckoutSummary({
 
         <div className="flex justify-between text-base font-semibold">
           <span>Total</span>
-          <span>{formatPrice(total, currency)}</span>
+          <span>{formatPrice(total)}</span>
         </div>
       </CardContent>
     </Card>

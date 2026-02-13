@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/lib/utils";
+import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { calculateShippingAction } from "@/lib/actions/checkout";
 import { OutOfZoneMap } from "./out-of-zone-map";
@@ -39,11 +39,12 @@ type ShippingMethodOption = {
 export function StepShippingMethod({
   tenantId,
   storeSlug: _storeSlug,
-  currency,
+  currency: _currency,
   deliveryZones,
 }: StepShippingMethodProps) {
   // storeSlug is passed for future use (e.g., revalidation)
   void _storeSlug;
+  const { format: formatPrice } = useCurrencyStore();
   const {
     shippingAddress,
     subtotal,
@@ -392,7 +393,7 @@ export function StepShippingMethod({
                             {method.price === 0 ? (
                               <span className="text-green-600">Free</span>
                             ) : (
-                              formatPrice(method.price, currency)
+                              formatPrice(method.price)
                             )}
                           </div>
                         </Label>

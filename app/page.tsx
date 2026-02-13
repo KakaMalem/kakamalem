@@ -65,7 +65,7 @@ const pricingPlans = [
   },
   {
     name: "Pro",
-    price: "1,100 AFN",
+    price: "$15",
     period: "month",
     description: "Everything you need to grow",
     features: [
@@ -101,8 +101,8 @@ export default async function Home() {
                 </h1>
                 <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground lg:mx-0">
                   Create a beautiful online store in minutes. No coding
-                  required, no upfront costs. Start selling to customers across
-                  Afghanistan.
+                  required, no upfront costs. Start selling to customers
+                  worldwide.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
@@ -157,7 +157,7 @@ export default async function Home() {
                 Everything you need to sell online
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-                Powerful features designed for Afghan businesses. Simple to use,
+                Powerful features designed for your business. Simple to use,
                 built to grow with you.
               </p>
             </div>
@@ -248,8 +248,8 @@ export default async function Home() {
               Ready to start your online business?
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-              Join merchants across Afghanistan selling online with Kaka Malem.
-              Your store is just a few clicks away.
+              Join thousands of merchants selling online with Kaka Malem. Your
+              store is just a few clicks away.
             </p>
             <Button size="lg" className="mt-8" asChild>
               <Link href={user ? "/dashboard" : "/signup"}>
@@ -270,8 +270,7 @@ export default async function Home() {
                 Kaka Malem
               </Link>
               <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-                The easiest way to create and manage your online store in
-                Afghanistan.
+                The easiest way to create and manage your online store.
               </p>
             </div>
 

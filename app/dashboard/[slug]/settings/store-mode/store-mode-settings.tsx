@@ -542,7 +542,7 @@ export function StoreModeSettings({
                   </p>
                   {receiptShowContact && (
                     <p className="text-[10px] text-muted-foreground">
-                      +93 700 000 000
+                      +1 234 567 8900
                     </p>
                   )}
                   <div className="my-2 border-t border-dashed" />

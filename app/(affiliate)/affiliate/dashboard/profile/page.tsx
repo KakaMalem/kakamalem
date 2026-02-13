@@ -24,7 +24,7 @@ export default async function AffiliateProfilePage() {
   const user = await getUser();
 
   if (!user) {
-    redirect("/login?returnTo=/affiliate/dashboard/profile");
+    redirect("/login?redirect=/affiliate/dashboard/profile");
   }
 
   const affiliate = await getPlatformAffiliateByUserId(user.id);

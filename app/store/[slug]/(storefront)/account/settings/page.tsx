@@ -17,6 +17,7 @@ import {
   DeleteAccountSection,
 } from "@/components/store/account/account-settings-forms";
 import { CustomerNotificationSettings } from "@/components/store/account/notification-settings";
+import { CurrencyPreferenceForm } from "@/components/store/account/currency-preference-form";
 
 interface SettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -59,6 +60,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           <UpdateNameForm currentName={user.name || ""} />
         </CardContent>
       </Card>
+
+      {/* Currency Preference */}
+      <CurrencyPreferenceForm />
 
       {/* Notification Settings */}
       <CustomerNotificationSettings
