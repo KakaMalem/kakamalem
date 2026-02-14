@@ -18,6 +18,7 @@
 
 # Shared configuration for both blue and green
 x-app-common: &app-common
+  image: ghcr.io/kakamalem/kakamalem:latest
   build:
     context: .
     dockerfile: Dockerfile

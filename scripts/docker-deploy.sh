@@ -95,6 +95,7 @@ get_container_for_color() {
 
 wait_for_healthy() {
     local port=$1
+    local container=$2
     local max_retries=60
     local retry_count=0
     local health_url="http://localhost:$port/api/health"
@@ -102,18 +103,52 @@ wait_for_healthy() {
     log "Waiting for app on port $port to be healthy..."
 
     while [ $retry_count -lt $max_retries ]; do
-        if curl -sf --connect-timeout 3 --max-time 5 "$health_url" > /dev/null 2>&1; then
+        # Check if container is still running
+        if ! docker ps --format '{{.Names}}' | grep -q "$container"; then
+            echo ""
+            warn "Container $container is not running!"
+            log "Container status:"
+            docker ps -a --filter "name=$container" --format "table {{.Names}}\t{{.Status}}\t{{.State}}" 2>&1 | tee -a "$LOG_FILE"
+            log "Last 50 lines of container logs:"
+            docker logs --tail 50 "$container" 2>&1 | tee -a "$LOG_FILE"
+            return 1
+        fi
+
+        local response
+        response=$(curl -s --connect-timeout 3 --max-time 5 "$health_url" 2>&1)
+        local curl_exit=$?
+
+        if [ $curl_exit -eq 0 ] && echo "$response" | grep -q '"healthy"'; then
+            echo ""
             log "App on port $port is healthy!"
             return 0
         fi
 
         retry_count=$((retry_count + 1))
-        echo -n "."
+
+        # Show diagnostic info every 10 attempts
+        if [ $((retry_count % 10)) -eq 0 ]; then
+            echo ""
+            log "Still waiting... (attempt $retry_count/$max_retries)"
+            if [ $curl_exit -ne 0 ]; then
+                log "  curl exit code: $curl_exit (connection refused or timeout)"
+            else
+                log "  Response: $response"
+            fi
+            log "  Container status: $(docker inspect --format '{{.State.Status}}' "$container" 2>/dev/null || echo 'unknown')"
+        else
+            echo -n "."
+        fi
+
         sleep 2
     done
 
     echo ""
     warn "Health check failed after $max_retries attempts on port $port"
+    log "Final container status:"
+    docker ps -a --filter "name=$container" --format "table {{.Names}}\t{{.Status}}\t{{.State}}" 2>&1 | tee -a "$LOG_FILE"
+    log "Last 100 lines of container logs:"
+    docker logs --tail 100 "$container" 2>&1 | tee -a "$LOG_FILE"
     return 1
 }
 
@@ -284,7 +319,7 @@ deploy() {
     docker compose up -d $target_service 2>&1 | tee -a "$LOG_FILE"
 
     # Wait for it to be healthy
-    if ! wait_for_healthy $target_port; then
+    if ! wait_for_healthy $target_port $target_container; then
         error "New container failed health check. Aborting deployment."
     fi
 
@@ -354,7 +389,8 @@ rollback() {
     log "Starting $target container..."
     docker compose up -d $target_service 2>&1 | tee -a "$LOG_FILE"
 
-    if ! wait_for_healthy $target_port; then
+    local target_container=$(get_container_for_color $target)
+    if ! wait_for_healthy $target_port $target_container; then
         error "Rollback failed - previous container won't start"
     fi
 

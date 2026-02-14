@@ -28,10 +28,14 @@ export async function GET(): Promise<NextResponse<HealthStatus>> {
     },
   };
 
-  // Check database connection
+  // Check database connection (with timeout to prevent hanging)
   try {
     const dbStart = Date.now();
-    await db.execute(sql`SELECT 1`);
+    const dbPromise = db.execute(sql`SELECT 1`);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Database check timed out (5s)")), 5000)
+    );
+    await Promise.race([dbPromise, timeoutPromise]);
     status.checks.database.latency = Date.now() - dbStart;
   } catch (error) {
     status.status = "unhealthy";
