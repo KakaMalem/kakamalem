@@ -157,7 +157,7 @@ export default function proxy(request: NextRequest) {
   // This is a custom domain request - rewrite to the _custom route
   // The _custom route will look up the tenant by domain and render the storefront
   const url = request.nextUrl.clone();
-  url.pathname = `/store/_custom${pathname}`;
+  url.pathname = `/store/custom-domain${pathname}`;
 
   // Pass the original host in a header for the route handler to use
   const response = NextResponse.rewrite(url);

@@ -156,7 +156,7 @@ export async function middleware(request: NextRequest) {
 
   // Custom domain detected - rewrite to internal route
   const url = request.nextUrl.clone();
-  url.pathname = `/store/_custom${url.pathname}`;
+  url.pathname = `/store/custom-domain${url.pathname}`;
   url.searchParams.set("_host", hostname);
 
   return NextResponse.rewrite(url);
@@ -481,7 +481,7 @@ app/
 │       └── cloudflare/
 │           └── route.ts           # Cloudflare webhooks
 ├── store/
-│   └── _custom/
+│   └── custom-domain/
 │       └── [[...path]]/
 │           ├── page.tsx           # Custom domain handler
 │           └── layout.tsx         # Custom domain layout

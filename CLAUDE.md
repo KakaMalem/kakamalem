@@ -821,7 +821,7 @@ Dynamic SEO configuration per store:
 The `proxy.ts` file handles:
 
 1. **SEO redirects** - www → non-www canonical redirect
-2. **Custom domain routing** - Rewrites custom domains to `/store/_custom/` route
+2. **Custom domain routing** - Rewrites custom domains to `/store/custom-domain/` route
 
 ```typescript
 // proxy.ts - NOT middleware.ts
