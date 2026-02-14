@@ -127,7 +127,7 @@ export function SettingsNavTabs() {
   return (
     <nav className="-mb-px flex overflow-x-auto border-b pb-px scrollbar-none">
       {groupedPages.map((entry, groupIndex) => (
-        <div key={entry.group.key} className="flex items-center">
+        <div key={entry.group.key} className="flex shrink-0 items-center">
           {groupIndex > 0 && (
             <div className="mx-1 h-5 w-px shrink-0 bg-border" />
           )}

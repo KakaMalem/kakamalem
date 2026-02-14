@@ -67,9 +67,10 @@ export async function POST(
       expiresInDays
     );
 
-    // Build shareable URL - use request origin for dynamic URL
-    const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
+    // Build shareable URL using configured app URL
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      `${new URL(request.url).protocol}//${new URL(request.url).host}`;
     const shareUrl = getInvoiceUrl(token, baseUrl);
 
     return NextResponse.json({
@@ -113,8 +114,9 @@ export async function GET(
 
     // Get existing tokens
     const tokens = await getOrderTokens(orderId, tenant.id);
-    const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      `${new URL(request.url).protocol}//${new URL(request.url).host}`;
 
     return NextResponse.json({
       tokens: tokens.map((t) => ({

@@ -109,6 +109,7 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 20m
           script: |
             set -e
             cd /var/www/kakamalem

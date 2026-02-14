@@ -257,6 +257,16 @@ deploy() {
         docker compose rm -f $target_service 2>&1 | tee -a "$LOG_FILE"
     fi
 
+    # Wait for port to be released (network_mode: host means the port is on the host)
+    local wait_count=0
+    while ss -tlnp | grep -q ":$target_port " && [ $wait_count -lt 15 ]; do
+        if [ $wait_count -eq 0 ]; then
+            log "Waiting for port $target_port to be released..."
+        fi
+        sleep 1
+        wait_count=$((wait_count + 1))
+    done
+
     # Start the new container
     log "Starting new $target container..."
     docker compose up -d $target_service 2>&1 | tee -a "$LOG_FILE"
