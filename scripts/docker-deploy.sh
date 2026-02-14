@@ -18,6 +18,7 @@ set -e
 # Configuration
 APP_DIR="/var/www/kakamalem"
 UPSTREAM_CONF="/etc/nginx/conf.d/kakamalem-upstream.conf"
+CADDYFILE="/etc/caddy/Caddyfile"
 STATE_FILE="$APP_DIR/.deploy-state"
 LOG_FILE="$APP_DIR/.logs/docker-deploy_$(date +%Y%m%d_%H%M%S).log"
 
@@ -137,6 +138,17 @@ EOF
         log "Nginx reloaded successfully"
     else
         error "Nginx config test failed!"
+    fi
+}
+
+update_caddy_ask_port() {
+    local active_port=$1
+
+    if [ -f "$CADDYFILE" ]; then
+        log "Updating Caddy ask endpoint to port $active_port"
+        sed -i "s|ask http://127.0.0.1:[0-9]*/api/caddy/ask|ask http://127.0.0.1:$active_port/api/caddy/ask|" "$CADDYFILE"
+        systemctl reload caddy 2>&1 | tee -a "$LOG_FILE"
+        log "Caddy reloaded successfully"
     fi
 }
 
@@ -289,6 +301,9 @@ deploy() {
         update_nginx_upstream $target_port $current_port
     fi
 
+    # Update Caddy's ask endpoint to use the new active port
+    update_caddy_ask_port $target_port
+
     # Update state
     set_active $target
 
@@ -345,6 +360,9 @@ rollback() {
 
     # Switch traffic
     update_nginx_upstream $target_port $current_port
+
+    # Update Caddy's ask endpoint to use the new active port
+    update_caddy_ask_port $target_port
 
     # Update state
     set_active $target

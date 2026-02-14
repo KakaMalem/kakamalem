@@ -64,10 +64,7 @@ export function getWebhookSecret(): string | null {
 }
 
 // In-memory cache for Stripe price lookups (avoids hitting Stripe API on every page load)
-const priceCache = new Map<
-  string,
-  { data: ProPriceInfo; fetchedAt: number }
->();
+const priceCache = new Map<string, { data: ProPriceInfo; fetchedAt: number }>();
 const PRICE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**

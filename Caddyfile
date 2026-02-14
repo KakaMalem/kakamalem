@@ -71,8 +71,12 @@
 		on_demand
 	}
 
-	# Proxy to the Next.js application
-	reverse_proxy 127.0.0.1:3000 {
+	# Proxy to the Next.js application (both blue/green for zero-downtime deploys)
+	reverse_proxy 127.0.0.1:3000 127.0.0.1:3001 {
+		lb_policy first
+		fail_duration 10s
+		health_uri /api/health
+		health_interval 10s
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
 	}
