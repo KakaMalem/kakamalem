@@ -53,12 +53,16 @@
 		burst 5
 	}
 
-	# Listen on non-standard HTTPS port (Nginx is on 443)
-	# Remove this line if using Caddy as the sole reverse proxy
+	# Listen on non-standard ports (Nginx occupies 80/443)
+	# Caddy uses 8443 for HTTPS and 8080 for HTTP (ACME challenges)
 	https_port 8443
+	http_port 8080
 
 	# Disable automatic HTTP->HTTPS redirects (Nginx handles port 80)
 	auto_https disable_redirects
+
+	# Email for Let's Encrypt account (recommended, fixes ZeroSSL issues)
+	email admin@kakamalem.com
 }
 
 # Handle all custom domains

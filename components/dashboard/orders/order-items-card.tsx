@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Package, ExternalLink } from "lucide-react";
+import { Package, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useImagePreview } from "@/components/ui/image-preview";
@@ -13,6 +13,7 @@ import { OrderTotalAdjustment } from "./order-total-adjustment";
 interface OrderItem {
   id: string;
   productId: string | null;
+  productSlug: string | null;
   productName: string;
   variantName: string | null;
   sku: string | null;
@@ -102,13 +103,14 @@ export function OrderItemsCard({
               {/* Product Info */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  {item.productId ? (
+                  {item.productSlug ? (
                     <Link
-                      href={`/dashboard/${storeSlug}/products/${item.productId}`}
-                      className="font-medium hover:underline inline-flex items-center gap-1"
+                      href={`/store/${storeSlug}/product/${item.productSlug}`}
+                      target="_blank"
+                      className="font-medium hover:underline inline-flex items-center gap-0.5"
                     >
                       {item.productName}
-                      <ExternalLink className="size-3 text-muted-foreground" />
+                      <ArrowUpRight className="size-3.5 text-muted-foreground shrink-0" />
                     </Link>
                   ) : (
                     <p className="font-medium">{item.productName}</p>

@@ -63,6 +63,13 @@ export function getWebhookSecret(): string | null {
   return process.env.STRIPE_WEBHOOK_SECRET || null;
 }
 
+// In-memory cache for Stripe price lookups (avoids hitting Stripe API on every page load)
+const priceCache = new Map<
+  string,
+  { data: ProPriceInfo; fetchedAt: number }
+>();
+const PRICE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Pro price info fetched from Stripe
  */
@@ -99,6 +106,12 @@ export async function getProPriceInfo(): Promise<ProPriceInfo | null> {
     return null;
   }
 
+  // Return cached data if still fresh
+  const cached = priceCache.get(priceId);
+  if (cached && Date.now() - cached.fetchedAt < PRICE_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   try {
     const price = await stripe.prices.retrieve(priceId, {
       expand: ["product"],
@@ -121,7 +134,7 @@ export async function getProPriceInfo(): Promise<ProPriceInfo | null> {
     // Extract product info
     const product = price.product as Stripe.Product;
 
-    return {
+    const info: ProPriceInfo = {
       priceId: price.id,
       amount: (price.unit_amount || 0) / 100, // Convert from cents
       currency: price.currency.toUpperCase(),
@@ -130,8 +143,15 @@ export async function getProPriceInfo(): Promise<ProPriceInfo | null> {
       productDescription: product.description,
       active: price.active && product.active,
     };
+
+    priceCache.set(priceId, { data: info, fetchedAt: Date.now() });
+    return info;
   } catch (error) {
     console.error("[Stripe] Failed to fetch Pro price info:", error);
+    // Return stale cache on API failure rather than showing error
+    if (cached) {
+      return cached.data;
+    }
     return null;
   }
 }
@@ -147,6 +167,12 @@ export async function getYearlyPriceInfo(): Promise<ProPriceInfo | null> {
   const priceId = getYearlyPriceId();
   if (!priceId) {
     return null;
+  }
+
+  // Return cached data if still fresh
+  const cached = priceCache.get(priceId);
+  if (cached && Date.now() - cached.fetchedAt < PRICE_CACHE_TTL_MS) {
+    return cached.data;
   }
 
   try {
@@ -173,7 +199,7 @@ export async function getYearlyPriceInfo(): Promise<ProPriceInfo | null> {
     // Extract product info
     const product = price.product as Stripe.Product;
 
-    return {
+    const info: ProPriceInfo = {
       priceId: price.id,
       amount: (price.unit_amount || 0) / 100, // Convert from cents
       currency: price.currency.toUpperCase(),
@@ -182,8 +208,15 @@ export async function getYearlyPriceInfo(): Promise<ProPriceInfo | null> {
       productDescription: product.description,
       active: price.active && product.active,
     };
+
+    priceCache.set(priceId, { data: info, fetchedAt: Date.now() });
+    return info;
   } catch (error) {
     console.error("[Stripe] Failed to fetch yearly Pro price info:", error);
+    // Return stale cache on API failure rather than showing error
+    if (cached) {
+      return cached.data;
+    }
     return null;
   }
 }

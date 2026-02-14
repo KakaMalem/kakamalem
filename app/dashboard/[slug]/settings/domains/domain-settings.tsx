@@ -413,11 +413,10 @@ export function DomainSettings({
                   </li>
                   <li className="flex gap-2">
                     <span className="font-medium text-foreground">2.</span>
-                    Add a CNAME record pointing to{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                      proxy.kakamalem.com
-                    </code>{" "}
-                    and a TXT record for verification.
+                    Add a DNS record at your registrar: an{" "}
+                    <strong>A record</strong> (for root domains like
+                    mybrand.com) or a <strong>CNAME</strong> (for subdomains
+                    like shop.mybrand.com), plus a TXT record for verification.
                   </li>
                   <li className="flex gap-2">
                     <span className="font-medium text-foreground">3.</span>
@@ -484,7 +483,9 @@ function DnsInstructionsCard({
           </div>
           <p className="text-xs text-muted-foreground">
             {record.purpose === "routing"
-              ? `Points your domain to our servers at ${instructions.proxyTarget}.`
+              ? record.type === "A"
+                ? "Points your domain to our server IP address."
+                : `Points your domain to our servers at ${instructions.proxyTarget}.`
               : "Proves you own this domain. Can be removed after verification."}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -536,13 +537,11 @@ function DnsInstructionsCard({
       {instructions.isApexDomain && (
         <Alert>
           <AlertCircle className="size-4" />
-          <AlertTitle>Apex Domain Note</AlertTitle>
+          <AlertTitle>Root Domain Setup</AlertTitle>
           <AlertDescription>
-            Some registrars don&apos;t support CNAME records on apex domains
-            (e.g. mybrand.com without www). If your registrar doesn&apos;t allow
-            it, use a subdomain like <strong>shop.{instructions.domain}</strong>{" "}
-            or <strong>www.{instructions.domain}</strong> instead. Namecheap and
-            Cloudflare support CNAME flattening for apex domains.
+            Root domains (e.g. mybrand.com) require an <strong>A record</strong>{" "}
+            pointing to the server IP address shown above. CNAME records are not
+            supported on root domains by most registrars.
           </AlertDescription>
         </Alert>
       )}

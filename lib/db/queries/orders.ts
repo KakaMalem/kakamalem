@@ -480,6 +480,7 @@ export type DashboardOrderDetail = {
 export type OrderItemWithImage = {
   id: string;
   productId: string | null; // Nullable if product was deleted but order history preserved
+  productSlug: string | null; // For linking to storefront product page
   productName: string;
   variantName: string | null;
   sku: string | null;
@@ -529,6 +530,8 @@ export const getDashboardOrderById = cache(
                 quantity: orderItems.quantity,
                 quantityRefunded: orderItems.quantityRefunded,
                 subtotal: orderItems.lineSubtotal,
+                // Product slug for storefront link
+                productSlug: products.slug,
                 // Product image (fallback)
                 productImageUrl: media.url,
                 productImageAlt: media.altText,
@@ -622,6 +625,7 @@ export const getDashboardOrderById = cache(
       return {
         id: item.id,
         productId: item.productId,
+        productSlug: item.productSlug,
         productName: item.productName,
         variantName: item.variantName,
         sku: item.sku,

@@ -20,10 +20,15 @@ import type {
 // =============================================================================
 
 /**
- * The target that CNAME records should point to
+ * The target that CNAME records should point to (for subdomains)
  */
 export const PROXY_TARGET =
   process.env.DOMAIN_PROXY_TARGET || "proxy.kakamalem.com";
+
+/**
+ * Server IP for A records (for apex/root domains that can't use CNAME)
+ */
+export const SERVER_IP = process.env.SERVER_IP || "";
 
 /**
  * TXT record prefix for verification
@@ -173,14 +178,14 @@ export function generateDnsInstructions(
   const isApex = isApexDomain(domain);
   const records: DnsRecord[] = [];
 
-  // CNAME record for routing traffic
+  // DNS record for routing traffic
   if (isApex) {
-    // For apex domains, some registrars support CNAME flattening
-    // Others may need A record
+    // Apex domains can't use CNAME (DNS standard limitation)
+    // Use A record pointing to server IP instead
     records.push({
-      type: "CNAME",
+      type: "A",
       name: "@",
-      value: PROXY_TARGET,
+      value: SERVER_IP || PROXY_TARGET,
       purpose: "routing",
       required: true,
     });

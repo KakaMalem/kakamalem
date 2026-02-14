@@ -107,9 +107,7 @@ export function StoreActionsClient({
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [createInvoice, setCreateInvoice] = useState(true);
-  const [upgradeOnPayment, setUpgradeOnPayment] = useState(
-    currentPlan === "free"
-  );
+  const [upgradeOnPayment, setUpgradeOnPayment] = useState(false);
 
   // Refund state
   const [refundAmount, setRefundAmount] = useState("");
