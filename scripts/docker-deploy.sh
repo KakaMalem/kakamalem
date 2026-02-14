@@ -101,7 +101,7 @@ wait_for_healthy() {
     log "Waiting for app on port $port to be healthy..."
 
     while [ $retry_count -lt $max_retries ]; do
-        if curl -sf "$health_url" > /dev/null 2>&1; then
+        if curl -sf --connect-timeout 3 --max-time 5 "$health_url" > /dev/null 2>&1; then
             log "App on port $port is healthy!"
             return 0
         fi
