@@ -282,19 +282,40 @@ async function handleCheckoutComplete(session: {
       return;
     }
 
-    const amountPaid = session.amount_total
+    const stripeAmount = session.amount_total
       ? session.amount_total / 100
       : parseFloat(order.total);
+    const paymentCurrency = (session.currency || "usd").toUpperCase();
+    const orderCurrency = order.currencyCode || "AFN";
     const orderTotal = parseFloat(order.total);
-    const isFullyPaid = amountPaid >= orderTotal;
 
-    // Create transaction record
+    // Convert payment amount to order's currency if they differ
+    let amountInOrderCurrency: number;
+    if (paymentCurrency === orderCurrency) {
+      amountInOrderCurrency = stripeAmount;
+    } else {
+      // Payment was in a different currency — convert back using stored rate
+      const exchangeRate = order.exchangeRateUsed
+        ? parseFloat(order.exchangeRateUsed)
+        : null;
+      if (exchangeRate && exchangeRate > 0) {
+        // exchangeRateUsed: 1 store currency = X customer currency
+        amountInOrderCurrency = stripeAmount / exchangeRate;
+      } else {
+        // Fallback: Stripe confirmed payment, trust order total
+        amountInOrderCurrency = orderTotal;
+      }
+    }
+
+    const isFullyPaid = amountInOrderCurrency >= orderTotal * 0.99; // 1% tolerance for rounding
+
+    // Create transaction record (store in payment currency for accuracy)
     await db.insert(orderTransactions).values({
       orderId,
       tenantId,
       type: "payment",
-      amount: amountPaid.toString(),
-      currencyCode: (session.currency || "usd").toUpperCase(),
+      amount: stripeAmount.toString(),
+      currencyCode: paymentCurrency,
       paymentMethod: "card",
       status: "completed",
       gateway: "stripe",
@@ -303,18 +324,23 @@ async function handleCheckoutComplete(session: {
         sessionId: session.id,
         paymentStatus: session.payment_status,
         paymentIntentId: session.payment_intent,
+        originalAmountInPaymentCurrency: stripeAmount,
+        paymentCurrency,
+        convertedToOrderCurrency: amountInOrderCurrency,
+        orderCurrency,
       },
       processedAt: new Date().toISOString(),
     });
 
-    // Update order
+    // Update order (amounts in order's base currency)
+    const newAmountPaid = isFullyPaid ? orderTotal : amountInOrderCurrency;
     await db
       .update(orders)
       .set({
         paymentStatus: isFullyPaid ? "paid" : "partial",
         isPaid: isFullyPaid,
-        amountPaid: amountPaid.toString(),
-        amountDue: (orderTotal - amountPaid).toString(),
+        amountPaid: newAmountPaid.toString(),
+        amountDue: Math.max(0, orderTotal - newAmountPaid).toString(),
         paidAt: isFullyPaid ? new Date().toISOString() : undefined,
         status:
           isFullyPaid && order.status === "pending"

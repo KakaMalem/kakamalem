@@ -306,13 +306,28 @@ deploy() {
 
     # Wait for port to be released (network_mode: host means the port is on the host)
     local wait_count=0
-    while ss -tlnp | grep -q ":$target_port " && [ $wait_count -lt 15 ]; do
+    while ss -tlnp | grep -q ":$target_port " && [ $wait_count -lt 30 ]; do
         if [ $wait_count -eq 0 ]; then
             log "Waiting for port $target_port to be released..."
+            log "Port $target_port is held by:"
+            ss -tlnp | grep ":$target_port " 2>&1 | tee -a "$LOG_FILE"
         fi
         sleep 1
         wait_count=$((wait_count + 1))
     done
+
+    # If port is still in use, try to force-kill the process holding it
+    if ss -tlnp | grep -q ":$target_port "; then
+        warn "Port $target_port still in use after ${wait_count}s, force-killing..."
+        ss -tlnp | grep ":$target_port " 2>&1 | tee -a "$LOG_FILE"
+        fuser -k $target_port/tcp 2>&1 | tee -a "$LOG_FILE" || true
+        sleep 3
+
+        if ss -tlnp | grep -q ":$target_port "; then
+            error "Port $target_port could not be freed. Something is still listening on it."
+        fi
+        log "Port $target_port freed successfully"
+    fi
 
     # Start the new container
     log "Starting new $target container..."

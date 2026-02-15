@@ -101,31 +101,53 @@ export async function createOrderPaymentSession(
     const successUrl = `${storeBaseUrl}/checkout/success?order=${orderId}`;
     const cancelUrl = `${storeBaseUrl}/checkout/payment?order=${orderId}&cancelled=true`;
 
-    // Determine the correct currency and amount for payment
-    // If customer selected a different currency (e.g., USD), use that for Stripe
-    // Otherwise fall back to store currency (AFN) for local payments like HesabPay
-    const hasCustomerCurrency = order.customerCurrency && order.customerAmount;
+    // Determine the correct currency and amount per gateway
+    let paymentCurrency: string;
+    let paymentAmount: number;
 
-    // For Stripe, use customer's currency if available
-    const paymentCurrency =
-      gateway === "stripe" && hasCustomerCurrency
-        ? order.customerCurrency!
-        : order.currencyCode || "AFN";
-
-    const paymentAmount =
-      gateway === "stripe" && hasCustomerCurrency
-        ? parseFloat(order.customerAmount!)
-        : parseFloat(order.amountDue || order.total);
+    if (gateway === "hesabpay") {
+      // HesabPay only supports AFN — always charge in AFN
+      const storeCurrency = order.currencyCode || "AFN";
+      if (storeCurrency === "AFN") {
+        paymentCurrency = "AFN";
+        paymentAmount = parseFloat(order.amountDue || order.total);
+      } else if (order.customerCurrency === "AFN" && order.customerAmount) {
+        // Store is non-AFN but customer was browsing in AFN
+        paymentCurrency = "AFN";
+        paymentAmount = parseFloat(order.customerAmount);
+      } else {
+        // Store is non-AFN and no AFN customer amount — convert via exchange rate
+        const exchangeRate = order.exchangeRateUsed
+          ? parseFloat(order.exchangeRateUsed)
+          : null;
+        if (exchangeRate && exchangeRate > 0) {
+          paymentCurrency = "AFN";
+          paymentAmount =
+            parseFloat(order.amountDue || order.total) * exchangeRate;
+        } else {
+          return {
+            success: false,
+            error:
+              "Cannot determine AFN amount for HesabPay. Please select a different payment method.",
+          };
+        }
+      }
+    } else {
+      // Stripe and other gateways: charge in store's base currency
+      paymentCurrency = order.currencyCode || "AFN";
+      paymentAmount = parseFloat(order.amountDue || order.total);
+    }
 
     // Create payment session
     const result = await createSession(gateway, {
       tenantId: order.tenantId,
       orderId: order.id,
-      amount: parseFloat(order.total), // Base amount in AFN (for records)
-      currency: order.currencyCode || "AFN",
-      // Customer payment currency (used by Stripe)
-      customerCurrency: paymentCurrency,
-      customerAmount: paymentAmount,
+      amount: paymentAmount,
+      currency: paymentCurrency,
+      // Store exchange rate info for reconciliation
+      exchangeRate: order.exchangeRateUsed
+        ? parseFloat(order.exchangeRateUsed)
+        : undefined,
       successUrl,
       cancelUrl,
       customerEmail: order.customerSnapshot?.email,
@@ -228,6 +250,7 @@ export async function verifyOrderPayment(
         gateway: session.gateway,
         transactionId: result.transactionId,
         amount: result.amount || parseFloat(session.amount),
+        currency: result.currency || session.currency,
         cardLastFour: result.card?.lastFour,
         cardBrand: result.card?.brand,
         gatewayResponse: result.gatewayResponse,
@@ -265,6 +288,7 @@ async function markOrderAsPaid(
     gateway: PaymentGateway;
     transactionId?: string;
     amount: number;
+    currency?: string;
     cardLastFour?: string;
     cardBrand?: string;
     gatewayResponse?: Record<string, unknown>;
@@ -279,14 +303,38 @@ async function markOrderAsPaid(
 
   if (!order) return;
 
-  // Create transaction record
+  const paymentCurrency = (
+    paymentInfo.currency ||
+    order.currencyCode ||
+    "AFN"
+  ).toUpperCase();
+  const orderCurrency = (order.currencyCode || "AFN").toUpperCase();
+  const orderTotal = parseFloat(order.total);
+
+  // Convert payment amount to order's currency if they differ
+  let amountInOrderCurrency: number;
+  if (paymentCurrency === orderCurrency) {
+    amountInOrderCurrency = paymentInfo.amount;
+  } else {
+    const exchangeRate = order.exchangeRateUsed
+      ? parseFloat(order.exchangeRateUsed)
+      : null;
+    if (exchangeRate && exchangeRate > 0) {
+      amountInOrderCurrency = paymentInfo.amount / exchangeRate;
+    } else {
+      // Fallback: trust order total since gateway confirmed payment
+      amountInOrderCurrency = orderTotal;
+    }
+  }
+
+  // Create transaction record (store in payment currency for accuracy)
   await db.insert(orderTransactions).values({
     orderId,
     tenantId: order.tenantId,
     type: "payment",
     amount: paymentInfo.amount.toString(),
-    currencyCode: order.currencyCode || "AFN",
-    paymentMethod: paymentInfo.gateway === "hesabpay" ? "card" : "card",
+    currencyCode: paymentCurrency,
+    paymentMethod: "card",
     status: "completed",
     gateway: paymentInfo.gateway,
     gatewayTransactionId: paymentInfo.transactionId,
@@ -296,17 +344,17 @@ async function markOrderAsPaid(
     processedAt: new Date().toISOString(),
   });
 
-  // Update order
+  // Update order (amounts in order's base currency)
   const newAmountPaid =
-    parseFloat(order.amountPaid || "0") + paymentInfo.amount;
-  const orderTotal = parseFloat(order.total);
-  const isFullyPaid = newAmountPaid >= orderTotal;
+    parseFloat(order.amountPaid || "0") + amountInOrderCurrency;
+  const isFullyPaid = newAmountPaid >= orderTotal * 0.99; // 1% tolerance for rounding
 
+  const finalAmountPaid = isFullyPaid ? orderTotal : newAmountPaid;
   await db
     .update(orders)
     .set({
-      amountPaid: newAmountPaid.toString(),
-      amountDue: (orderTotal - newAmountPaid).toString(),
+      amountPaid: finalAmountPaid.toString(),
+      amountDue: Math.max(0, orderTotal - finalAmountPaid).toString(),
       paymentStatus: isFullyPaid ? "paid" : "partial",
       isPaid: isFullyPaid,
       paidAt: isFullyPaid ? new Date().toISOString() : undefined,

@@ -71,6 +71,21 @@ export function StoreOAuthButton({
     setIsLoading(true);
     setError(null);
 
+    // On custom domains, OAuth must go through the main domain because:
+    // 1. Google's registered redirect_uri points to kakamalem.com
+    // 2. OAuth state cookies must be on the same domain as the callback
+    // After OAuth, a token exchange transfers the session back to the custom domain.
+    const isCustomDomain = basePath === "";
+
+    if (isCustomDomain) {
+      const mainDomain =
+        process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+      const returnDomain = window.location.hostname;
+      const returnPath = redirectTo || "/";
+      window.location.href = `${mainDomain}/api/auth/oauth-redirect?provider=${provider}&returnDomain=${encodeURIComponent(returnDomain)}&returnPath=${encodeURIComponent(returnPath)}`;
+      return;
+    }
+
     try {
       // Better Auth social sign in with store redirect
       await authClient.signIn.social({

@@ -186,21 +186,14 @@ export async function getAdminStoreById(storeId: string) {
     .from(orders)
     .where(eq(orders.tenantId, storeId));
 
-  // Get revenue
+  // Get revenue — count all paid orders regardless of fulfillment status
   const [revenue] = await db
     .select({
       total: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
     })
     .from(orders)
     .where(
-      and(
-        eq(orders.tenantId, storeId),
-        or(
-          eq(orders.status, "delivered"),
-          eq(orders.status, "shipped"),
-          eq(orders.status, "processing")
-        )
-      )
+      and(eq(orders.tenantId, storeId), eq(orders.isPaid, true))
     );
 
   return {

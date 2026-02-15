@@ -40,17 +40,11 @@ export const stripeClient: PaymentGatewayProvider = {
     }
 
     try {
-      // Determine currency - use customer's currency if provided, else store currency
-      const currency = (
-        params.customerCurrency ||
-        params.currency ||
-        "USD"
-      ).toLowerCase();
+      // Always charge in the store's base currency
+      const currency = (params.currency || "USD").toLowerCase();
 
       // Calculate amount in smallest currency unit (cents, etc.)
-      const amount = params.customerAmount
-        ? Math.round(params.customerAmount * 100)
-        : Math.round(params.amount * 100);
+      const amount = Math.round(params.amount * 100);
 
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
@@ -80,8 +74,8 @@ export const stripeClient: PaymentGatewayProvider = {
           invoiceId: params.invoiceId || "",
           storeSlug: (params.metadata?.storeSlug as string) || "",
           // Store exchange rate info for reconciliation
-          originalAmountAFN: params.amount.toString(),
-          customerCurrency: currency.toUpperCase(),
+          chargedAmount: params.amount.toString(),
+          chargedCurrency: currency.toUpperCase(),
           exchangeRate: params.exchangeRate?.toString() || "",
         },
         // Collect billing address for international payments
