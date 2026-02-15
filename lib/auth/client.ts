@@ -7,7 +7,13 @@ import { createAuthClient } from "better-auth/react";
 // =============================================================================
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  // Use current origin so auth works on both main domain and custom domains.
+  // On kakamalem.com → fetches kakamalem.com/api/auth/...
+  // On tuhfaa.com → fetches tuhfaa.com/api/auth/... (proxied to same app)
+  baseURL:
+    typeof window !== "undefined"
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
 });
 
 // Export auth methods for convenience

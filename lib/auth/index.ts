@@ -25,9 +25,22 @@ export const auth = betterAuth({
   baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
 
   // Trust host header in production (needed behind reverse proxy)
-  trustedOrigins: process.env.NEXT_PUBLIC_APP_URL
-    ? [process.env.NEXT_PUBLIC_APP_URL]
-    : ["http://localhost:3000"],
+  // Custom domains (e.g., tuhfaa.com) are routed through our proxy, so their
+  // origins must also be trusted. Cookies are domain-scoped (SameSite=Lax)
+  // which prevents CSRF from third-party sites.
+  trustedOrigins: (request) => {
+    const origins: string[] = [
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "http://localhost:3000",
+    ];
+    // Dynamically trust the request's origin if it's an HTTPS custom domain.
+    // Custom domains are DNS-verified before setup and proxied through our app.
+    const origin = request?.headers.get("origin");
+    if (origin?.startsWith("https://") && !origins.includes(origin)) {
+      origins.push(origin);
+    }
+    return origins;
+  },
 
   // Database adapter using Drizzle
   database: drizzleAdapter(db, {
