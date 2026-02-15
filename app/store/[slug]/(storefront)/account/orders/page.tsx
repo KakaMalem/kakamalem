@@ -4,7 +4,8 @@ import { Package, ShoppingBag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getUser } from "@/lib/auth/server";
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import {
   getCustomerOrders,
   getCustomerOrderCount,
@@ -25,7 +26,7 @@ export default async function OrdersPage({
   const { slug } = await params;
   const { page } = await searchParams;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) {
     notFound();
   }
@@ -36,6 +37,8 @@ export default async function OrdersPage({
   if (!user) {
     return null;
   }
+
+  const basePath = await getStoreBasePath(store.slug);
 
   const currentPage = Math.max(1, parseInt(page || "1", 10) || 1);
   const offset = (currentPage - 1) * ORDERS_PER_PAGE;
@@ -72,7 +75,7 @@ export default async function OrdersPage({
               When you place orders at {store.name}, they&apos;ll appear here.
             </p>
             <Button asChild className="mt-4">
-              <Link href={`/store/${slug}/products`}>
+              <Link href={`${basePath}/products`}>
                 <ShoppingBag className="mr-2 size-4" />
                 Start Shopping
               </Link>
@@ -98,7 +101,7 @@ export default async function OrdersPage({
                 {currentPage > 1 && (
                   <Button variant="outline" size="sm" asChild>
                     <Link
-                      href={`/store/${slug}/account/orders?page=${
+                      href={`${basePath}/account/orders?page=${
                         currentPage - 1
                       }`}
                     >
@@ -112,7 +115,7 @@ export default async function OrdersPage({
                 {currentPage < totalPages && (
                   <Button variant="outline" size="sm" asChild>
                     <Link
-                      href={`/store/${slug}/account/orders?page=${
+                      href={`${basePath}/account/orders?page=${
                         currentPage + 1
                       }`}
                     >

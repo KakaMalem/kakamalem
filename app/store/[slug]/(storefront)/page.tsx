@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Package } from "lucide-react";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getProducts } from "@/lib/db/queries/products";
 import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { InfiniteScrollProducts } from "@/components/store/infinite-scroll-products";
 import { Button } from "@/components/ui/button";
 
@@ -20,12 +21,14 @@ export default async function StorePage({
   const { q: searchQuery } = await searchParams;
 
   // Fetch store data
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   // Store validation is handled in layout, but we need the store for queries
   if (!store) {
     return null;
   }
+
+  const basePath = await getStoreBasePath(store.slug);
 
   // Fetch products and active campaigns in parallel
   const [productsResult, activeCampaigns] = await Promise.all([
@@ -63,7 +66,7 @@ export default async function StorePage({
                 </span>
               </p>
               <Button variant="ghost" size="sm" className="shrink-0" asChild>
-                <Link href={`/store/${slug}`}>Clear</Link>
+                <Link href={basePath || "/"}>Clear</Link>
               </Button>
             </div>
           </div>
@@ -78,7 +81,7 @@ export default async function StorePage({
               initialProducts={productsResult.products}
               initialPagination={productsResult.pagination}
               tenantId={store.id}
-              storeSlug={slug}
+              storeSlug={store.slug}
               currency={store.currency}
               filters={{
                 isActive: true,
@@ -104,7 +107,7 @@ export default async function StorePage({
               </p>
               {searchQuery && (
                 <Button variant="outline" className="mt-6" asChild>
-                  <Link href={`/store/${slug}`}>Clear search</Link>
+                  <Link href={basePath || "/"}>Clear search</Link>
                 </Button>
               )}
             </div>

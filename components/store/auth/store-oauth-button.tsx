@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 type Provider = "google" | "facebook";
 
@@ -54,16 +55,17 @@ const providerConfig = {
 
 export function StoreOAuthButton({
   provider,
-  storeSlug,
+  storeSlug: _storeSlug,
   redirectTo,
 }: StoreOAuthButtonProps) {
+  const basePath = useStoreBasePath();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const config = providerConfig[provider];
 
   // Build the callback URL that includes store context
-  const callbackURL = redirectTo || `/store/${storeSlug}`;
+  const callbackURL = redirectTo || basePath;
 
   async function handleOAuth() {
     setIsLoading(true);

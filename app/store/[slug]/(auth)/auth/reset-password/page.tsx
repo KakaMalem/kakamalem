@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
 import { StoreResetPasswordForm } from "@/components/store/auth/store-reset-password-form";
 
 // Force dynamic rendering
@@ -19,7 +19,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     return { title: "Store Not Found" };
@@ -39,7 +39,7 @@ export default async function StoreResetPasswordPage({
   const { token } = await searchParams;
 
   // Fetch store data
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     notFound();

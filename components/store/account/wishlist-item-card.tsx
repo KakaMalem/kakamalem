@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { removeWishlistItemAction } from "@/lib/actions/wishlists";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { toast } from "sonner";
 
 interface WishlistItemCardProps {
@@ -40,9 +41,10 @@ interface WishlistItemCardProps {
 
 export function WishlistItemCard({
   item,
-  storeSlug,
+  storeSlug: _storeSlug,
   currency: _currency,
 }: WishlistItemCardProps) {
+  const basePath = useStoreBasePath();
   const { format: formatPrice } = useCurrencyStore();
   const [isRemoving, setIsRemoving] = useState(false);
 
@@ -69,7 +71,7 @@ export function WishlistItemCard({
     }
   }
 
-  const productUrl = `/store/${storeSlug}/product/${item.product.slug}`;
+  const productUrl = `${basePath}/product/${item.product.slug}`;
 
   return (
     <Card>

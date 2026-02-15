@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { validateCartForCheckout } from "@/lib/db/queries/carts";
 import { getUserAddresses } from "@/lib/db/queries/addresses";
 import { getPrimaryStoreLocation } from "@/lib/db/queries/store-locations";
@@ -36,7 +37,7 @@ export async function generateMetadata({
   params,
 }: CheckoutPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     return { title: "Checkout - Store Not Found" };
@@ -52,10 +53,12 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const { slug } = await params;
 
   // Fetch store
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store || store.status !== "active") {
     notFound();
   }
+
+  const basePath = await getStoreBasePath(store.slug);
 
   // Check if online checkout is enabled
   if (!store.onlineCheckoutEnabled) {
@@ -78,7 +81,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           </p>
         )}
         <Button asChild className="mt-6">
-          <Link href={`/store/${slug}`}>Back to Store</Link>
+          <Link href={`${basePath}`}>Back to Store</Link>
         </Button>
       </div>
     );
@@ -92,7 +95,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
   // Check if cart exists and has items
   if (!sessionId) {
-    redirect(`/store/${slug}/cart?error=session`);
+    redirect(`${basePath}/cart?error=session`);
   }
 
   const cartValidation = await validateCartForCheckout(
@@ -112,12 +115,10 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
 
     if (pendingPayment?.orderId) {
       // Redirect to payment retry page instead of showing cart empty error
-      redirect(
-        `/store/${slug}/checkout/payment?order=${pendingPayment.orderId}`
-      );
+      redirect(`${basePath}/checkout/payment?order=${pendingPayment.orderId}`);
     }
 
-    redirect(`/store/${slug}/cart?error=empty`);
+    redirect(`${basePath}/cart?error=empty`);
   }
 
   // Check for cart validation errors
@@ -126,7 +127,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     const errorsParam = encodeURIComponent(
       JSON.stringify(cartValidation.errors)
     );
-    redirect(`/store/${slug}/cart?error=validation&errors=${errorsParam}`);
+    redirect(`${basePath}/cart?error=validation&errors=${errorsParam}`);
   }
 
   // Fetch delivery zones for checkout visualization
@@ -242,7 +243,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   return (
     <CheckoutContainer
       tenantId={store.id}
-      storeSlug={slug}
+      storeSlug={store.slug}
       storeName={store.name}
       currency={store.currency}
       cart={cartValidation.cart}

@@ -24,6 +24,8 @@ export function transformTenantToSettings(tenant: {
   receiptFooterText: string | null;
   receiptPrintMode: string;
   enableDeliveryZones: boolean;
+  customDomain: string | null;
+  customDomainStatus: string | null;
 }): TenantSettings {
   return {
     id: tenant.id,
@@ -48,5 +50,7 @@ export function transformTenantToSettings(tenant: {
       | "prompt"
       | "silent",
     enableDeliveryZones: tenant.enableDeliveryZones,
+    customDomain: tenant.customDomain,
+    customDomainStatus: tenant.customDomainStatus,
   };
 }

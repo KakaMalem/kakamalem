@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { db } from "@/lib/db";
 import { paymentSessions, cryptoPayments, orders } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -19,7 +20,7 @@ export async function generateMetadata({
   params,
 }: CryptoPaymentPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     return { title: "Payment - Store Not Found" };
@@ -39,19 +40,21 @@ export default async function CryptoPaymentPage({
   const { session: sessionId } = await searchParams;
 
   // Fetch store
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) {
     notFound();
   }
 
+  const basePath = await getStoreBasePath(store.slug);
+
   // Handle inactive stores gracefully - redirect instead of 404
   if (store.status !== "active") {
-    redirect(`/store/${slug}`);
+    redirect(`${basePath}`);
   }
 
   // Redirect if no session ID
   if (!sessionId) {
-    redirect(`/store/${slug}/checkout`);
+    redirect(`${basePath}/checkout`);
   }
 
   // Get the payment session - verify it belongs to this tenant
@@ -68,7 +71,7 @@ export default async function CryptoPaymentPage({
 
   if (!paymentSession) {
     // Session not found or doesn't belong to this store
-    redirect(`/store/${slug}/checkout`);
+    redirect(`${basePath}/checkout`);
   }
 
   // Get the crypto payment record
@@ -80,12 +83,12 @@ export default async function CryptoPaymentPage({
 
   if (!cryptoPayment) {
     // No crypto payment record - redirect to payment method selection
-    redirect(`/store/${slug}/checkout/payment?order=${paymentSession.orderId}`);
+    redirect(`${basePath}/checkout/payment?order=${paymentSession.orderId}`);
   }
 
   // Check if already verified
   if (cryptoPayment.status === "verified") {
-    redirect(`/store/${slug}/checkout/success?order=${paymentSession.orderId}`);
+    redirect(`${basePath}/checkout/success?order=${paymentSession.orderId}`);
   }
 
   // Check if expired
@@ -101,7 +104,7 @@ export default async function CryptoPaymentPage({
 
   // Get order details - we can fetch directly since the payment session proves ownership
   if (!paymentSession.orderId) {
-    redirect(`/store/${slug}`);
+    redirect(`${basePath}`);
   }
 
   const [order] = await db
@@ -116,7 +119,7 @@ export default async function CryptoPaymentPage({
     .limit(1);
 
   if (!order) {
-    redirect(`/store/${slug}`);
+    redirect(`${basePath}`);
   }
 
   // Fix for corrupted wallet addresses (stored as "[object Object]" due to bug)
@@ -143,7 +146,7 @@ export default async function CryptoPaymentPage({
 
   return (
     <CryptoPaymentClient
-      storeSlug={slug}
+      storeSlug={store.slug}
       storeName={store.name}
       orderId={order.id}
       orderNumber={order.orderNumber}
@@ -160,7 +163,7 @@ export default async function CryptoPaymentPage({
       }}
       successUrl={
         paymentSession.successUrl ||
-        `/store/${slug}/checkout/success?order=${order.id}`
+        `${basePath}/checkout/success?order=${order.id}`
       }
     />
   );

@@ -10,7 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getUser, userHasPassword } from "@/lib/auth/server";
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
 import {
   UpdateNameForm,
   ChangePasswordForm,
@@ -27,7 +27,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const { slug } = await params;
   const [user, store, hasPassword] = await Promise.all([
     getUser(),
-    getTenantBySlug(slug),
+    resolveTenant(slug),
     userHasPassword(),
   ]);
 

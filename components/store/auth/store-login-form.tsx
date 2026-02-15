@@ -17,6 +17,7 @@ import { StoreOAuthButton } from "./store-oauth-button";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
 import { handleFormErrors } from "@/lib/utils/form-errors";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 // Map field names to DOM element IDs for scroll-to-error
 const FIELD_ID_MAP: Record<string, string> = {
@@ -34,7 +35,8 @@ interface StoreLoginFormProps {
 }
 
 export function StoreLoginForm({ store, redirectTo }: StoreLoginFormProps) {
-  const finalRedirect = redirectTo || `/store/${store.slug}`;
+  const basePath = useStoreBasePath();
+  const finalRedirect = redirectTo || basePath;
 
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
@@ -193,7 +195,7 @@ export function StoreLoginForm({ store, redirectTo }: StoreLoginFormProps) {
 
           <div className="flex justify-end">
             <Link
-              href={`/store/${store.slug}/auth/forgot-password`}
+              href={`${basePath}/auth/forgot-password`}
               className="text-sm text-muted-foreground hover:text-primary hover:underline"
             >
               Forgot password?
@@ -233,7 +235,7 @@ export function StoreLoginForm({ store, redirectTo }: StoreLoginFormProps) {
         <p className="text-center text-sm text-muted-foreground pt-2">
           Don&apos;t have an account?{" "}
           <Link
-            href={`/store/${store.slug}/auth/signup${
+            href={`${basePath}/auth/signup${
               redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""
             }`}
             className="text-primary font-medium hover:underline"

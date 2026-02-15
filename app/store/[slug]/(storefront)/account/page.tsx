@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Package, Heart, MapPin, Settings, ChevronRight } from "lucide-react";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { getUser } from "@/lib/auth/server";
 import {
   getRecentOrdersSummary,
@@ -28,7 +29,7 @@ interface AccountPageProps {
 export default async function AccountPage({ params }: AccountPageProps) {
   const { slug } = await params;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) {
     notFound();
   }
@@ -38,7 +39,8 @@ export default async function AccountPage({ params }: AccountPageProps) {
     return null;
   }
 
-  const baseUrl = `/store/${slug}/account`;
+  const basePath = await getStoreBasePath(store.slug);
+  const baseUrl = `${basePath}/account`;
 
   // Fetch data in parallel
   const [recentOrders, wishlistCount, addressCount] = await Promise.all([

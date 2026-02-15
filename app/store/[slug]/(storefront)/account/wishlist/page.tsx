@@ -4,7 +4,8 @@ import { Heart, ShoppingBag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getUser } from "@/lib/auth/server";
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { getWishlistItems } from "@/lib/db/queries/wishlists";
 import { WishlistItemCard } from "@/components/store/account/wishlist-item-card";
 
@@ -15,7 +16,7 @@ interface WishlistPageProps {
 export default async function WishlistPage({ params }: WishlistPageProps) {
   const { slug } = await params;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) {
     notFound();
   }
@@ -26,6 +27,8 @@ export default async function WishlistPage({ params }: WishlistPageProps) {
   if (!user) {
     return null;
   }
+
+  const basePath = await getStoreBasePath(store.slug);
 
   const items = await getWishlistItems(store.id, user.id);
 
@@ -59,7 +62,7 @@ export default async function WishlistPage({ params }: WishlistPageProps) {
               Save items you love by clicking the heart icon on products.
             </p>
             <Button asChild className="mt-4">
-              <Link href={`/store/${slug}/products`}>
+              <Link href={`${basePath}/products`}>
                 <ShoppingBag className="mr-2 size-4" />
                 Browse Products
               </Link>

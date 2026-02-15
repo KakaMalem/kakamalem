@@ -8,6 +8,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface StoreCategoriesBarProps {
   categories: {
@@ -21,9 +22,10 @@ interface StoreCategoriesBarProps {
 
 export function StoreCategoriesBar({
   categories,
-  storeSlug,
+  storeSlug: _storeSlug,
 }: StoreCategoriesBarProps) {
   const pathname = usePathname();
+  const basePath = useStoreBasePath();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -34,12 +36,12 @@ export function StoreCategoriesBar({
   const hasAnyImage = categories.some((cat) => cat.imageUrl);
 
   // Store URL for all checks
-  const storeUrl = `/store/${storeSlug}`;
+  const storeUrl = basePath || "/";
 
   // Determine if categories bar should be shown on this page
+  const isHomepage = pathname === storeUrl || pathname === `${storeUrl}/`;
   const shouldShowCategoriesBar =
-    pathname === storeUrl || // Main store page
-    pathname === `${storeUrl}/` || // Main store page with trailing slash
+    isHomepage ||
     pathname?.startsWith(`${storeUrl}/category/`) || // Category pages
     pathname?.startsWith(`${storeUrl}/products`) || // Products pages
     pathname?.startsWith(`${storeUrl}/categories`); // Categories listing page
@@ -117,7 +119,7 @@ export function StoreCategoriesBar({
     return null;
   }
 
-  const isAllActive = pathname === storeUrl || pathname === `${storeUrl}/`;
+  const isAllActive = isHomepage;
 
   // Show circular design if at least one category has an image
   if (hasAnyImage) {

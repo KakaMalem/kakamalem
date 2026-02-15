@@ -4,12 +4,15 @@ import Link from "next/link";
 import { ShoppingBag, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface EmptyCartProps {
   storeSlug: string;
 }
 
-export function EmptyCart({ storeSlug }: EmptyCartProps) {
+export function EmptyCart({ storeSlug: _storeSlug }: EmptyCartProps) {
+  const basePath = useStoreBasePath();
+
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-muted">
@@ -26,7 +29,7 @@ export function EmptyCart({ storeSlug }: EmptyCartProps) {
       </p>
 
       <Button size="lg" className="mt-6" asChild>
-        <Link href={`/store/${storeSlug}`}>
+        <Link href={basePath || "/"}>
           Continue Shopping
           <ArrowRight className="ml-2 h-4 w-4" />
         </Link>

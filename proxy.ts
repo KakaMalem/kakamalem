@@ -11,11 +11,12 @@ import {
  * Proxy for handling:
  * 1. SEO: www → non-www redirect (canonical consolidation)
  * 2. Platform affiliate vanity URLs (e.g., kakamalem.com/matee)
- * 3. Custom domain routing to internal _custom route
+ * 3. Custom domain routing through existing [slug] route tree
  *
  * When a request comes from a custom domain (not kakamalem.com),
- * we rewrite it to the internal _custom route handler which will
- * look up the tenant by domain and render the appropriate storefront.
+ * we rewrite it through the existing [slug] route tree using "custom-domain"
+ * as a reserved placeholder slug. Layouts detect the x-custom-domain header
+ * and resolve the tenant by domain instead of slug.
  */
 
 // Main domain and its variations that should NOT be treated as custom domains
@@ -72,6 +73,8 @@ const RESERVED_PATHS = new Set([
   "500",
   // Other Next.js routes
   "_next",
+  // Custom domain internal slug
+  "custom-domain",
 ]);
 
 export default function proxy(request: NextRequest) {
@@ -154,8 +157,25 @@ export default function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // This is a custom domain request - rewrite to the _custom route
-  // The _custom route will look up the tenant by domain and render the storefront
+  // ==========================================================================
+  // Custom Domain Routing
+  // Rewrites custom domain requests through the existing [slug] route tree
+  // using "custom-domain" as a reserved placeholder slug. The layouts/pages
+  // detect the x-custom-domain header and resolve the tenant by domain.
+  // ==========================================================================
+
+  // If the custom domain path starts with /store/{anything}/, strip it and redirect.
+  // This handles links generated with the old slug prefix (e.g., tuhfaa.com/store/tuhfaa/auth/login)
+  const storePathMatch = pathname.match(/^\/store\/[^/]+(\/.*)?$/);
+  if (storePathMatch) {
+    const cleanPath = storePathMatch[1] || "/";
+    const url = request.nextUrl.clone();
+    url.pathname = cleanPath;
+    return NextResponse.redirect(url, { status: 301 });
+  }
+
+  // Rewrite clean paths through the [slug] route tree with "custom-domain" as the slug
+  // e.g., tuhfaa.com/auth/login → /store/custom-domain/auth/login
   const url = request.nextUrl.clone();
   url.pathname = `/store/custom-domain${pathname}`;
 

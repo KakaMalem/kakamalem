@@ -15,6 +15,7 @@ import {
 import { useCart } from "@/lib/hooks/use-cart";
 import type { CartItemProduct } from "@/lib/types/cart";
 import type { CampaignDiscount } from "@/lib/utils/pricing-display";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface ProductGridProps {
   products: {
@@ -75,6 +76,7 @@ export function ProductGrid({
 }: ProductGridProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const storeBasePath = useStoreBasePath();
   const { addToCart, isAddingProduct } = useCart();
 
   const handleSortChange = (value: string) => {
@@ -96,7 +98,7 @@ export function ProductGrid({
 
     // If product has variants, navigate to product page to select variant
     if (product.hasVariants) {
-      router.push(`/store/${storeSlug}/product/${product.slug}`);
+      router.push(`${storeBasePath}/product/${product.slug}`);
       return;
     }
 

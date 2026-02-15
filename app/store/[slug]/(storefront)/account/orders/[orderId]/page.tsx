@@ -22,7 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getUser } from "@/lib/auth/server";
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import {
   getOrderById,
   getOrderStatusInfo,
@@ -45,7 +46,7 @@ export default async function OrderDetailPage({
 }: OrderDetailPageProps) {
   const { slug, orderId } = await params;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) {
     notFound();
   }
@@ -54,6 +55,8 @@ export default async function OrderDetailPage({
   if (!user) {
     return null;
   }
+
+  const basePath = await getStoreBasePath(store.slug);
 
   const order = await getOrderById(orderId, user.id, store.id);
   if (!order) {
@@ -88,7 +91,7 @@ export default async function OrderDetailPage({
     <div className="space-y-6">
       {/* Back Button */}
       <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href={`/store/${slug}/account/orders`}>
+        <Link href={`${basePath}/account/orders`}>
           <ArrowLeft className="mr-2 size-4" />
           Back to Orders
         </Link>
@@ -152,7 +155,7 @@ export default async function OrderDetailPage({
                 : `Partially paid — ${formatPrice(paymentInfo.amountDue, store.currency)} remaining.`}
             </span>
             <Button size="sm" asChild>
-              <Link href={`/store/${slug}/checkout/payment?order=${order.id}`}>
+              <Link href={`${basePath}/checkout/payment?order=${order.id}`}>
                 <CreditCard className="mr-2 size-4" />
                 Pay Now
               </Link>

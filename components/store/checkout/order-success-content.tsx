@@ -20,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import type { Address, PaymentMethod, PaymentStatus } from "@/lib/db/schema";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { cartActions } from "@/lib/stores/use-cart-store";
@@ -120,13 +121,14 @@ interface OrderSuccessContentProps {
 }
 
 export function OrderSuccessContent({
-  storeSlug,
+  storeSlug: _storeSlug,
   currency: _currency,
   order,
   user,
   paymentStatus,
 }: OrderSuccessContentProps) {
   const { format: formatPrice } = useCurrencyStore();
+  const basePath = useStoreBasePath();
   const [showConfetti, setShowConfetti] = useState(true);
   const { resetCheckout } = useCheckoutStore();
   const confettiParticles = useMemo(() => generateConfettiParticles(), []);
@@ -462,9 +464,7 @@ export function OrderSuccessContent({
           {/* Complete Payment button for unpaid online orders */}
           {order && !isPaid && !isCOD && (
             <Button asChild>
-              <Link
-                href={`/store/${storeSlug}/checkout/payment?order=${order.id}`}
-              >
+              <Link href={`${basePath}/checkout/payment?order=${order.id}`}>
                 Complete Payment
                 <ArrowRight className="ml-2 size-4" />
               </Link>
@@ -472,14 +472,14 @@ export function OrderSuccessContent({
           )}
           {user && order && (
             <Button variant={!isPaid && !isCOD ? "outline" : "default"} asChild>
-              <Link href={`/store/${storeSlug}/account/orders/${order.id}`}>
+              <Link href={`${basePath}/account/orders/${order.id}`}>
                 View Order Details
                 <ArrowRight className="ml-2 size-4" />
               </Link>
             </Button>
           )}
           <Button variant="outline" asChild>
-            <Link href={`/store/${storeSlug}`}>
+            <Link href={`${basePath}`}>
               <ShoppingBag className="mr-2 size-4" />
               Continue Shopping
             </Link>

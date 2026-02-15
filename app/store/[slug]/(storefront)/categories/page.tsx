@@ -1,4 +1,4 @@
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
 import { CategoryCard } from "@/components/store/category-card";
 
@@ -9,7 +9,7 @@ interface CategoriesPageProps {
 export default async function CategoriesPage({ params }: CategoriesPageProps) {
   const { slug } = await params;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) return null;
 
   const categories = await getCategoriesWithCounts(store.id);
@@ -31,7 +31,7 @@ export default async function CategoriesPage({ params }: CategoriesPageProps) {
             <CategoryCard
               key={category.id}
               category={category}
-              storeSlug={slug}
+              storeSlug={store.slug}
             />
           ))}
         </div>

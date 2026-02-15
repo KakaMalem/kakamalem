@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
 import { Package, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import { useImagePreview } from "@/components/ui/image-preview";
 import { cn } from "@/lib/utils";
 import { OrderShippingAdjustment } from "./order-shipping-adjustment";
 import { OrderTotalAdjustment } from "./order-total-adjustment";
+import { useStoreUrl } from "@/lib/stores/use-tenant-settings-store";
 
 interface OrderItem {
   id: string;
@@ -52,6 +52,7 @@ export function OrderItemsCard({
   total,
 }: OrderItemsCardProps) {
   const { openPreview } = useImagePreview();
+  const storeUrl = useStoreUrl();
 
   const formatPrice = (price: string) => {
     return `${parseFloat(price).toLocaleString()} ${currency}`;
@@ -104,14 +105,19 @@ export function OrderItemsCard({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   {item.productSlug ? (
-                    <Link
-                      href={`/store/${storeSlug}/product/${item.productSlug}`}
+                    <a
+                      href={
+                        storeUrl?.startsWith("https://")
+                          ? `${storeUrl}/product/${item.productSlug}`
+                          : `/store/${storeSlug}/product/${item.productSlug}`
+                      }
                       target="_blank"
+                      rel="noopener noreferrer"
                       className="font-medium hover:underline inline-flex items-center gap-0.5"
                     >
                       {item.productName}
                       <ArrowUpRight className="size-3.5 text-muted-foreground shrink-0" />
-                    </Link>
+                    </a>
                   ) : (
                     <p className="font-medium">{item.productName}</p>
                   )}

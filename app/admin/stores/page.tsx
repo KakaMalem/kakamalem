@@ -105,8 +105,13 @@ export default async function AdminStoresPage({
                         </p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <Link
-                          href={`/store/${store.slug}`}
+                        <a
+                          href={
+                            store.customDomain &&
+                            store.customDomainStatus === "active"
+                              ? `https://${store.customDomain}`
+                              : `/store/${store.slug}`
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -117,7 +122,7 @@ export default async function AdminStoresPage({
                           >
                             <ExternalLink className="size-4" />
                           </Button>
-                        </Link>
+                        </a>
                         <Link href={`/admin/stores/${store.id}`}>
                           <Button variant="outline" size="sm">
                             Manage
@@ -209,15 +214,20 @@ export default async function AdminStoresPage({
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Link
-                              href={`/store/${store.slug}`}
+                            <a
+                              href={
+                                store.customDomain &&
+                                store.customDomainStatus === "active"
+                                  ? `https://${store.customDomain}`
+                                  : `/store/${store.slug}`
+                              }
                               target="_blank"
                               rel="noopener noreferrer"
                             >
                               <Button variant="ghost" size="icon">
                                 <ExternalLink className="size-4" />
                               </Button>
-                            </Link>
+                            </a>
                             <Link href={`/admin/stores/${store.id}`}>
                               <Button variant="outline" size="sm">
                                 Manage

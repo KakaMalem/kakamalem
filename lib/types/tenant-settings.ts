@@ -45,4 +45,8 @@ export type TenantSettings = {
 
   // Delivery
   enableDeliveryZones: boolean;
+
+  // Custom Domain
+  customDomain: string | null;
+  customDomainStatus: string | null;
 };

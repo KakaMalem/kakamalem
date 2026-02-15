@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath, getStoreBaseUrl } from "@/lib/utils/store-path";
 import {
   getProductBySlugWithDetails,
   getProductImageSwatchUrls,
@@ -35,7 +36,7 @@ export async function generateMetadata({
   // Decode URL-encoded slugs (handles Persian/Unicode characters)
   const decodedProductSlug = decodeURIComponent(productSlug);
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) return { title: "Product Not Found" };
 
   const product = await getProductBySlugWithDetails(
@@ -72,6 +73,7 @@ export async function generateMetadata({
     ? stripHtml(product.description)
     : `Buy ${product.name} at ${store.name}`;
 
+  const storeBaseUrl = await getStoreBaseUrl(store.slug);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
   // Include variant params in canonical URL for unique preview per variant
   const variantParams = new URLSearchParams(
@@ -83,8 +85,8 @@ export async function generateMetadata({
     ) as [string, string][]
   ).toString();
   const productUrl = variantParams
-    ? `${appUrl}/store/${slug}/product/${productSlug}?${variantParams}`
-    : `${appUrl}/store/${slug}/product/${productSlug}`;
+    ? `${storeBaseUrl}/product/${productSlug}?${variantParams}`
+    : `${storeBaseUrl}/product/${productSlug}`;
   const imageUrl = imageToShow ? `${appUrl}${imageToShow}` : undefined;
 
   // Build title with variant info if available
@@ -179,8 +181,10 @@ export default async function ProductPage({
       : undefined
     : undefined;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) return null;
+
+  const basePath = await getStoreBasePath(store.slug);
 
   const product = await getProductBySlugWithDetails(
     store.id,
@@ -201,12 +205,12 @@ export default async function ProductPage({
 
   // Build breadcrumbs
   const breadcrumbs = [
-    { label: "Home", href: `/store/${slug}` },
+    { label: "Home", href: basePath || "/" },
     ...(product.category
       ? [
           {
             label: product.category.name,
-            href: `/store/${slug}/category/${product.category.slug}`,
+            href: `${basePath}/category/${product.category.slug}`,
           },
         ]
       : []),
@@ -230,7 +234,7 @@ export default async function ProductPage({
       <ProductStructuredData
         product={product}
         storeName={store.name}
-        storeSlug={slug}
+        storeSlug={store.slug}
         productSlug={decodedProductSlug}
         currency={store.currency}
         reviewStats={reviewStats}
@@ -245,7 +249,7 @@ export default async function ProductPage({
             <ProductPageContent
               product={product}
               tenantId={store.id}
-              storeSlug={slug}
+              storeSlug={store.slug}
               currency={store.currency}
               breadcrumbs={breadcrumbs}
               reviewStats={reviewStats}
@@ -266,7 +270,7 @@ export default async function ProductPage({
               tenantId={store.id}
               productId={product.id}
               productSlug={decodedProductSlug}
-              storeSlug={slug}
+              storeSlug={store.slug}
               productName={product.name}
               sortBy={sortBy}
               ratingFilter={ratingFilter}

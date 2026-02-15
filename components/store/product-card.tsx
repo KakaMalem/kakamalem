@@ -21,6 +21,7 @@ import {
 import { useWishlist } from "@/lib/hooks/use-wishlist";
 import { buildVariantUrl } from "@/lib/utils/variant-url";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface ProductCardProps {
   product: {
@@ -62,7 +63,7 @@ interface ProductCardProps {
 export function ProductCard({
   product,
   tenantId,
-  storeSlug,
+  storeSlug: _storeSlug,
   currency: _currency,
   className,
   onAddToCart,
@@ -73,16 +74,17 @@ export function ProductCard({
   campaignDiscount = null,
 }: ProductCardProps) {
   const { format: formatPrice } = useCurrencyStore();
+  const basePath = useStoreBasePath();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
   // Build product URL with optional variant options for direct variant linking
   // Uses human-readable format: ?size=large&color=black
-  const basePath = `/store/${storeSlug}/product/${product.slug}`;
+  const productPath = `${basePath}/product/${product.slug}`;
   const productUrl =
     variantOptions && Object.keys(variantOptions).length > 0
-      ? buildVariantUrl(basePath, variantOptions)
-      : basePath;
+      ? buildVariantUrl(productPath, variantOptions)
+      : productPath;
 
   // Wishlist state with optimistic updates
   const {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath, getStoreBaseUrl } from "@/lib/utils/store-path";
 import { getProducts } from "@/lib/db/queries/products";
 import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
 import { InfiniteScrollWrapper } from "@/components/store/infinite-scroll-wrapper";
@@ -14,16 +15,17 @@ export async function generateMetadata({
 }: ProductsPageProps): Promise<Metadata> {
   const { slug } = await params;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) return { title: "Products Not Found" };
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+  const storeBaseUrl = await getStoreBaseUrl(store.slug);
   // Canonical URL without query params to prevent duplicate content
-  const productsUrl = `${baseUrl}/store/${slug}/products`;
+  const productsUrl = `${storeBaseUrl}/products`;
   const description = `Browse all products at ${store.name}. Find the best deals and latest arrivals.`;
 
-  // Get store logo for OG image
-  const imageUrl = store.logoUrl ? `${baseUrl}${store.logoUrl}` : undefined;
+  // Get store logo for OG image (use app URL for asset paths)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+  const imageUrl = store.logoUrl ? `${appUrl}${store.logoUrl}` : undefined;
 
   return {
     title: `All Products | ${store.name}`,
@@ -59,8 +61,10 @@ export default async function ProductsPage({
   const { slug } = await params;
   const { sort, search } = await searchParams;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) return null;
+
+  const basePath = await getStoreBasePath(store.slug);
 
   // Parse sorting - default to displayOrder for manual ordering
   const sortField =
@@ -104,9 +108,9 @@ export default async function ProductsPage({
         initialProducts={productsResult.products}
         initialPagination={productsResult.pagination}
         tenantId={store.id}
-        storeSlug={slug}
+        storeSlug={store.slug}
         currency={store.currency}
-        basePath={`/store/${slug}/products`}
+        basePath={`${basePath}/products`}
         filters={{
           isActive: true,
           showOnStorefront: true,

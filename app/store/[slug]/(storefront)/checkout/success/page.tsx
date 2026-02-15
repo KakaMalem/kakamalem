@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { getOrderById, getOrderItemsWithImages } from "@/lib/db/queries/orders";
 import { getUser } from "@/lib/auth/server";
 import { OrderSuccessContent } from "@/components/store/checkout/order-success-content";
@@ -20,7 +21,7 @@ export async function generateMetadata({
   params,
 }: CheckoutSuccessPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     return { title: "Order Confirmation - Store Not Found" };
@@ -40,14 +41,16 @@ export default async function CheckoutSuccessPage({
   const { order: orderId, payment: paymentStatus } = await searchParams;
 
   // Fetch store
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store || store.status !== "active") {
     notFound();
   }
 
+  const basePath = await getStoreBasePath(store.slug);
+
   // Redirect if no order ID
   if (!orderId) {
-    redirect(`/store/${slug}`);
+    redirect(`${basePath}`);
   }
 
   // Get user (optional - guest orders have no user)
@@ -63,7 +66,7 @@ export default async function CheckoutSuccessPage({
 
   // If user is logged in but order not found, they may be trying to view someone else's order
   if (user && !order) {
-    redirect(`/store/${slug}`);
+    redirect(`${basePath}`);
   }
 
   // Fetch order items with images (prioritizes variant images)
@@ -100,7 +103,7 @@ export default async function CheckoutSuccessPage({
       {/* Clear cart session on mount (client-side) */}
       <ClearCartSession />
       <OrderSuccessContent
-        storeSlug={slug}
+        storeSlug={store.slug}
         currency={store.currency}
         order={orderData}
         user={user ? { id: user.id } : null}

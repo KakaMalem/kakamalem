@@ -18,6 +18,7 @@ import {
 import { CartItem } from "./cart-item";
 import { CartSummary } from "./cart-summary";
 import { EmptyCart } from "./empty-cart";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { useCart } from "@/lib/hooks/use-cart";
 import { useCartCampaignDiscounts } from "@/lib/hooks/use-campaign-discounts";
 
@@ -36,6 +37,7 @@ export function CartContent({
   contactPhone,
   tenantId,
 }: CartContentProps) {
+  const basePath = useStoreBasePath();
   const { items, clearCart, isClearing } = useCart();
 
   // Fetch campaign discounts for cart items
@@ -60,7 +62,7 @@ export function CartContent({
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/store/${storeSlug}`}>
+            <Link href={`${basePath}`}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Continue Shopping
             </Link>

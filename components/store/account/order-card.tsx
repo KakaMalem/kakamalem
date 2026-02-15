@@ -11,6 +11,7 @@ import {
   computePaymentStatus,
   PAYMENT_STATUS_CONFIG,
 } from "@/lib/utils/payment-status";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface OrderCardProps {
   order: {
@@ -35,7 +36,8 @@ interface OrderCardProps {
   currency: string;
 }
 
-export function OrderCard({ order, storeSlug, currency }: OrderCardProps) {
+export function OrderCard({ order, storeSlug: _storeSlug, currency }: OrderCardProps) {
+  const basePath = useStoreBasePath();
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = new Date(order.createdAt);
   const itemCount =
@@ -55,7 +57,7 @@ export function OrderCard({ order, storeSlug, currency }: OrderCardProps) {
     order.status !== "cancelled";
 
   return (
-    <Link href={`/store/${storeSlug}/account/orders/${order.id}`}>
+    <Link href={`${basePath}/account/orders/${order.id}`}>
       <Card className="transition-colors hover:bg-muted/50">
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
@@ -108,9 +110,7 @@ export function OrderCard({ order, storeSlug, currency }: OrderCardProps) {
                   asChild
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Link
-                    href={`/store/${storeSlug}/checkout/payment?order=${order.id}`}
-                  >
+                  <Link href={`${basePath}/checkout/payment?order=${order.id}`}>
                     <CreditCard className="mr-1 size-3" />
                     Pay Now
                   </Link>

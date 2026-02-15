@@ -9,6 +9,7 @@ import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { useMounted } from "@/lib/hooks/use-mounted";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { CheckoutAccordion } from "./accordion";
 import { CheckoutSummary } from "./checkout-summary";
 import { MobileOrderSummary } from "./mobile-order-summary";
@@ -64,6 +65,7 @@ export function CheckoutContainer({
   showPromoCode = false,
 }: CheckoutContainerProps) {
   const mounted = useMounted();
+  const basePath = useStoreBasePath();
 
   const { shippingAddress, initCheckout, setShippingAddress } =
     useCheckoutStore();
@@ -123,7 +125,7 @@ export function CheckoutContainer({
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Link
-          href={`/store/${storeSlug}/cart`}
+          href={`${basePath}/cart`}
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="size-4" />

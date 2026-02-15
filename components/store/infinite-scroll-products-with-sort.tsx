@@ -22,6 +22,7 @@ import {
 } from "@/lib/actions/store-products";
 import type { ProductFilters, ProductSort } from "@/lib/db/queries/products";
 import type { CampaignDiscount } from "@/lib/utils/pricing-display";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface Product {
   id: string;
@@ -155,6 +156,7 @@ export function InfiniteScrollProductsWithSort({
 }: InfiniteScrollProductsWithSortProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const storeBasePath = useStoreBasePath();
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [page, setPage] = useState(initialPagination.page);
   const [totalCount, setTotalCount] = useState(initialPagination.total);
@@ -243,7 +245,7 @@ export function InfiniteScrollProductsWithSort({
     if (!product) return;
 
     if (product.hasVariants) {
-      router.push(`/store/${storeSlug}/product/${product.slug}`);
+      router.push(`${storeBasePath}/product/${product.slug}`);
       return;
     }
 

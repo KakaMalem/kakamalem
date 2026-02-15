@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useCart, useCartDrawer } from "@/lib/hooks/use-cart";
 import {
@@ -120,7 +121,8 @@ function useDrawerHistory(isOpen: boolean, onClose: () => void) {
   }, [handlePopState]);
 }
 
-export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
+export function CartDrawer({ storeSlug: _storeSlug, currency, tenantId }: CartDrawerProps) {
+  const basePath = useStoreBasePath();
   const { format: formatPrice } = useCurrencyStore();
   const { isOpen, close } = useCartDrawer();
   const { items, itemCount } = useCart();
@@ -235,7 +237,7 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
             </p>
             <DrawerClose asChild>
               <Button size="lg" asChild>
-                <Link href={`/store/${storeSlug}`}>Start Shopping</Link>
+                <Link href={`${basePath}`}>Start Shopping</Link>
               </Button>
             </DrawerClose>
           </div>
@@ -253,7 +255,6 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
                   <div key={item.id}>
                     <CartDrawerItem
                       item={item}
-                      storeSlug={storeSlug}
                       currency={currency}
                       campaignDiscount={discountsMap.get(item.product.id)}
                     />
@@ -318,7 +319,7 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
               <div className="mx-auto mt-4 flex w-full max-w-sm flex-col gap-2 sm:mx-0 sm:max-w-none">
                 <DrawerClose asChild>
                   <Button size="lg" className="w-full" asChild>
-                    <Link href={`/store/${storeSlug}/checkout`}>
+                    <Link href={`${basePath}/checkout`}>
                       Checkout
                       <ArrowRight className="ml-2 size-4" />
                     </Link>
@@ -331,9 +332,7 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
                     className="w-full"
                     asChild
                   >
-                    <Link href={`/store/${storeSlug}/cart`}>
-                      View Full Cart
-                    </Link>
+                    <Link href={`${basePath}/cart`}>View Full Cart</Link>
                   </Button>
                 </DrawerClose>
               </div>
@@ -347,17 +346,16 @@ export function CartDrawer({ storeSlug, currency, tenantId }: CartDrawerProps) {
 
 interface CartDrawerItemProps {
   item: CartItem;
-  storeSlug: string;
   currency: string;
   campaignDiscount?: CampaignDiscount;
 }
 
 function CartDrawerItem({
   item,
-  storeSlug,
   currency: _currency,
   campaignDiscount,
 }: CartDrawerItemProps) {
+  const basePath = useStoreBasePath();
   const { format: formatPrice } = useCurrencyStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState("");
@@ -552,7 +550,7 @@ function CartDrawerItem({
     <div className="flex gap-4">
       {/* Product Image (prioritizes variant image) */}
       <Link
-        href={`/store/${storeSlug}/product/${item.product.slug}`}
+        href={`${basePath}/product/${item.product.slug}`}
         className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-muted"
       >
         {displayImage ? (
@@ -575,7 +573,7 @@ function CartDrawerItem({
         {/* Name & Remove */}
         <div className="flex items-start justify-between gap-2">
           <Link
-            href={`/store/${storeSlug}/product/${item.product.slug}`}
+            href={`${basePath}/product/${item.product.slug}`}
             className="line-clamp-2 text-sm font-medium leading-tight hover:underline"
           >
             {productName}

@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
 import { StoreLoginForm } from "@/components/store/auth/store-login-form";
 import { parseRedirectParam } from "@/lib/auth/context";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 
 // Force dynamic rendering - auth state must be checked on every request
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     return { title: "Store Not Found" };
@@ -40,16 +41,18 @@ export default async function StoreLoginPage({
   const { redirect: redirectParam } = await searchParams;
 
   // Fetch store data
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     notFound();
   }
 
+  const basePath = await getStoreBasePath(store.slug);
+
   // Parse redirect parameter safely
   const redirectTo = parseRedirectParam(
     new URLSearchParams(redirectParam ? `redirect=${redirectParam}` : ""),
-    `/store/${slug}`
+    basePath
   );
 
   return (

@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getUser } from "@/lib/auth/server";
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { CustomerNotificationsContent } from "./notifications-content";
 
 export async function generateMetadata({
@@ -9,7 +10,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   return {
     title: store ? `Notifications - ${store.name}` : "Notifications",
@@ -24,15 +25,17 @@ export default async function CustomerNotificationsPage({
 }) {
   const { slug } = await params;
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) {
     notFound();
   }
 
+  const basePath = await getStoreBasePath(store.slug);
+
   const user = await getUser();
   if (!user) {
     redirect(
-      `/store/${slug}/auth/login?redirect=/store/${slug}/account/notifications`
+      `${basePath}/auth/login?redirect=${basePath}/account/notifications`
     );
   }
 

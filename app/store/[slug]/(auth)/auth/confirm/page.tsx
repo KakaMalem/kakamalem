@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { CheckCircle2, Mail } from "lucide-react";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 function ConfirmContent() {
   const searchParams = useSearchParams();
-  const params = useParams();
-  const slug = params.slug as string;
+  const basePath = useStoreBasePath();
   const type = searchParams.get("type");
 
   const confirmMessages: Record<
@@ -29,7 +29,7 @@ function ConfirmContent() {
       description:
         "Your account has been created successfully. You can now sign in to start shopping.",
       cta: "Sign In",
-      ctaHref: `/store/${slug}/auth/login`,
+      ctaHref: `${basePath}/auth/login`,
       icon: "check",
     },
     recovery: {
@@ -37,14 +37,14 @@ function ConfirmContent() {
       description:
         "Your password has been reset successfully. You can now sign in with your new password.",
       cta: "Sign In",
-      ctaHref: `/store/${slug}/auth/login`,
+      ctaHref: `${basePath}/auth/login`,
       icon: "check",
     },
     email_change: {
       title: "Email Updated",
       description: "Your email address has been updated successfully.",
       cta: "Continue Shopping",
-      ctaHref: `/store/${slug}`,
+      ctaHref: basePath,
       icon: "check",
     },
     email_confirmed: {
@@ -52,7 +52,7 @@ function ConfirmContent() {
       description:
         "Your email has been confirmed. You can now sign in to your account.",
       cta: "Sign In",
-      ctaHref: `/store/${slug}/auth/login`,
+      ctaHref: `${basePath}/auth/login`,
       icon: "check",
     },
     password_reset_sent: {
@@ -60,7 +60,7 @@ function ConfirmContent() {
       description:
         "If an account exists with that email, we've sent you a link to reset your password.",
       cta: "Back to Sign In",
-      ctaHref: `/store/${slug}/auth/login`,
+      ctaHref: `${basePath}/auth/login`,
       icon: "mail",
     },
     verification_sent: {
@@ -68,7 +68,7 @@ function ConfirmContent() {
       description:
         "We've sent you a confirmation link. Please check your email to verify your account.",
       cta: "Back to Sign In",
-      ctaHref: `/store/${slug}/auth/login`,
+      ctaHref: `${basePath}/auth/login`,
       icon: "mail",
     },
   };
@@ -78,14 +78,14 @@ function ConfirmContent() {
         title: "Success",
         description: "Your action was completed successfully.",
         cta: "Continue",
-        ctaHref: `/store/${slug}`,
+        ctaHref: basePath,
         icon: "check" as const,
       }
     : {
         title: "Success",
         description: "Your action was completed successfully.",
         cta: "Continue",
-        ctaHref: `/store/${slug}`,
+        ctaHref: basePath,
         icon: "check" as const,
       };
 
@@ -112,7 +112,7 @@ function ConfirmContent() {
             <Link href={confirmInfo.ctaHref}>{confirmInfo.cta}</Link>
           </Button>
           <Button variant="ghost" asChild>
-            <Link href={`/store/${slug}`}>Go to Store</Link>
+            <Link href={basePath}>Go to Store</Link>
           </Button>
         </div>
       </CardContent>

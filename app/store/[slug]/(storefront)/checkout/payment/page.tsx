@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { getOrderById } from "@/lib/db/queries/orders";
 import { getUser } from "@/lib/auth/server";
 import { getEnabledGateways } from "@/lib/payments";
@@ -19,7 +20,7 @@ export async function generateMetadata({
   params,
 }: PaymentPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     return { title: "Payment - Store Not Found" };
@@ -39,14 +40,16 @@ export default async function PaymentPage({
   const { order: orderId, cancelled } = await searchParams;
 
   // Fetch store
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store || store.status !== "active") {
     notFound();
   }
 
+  const basePath = await getStoreBasePath(store.slug);
+
   // Redirect if no order ID
   if (!orderId) {
-    redirect(`/store/${slug}`);
+    redirect(`${basePath}`);
   }
 
   // Get user
@@ -60,11 +63,11 @@ export default async function PaymentPage({
 
   // If order not found or already paid, redirect appropriately
   if (!order) {
-    redirect(`/store/${slug}`);
+    redirect(`${basePath}`);
   }
 
   if (order.paymentStatus === "paid") {
-    redirect(`/store/${slug}/checkout/success?order=${orderId}`);
+    redirect(`${basePath}/checkout/success?order=${orderId}`);
   }
 
   // Fetch enabled payment methods for this store
@@ -82,7 +85,7 @@ export default async function PaymentPage({
 
   return (
     <PaymentPageClient
-      storeSlug={slug}
+      storeSlug={store.slug}
       orderId={orderId}
       orderNumber={order.orderNumber}
       itemCount={order.items.length}

@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Store } from "lucide-react";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath, getStoreBaseUrl } from "@/lib/utils/store-path";
+import { StorePathProvider } from "@/components/store/store-path-provider";
 import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
 import { getOrCreateCart } from "@/lib/db/queries/carts";
 import { getWishlistedProductIds } from "@/lib/db/queries/wishlists";
@@ -40,7 +42,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     return {
@@ -71,20 +73,20 @@ export async function generateMetadata({
     store.tagline ||
     store.description ||
     `Shop at ${store.name}`;
-  const storeUrl = `${baseUrl}/store/${slug}`;
+  const storeBaseUrl = await getStoreBaseUrl(store.slug);
 
   return {
     title,
     description,
     // Canonical URL prevents duplicate content issues
     alternates: {
-      canonical: storeUrl,
+      canonical: storeBaseUrl,
     },
     openGraph: {
       type: "website",
       title,
       description,
-      url: storeUrl,
+      url: storeBaseUrl,
       siteName: store.name,
       locale: "en_US",
       images: ogImageUrl
@@ -112,13 +114,16 @@ export default async function StoreLayout({
 }: StoreLayoutProps) {
   const { slug } = await params;
 
-  // Fetch store data
-  const store = await getTenantBySlug(slug);
+  // Fetch store data (supports custom domain resolution)
+  const store = await resolveTenant(slug);
 
   // Handle store not found
   if (!store) {
     notFound();
   }
+
+  // Get the base path for this store (custom domain = "/" or path-based = "/store/slug")
+  const basePath = await getStoreBasePath(store.slug);
 
   // Check if store is active
   if (store.status !== "active") {
@@ -207,94 +212,99 @@ export default async function StoreLayout({
 
   return (
     <QueryProvider>
-      <CartProvider initialCart={cart} storeSlug={slug}>
-        <CurrencyInitializer storeCurrency={store.currency} />
-        {/* SEO: Organization/Store structured data for Google Knowledge Panel */}
-        <StoreStructuredData
-          store={{
-            name: store.name,
-            slug: slug,
-            tagline: store.tagline,
-            description: store.description,
-            logoUrl: store.logoUrl,
-            contactEmail: store.contactEmail,
-            contactPhone: store.contactPhone,
-            socialLinks: socialLinks,
-            currency: store.currency,
-          }}
-        />
-        {/* SEO: Website structured data for sitelinks searchbox */}
-        <WebsiteStructuredData storeName={store.name} storeSlug={slug} />
+      <StorePathProvider basePath={basePath}>
+        <CartProvider initialCart={cart} storeSlug={store.slug}>
+          <CurrencyInitializer storeCurrency={store.currency} />
+          {/* SEO: Organization/Store structured data for Google Knowledge Panel */}
+          <StoreStructuredData
+            store={{
+              name: store.name,
+              slug: store.slug,
+              tagline: store.tagline,
+              description: store.description,
+              logoUrl: store.logoUrl,
+              contactEmail: store.contactEmail,
+              contactPhone: store.contactPhone,
+              socialLinks: socialLinks,
+              currency: store.currency,
+            }}
+          />
+          {/* SEO: Website structured data for sitelinks searchbox */}
+          <WebsiteStructuredData
+            storeName={store.name}
+            storeSlug={store.slug}
+          />
 
-        <WishlistHydration
-          tenantId={store.id}
-          initialProductIds={wishlistedProductIds}
-        />
-        <div className="flex min-h-screen flex-col bg-background">
-          {/* Sale Banner - positioned at very top, only shown on homepage */}
-          {activeCampaigns.length > 0 && (
-            <SaleBanner
-              campaign={activeCampaigns[0]}
-              storeSlug={slug}
-              currency={store.currency}
+          <WishlistHydration
+            tenantId={store.id}
+            initialProductIds={wishlistedProductIds}
+          />
+          <div className="flex min-h-screen flex-col bg-background">
+            {/* Sale Banner - positioned at very top, only shown on homepage */}
+            {activeCampaigns.length > 0 && (
+              <SaleBanner
+                campaign={activeCampaigns[0]}
+                storeSlug={store.slug}
+                currency={store.currency}
+              />
+            )}
+            <StoreHeaderWrapper
+              store={store}
+              cartItemCount={cartItemCount}
+              user={
+                user
+                  ? {
+                      name: user.name,
+                      email: user.email,
+                      avatarUrl: user.image || undefined,
+                    }
+                  : null
+              }
+              userContext={
+                userContext
+                  ? {
+                      isOwner: userContext.isOwner,
+                      isStaff: userContext.isStaff,
+                      isMember: userContext.isMember,
+                      role: userContext.role,
+                    }
+                  : null
+              }
             />
-          )}
-          <StoreHeaderWrapper
-            store={store}
-            cartItemCount={cartItemCount}
-            user={
-              user
-                ? {
-                    name: user.name,
-                    email: user.email,
-                    avatarUrl: user.image || undefined,
-                  }
-                : null
-            }
-            userContext={
-              userContext
-                ? {
-                    isOwner: userContext.isOwner,
-                    isStaff: userContext.isStaff,
-                    isMember: userContext.isMember,
-                    role: userContext.role,
-                  }
-                : null
-            }
-          />
-          <StoreCategoriesBar
-            categories={categories.map((c) => ({
-              id: c.id,
-              name: c.name,
-              slug: c.slug,
-              imageUrl: c.imageUrl,
-            }))}
-            storeSlug={slug}
-          />
-          <main className="flex-1">{children}</main>
-          <StoreFooter
-            store={store}
-            categories={categories.map((c) => ({
-              id: c.id,
-              name: c.name,
-              slug: c.slug,
-            }))}
-            hideBranding={store.subscriptionPlan === "pro"}
-          />
-          {/* Cart Drawer - Hidden when online cart is disabled */}
-          {!isCartDisabled && (
-            <CartDrawer
-              storeSlug={slug}
-              currency={store.currency}
-              tenantId={store.id}
+            <StoreCategoriesBar
+              categories={categories.map((c) => ({
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+                imageUrl: c.imageUrl,
+              }))}
+              storeSlug={store.slug}
             />
-          )}
-          {/* Floating WhatsApp Button */}
-          {showWhatsAppButton && whatsappNumber && (
-            <WhatsAppButton phoneNumber={whatsappNumber} />
-          )}
-        </div>
-      </CartProvider>
+            <main className="flex-1">{children}</main>
+            <StoreFooter
+              store={store}
+              categories={categories.map((c) => ({
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+              }))}
+              hideBranding={store.subscriptionPlan === "pro"}
+            />
+            {/* Cart Drawer - Hidden when online cart is disabled */}
+            {!isCartDisabled && (
+              <CartDrawer
+                storeSlug={store.slug}
+                currency={store.currency}
+                tenantId={store.id}
+              />
+            )}
+            {/* Floating WhatsApp Button */}
+            {showWhatsAppButton && whatsappNumber && (
+              <WhatsAppButton phoneNumber={whatsappNumber} />
+            )}
+          </div>
+        </CartProvider>
+      </StorePathProvider>
     </QueryProvider>
   );
 }

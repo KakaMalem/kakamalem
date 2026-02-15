@@ -237,6 +237,22 @@ export function useIsSettingsHydrated() {
   return useTenantSettingsStore((state) => state.isHydrated);
 }
 
+/**
+ * Returns the public-facing store URL.
+ * If the store has an active custom domain, returns https://customdomain.com
+ * Otherwise returns the default /store/{slug} path (relative).
+ */
+export function useStoreUrl() {
+  return useTenantSettingsStore((state) => {
+    const s = state.settings;
+    if (!s) return null;
+    if (s.customDomain && s.customDomainStatus === "active") {
+      return `https://${s.customDomain}`;
+    }
+    return `/store/${s.slug}`;
+  });
+}
+
 // ============================================================================
 // ACTIONS (stable references, no re-renders)
 // ============================================================================

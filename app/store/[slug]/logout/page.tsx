@@ -13,6 +13,8 @@ export default function StoreLogoutPage() {
   const router = useRouter();
   const params = useParams();
   const slug = params.slug as string;
+  // On custom domains, slug is "custom-domain" placeholder — use clean paths
+  const basePath = slug === "custom-domain" ? "" : `/store/${slug}`;
 
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading"
@@ -26,7 +28,7 @@ export default function StoreLogoutPage() {
         setStatus("success");
         // Redirect to store homepage after 2 seconds
         setTimeout(() => {
-          router.push(`/store/${slug}`);
+          router.push(basePath || "/");
           router.refresh();
         }, 2000);
       } catch (error) {
@@ -40,7 +42,7 @@ export default function StoreLogoutPage() {
     }
 
     handleLogout();
-  }, [router, slug]);
+  }, [router, basePath]);
 
   if (status === "loading") {
     return (
@@ -77,7 +79,7 @@ export default function StoreLogoutPage() {
                 Try Again
               </Button>
               <Button variant="ghost" asChild>
-                <Link href={`/store/${slug}`}>Back to Store</Link>
+                <Link href={basePath || "/"}>Back to Store</Link>
               </Button>
             </div>
           </CardContent>
@@ -103,10 +105,10 @@ export default function StoreLogoutPage() {
 
           <div className="flex flex-col gap-3">
             <Button asChild className="w-full">
-              <Link href={`/store/${slug}`}>Go to Store</Link>
+              <Link href={basePath || "/"}>Go to Store</Link>
             </Button>
             <Button variant="link" asChild>
-              <Link href={`/store/${slug}/auth/login`}>Sign in again</Link>
+              <Link href={`${basePath}/auth/login`}>Sign in again</Link>
             </Button>
           </div>
         </CardContent>

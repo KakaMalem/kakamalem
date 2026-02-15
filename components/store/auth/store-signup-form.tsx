@@ -22,6 +22,7 @@ import { StoreOAuthButton } from "./store-oauth-button";
 import { signupSchema, type SignupInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
 import { handleFormErrors } from "@/lib/utils/form-errors";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 // Map field names to DOM element IDs for scroll-to-error
 const FIELD_ID_MAP: Record<string, string> = {
@@ -41,7 +42,8 @@ interface StoreSignupFormProps {
 }
 
 export function StoreSignupForm({ store, redirectTo }: StoreSignupFormProps) {
-  const finalRedirect = redirectTo || `/store/${store.slug}`;
+  const basePath = useStoreBasePath();
+  const finalRedirect = redirectTo || basePath;
 
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
@@ -170,9 +172,7 @@ export function StoreSignupForm({ store, redirectTo }: StoreSignupFormProps) {
               </p>
             </div>
             <Button variant="outline" asChild className="mt-4">
-              <Link href={`/store/${store.slug}/auth/login`}>
-                Back to sign in
-              </Link>
+              <Link href={`${basePath}/auth/login`}>Back to sign in</Link>
             </Button>
           </div>
         </CardContent>
@@ -299,7 +299,7 @@ export function StoreSignupForm({ store, redirectTo }: StoreSignupFormProps) {
         <p className="text-center text-sm text-muted-foreground pt-2">
           Already have an account?{" "}
           <Link
-            href={`/store/${store.slug}/auth/login${
+            href={`${basePath}/auth/login${
               redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""
             }`}
             className="text-primary font-medium hover:underline"

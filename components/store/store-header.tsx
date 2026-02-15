@@ -23,6 +23,7 @@ import { Logo } from "@/components/ui/logo";
 import { Badge } from "@/components/ui/badge";
 import { CartBadge, useHydratedCartCount } from "@/components/store/cart-badge";
 import { cartActions } from "@/lib/stores/use-cart-store";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +58,7 @@ export function StoreHeader({
   initialSearchQuery = "",
 }: StoreHeaderProps) {
   const router = useRouter();
+  const basePath = useStoreBasePath();
   // Initialize from server prop to avoid hydration mismatch
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [isSearching, startSearchTransition] = useTransition();
@@ -86,7 +88,7 @@ export function StoreHeader({
   const isCartDisabled =
     store.storeMode === "catalog" || store.storeMode === "offline_only";
 
-  const storeUrl = `/store/${store.slug}`;
+  const storeUrl = basePath || "/";
 
   // Determine what to show in the header based on headerDisplay setting
   // Only show logo if the setting enables it AND a logo URL exists

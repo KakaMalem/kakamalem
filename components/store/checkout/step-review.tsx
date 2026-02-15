@@ -26,6 +26,7 @@ import { getApplicableTierPrice } from "@/lib/stores/use-cart-store";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
 import { PaymentMethodSelector } from "./payment-method-selector";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 import { toast } from "sonner";
@@ -52,6 +53,7 @@ export function StepReview({
   enabledPaymentMethods,
 }: StepReviewProps) {
   const router = useRouter();
+  const basePath = useStoreBasePath();
   const {
     format: formatPrice,
     currency: customerCurrency,
@@ -132,7 +134,7 @@ export function StepReview({
 
       if (validation.isEmpty) {
         toast.error("Your cart is empty");
-        router.push(`/store/${storeSlug}/cart`);
+        router.push(`${basePath}/cart`);
         return;
       }
 
@@ -174,7 +176,7 @@ export function StepReview({
             toast.error("Your cart is empty", {
               description: "Please add items to your cart before checking out.",
             });
-            router.replace(`/store/${storeSlug}/cart?error=empty`);
+            router.replace(`${basePath}/cart?error=empty`);
             return;
 
           case "CART_INVALID":
@@ -251,7 +253,7 @@ export function StepReview({
           // Order is created but payment failed - redirect to success page
           // where they can retry payment
           router.replace(
-            `/store/${storeSlug}/checkout/success?order=${orderId}&payment=pending`
+            `${basePath}/checkout/success?order=${orderId}&payment=pending`
           );
           return;
         }
@@ -266,7 +268,7 @@ export function StepReview({
       } else {
         // For COD or other methods, go directly to success page
         toast.success("Order placed successfully!");
-        router.replace(`/store/${storeSlug}/checkout/success?order=${orderId}`);
+        router.replace(`${basePath}/checkout/success?order=${orderId}`);
       }
     } catch (error) {
       console.error("Failed to place order:", error);
@@ -309,7 +311,7 @@ export function StepReview({
               variant="outline"
               size="sm"
               className="mt-3"
-              onClick={() => router.push(`/store/${storeSlug}/cart`)}
+              onClick={() => router.push(`${basePath}/cart`)}
             >
               Update Cart
             </Button>

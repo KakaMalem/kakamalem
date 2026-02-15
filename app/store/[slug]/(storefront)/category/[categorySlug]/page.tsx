@@ -3,7 +3,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ChevronRight } from "lucide-react";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
+import { getStoreBasePath, getStoreBaseUrl } from "@/lib/utils/store-path";
 import { getCategoryBySlugWithImage } from "@/lib/db/queries/categories";
 import { getProducts } from "@/lib/db/queries/products";
 import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
@@ -26,7 +27,7 @@ export async function generateMetadata({
   // Decode URL-encoded slugs (handles Persian/Unicode characters)
   const decodedCategorySlug = decodeURIComponent(categorySlug);
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) return { title: "Category Not Found" };
 
   const category = await getCategoryBySlugWithImage(
@@ -35,14 +36,15 @@ export async function generateMetadata({
   );
   if (!category) return { title: "Category Not Found" };
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
-  const categoryUrl = `${baseUrl}/store/${slug}/category/${categorySlug}`;
+  const storeBaseUrl = await getStoreBaseUrl(store.slug);
+  const categoryUrl = `${storeBaseUrl}/category/${categorySlug}`;
   const description =
     category.description || `Browse ${category.name} products at ${store.name}`;
 
-  // Get category image for OG
+  // Get category image for OG (use app URL for asset paths)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
   const imageUrl = category.image?.url
-    ? `${baseUrl}${category.image.url}`
+    ? `${appUrl}${category.image.url}`
     : undefined;
 
   return {
@@ -81,8 +83,11 @@ export default async function CategoryPage({
   // Decode URL-encoded slugs (handles Persian/Unicode characters)
   const decodedCategorySlug = decodeURIComponent(categorySlug);
 
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
   if (!store) return null;
+
+  const basePath = await getStoreBasePath(store.slug);
+  const storeBaseUrl = await getStoreBaseUrl(store.slug);
 
   const category = await getCategoryBySlugWithImage(
     store.id,
@@ -123,13 +128,12 @@ export default async function CategoryPage({
 
   // Build breadcrumbs for structured data
   const breadcrumbs = [
-    { label: "Home", href: `/store/${slug}` },
+    { label: "Home", href: basePath || "/" },
     { label: category.name, href: "#", current: true },
   ];
 
-  // Build base URL for structured data
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
-  const categoryUrl = `${baseUrl}/store/${slug}/category/${decodedCategorySlug}`;
+  // Build category URL for structured data
+  const categoryUrl = `${storeBaseUrl}/category/${decodedCategorySlug}`;
 
   return (
     <>
@@ -140,7 +144,7 @@ export default async function CategoryPage({
       <CategoryStructuredData
         categoryName={category.name}
         categoryDescription={category.description}
-        storeSlug={slug}
+        storeSlug={store.slug}
         products={productsResult.products.map((p) => ({
           slug: p.slug,
           name: p.name,
@@ -159,7 +163,7 @@ export default async function CategoryPage({
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <nav className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <Link href={`/store/${slug}`} className="hover:text-foreground">
+          <Link href={basePath || "/"} className="hover:text-foreground">
             Home
           </Link>
           <ChevronRight className="size-4" />
@@ -179,9 +183,9 @@ export default async function CategoryPage({
           initialProducts={productsResult.products}
           initialPagination={productsResult.pagination}
           tenantId={store.id}
-          storeSlug={slug}
+          storeSlug={store.slug}
           currency={store.currency}
-          basePath={`/store/${slug}/category/${categorySlug}`}
+          basePath={`${basePath}/category/${categorySlug}`}
           filters={{
             categoryId: category.id,
             isActive: true,

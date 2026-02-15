@@ -439,9 +439,11 @@ export async function createPaymentSession(
       })
       .returning();
 
-    // Generate crypto payment page URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
-    const cryptoPaymentUrl = `${baseUrl}/store/${params.metadata?.storeSlug}/checkout/crypto-payment?session=${paymentSession.id}`;
+    // Generate crypto payment page URL — use custom domain if available
+    const cryptoStoreBaseUrl =
+      params.metadata?.storeBaseUrl ||
+      `${process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com"}/store/${params.metadata?.storeSlug}`;
+    const cryptoPaymentUrl = `${cryptoStoreBaseUrl}/checkout/crypto-payment?session=${paymentSession.id}`;
 
     return {
       ...result,
@@ -497,9 +499,11 @@ async function handleNonApiGateway(
     };
   }
 
-  // For bank transfer and mobile money, redirect to instructions page
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-  const paymentUrl = `${baseUrl}/store/${params.metadata?.storeSlug}/checkout/payment-instructions?session=${paymentSession.id}&method=${gateway}`;
+  // For bank transfer and mobile money, redirect to instructions page — use custom domain if available
+  const manualStoreBaseUrl =
+    params.metadata?.storeBaseUrl ||
+    `${process.env.NEXT_PUBLIC_APP_URL || ""}/store/${params.metadata?.storeSlug}`;
+  const paymentUrl = `${manualStoreBaseUrl}/checkout/payment-instructions?session=${paymentSession.id}&method=${gateway}`;
 
   return {
     success: true,

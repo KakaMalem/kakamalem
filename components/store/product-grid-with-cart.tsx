@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ProductCard } from "./product-card";
 import { useCart } from "@/lib/hooks/use-cart";
 import type { CartItemProduct } from "@/lib/types/cart";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface Product {
   id: string;
@@ -43,6 +44,7 @@ export function ProductGridWithCart({
   catalogMode = false,
 }: ProductGridWithCartProps) {
   const router = useRouter();
+  const basePath = useStoreBasePath();
   const { addToCart, isAddingProduct } = useCart();
 
   const handleAddToCart = (productId: string) => {
@@ -51,7 +53,7 @@ export function ProductGridWithCart({
 
     // If product has variants, navigate to product page to select variant
     if (product.hasVariants) {
-      router.push(`/store/${storeSlug}/product/${product.slug}`);
+      router.push(`${basePath}/product/${product.slug}`);
       return;
     }
 

@@ -19,6 +19,7 @@ import { PromoCodeInput } from "../promo-code-input";
 import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
 import { PaymentMethodSelector } from "../payment-method-selector";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 
@@ -50,6 +51,7 @@ export function SectionPayment({
   onEditShipping,
 }: SectionPaymentProps) {
   const router = useRouter();
+  const basePath = useStoreBasePath();
   const {
     format: formatPrice,
     currency: customerCurrency,
@@ -126,7 +128,7 @@ export function SectionPayment({
 
       if (validation.isEmpty) {
         toast.error("Your cart is empty");
-        router.push(`/store/${storeSlug}/cart`);
+        router.push(`${basePath}/cart`);
         return;
       }
 
@@ -166,7 +168,7 @@ export function SectionPayment({
           case "CART_NOT_FOUND":
           case "CART_EMPTY":
             toast.error("Your cart is empty");
-            router.replace(`/store/${storeSlug}/cart?error=empty`);
+            router.replace(`${basePath}/cart?error=empty`);
             return;
 
           case "CART_INVALID":
@@ -233,7 +235,7 @@ export function SectionPayment({
             description: paymentResult.error || "Please try again.",
           });
           router.replace(
-            `/store/${storeSlug}/checkout/success?order=${orderId}&payment=pending`
+            `${basePath}/checkout/success?order=${orderId}&payment=pending`
           );
           return;
         }
@@ -247,7 +249,7 @@ export function SectionPayment({
       } else {
         // COD, bank transfer, etc. - no online payment needed
         toast.success("Order placed successfully!");
-        router.replace(`/store/${storeSlug}/checkout/success?order=${orderId}`);
+        router.replace(`${basePath}/checkout/success?order=${orderId}`);
       }
     } catch (error) {
       console.error("Failed to place order:", error);
@@ -308,7 +310,7 @@ export function SectionPayment({
               variant="outline"
               size="sm"
               className="mt-3"
-              onClick={() => router.push(`/store/${storeSlug}/cart`)}
+              onClick={() => router.push(`${basePath}/cart`)}
             >
               Update Cart
             </Button>

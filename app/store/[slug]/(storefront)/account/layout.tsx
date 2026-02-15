@@ -1,7 +1,8 @@
 import { redirect, notFound } from "next/navigation";
 
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
+import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getUser } from "@/lib/auth/server";
+import { getStoreBasePath } from "@/lib/utils/store-path";
 import { AccountNav } from "@/components/store/account/account-nav";
 
 interface AccountLayoutProps {
@@ -16,19 +17,21 @@ export default async function AccountLayout({
   const { slug } = await params;
 
   // Fetch store data
-  const store = await getTenantBySlug(slug);
+  const store = await resolveTenant(slug);
 
   if (!store) {
     notFound();
   }
 
+  const basePath = await getStoreBasePath(store.slug);
+
   // Check authentication
   const user = await getUser();
   if (!user) {
-    redirect(`/store/${slug}/auth/login?redirect=/store/${slug}/account`);
+    redirect(`${basePath}/auth/login?redirect=${basePath}/account`);
   }
 
-  const baseUrl = `/store/${slug}/account`;
+  const baseUrl = `${basePath}/account`;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">

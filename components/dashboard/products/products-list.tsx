@@ -34,6 +34,7 @@ import type { ProductWithCategory } from "@/lib/db/queries/products";
 import { deleteProduct, reorderProducts } from "@/lib/actions/products";
 import { QuickAdjustDialog } from "@/components/dashboard/inventory/quick-adjust-dialog";
 import { cn } from "@/lib/utils";
+import { useStoreUrl } from "@/lib/stores/use-tenant-settings-store";
 
 interface ProductsListProps {
   tenantId: string;
@@ -71,6 +72,7 @@ function DraggableProductItem({
   isPending: boolean;
 }) {
   const dragControls = useDragControls();
+  const storeUrl = useStoreUrl();
 
   const formatPrice = (price: string) => {
     return `${parseFloat(price).toLocaleString()} ${currency}`;
@@ -208,7 +210,10 @@ function DraggableProductItem({
               size="icon-sm"
               onClick={() => {
                 // Open in external browser for PWA compatibility
-                const url = `${window.location.origin}/store/${storeSlug}/product/${product.slug}`;
+                const baseUrl = storeUrl?.startsWith("https://")
+                  ? storeUrl
+                  : `${window.location.origin}/store/${storeSlug}`;
+                const url = `${baseUrl}/product/${product.slug}`;
                 window.open(url, "_blank", "");
               }}
             >

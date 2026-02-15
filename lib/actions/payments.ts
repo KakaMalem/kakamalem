@@ -92,10 +92,14 @@ export async function createOrderPaymentSession(
       return { success: false, error: "Store not found" };
     }
 
-    // Build URLs
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
-    const successUrl = `${baseUrl}/store/${tenant.slug}/checkout/success?order=${orderId}`;
-    const cancelUrl = `${baseUrl}/store/${tenant.slug}/checkout/payment?order=${orderId}&cancelled=true`;
+    // Build URLs — use custom domain if active, otherwise main domain
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+    const storeBaseUrl =
+      tenant.customDomain && tenant.customDomainStatus === "active"
+        ? `https://${tenant.customDomain}`
+        : `${appUrl}/store/${tenant.slug}`;
+    const successUrl = `${storeBaseUrl}/checkout/success?order=${orderId}`;
+    const cancelUrl = `${storeBaseUrl}/checkout/payment?order=${orderId}&cancelled=true`;
 
     // Determine the correct currency and amount for payment
     // If customer selected a different currency (e.g., USD), use that for Stripe
@@ -129,6 +133,7 @@ export async function createOrderPaymentSession(
       customerName: order.customerSnapshot?.name,
       metadata: {
         storeSlug: tenant.slug,
+        storeBaseUrl,
         orderNumber: order.orderNumber,
         ...(options?.network ? { network: options.network } : {}),
       },

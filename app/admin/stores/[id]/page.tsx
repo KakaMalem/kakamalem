@@ -93,8 +93,12 @@ export default async function AdminStoreDetailPage({
           <p className="text-muted-foreground">/{store.slug}</p>
         </div>
         <div className="flex gap-2">
-          <Link
-            href={`/store/${store.slug}`}
+          <a
+            href={
+              store.customDomain && store.customDomainStatus === "active"
+                ? `https://${store.customDomain}`
+                : `/store/${store.slug}`
+            }
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -102,7 +106,7 @@ export default async function AdminStoreDetailPage({
               <ExternalLink className="mr-2 size-4" />
               View Store
             </Button>
-          </Link>
+          </a>
         </div>
       </div>
 

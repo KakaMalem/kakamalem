@@ -19,6 +19,7 @@ import { ReviewRatingInput } from "./review-rating-input";
 import { submitReviewAction } from "@/lib/actions/reviews";
 import { createMediaRecord } from "@/lib/actions/media";
 import { reviewSchema } from "@/lib/validations/reviews";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -94,11 +95,12 @@ export function ReviewInlineForm(props: ReviewInlineFormProps) {
     tenantId,
     productId,
     productSlug,
-    storeSlug,
+    storeSlug: _storeSlug,
     eligibleOrderId,
     canReview,
     isLoggedIn,
   } = props;
+  const basePath = useStoreBasePath();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [rating, setRating] = useState(0);
@@ -246,9 +248,9 @@ export function ReviewInlineForm(props: ReviewInlineFormProps) {
 
       sessionStorage.setItem(PENDING_REVIEW_KEY, JSON.stringify(pendingData));
 
-      const returnUrl = `/store/${storeSlug}/product/${productSlug}#reviews`;
+      const returnUrl = `${basePath}/product/${productSlug}#reviews`;
       router.push(
-        `/store/${storeSlug}/auth/login?redirect=${encodeURIComponent(returnUrl)}`
+        `${basePath}/auth/login?redirect=${encodeURIComponent(returnUrl)}`
       );
       return;
     }

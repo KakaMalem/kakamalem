@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface Campaign {
   id: string;
@@ -22,15 +23,17 @@ interface SaleBannerProps {
 
 export function SaleBanner({
   campaign,
-  storeSlug,
+  storeSlug: _storeSlug,
   currency: _currency,
 }: SaleBannerProps) {
   const { format: formatPrice } = useCurrencyStore();
+  const basePath = useStoreBasePath();
   const [isDismissed, setIsDismissed] = useState(false);
   const pathname = usePathname();
 
   // Only show on store homepage
-  const isHomepage = pathname === `/store/${storeSlug}`;
+  const storeUrl = basePath || "/";
+  const isHomepage = pathname === storeUrl || pathname === `${storeUrl}/`;
   if (!isHomepage) return null;
 
   if (isDismissed) return null;

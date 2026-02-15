@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Facebook,
@@ -17,6 +19,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 import type {
   Tenant,
@@ -95,7 +99,8 @@ export function StoreFooter({
   categories,
   hideBranding,
 }: StoreFooterProps) {
-  const storeUrl = `/store/${store.slug}`;
+  const basePath = useStoreBasePath();
+  const storeUrl = basePath || "/";
   const socialLinks = store.socialLinks as SocialLinks | null;
   const currentYear = new Date().getFullYear();
 

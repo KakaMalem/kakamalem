@@ -55,6 +55,7 @@ import {
   type DomainStatus,
   type SslStatus,
 } from "@/lib/types/domains";
+import { useStoreUrl } from "@/lib/stores/use-tenant-settings-store";
 
 interface DomainSettingsProps {
   storeSlug: string;
@@ -78,6 +79,7 @@ export function DomainSettings({
   const [dnsInstructions, setDnsInstructions] =
     useState<DnsInstructions | null>(initialInstructions);
 
+  const storeUrl = useStoreUrl();
   const defaultDomain = `kakamalem.com/store/${storeSlug}`;
   const hasCustomDomain = !!domainConfig?.customDomain;
   const status = (domainConfig?.customDomainStatus ||
@@ -210,7 +212,9 @@ export function DomainSettings({
             variant="outline"
             size="sm"
             onClick={() => {
-              const url = `${window.location.origin}/store/${storeSlug}`;
+              const url = storeUrl?.startsWith("https://")
+                ? storeUrl
+                : `${window.location.origin}${storeUrl || `/store/${storeSlug}`}`;
               window.open(url, "_blank", "");
             }}
           >

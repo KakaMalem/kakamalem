@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import { Grid3X3, ArrowRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 interface CategoryCardProps {
   category: {
@@ -19,12 +22,14 @@ interface CategoryCardProps {
 
 export function CategoryCard({
   category,
-  storeSlug,
+  storeSlug: _storeSlug,
   className,
 }: CategoryCardProps) {
+  const basePath = useStoreBasePath();
+
   return (
     <Link
-      href={`/store/${storeSlug}/category/${category.slug}`}
+      href={`${basePath}/category/${category.slug}`}
       className={cn("group block", className)}
     >
       <article className="relative h-full overflow-hidden rounded-2xl bg-muted/30 transition-all duration-500 hover:shadow-2xl hover:shadow-black/10">

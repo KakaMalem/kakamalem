@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { tenants, tenantMembers } from "@/lib/db/schema";
 import { eq, or, inArray, and, isNotNull } from "drizzle-orm";
@@ -88,6 +89,22 @@ export async function getTenantByCustomDomain(domain: string) {
   });
 
   return tenant;
+}
+
+/**
+ * Resolve tenant from a route slug.
+ * If the request has an x-custom-domain header (custom domain routing),
+ * looks up the tenant by domain. Otherwise, looks up by slug.
+ */
+export async function resolveTenant(slug: string) {
+  const headersList = await headers();
+  const customDomain = headersList.get("x-custom-domain");
+
+  if (customDomain) {
+    return getTenantByCustomDomain(customDomain);
+  }
+
+  return getTenantBySlug(slug);
 }
 
 /**

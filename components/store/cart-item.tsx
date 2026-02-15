@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useCart, getApplicableTierPrice } from "@/lib/hooks/use-cart";
 import {
@@ -240,14 +241,14 @@ export function CartItem({
     removeItem(item.id);
   };
 
-  // Get store slug from the cart store for links
-  const { storeSlug } = useCart();
+  // Get base path for building store links (supports custom domains)
+  const basePath = useStoreBasePath();
 
   return (
     <div className="flex gap-4 rounded-lg border p-4">
       {/* Product Image - prioritize variant image over product image */}
       <Link
-        href={`/store/${storeSlug}/product/${item.product.slug}`}
+        href={`${basePath}/product/${item.product.slug}`}
         className="relative aspect-square h-24 w-24 shrink-0 overflow-hidden rounded-md bg-muted"
       >
         {item.variant?.image || item.product.image ? (
@@ -274,7 +275,7 @@ export function CartItem({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <Link
-              href={`/store/${storeSlug}/product/${item.product.slug}`}
+              href={`${basePath}/product/${item.product.slug}`}
               className="line-clamp-2 font-medium hover:underline"
             >
               {productName}

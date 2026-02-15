@@ -6,6 +6,7 @@ import { ArrowRight, ShieldCheck, Tag, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import {
   useCartItemCount,
@@ -26,12 +27,13 @@ interface CartSummaryProps {
 }
 
 export function CartSummary({
-  storeSlug,
+  storeSlug: _storeSlug,
   currency: _currency,
   checkoutEnabled = true,
   contactPhone,
   tenantId,
 }: CartSummaryProps) {
+  const basePath = useStoreBasePath();
   const { format: formatPrice } = useCurrencyStore();
   const itemCount = useCartItemCount();
   const items = useCartItems();
@@ -157,7 +159,7 @@ export function CartSummary({
             asChild
             disabled={itemCount === 0}
           >
-            <Link href={`/store/${storeSlug}/checkout`}>
+            <Link href={`${basePath}/checkout`}>
               Proceed to Checkout
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>

@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { XCircle, AlertTriangle } from "lucide-react";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 
 function ErrorContent() {
   const searchParams = useSearchParams();
-  const params = useParams();
-  const slug = params.slug as string;
+  const basePath = useStoreBasePath();
 
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
@@ -112,10 +112,10 @@ function ErrorContent() {
 
         <div className="flex flex-col gap-3">
           <Button asChild className="w-full">
-            <Link href={`/store/${slug}/auth/login`}>Back to Sign In</Link>
+            <Link href={`${basePath}/auth/login`}>Back to Sign In</Link>
           </Button>
           <Button variant="ghost" asChild>
-            <Link href={`/store/${slug}`}>Go to Store</Link>
+            <Link href={basePath}>Go to Store</Link>
           </Button>
         </div>
       </CardContent>

@@ -15,6 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { Tenant } from "@/lib/db/schema";
+import { useStoreUrl } from "@/lib/stores/use-tenant-settings-store";
 
 interface WelcomeContentProps {
   store: Tenant;
@@ -82,6 +83,7 @@ function generateConfettiParticles() {
 
 export function WelcomeContent({ store }: WelcomeContentProps) {
   const [showConfetti, setShowConfetti] = useState(true);
+  const storeUrl = useStoreUrl();
 
   // Generate confetti particles once using useMemo (stable across renders)
   const confettiParticles = useMemo(() => generateConfettiParticles(), []);
@@ -188,13 +190,17 @@ export function WelcomeContent({ store }: WelcomeContentProps) {
                     </p>
                   )}
                   <p className="text-xs text-muted-foreground truncate">
-                    kakamalem.com/store/{store.slug}
+                    {store.customDomain && store.customDomainStatus === "active"
+                      ? store.customDomain
+                      : `kakamalem.com/store/${store.slug}`}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    const url = `${window.location.origin}/store/${store.slug}`;
+                    const url = storeUrl?.startsWith("https://")
+                      ? storeUrl
+                      : `${window.location.origin}${storeUrl || `/store/${store.slug}`}`;
                     window.open(url, "_blank", "");
                   }}
                   className="text-muted-foreground hover:text-foreground transition-colors"

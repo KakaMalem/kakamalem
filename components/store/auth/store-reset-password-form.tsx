@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AlertCircle, CheckCircle2, KeyRound } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { z } from "zod";
 import { handleFormErrors } from "@/lib/utils/form-errors";
 
@@ -57,6 +58,7 @@ export function StoreResetPasswordForm({
   token,
 }: StoreResetPasswordFormProps) {
   const router = useRouter();
+  const basePath = useStoreBasePath();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<keyof ResetPasswordInput, string>>
@@ -98,7 +100,7 @@ export function StoreResetPasswordForm({
               </p>
             </div>
             <Button asChild className="mt-4">
-              <Link href={`/store/${store.slug}/auth/forgot-password`}>
+              <Link href={`${basePath}/auth/forgot-password`}>
                 Request New Link
               </Link>
             </Button>
@@ -161,7 +163,7 @@ export function StoreResetPasswordForm({
       setSuccess(true);
       // Redirect to login after showing success message
       setTimeout(() => {
-        router.push(`/store/${store.slug}/auth/login`);
+        router.push(`${basePath}/auth/login`);
       }, 3000);
     } catch (err) {
       console.error("Reset password error:", err);
@@ -189,7 +191,7 @@ export function StoreResetPasswordForm({
               Redirecting to sign in...
             </p>
             <Button asChild className="mt-4">
-              <Link href={`/store/${store.slug}/auth/login`}>Sign In Now</Link>
+              <Link href={`${basePath}/auth/login`}>Sign In Now</Link>
             </Button>
           </div>
         </CardContent>
@@ -270,7 +272,7 @@ export function StoreResetPasswordForm({
         <p className="text-center text-sm text-muted-foreground pt-2">
           Remember your password?{" "}
           <Link
-            href={`/store/${store.slug}/auth/login`}
+            href={`${basePath}/auth/login`}
             className="text-primary font-medium hover:underline"
           >
             Sign in

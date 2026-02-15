@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { PaymentMethodSelector } from "./payment-method-selector";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
 import type { EnabledGateway } from "@/lib/payments/types";
@@ -33,7 +34,7 @@ interface PaymentPageClientProps {
 }
 
 export function PaymentPageClient({
-  storeSlug,
+  storeSlug: _storeSlug,
   orderId,
   orderNumber,
   itemCount,
@@ -43,6 +44,7 @@ export function PaymentPageClient({
   enabledGateways,
 }: PaymentPageClientProps) {
   const { format: formatPrice } = useCurrencyStore();
+  const basePath = useStoreBasePath();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
     null
@@ -109,7 +111,7 @@ export function PaymentPageClient({
           </p>
         </div>
         <Button variant="outline" className="w-full" asChild>
-          <Link href={`/store/${storeSlug}`}>
+          <Link href={`${basePath}`}>
             <ArrowLeft className="mr-2 size-4" />
             Continue Shopping
           </Link>
@@ -208,7 +210,7 @@ export function PaymentPageClient({
         </Button>
 
         <Button variant="outline" className="w-full" asChild>
-          <Link href={`/store/${storeSlug}`}>
+          <Link href={`${basePath}`}>
             <ArrowLeft className="mr-2 size-4" />
             Continue Shopping
           </Link>

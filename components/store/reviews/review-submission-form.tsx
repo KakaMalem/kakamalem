@@ -28,6 +28,7 @@ import { ReviewRatingInput } from "./review-rating-input";
 import { submitReviewAction } from "@/lib/actions/reviews";
 import { createMediaRecord } from "@/lib/actions/media";
 import { reviewSchema } from "@/lib/validations/reviews";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -93,12 +94,13 @@ export function ReviewSubmissionForm({
   tenantId,
   productId,
   productName,
-  storeSlug,
+  storeSlug: _storeSlug,
   eligibleOrderId,
   canReview,
   isLoggedIn,
   reason,
 }: ReviewSubmissionFormProps) {
+  const basePath = useStoreBasePath();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -282,7 +284,7 @@ export function ReviewSubmissionForm({
             <Button
               onClick={() => {
                 setOpen(false);
-                router.push(`/store/${storeSlug}/auth/login`);
+                router.push(`${basePath}/auth/login`);
               }}
             >
               Log In to Continue

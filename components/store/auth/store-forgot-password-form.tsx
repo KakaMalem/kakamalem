@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AlertCircle, Mail, ArrowLeft } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { z } from "zod";
 
 const forgotPasswordSchema = z.object({
@@ -29,6 +30,7 @@ interface StoreForgotPasswordFormProps {
 export function StoreForgotPasswordForm({
   store,
 }: StoreForgotPasswordFormProps) {
+  const basePath = useStoreBasePath();
   const [error, setError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -92,7 +94,7 @@ export function StoreForgotPasswordForm({
               </p>
             </div>
             <Button variant="outline" asChild className="mt-4">
-              <Link href={`/store/${store.slug}/auth/login`}>
+              <Link href={`${basePath}/auth/login`}>
                 <ArrowLeft className="mr-2 size-4" />
                 Back to sign in
               </Link>
@@ -152,7 +154,7 @@ export function StoreForgotPasswordForm({
         <p className="text-center text-sm text-muted-foreground pt-2">
           Remember your password?{" "}
           <Link
-            href={`/store/${store.slug}/auth/login`}
+            href={`${basePath}/auth/login`}
             className="text-primary font-medium hover:underline"
           >
             Sign in
