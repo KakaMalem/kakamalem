@@ -121,7 +121,11 @@ function useDrawerHistory(isOpen: boolean, onClose: () => void) {
   }, [handlePopState]);
 }
 
-export function CartDrawer({ storeSlug: _storeSlug, currency, tenantId }: CartDrawerProps) {
+export function CartDrawer({
+  storeSlug: _storeSlug,
+  currency,
+  tenantId,
+}: CartDrawerProps) {
   const basePath = useStoreBasePath();
   const { format: formatPrice } = useCurrencyStore();
   const { isOpen, close } = useCartDrawer();

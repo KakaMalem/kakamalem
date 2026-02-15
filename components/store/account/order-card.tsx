@@ -36,7 +36,11 @@ interface OrderCardProps {
   currency: string;
 }
 
-export function OrderCard({ order, storeSlug: _storeSlug, currency }: OrderCardProps) {
+export function OrderCard({
+  order,
+  storeSlug: _storeSlug,
+  currency,
+}: OrderCardProps) {
   const basePath = useStoreBasePath();
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = new Date(order.createdAt);
