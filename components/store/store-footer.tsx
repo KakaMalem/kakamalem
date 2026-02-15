@@ -100,7 +100,6 @@ export function StoreFooter({
   hideBranding,
 }: StoreFooterProps) {
   const basePath = useStoreBasePath();
-  const storeUrl = basePath || "/";
   const socialLinks = store.socialLinks as SocialLinks | null;
   const currentYear = new Date().getFullYear();
 
@@ -151,7 +150,7 @@ export function StoreFooter({
             {/* Store Info */}
             <div className="space-y-4 sm:col-span-2 md:col-span-1">
               <Link
-                href={storeUrl}
+                href={basePath || "/"}
                 className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80"
               >
                 {showLogo && (
@@ -222,19 +221,19 @@ export function StoreFooter({
               </h3>
               <nav className="flex flex-col gap-2.5">
                 <Link
-                  href={storeUrl}
+                  href={basePath || "/"}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Home
                 </Link>
                 <Link
-                  href={`${storeUrl}/products`}
+                  href={`${basePath}/products`}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   All Products
                 </Link>
                 <Link
-                  href={`${storeUrl}/categories`}
+                  href={`${basePath}/categories`}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Categories
@@ -252,7 +251,7 @@ export function StoreFooter({
                   {categories.slice(0, 5).map((category) => (
                     <Link
                       key={category.id}
-                      href={`${storeUrl}/category/${category.slug}`}
+                      href={`${basePath}/category/${category.slug}`}
                       className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
                       {category.name}
@@ -260,7 +259,7 @@ export function StoreFooter({
                   ))}
                   {categories.length > 5 && (
                     <Link
-                      href={`${storeUrl}/categories`}
+                      href={`${basePath}/categories`}
                       className="text-sm font-medium text-primary transition-colors hover:text-primary/80"
                     >
                       View all ({categories.length})

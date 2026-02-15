@@ -35,16 +35,14 @@ export function StoreCategoriesBar({
   // Check if at least one category has an image
   const hasAnyImage = categories.some((cat) => cat.imageUrl);
 
-  // Store URL for all checks
-  const storeUrl = basePath || "/";
-
   // Determine if categories bar should be shown on this page
-  const isHomepage = pathname === storeUrl || pathname === `${storeUrl}/`;
+  const storeHome = basePath || "/";
+  const isHomepage = pathname === storeHome || pathname === `${storeHome}/`;
   const shouldShowCategoriesBar =
     isHomepage ||
-    pathname?.startsWith(`${storeUrl}/category/`) || // Category pages
-    pathname?.startsWith(`${storeUrl}/products`) || // Products pages
-    pathname?.startsWith(`${storeUrl}/categories`); // Categories listing page
+    pathname?.startsWith(`${basePath}/category/`) || // Category pages
+    pathname?.startsWith(`${basePath}/products`) || // Products pages
+    pathname?.startsWith(`${basePath}/categories`); // Categories listing page
 
   const checkScroll = useCallback(() => {
     if (scrollRef.current) {
@@ -168,7 +166,7 @@ export function StoreCategoriesBar({
               }}
             >
               {categories.map((category) => {
-                const categoryUrl = `${storeUrl}/category/${category.slug}`;
+                const categoryUrl = `${basePath}/category/${category.slug}`;
                 // Decode both pathname and categoryUrl to handle non-English characters
                 const isActive =
                   decodeURIComponent(pathname) ===
@@ -297,7 +295,7 @@ export function StoreCategoriesBar({
           >
             {/* All Products chip */}
             <Link
-              href={storeUrl}
+              href={storeHome}
               role="listitem"
               className={cn(
                 "group relative flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-all duration-200 md:px-4",
@@ -319,7 +317,7 @@ export function StoreCategoriesBar({
 
             {/* Category items */}
             {categories.map((category) => {
-              const categoryUrl = `${storeUrl}/category/${category.slug}`;
+              const categoryUrl = `${basePath}/category/${category.slug}`;
               // Decode both pathname and categoryUrl to handle non-English characters
               const isActive =
                 decodeURIComponent(pathname) ===

@@ -32,8 +32,8 @@ export function SaleBanner({
   const pathname = usePathname();
 
   // Only show on store homepage
-  const storeUrl = basePath || "/";
-  const isHomepage = pathname === storeUrl || pathname === `${storeUrl}/`;
+  const storeHome = basePath || "/";
+  const isHomepage = pathname === storeHome || pathname === `${storeHome}/`;
   if (!isHomepage) return null;
 
   if (isDismissed) return null;

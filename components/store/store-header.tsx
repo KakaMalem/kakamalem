@@ -88,8 +88,6 @@ export function StoreHeader({
   const isCartDisabled =
     store.storeMode === "catalog" || store.storeMode === "offline_only";
 
-  const storeUrl = basePath || "/";
-
   // Determine what to show in the header based on headerDisplay setting
   // Only show logo if the setting enables it AND a logo URL exists
   const hasLogo = Boolean(store.logoUrl);
@@ -109,19 +107,19 @@ export function StoreHeader({
       const trimmed = searchQuery.trim();
       if (trimmed) {
         startSearchTransition(() => {
-          router.push(`${storeUrl}?q=${encodeURIComponent(trimmed)}`);
+          router.push(`${basePath || "/"}?q=${encodeURIComponent(trimmed)}`);
         });
       } else {
         startSearchTransition(() => {
-          router.push(storeUrl);
+          router.push(basePath || "/");
         });
       }
     },
-    [searchQuery, storeUrl, router]
+    [searchQuery, basePath, router]
   );
 
   const handleSignOut = () => {
-    router.push(`${storeUrl}/logout`);
+    router.push(`${basePath}/logout`);
   };
 
   const getInitials = (name?: string, email?: string) => {
@@ -148,7 +146,7 @@ export function StoreHeader({
         <div className="hidden h-16 items-center gap-3 md:flex lg:gap-6">
           {/* Left: Logo / Store Name */}
           <Link
-            href={storeUrl}
+            href={basePath || "/"}
             className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80 lg:gap-2.5"
           >
             {showLogo && (
@@ -257,25 +255,25 @@ export function StoreHeader({
                   <DropdownMenuSeparator />
                   {/* Customer Account Links */}
                   <DropdownMenuItem asChild>
-                    <Link href={`${storeUrl}/account`}>
+                    <Link href={`${basePath}/account`}>
                       <User className="mr-2 size-4" />
                       My Account
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href={`${storeUrl}/account/orders`}>
+                    <Link href={`${basePath}/account/orders`}>
                       <Package className="mr-2 size-4" />
                       My Orders
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href={`${storeUrl}/account/wishlist`}>
+                    <Link href={`${basePath}/account/wishlist`}>
                       <Heart className="mr-2 size-4" />
                       Wishlist
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href={`${storeUrl}/account/notifications`}>
+                    <Link href={`${basePath}/account/notifications`}>
                       <Bell className="mr-2 size-4" />
                       Notifications
                     </Link>
@@ -305,10 +303,10 @@ export function StoreHeader({
             ) : (
               <>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`${storeUrl}/auth/login`}>Sign in</Link>
+                  <Link href={`${basePath}/auth/login`}>Sign in</Link>
                 </Button>
                 <Button size="sm" asChild className="hidden lg:inline-flex">
-                  <Link href={`${storeUrl}/auth/signup`}>Register</Link>
+                  <Link href={`${basePath}/auth/signup`}>Register</Link>
                 </Button>
               </>
             )}
@@ -321,7 +319,7 @@ export function StoreHeader({
           <div className="flex items-center justify-between">
             {/* Left: Logo / Store Name */}
             <Link
-              href={storeUrl}
+              href={basePath || "/"}
               className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
             >
               {showLogo && (
@@ -419,25 +417,25 @@ export function StoreHeader({
                       <DropdownMenuSeparator />
                       {/* Customer Account Links */}
                       <DropdownMenuItem asChild>
-                        <Link href={`${storeUrl}/account`}>
+                        <Link href={`${basePath}/account`}>
                           <User className="mr-2 size-4" />
                           My Account
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`${storeUrl}/account/orders`}>
+                        <Link href={`${basePath}/account/orders`}>
                           <Package className="mr-2 size-4" />
                           My Orders
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`${storeUrl}/account/wishlist`}>
+                        <Link href={`${basePath}/account/wishlist`}>
                           <Heart className="mr-2 size-4" />
                           Wishlist
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`${storeUrl}/account/notifications`}>
+                        <Link href={`${basePath}/account/notifications`}>
                           <Bell className="mr-2 size-4" />
                           Notifications
                         </Link>
@@ -471,10 +469,10 @@ export function StoreHeader({
                       </p>
                       <div className="flex flex-col gap-2">
                         <Button asChild className="w-full">
-                          <Link href={`${storeUrl}/auth/login`}>Sign in</Link>
+                          <Link href={`${basePath}/auth/login`}>Sign in</Link>
                         </Button>
                         <Button variant="outline" asChild className="w-full">
-                          <Link href={`${storeUrl}/auth/signup`}>
+                          <Link href={`${basePath}/auth/signup`}>
                             Create account
                           </Link>
                         </Button>
