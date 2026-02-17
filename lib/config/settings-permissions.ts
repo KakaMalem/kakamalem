@@ -36,7 +36,6 @@ export type SettingsPageKey =
   | "delivery"
   | "payments"
   | "store-mode"
-  | "marketplace"
   | "danger";
 
 export interface SettingsPageConfig {
@@ -142,14 +141,6 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     title: "Domains",
     description: "Custom domain configuration",
     href: "/domains",
-    minRole: "owner",
-    group: "growth",
-  },
-  {
-    key: "marketplace",
-    title: "Marketplace",
-    description: "List your store on the Kaka Malem marketplace",
-    href: "/marketplace",
     minRole: "owner",
     group: "growth",
   },

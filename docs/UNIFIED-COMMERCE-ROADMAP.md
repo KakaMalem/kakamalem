@@ -309,7 +309,7 @@ CREATE TABLE orders (
   order_number VARCHAR(30) NOT NULL,      -- KM-2026-000001
 
   -- Channel & Type
-  channel VARCHAR(20) NOT NULL DEFAULT 'online',  -- online, pos, phone, marketplace, social
+  channel VARCHAR(20) NOT NULL DEFAULT 'online',  -- online, pos, social
   fulfillment_type VARCHAR(20) NOT NULL DEFAULT 'shipping',  -- shipping, pickup, instant, local_delivery
 
   -- Customer
@@ -921,7 +921,6 @@ export const orderChannelEnum = pgEnum("order_channel", [
   "online",
   "pos",
   "phone",
-  "marketplace",
   "social",
 ]);
 

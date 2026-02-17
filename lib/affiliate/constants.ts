@@ -140,8 +140,6 @@ export const RESERVED_SLUGS = new Set([
   "store",
   "admin",
   "invoice",
-  "marketplace",
-
   // API routes
   "api",
   "uploads",

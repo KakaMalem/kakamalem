@@ -198,7 +198,6 @@ export function OrdersPageClient({
       online: "Online",
       pos: "POS / In-Store",
       phone: "Phone",
-      marketplace: "Marketplace",
       social: "Social",
     };
 

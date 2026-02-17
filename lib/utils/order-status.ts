@@ -20,7 +20,7 @@ export type FulfillmentType =
   | "instant"
   | "local_delivery"
   | "curbside";
-export type OrderChannel = "online" | "pos" | "marketplace" | "social";
+export type OrderChannel = "online" | "pos" | "social";
 
 /**
  * Get order status display info
@@ -94,7 +94,6 @@ export function getChannelLabel(channel?: OrderChannel | null): string {
     online: "Online",
     pos: "In-Store",
     phone: "Phone",
-    marketplace: "Marketplace",
     social: "Social",
   };
   return channel ? labels[channel] || channel : "Online";

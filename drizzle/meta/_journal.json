@@ -288,6 +288,13 @@
       "when": 1771338738168,
       "tag": "0040_ambitious_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1771347707577,
+      "tag": "0041_dizzy_falcon",
+      "breakpoints": true
     }
   ]
 }

@@ -238,7 +238,6 @@ export async function updateTenant(
     storeLocationAccuracy: number | null;
     storeLocationSource: string | null;
     storeLocationPlusCode: string | null;
-    marketplaceEnabled: boolean;
   }>
 ) {
   const [updated] = await db
