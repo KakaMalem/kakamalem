@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   paymentWebhookEvents,
@@ -111,11 +111,11 @@ export async function POST(request: NextRequest) {
     let transactionId: string | undefined;
 
     if (payload.success) {
-      const result = await handlePaymentSuccess(payload);
+      const result = await handlePaymentSuccess(payload, tenantId || undefined);
       orderId = result.orderId;
       transactionId = result.transactionId;
     } else {
-      await handlePaymentFailure(payload);
+      await handlePaymentFailure(payload, tenantId || undefined);
     }
 
     // Update webhook event as processed
@@ -161,11 +161,11 @@ export async function POST(request: NextRequest) {
  * Handle successful payment (payment.success event)
  */
 async function handlePaymentSuccess(
-  payload: HesabPayWebhookPayload
+  payload: HesabPayWebhookPayload,
+  webhookTenantId?: string
 ): Promise<{ orderId?: string; transactionId?: string }> {
   // Find the payment session
-  // Try by session_id first, then fall back to matching by amount + pending status
-  // (HesabPay webhooks don't always include session_id)
+  // Try by session_id first, then fall back to matching by tenantId + amount + recent time
   let session = null;
 
   const sessionId = payload.session_id || payload.memo;
@@ -173,8 +173,10 @@ async function handlePaymentSuccess(
     session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
   }
 
-  // Fallback: find the most recent pending HesabPay session matching the amount
-  if (!session && payload.amount) {
+  // Fallback: match by tenantId + amount + created within the last hour
+  // Requires tenantId from webhook URL query params for security
+  if (!session && payload.amount && webhookTenantId) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const [matchedSession] = await db
       .select()
       .from(paymentSessions)
@@ -182,7 +184,9 @@ async function handlePaymentSuccess(
         and(
           eq(paymentSessions.gateway, "hesabpay"),
           eq(paymentSessions.status, "pending"),
-          eq(paymentSessions.amount, payload.amount.toString())
+          eq(paymentSessions.tenantId, webhookTenantId),
+          eq(paymentSessions.amount, payload.amount.toString()),
+          gte(paymentSessions.createdAt, oneHourAgo)
         )
       )
       .orderBy(desc(paymentSessions.createdAt))
@@ -190,7 +194,7 @@ async function handlePaymentSuccess(
 
     if (matchedSession) {
       console.log(
-        `[HesabPay Webhook] Matched session by amount fallback: ${matchedSession.id}`
+        `[HesabPay Webhook] Matched session by tenant+amount fallback: ${matchedSession.id}`
       );
       session = matchedSession;
     }
@@ -382,7 +386,8 @@ async function handlePaymentSuccess(
  * Handle failed payment (payment.failure event)
  */
 async function handlePaymentFailure(
-  payload: HesabPayWebhookPayload
+  payload: HesabPayWebhookPayload,
+  webhookTenantId?: string
 ): Promise<void> {
   // Find the payment session (same fallback logic as success handler)
   let session = null;
@@ -392,7 +397,8 @@ async function handlePaymentFailure(
     session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
   }
 
-  if (!session && payload.amount) {
+  if (!session && payload.amount && webhookTenantId) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const [matchedSession] = await db
       .select()
       .from(paymentSessions)
@@ -400,7 +406,9 @@ async function handlePaymentFailure(
         and(
           eq(paymentSessions.gateway, "hesabpay"),
           eq(paymentSessions.status, "pending"),
-          eq(paymentSessions.amount, payload.amount.toString())
+          eq(paymentSessions.tenantId, webhookTenantId),
+          eq(paymentSessions.amount, payload.amount.toString()),
+          gte(paymentSessions.createdAt, oneHourAgo)
         )
       )
       .orderBy(desc(paymentSessions.createdAt))

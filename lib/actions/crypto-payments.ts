@@ -230,6 +230,12 @@ export async function submitTransactionHash(
   customerNotes?: string
 ): Promise<ActionResult> {
   try {
+    // Require authentication
+    const user = await getUser();
+    if (!user) {
+      return { success: false, error: "Authentication required" };
+    }
+
     // Get the crypto payment
     const cryptoPayment = await db.query.cryptoPayments.findFirst({
       where: eq(cryptoPayments.id, cryptoPaymentId),

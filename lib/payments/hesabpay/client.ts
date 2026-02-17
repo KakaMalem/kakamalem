@@ -248,24 +248,43 @@ export class HesabPayClient implements PaymentGatewayProvider {
         };
       }
 
-      // Verify signature via HesabPay API
-      if (body.signature && body.timestamp) {
-        const isValid = await this.verifySignatureViaApi(
-          body.signature,
-          body.timestamp,
-          isLive,
-          apiKey
-        );
+      // Require signature and timestamp — reject if missing
+      if (!body.signature || !body.timestamp) {
+        console.error("[HesabPay] Webhook missing signature or timestamp");
+        return {
+          valid: false,
+          error: "Missing signature or timestamp",
+        };
+      }
 
-        if (!isValid) {
-          console.error("[HesabPay] Webhook signature verification failed");
-          return {
-            valid: false,
-            error: "Invalid webhook signature",
-          };
-        }
-      } else {
-        console.warn("[HesabPay] Webhook missing signature or timestamp");
+      // Reject stale webhooks (older than 5 minutes) to prevent replay attacks
+      const webhookTime = parseInt(body.timestamp, 10) * 1000;
+      const now = Date.now();
+      const maxAge = 5 * 60 * 1000; // 5 minutes
+      if (isNaN(webhookTime) || Math.abs(now - webhookTime) > maxAge) {
+        console.error(
+          `[HesabPay] Webhook timestamp too old or invalid: ${body.timestamp}`
+        );
+        return {
+          valid: false,
+          error: "Webhook timestamp expired or invalid",
+        };
+      }
+
+      // Verify signature via HesabPay API
+      const isValid = await this.verifySignatureViaApi(
+        body.signature,
+        body.timestamp,
+        isLive,
+        apiKey
+      );
+
+      if (!isValid) {
+        console.error("[HesabPay] Webhook signature verification failed");
+        return {
+          valid: false,
+          error: "Invalid webhook signature",
+        };
       }
 
       // Determine event type from success field

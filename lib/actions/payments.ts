@@ -65,11 +65,17 @@ export async function createOrderPaymentSession(
   options?: { network?: string }
 ): Promise<PaymentResult> {
   try {
+    // Verify the caller owns this order
+    const user = await getUser();
+    if (!user) {
+      return { success: false, error: "Authentication required" };
+    }
+
     // Get the order
     const [order] = await db
       .select()
       .from(orders)
-      .where(eq(orders.id, orderId))
+      .where(and(eq(orders.id, orderId), eq(orders.userId, user.id)))
       .limit(1);
 
     if (!order) {
