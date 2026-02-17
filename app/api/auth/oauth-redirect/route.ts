@@ -37,11 +37,12 @@ export async function GET(request: NextRequest) {
     return new Response("Invalid return domain", { status: 400 });
   }
 
-  // After OAuth completes, Better Auth will redirect to this callback URL,
-  // which transfers the session to the custom domain.
-  const callbackURL = `/api/auth/cross-domain-callback?returnDomain=${encodeURIComponent(returnDomain)}&returnPath=${encodeURIComponent(returnPath)}`;
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+
+  // IMPORTANT: Use an ABSOLUTE callbackURL. Better Auth's callback handler resolves
+  // relative URLs against the request URL, which inside Docker/reverse proxies can be
+  // the internal address (e.g., 0.0.0.0:3000) rather than the public domain.
+  const callbackURL = `${appUrl}/api/auth/cross-domain-callback?returnDomain=${encodeURIComponent(returnDomain)}&returnPath=${encodeURIComponent(returnPath)}`;
 
   try {
     // Call Better Auth's social sign-in handler SERVER-SIDE.

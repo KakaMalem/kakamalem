@@ -166,7 +166,7 @@ export function BillingStatusCard({
                 {!subscription.hasStripeSubscription &&
                   storeSlug &&
                   subscription.daysRemainingInPeriod !== null &&
-                  subscription.daysRemainingInPeriod <= 7 && (
+                  subscription.daysRemainingInPeriod <= 14 && (
                     <Link
                       href={`/dashboard/${storeSlug}/billing/upgrade`}
                       className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"

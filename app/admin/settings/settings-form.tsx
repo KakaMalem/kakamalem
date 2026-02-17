@@ -260,7 +260,7 @@ export function SettingsForm({
             id="proPlanPriceAfn"
             type="number"
             min="0"
-            step="100"
+            step="1"
             value={formData.proPlanPriceAfn}
             onChange={(e) =>
               setFormData({ ...formData, proPlanPriceAfn: e.target.value })
@@ -282,7 +282,7 @@ export function SettingsForm({
             id="proPlanYearlyPriceAfn"
             type="number"
             min="0"
-            step="100"
+            step="1"
             value={formData.proPlanYearlyPriceAfn}
             onChange={(e) =>
               setFormData({

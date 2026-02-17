@@ -48,7 +48,7 @@ export default async function BillingUpgradePage({ params }: PageProps) {
   const isNonStripeRenewal =
     !subscription.hasStripeSubscription &&
     subscription.daysRemainingInPeriod !== null &&
-    subscription.daysRemainingInPeriod <= 7;
+    subscription.daysRemainingInPeriod <= 14;
 
   if (
     subscription.plan === "pro" &&

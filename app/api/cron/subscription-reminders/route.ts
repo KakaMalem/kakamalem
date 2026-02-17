@@ -180,9 +180,9 @@ export async function GET(request: Request) {
             }
           }
 
-          // Create renewal invoice at 7 days (first reminder) for existing Pro subscribers
-          // This gives them a full week to pay before expiry
-          if (daysUntil === 7) {
+          // Create renewal invoice at 14 days (first reminder) for existing Pro subscribers
+          // This gives them two weeks to pay before expiry
+          if (daysUntil === 14) {
             try {
               const periodStart = new Date(tenant.subscriptionEndsAt!);
               const periodEnd = new Date(periodStart);

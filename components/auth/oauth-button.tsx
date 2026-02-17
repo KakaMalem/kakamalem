@@ -65,10 +65,17 @@ export function OAuthButton({
     setError(null);
 
     try {
-      // Better Auth social sign in
+      // Use an ABSOLUTE callbackURL. Better Auth's callback handler resolves
+      // relative URLs against the request URL, which inside Docker/reverse
+      // proxies can be the internal address (0.0.0.0:3000).
+      const absoluteCallbackURL =
+        typeof window !== "undefined"
+          ? `${window.location.origin}${redirectTo}`
+          : redirectTo;
+
       await authClient.signIn.social({
         provider,
-        callbackURL: redirectTo,
+        callbackURL: absoluteCallbackURL,
       });
       // If successful, the user will be redirected to the provider
     } catch (err) {

@@ -64,8 +64,14 @@ export function StoreOAuthButton({
 
   const config = providerConfig[provider];
 
-  // Build the callback URL that includes store context
-  const callbackURL = redirectTo || basePath;
+  // Build an ABSOLUTE callback URL. Better Auth's callback handler resolves
+  // relative URLs against the request URL, which inside Docker/reverse proxies
+  // can be the internal address (0.0.0.0:3000) instead of the public domain.
+  const relativePath = redirectTo || basePath;
+  const callbackURL =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${relativePath}`
+      : relativePath;
 
   async function handleOAuth() {
     setIsLoading(true);
