@@ -467,6 +467,136 @@ export async function createInvoicePaymentSession(
 }
 
 // =============================================================================
+// VERIFY PENDING SUBSCRIPTION PAYMENT (on redirect back from gateway)
+// =============================================================================
+
+/**
+ * Verify the most recent pending subscription payment for a tenant.
+ *
+ * Called when the user is redirected back from the payment gateway.
+ * If the gateway confirms payment, marks the invoice as paid and activates Pro.
+ * This handles the case where webhooks haven't arrived yet (or won't arrive in sandbox).
+ */
+export async function verifyPendingSubscriptionPayment(
+  tenantId: string
+): Promise<{ success: boolean; activated: boolean; error?: string }> {
+  try {
+    await requireAuth();
+
+    const canManage = await canManageStore(tenantId);
+    if (!canManage) {
+      return { success: false, activated: false, error: "Permission denied" };
+    }
+
+    // Find the most recent pending HesabPay payment session with an invoice
+    const [session] = await db
+      .select()
+      .from(paymentSessions)
+      .where(
+        and(
+          eq(paymentSessions.tenantId, tenantId),
+          eq(paymentSessions.gateway, "hesabpay"),
+          eq(paymentSessions.status, "pending")
+        )
+      )
+      .orderBy(desc(paymentSessions.createdAt))
+      .limit(1);
+
+    if (!session || !session.invoiceId || !session.gatewaySessionId) {
+      return { success: true, activated: false };
+    }
+
+    // Verify with HesabPay API
+    const result = await verifyPayment("hesabpay", {
+      sessionId: session.gatewaySessionId,
+      tenantId,
+    });
+
+    if (!result.success || !result.paid) {
+      return { success: true, activated: false };
+    }
+
+    // Payment confirmed - update everything
+    // 1. Mark payment session as completed
+    await updatePaymentSessionStatus(session.id, "completed", {
+      gatewayResponse: result.gatewayResponse,
+    });
+
+    // 2. Mark invoice as paid
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, session.invoiceId))
+      .limit(1);
+
+    if (invoice && invoice.status !== "paid") {
+      await db
+        .update(invoices)
+        .set({
+          status: "paid",
+          paidAt: new Date().toISOString(),
+          paidAmount: session.amount,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(invoices.id, session.invoiceId));
+
+      // 3. Activate Pro subscription
+      const isYearly = (
+        invoice.items as Array<{ description?: string }> | null
+      )?.some((item) => item.description?.toLowerCase().includes("yearly"));
+
+      await db
+        .update(tenants)
+        .set({
+          subscriptionStatus: "active",
+          subscriptionPlan: "pro",
+          subscriptionStartedAt: new Date().toISOString(),
+          subscriptionEndsAt: invoice.periodEnd,
+          billingInterval: isYearly ? "yearly" : "monthly",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tenants.id, tenantId));
+
+      // 4. Update billing transaction
+      const { billingTransactions } = await import("@/lib/db/schema");
+      await db
+        .update(billingTransactions)
+        .set({
+          status: "completed",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(billingTransactions.invoiceId, session.invoiceId));
+
+      // 5. Get tenant slug for revalidation
+      const [tenant] = await db
+        .select({ slug: tenants.slug })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .limit(1);
+
+      if (tenant) {
+        revalidatePath(`/dashboard/${tenant.slug}/billing`);
+      }
+
+      console.log(
+        `[verifyPendingSubscriptionPayment] Invoice ${invoice.invoiceNumber} verified as paid, Pro activated`
+      );
+
+      return { success: true, activated: true };
+    }
+
+    return { success: true, activated: false };
+  } catch (error) {
+    console.error("[verifyPendingSubscriptionPayment] Error:", error);
+    return {
+      success: false,
+      activated: false,
+      error: error instanceof Error ? error.message : "Verification failed",
+    };
+  }
+}
+
+// =============================================================================
 // GATEWAY CONFIGURATION
 // =============================================================================
 

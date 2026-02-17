@@ -128,7 +128,8 @@ export class HesabPayClient implements PaymentGatewayProvider {
         return {
           success: false,
           error:
-            data.message || "Payment session created but no redirect URL received",
+            data.message ||
+            "Payment session created but no redirect URL received",
           gatewayResponse: data as unknown as Record<string, unknown>,
         };
       }

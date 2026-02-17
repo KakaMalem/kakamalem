@@ -9,6 +9,7 @@ import { PlanComparison } from "./plan-comparison";
 import { InvoiceList } from "./invoice-list";
 import { InvoiceDetailDialog } from "./invoice-detail-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { verifyPendingSubscriptionPayment } from "@/lib/actions/payments";
 import type {
   SubscriptionOverview,
   InvoiceWithStats,
@@ -121,6 +122,39 @@ export function BillingPageClient({
   }, [searchParams]);
 
   const [showAlert, setShowAlert] = useState(!!paymentResult);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Verify payment with HesabPay API on successful redirect
+  const verified = useRef(false);
+
+  useEffect(() => {
+    if (paymentResult?.status !== "success" || verified.current) return;
+
+    // Already active — no need to verify
+    if (subscription.status === "active" && subscription.plan === "pro") return;
+
+    verified.current = true;
+    setIsVerifying(true);
+
+    const verify = async () => {
+      try {
+        const result = await verifyPendingSubscriptionPayment(tenantId);
+        if (result.activated) {
+          // Refresh server component data to show updated subscription
+          router.refresh();
+        }
+      } catch (err) {
+        console.error("[Billing] Payment verification failed:", err);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+
+    // Small delay to let gateway finish processing
+    const timer = setTimeout(verify, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentResult?.status]);
 
   // Invoice viewing state
   const [selectedInvoice, setSelectedInvoice] =
@@ -214,8 +248,10 @@ export function BillingPageClient({
           <CheckCircle2 className="size-4 text-green-600" />
           <AlertTitle>Payment Successful!</AlertTitle>
           <AlertDescription>
-            {paymentResult.message ||
-              "Your subscription has been upgraded to Pro. Thank you for your purchase!"}
+            {isVerifying
+              ? "Confirming your payment... This may take a few seconds."
+              : paymentResult.message ||
+                "Your subscription has been upgraded to Pro. Thank you for your purchase!"}
             {paymentResult.transactionId && (
               <span className="block mt-1 text-xs text-green-700">
                 Transaction ID: {paymentResult.transactionId}
