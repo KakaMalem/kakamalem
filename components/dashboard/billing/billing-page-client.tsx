@@ -124,30 +124,27 @@ export function BillingPageClient({
   const [showAlert, setShowAlert] = useState(!!paymentResult);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Verify payment on successful redirect (HesabPay or Stripe)
+  // Verify pending payments:
+  // - On redirect back from gateway (paymentResult detected)
+  // - On every page load when subscription isn't active (catches missed webhooks)
   const verified = useRef(false);
 
-  useEffect(() => {
-    if (paymentResult?.status !== "success" || verified.current) return;
+  const shouldVerify =
+    !verified.current &&
+    !(subscription.status === "active" && subscription.plan === "pro");
 
-    // Already active — no need to verify
-    if (subscription.status === "active" && subscription.plan === "pro") return;
+  useEffect(() => {
+    if (!shouldVerify) return;
 
     verified.current = true;
     setIsVerifying(true);
 
     const verify = async () => {
       try {
-        // Try verifying via HesabPay API (for HesabPay payments)
         const result = await verifyPendingSubscriptionPayment(tenantId);
         if (result.activated) {
           router.refresh();
-          return;
         }
-
-        // For Stripe (or if HesabPay verification didn't find a session),
-        // the webhook may have already updated the DB — just refresh the page
-        router.refresh();
       } catch (err) {
         console.error("[Billing] Payment verification failed:", err);
       } finally {
@@ -155,11 +152,12 @@ export function BillingPageClient({
       }
     };
 
-    // Small delay to let webhook/gateway finish processing
-    const timer = setTimeout(verify, 1500);
+    // Small delay on redirect to let gateway finish; immediate otherwise
+    const delay = paymentResult?.status === "success" ? 1500 : 500;
+    const timer = setTimeout(verify, delay);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentResult?.status]);
+  }, [shouldVerify]);
 
   // Invoice viewing state
   const [selectedInvoice, setSelectedInvoice] =

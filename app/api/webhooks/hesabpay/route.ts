@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   paymentWebhookEvents,
@@ -163,20 +163,43 @@ export async function POST(request: NextRequest) {
 async function handlePaymentSuccess(
   payload: HesabPayWebhookPayload
 ): Promise<{ orderId?: string; transactionId?: string }> {
-  // Find the payment session using session_id (might be in memo field)
-  const sessionId = payload.session_id || payload.memo;
+  // Find the payment session
+  // Try by session_id first, then fall back to matching by amount + pending status
+  // (HesabPay webhooks don't always include session_id)
+  let session = null;
 
-  if (!sessionId) {
-    console.error(
-      `[HesabPay Webhook] No session_id in payload: ${payload.transaction_id}`
-    );
-    return {};
+  const sessionId = payload.session_id || payload.memo;
+  if (sessionId) {
+    session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
   }
 
-  const session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
+  // Fallback: find the most recent pending HesabPay session matching the amount
+  if (!session && payload.amount) {
+    const [matchedSession] = await db
+      .select()
+      .from(paymentSessions)
+      .where(
+        and(
+          eq(paymentSessions.gateway, "hesabpay"),
+          eq(paymentSessions.status, "pending"),
+          eq(paymentSessions.amount, payload.amount.toString())
+        )
+      )
+      .orderBy(desc(paymentSessions.createdAt))
+      .limit(1);
+
+    if (matchedSession) {
+      console.log(
+        `[HesabPay Webhook] Matched session by amount fallback: ${matchedSession.id}`
+      );
+      session = matchedSession;
+    }
+  }
 
   if (!session) {
-    console.error(`[HesabPay Webhook] Session not found: ${sessionId}`);
+    console.error(
+      `[HesabPay Webhook] No matching session found for transaction ${payload.transaction_id} (amount: ${payload.amount})`
+    );
     return {};
   }
 
@@ -351,20 +374,35 @@ async function handlePaymentSuccess(
 async function handlePaymentFailure(
   payload: HesabPayWebhookPayload
 ): Promise<void> {
-  // Find the payment session (might be in memo field)
-  const sessionId = payload.session_id || payload.memo;
+  // Find the payment session (same fallback logic as success handler)
+  let session = null;
 
-  if (!sessionId) {
-    console.error(
-      `[HesabPay Webhook] No session_id in payload: ${payload.transaction_id}`
-    );
-    return;
+  const sessionId = payload.session_id || payload.memo;
+  if (sessionId) {
+    session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
   }
 
-  const session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
+  if (!session && payload.amount) {
+    const [matchedSession] = await db
+      .select()
+      .from(paymentSessions)
+      .where(
+        and(
+          eq(paymentSessions.gateway, "hesabpay"),
+          eq(paymentSessions.status, "pending"),
+          eq(paymentSessions.amount, payload.amount.toString())
+        )
+      )
+      .orderBy(desc(paymentSessions.createdAt))
+      .limit(1);
+
+    session = matchedSession || null;
+  }
 
   if (!session) {
-    console.error(`[HesabPay Webhook] Session not found: ${sessionId}`);
+    console.error(
+      `[HesabPay Webhook] No matching session for failed payment: ${payload.transaction_id}`
+    );
     return;
   }
 
