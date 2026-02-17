@@ -174,13 +174,13 @@ export interface HesabPayConfig {
 }
 
 // HesabPay API endpoints
-// Note: HesabPay uses the same API URL for both test and production.
-// Test vs production mode is determined by the API key, not the URL.
+// Production: api.hesab.com, Sandbox: api-sandbox.hesab.com
+// Override with HESABPAY_API_URL env var if needed
 export const HESABPAY_API = {
   /** Production API base URL */
   PRODUCTION_URL: "https://api.hesab.com/api/v1",
-  /** Sandbox API base URL (same as production - mode is determined by API key) */
-  SANDBOX_URL: "https://api.hesab.com/api/v1",
+  /** Sandbox API base URL */
+  SANDBOX_URL: "https://api-sandbox.hesab.com/api/v1",
   /** Create payment session endpoint */
   CREATE_SESSION: "/payment/create-session",
   /** Verify payment endpoint */

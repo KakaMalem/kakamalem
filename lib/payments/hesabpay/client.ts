@@ -39,6 +39,10 @@ export class HesabPayClient implements PaymentGatewayProvider {
   readonly displayName = "HesabPay";
 
   private getBaseUrl(isLive: boolean): string {
+    // Allow env var override for flexibility
+    if (process.env.HESABPAY_API_URL) {
+      return process.env.HESABPAY_API_URL;
+    }
     return isLive ? HESABPAY_API.PRODUCTION_URL : HESABPAY_API.SANDBOX_URL;
   }
 
@@ -73,6 +77,15 @@ export class HesabPayClient implements PaymentGatewayProvider {
     };
 
     try {
+      console.log("[HesabPay] Creating session:", {
+        url,
+        email: payload.email,
+        itemCount: payload.items.length,
+        totalAmount: payload.items.reduce((sum, i) => sum + i.price, 0),
+        successUrl: payload.redirect_success_url,
+        failureUrl: payload.redirect_failure_url,
+      });
+
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -85,6 +98,11 @@ export class HesabPayClient implements PaymentGatewayProvider {
 
       const data: HesabPayCreateSessionResponse = await response.json();
 
+      console.log("[HesabPay] Response:", {
+        httpStatus: response.status,
+        data,
+      });
+
       // HesabPay returns `url` directly on success (not wrapped in success/session_id)
       const paymentUrl = data.url || data.payment_url;
 
@@ -94,10 +112,27 @@ export class HesabPayClient implements PaymentGatewayProvider {
         data.success === false ||
         (!paymentUrl && data.error_code)
       ) {
+        console.error("[HesabPay] Session creation failed:", {
+          httpStatus: response.status,
+          message: data.message,
+          errorCode: data.error_code,
+          fullResponse: data,
+        });
         return {
           success: false,
           error: data.message || "Failed to create payment session",
           errorCode: data.error_code,
+          gatewayResponse: data as unknown as Record<string, unknown>,
+        };
+      }
+
+      // If response was OK but no payment URL found, that's still an error
+      if (!paymentUrl) {
+        console.error("[HesabPay] Response OK but no payment URL found:", data);
+        return {
+          success: false,
+          error:
+            data.message || "Payment session created but no redirect URL received",
           gatewayResponse: data as unknown as Record<string, unknown>,
         };
       }

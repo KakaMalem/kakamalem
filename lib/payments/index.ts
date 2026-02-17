@@ -265,12 +265,14 @@ async function getPlatformCredentials(
       return null;
     }
 
-    const isLive = process.env.NODE_ENV === "production";
+    // Determine live mode: explicit env var > API key prefix > NODE_ENV
+    const isLive =
+      process.env.HESABPAY_IS_LIVE === "true" ||
+      apiKey.startsWith("hpay_live_") ||
+      process.env.NODE_ENV === "production";
     return {
       apiKey,
       isLive,
-      // Note: HesabPay verifies webhook signatures via their API using the same API key
-      // No separate webhook secret is needed
     };
   }
 
