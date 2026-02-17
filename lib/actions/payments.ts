@@ -545,12 +545,25 @@ export async function verifyPendingSubscriptionPayment(
         invoice.items as Array<{ description?: string }> | null
       )?.some((item) => item.description?.toLowerCase().includes("yearly"));
 
+      // Check if this is a renewal (tenant already has a start date)
+      const [currentTenant] = await db
+        .select({
+          slug: tenants.slug,
+          subscriptionStartedAt: tenants.subscriptionStartedAt,
+        })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .limit(1);
+
       await db
         .update(tenants)
         .set({
           subscriptionStatus: "active",
           subscriptionPlan: "pro",
-          subscriptionStartedAt: new Date().toISOString(),
+          // Only set subscriptionStartedAt for new subscriptions, not renewals
+          ...(currentTenant?.subscriptionStartedAt
+            ? {}
+            : { subscriptionStartedAt: new Date().toISOString() }),
           subscriptionEndsAt: invoice.periodEnd,
           billingInterval: isYearly ? "yearly" : "monthly",
           updatedAt: new Date().toISOString(),
@@ -567,12 +580,7 @@ export async function verifyPendingSubscriptionPayment(
         })
         .where(eq(billingTransactions.invoiceId, session.invoiceId));
 
-      // 5. Get tenant slug for revalidation
-      const [tenant] = await db
-        .select({ slug: tenants.slug })
-        .from(tenants)
-        .where(eq(tenants.id, tenantId))
-        .limit(1);
+      const tenant = currentTenant;
 
       if (tenant) {
         revalidatePath(`/dashboard/${tenant.slug}/billing`);
@@ -835,11 +843,19 @@ export async function confirmManualPayment(
         .limit(1);
 
       if (invoice) {
+        const [currentTenant] = await db
+          .select({ subscriptionStartedAt: tenants.subscriptionStartedAt })
+          .from(tenants)
+          .where(eq(tenants.id, invoice.tenantId))
+          .limit(1);
+
         await db
           .update(tenants)
           .set({
             subscriptionStatus: "active",
-            subscriptionStartedAt: new Date().toISOString(),
+            ...(currentTenant?.subscriptionStartedAt
+              ? {}
+              : { subscriptionStartedAt: new Date().toISOString() }),
             subscriptionEndsAt: invoice.periodEnd,
             updatedAt: new Date().toISOString(),
           })

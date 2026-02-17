@@ -283,13 +283,14 @@ export function StoreHeader({
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link
+                        <a
                           href={`${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`}
                           target="_blank"
+                          rel="noopener noreferrer"
                         >
                           <LayoutDashboard className="mr-2 size-4" />
                           Store Dashboard
-                        </Link>
+                        </a>
                       </DropdownMenuItem>
                     </>
                   )}
@@ -448,13 +449,14 @@ export function StoreHeader({
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem asChild>
-                            <Link
+                            <a
                               href={`${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`}
                               target="_blank"
+                              rel="noopener noreferrer"
                             >
                               <LayoutDashboard className="mr-2 size-4" />
                               Store Dashboard
-                            </Link>
+                            </a>
                           </DropdownMenuItem>
                         </>
                       )}

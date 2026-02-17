@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getUser, getUserProfile, isPlatformAdmin } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
+import { AdminSidebarNav } from "@/components/admin/admin-sidebar-nav";
 import {
   LayoutDashboard,
   Store,
@@ -100,28 +100,7 @@ export default async function AdminLayout({
           </div>
 
           {/* Navigation */}
-          <nav className="flex flex-col gap-1 p-4">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <span className="flex items-center gap-3">
-                  <item.icon className="size-4" />
-                  {item.label}
-                </span>
-                {item.badge > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="size-5 items-center justify-center rounded-full p-0 text-xs"
-                  >
-                    {item.badge}
-                  </Badge>
-                )}
-              </Link>
-            ))}
-          </nav>
+          <AdminSidebarNav navItems={navItems} />
 
           {/* User info & logout */}
           <div className="absolute bottom-0 left-0 right-0 border-t p-4">

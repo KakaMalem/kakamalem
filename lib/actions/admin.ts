@@ -131,6 +131,7 @@ export async function updateStoreSubscription(
         name: true,
         subscriptionPlan: true,
         subscriptionStatus: true,
+        subscriptionStartedAt: true,
       },
     });
 
@@ -147,9 +148,12 @@ export async function updateStoreSubscription(
       updatedAt: now,
     };
 
-    // If upgrading to pro with active status, set subscription start
+    // If upgrading to pro with active status, set subscription dates
     if (plan === "pro" && status === "active") {
-      updateData.subscriptionStartedAt = now;
+      // Only set subscriptionStartedAt for new subscriptions, not renewals
+      if (!store.subscriptionStartedAt) {
+        updateData.subscriptionStartedAt = now;
+      }
       // Set subscription end to 30 days from now
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 30);

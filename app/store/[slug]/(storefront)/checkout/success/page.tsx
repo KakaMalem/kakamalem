@@ -38,7 +38,14 @@ export default async function CheckoutSuccessPage({
   searchParams,
 }: CheckoutSuccessPageProps) {
   const { slug } = await params;
-  const { order: orderId, payment: paymentStatus } = await searchParams;
+  const { order: rawOrderId, payment: paymentStatus } = await searchParams;
+
+  // HesabPay appends ?data={...} to the redirect URL, which corrupts the order param
+  // when the URL already has query params (e.g., ?order=uuid?data={...} instead of &data={...})
+  // Extract just the UUID from the order parameter
+  const orderId = rawOrderId?.match(
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+  )?.[1];
 
   // Fetch store
   const store = await resolveTenant(slug);

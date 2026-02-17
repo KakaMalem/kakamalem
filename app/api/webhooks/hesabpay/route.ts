@@ -320,13 +320,23 @@ async function handlePaymentSuccess(
         invoice.items as Array<{ description?: string }> | null
       )?.some((item) => item.description?.toLowerCase().includes("yearly"));
 
+      // Check if this is a renewal (tenant already has a start date)
+      const [currentTenant] = await db
+        .select({ subscriptionStartedAt: tenants.subscriptionStartedAt })
+        .from(tenants)
+        .where(eq(tenants.id, invoice.tenantId))
+        .limit(1);
+
       // Update tenant subscription status
       await db
         .update(tenants)
         .set({
           subscriptionStatus: "active",
           subscriptionPlan: "pro",
-          subscriptionStartedAt: new Date().toISOString(),
+          // Only set subscriptionStartedAt for new subscriptions, not renewals
+          ...(currentTenant?.subscriptionStartedAt
+            ? {}
+            : { subscriptionStartedAt: new Date().toISOString() }),
           subscriptionEndsAt: invoice.periodEnd,
           billingInterval: isYearly ? "yearly" : "monthly",
           updatedAt: new Date().toISOString(),

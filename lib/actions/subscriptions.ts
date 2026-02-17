@@ -30,6 +30,8 @@ export type InitiateUpgradeResult = {
   error?: string;
   paymentUrl?: string;
   invoiceId?: string;
+  /** True if a cancelled subscription was reactivated without payment */
+  reactivated?: boolean;
 };
 
 export type InitiateCryptoUpgradeResult = {
@@ -91,6 +93,29 @@ export async function initiateProUpgrade(
       return {
         success: false,
         error: "Store already has an active Pro subscription",
+      };
+    }
+
+    // If cancelled but still has remaining time, just reactivate (no payment needed)
+    if (
+      tenant.subscriptionPlan === "pro" &&
+      tenant.subscriptionStatus === "cancelled" &&
+      tenant.subscriptionEndsAt &&
+      new Date(tenant.subscriptionEndsAt) > new Date()
+    ) {
+      await db
+        .update(tenants)
+        .set({
+          subscriptionStatus: "active",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tenants.id, tenantId));
+
+      revalidatePath(`/dashboard/${tenant.slug}/billing`);
+
+      return {
+        success: true,
+        reactivated: true,
       };
     }
 
@@ -164,7 +189,13 @@ export async function initiateProUpgrade(
     // Create new invoice if none exists or previous was voided
     if (!invoice) {
       const now = new Date();
-      const periodEnd = new Date(now);
+      // If tenant has remaining subscription time, extend from that date
+      const hasRemainingTime =
+        tenant.subscriptionEndsAt && new Date(tenant.subscriptionEndsAt) > now;
+      const periodStart = hasRemainingTime
+        ? new Date(tenant.subscriptionEndsAt!)
+        : now;
+      const periodEnd = new Date(periodStart);
       // Set period end based on billing interval
       if (billingInterval === "yearly") {
         periodEnd.setFullYear(periodEnd.getFullYear() + 1);
@@ -190,7 +221,7 @@ export async function initiateProUpgrade(
             tax: "0",
             total: proPlanPrice.toString(),
             currency: "AFN",
-            periodStart: now.toISOString(),
+            periodStart: periodStart.toISOString(),
             periodEnd: periodEnd.toISOString(),
             dueDate: now.toISOString(),
             status: "unpaid",
@@ -216,7 +247,7 @@ export async function initiateProUpgrade(
           type: "subscription_upgrade",
           amount: proPlanPrice.toString(),
           currency: "AFN",
-          periodStart: now.toISOString(),
+          periodStart: periodStart.toISOString(),
           periodEnd: periodEnd.toISOString(),
           fromPlan: tenant.subscriptionPlan,
           toPlan: "pro",
@@ -334,6 +365,28 @@ export async function initiateProUpgradeWithCrypto(
       };
     }
 
+    // If cancelled but still has remaining time, just reactivate (no payment needed)
+    if (
+      tenant.subscriptionPlan === "pro" &&
+      tenant.subscriptionStatus === "cancelled" &&
+      tenant.subscriptionEndsAt &&
+      new Date(tenant.subscriptionEndsAt) > new Date()
+    ) {
+      await db
+        .update(tenants)
+        .set({
+          subscriptionStatus: "active",
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tenants.id, tenantId));
+
+      return {
+        success: false,
+        error:
+          "Your subscription has been reactivated. You still have time remaining on your current plan.",
+      };
+    }
+
     // 4. Get platform settings for USDT wallet and pricing
     const settings = await db.query.platformSettings.findFirst();
     if (!settings) {
@@ -381,6 +434,19 @@ export async function initiateProUpgradeWithCrypto(
         : baseUsdtAmount;
 
     // 6. Create an invoice for tracking
+    const now = new Date();
+    const hasRemainingTime =
+      tenant.subscriptionEndsAt && new Date(tenant.subscriptionEndsAt) > now;
+    const periodStart = hasRemainingTime
+      ? new Date(tenant.subscriptionEndsAt!)
+      : now;
+    const periodEnd = new Date(periodStart);
+    if (options.billingInterval === "yearly") {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    } else {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    }
+
     const invoiceNumber = await generateInvoiceNumber(tenantId);
     const [invoice] = await db
       .insert(invoices)
@@ -391,6 +457,8 @@ export async function initiateProUpgradeWithCrypto(
         currency: "AFN",
         subtotal: proPlanPriceAfn.toString(),
         total: proPlanPriceAfn.toString(),
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
         dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
         notes: `Subscription: ${options.billingInterval}`, // Store billing interval in notes
         items: [

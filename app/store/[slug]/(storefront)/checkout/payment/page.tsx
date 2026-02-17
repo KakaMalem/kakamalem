@@ -37,7 +37,13 @@ export default async function PaymentPage({
   searchParams,
 }: PaymentPageProps) {
   const { slug } = await params;
-  const { order: orderId, cancelled } = await searchParams;
+  const { order: rawOrderId, cancelled } = await searchParams;
+
+  // HesabPay appends ?data={...} to the redirect URL, which corrupts the order param
+  // Extract just the UUID from the order parameter
+  const orderId = rawOrderId?.match(
+    /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+  )?.[1];
 
   // Fetch store
   const store = await resolveTenant(slug);

@@ -461,6 +461,13 @@ async function handleSubscriptionUpdate(subscription: {
   const billingInterval =
     metadataInterval || (priceInterval === "year" ? "yearly" : "monthly");
 
+  // Check if this is a renewal (tenant already has a start date)
+  const [currentTenant] = await db
+    .select({ subscriptionStartedAt: tenants.subscriptionStartedAt })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
   await db
     .update(tenants)
     .set({
@@ -474,8 +481,11 @@ async function handleSubscriptionUpdate(subscription: {
         | "cancelled"
         | "expired",
       subscriptionEndsAt: periodEnd.toISOString(),
-      subscriptionStartedAt:
-        subscription.status === "active" ? new Date().toISOString() : undefined,
+      // Only set subscriptionStartedAt for new subscriptions, not renewals
+      ...(subscription.status === "active" &&
+      !currentTenant?.subscriptionStartedAt
+        ? { subscriptionStartedAt: new Date().toISOString() }
+        : {}),
       billingInterval,
       updatedAt: new Date().toISOString(),
     })

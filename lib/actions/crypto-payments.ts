@@ -612,16 +612,24 @@ export async function verifyCryptoPayment(
         });
 
         if (tenant) {
-          const periodEnd = new Date();
           // Check billing interval from invoice items
           const isYearly = invoice.items?.some(
             (item: { description?: string }) =>
               item.description?.toLowerCase().includes("yearly")
           );
-          if (isYearly) {
-            periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+
+          // Use invoice periodEnd if available, otherwise calculate
+          let subscriptionEnd: string;
+          if (invoice.periodEnd) {
+            subscriptionEnd = invoice.periodEnd;
           } else {
-            periodEnd.setMonth(periodEnd.getMonth() + 1);
+            const periodEnd = new Date();
+            if (isYearly) {
+              periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+            } else {
+              periodEnd.setMonth(periodEnd.getMonth() + 1);
+            }
+            subscriptionEnd = periodEnd.toISOString();
           }
 
           await db
@@ -629,8 +637,11 @@ export async function verifyCryptoPayment(
             .set({
               subscriptionPlan: "pro",
               subscriptionStatus: "active",
-              subscriptionStartedAt: now,
-              subscriptionEndsAt: periodEnd.toISOString(),
+              // Only set subscriptionStartedAt for new subscriptions
+              ...(tenant.subscriptionStartedAt
+                ? {}
+                : { subscriptionStartedAt: now }),
+              subscriptionEndsAt: subscriptionEnd,
               billingInterval: isYearly ? "yearly" : "monthly",
               updatedAt: now,
             })
