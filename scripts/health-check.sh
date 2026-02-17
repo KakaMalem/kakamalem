@@ -17,14 +17,43 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-CONTAINER_NAME="kakamalem-app"
 APP_DIR="/var/www/kakamalem"
-HEALTH_CHECK_URL="http://localhost:3000/api/health"
+STATE_FILE="$APP_DIR/.deploy-state"
+BLUE_CONTAINER="kakamalem-blue"
+GREEN_CONTAINER="kakamalem-green"
+BLUE_PORT=3000
+GREEN_PORT=3001
 FAILED_CHECKS=0
 WARNING_CHECKS=0
 
+# Determine the active container/port from deploy state
+if [ -f "$STATE_FILE" ]; then
+    ACTIVE_SLOT=$(cat "$STATE_FILE")
+else
+    # Detect which container is running
+    if docker ps --format '{{.Names}}' | grep -q "$BLUE_CONTAINER"; then
+        ACTIVE_SLOT="blue"
+    elif docker ps --format '{{.Names}}' | grep -q "$GREEN_CONTAINER"; then
+        ACTIVE_SLOT="green"
+    else
+        ACTIVE_SLOT="none"
+    fi
+fi
+
+if [ "$ACTIVE_SLOT" = "blue" ]; then
+    CONTAINER_NAME="$BLUE_CONTAINER"
+    HEALTH_CHECK_URL="http://localhost:$BLUE_PORT/api/health"
+elif [ "$ACTIVE_SLOT" = "green" ]; then
+    CONTAINER_NAME="$GREEN_CONTAINER"
+    HEALTH_CHECK_URL="http://localhost:$GREEN_PORT/api/health"
+else
+    CONTAINER_NAME="kakamalem-blue"
+    HEALTH_CHECK_URL="http://localhost:$BLUE_PORT/api/health"
+fi
+
 echo "🏥 Running health checks for Kaka Malem..."
 echo "⏰ Check time: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "🎯 Active slot: $ACTIVE_SLOT ($CONTAINER_NAME)"
 echo ""
 
 # =============================================================================
@@ -306,6 +335,6 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # Show Docker container status
 echo ""
 echo "Docker container status:"
-docker ps -a --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+docker ps -a --filter "name=kakamalem" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 exit $EXIT_CODE
