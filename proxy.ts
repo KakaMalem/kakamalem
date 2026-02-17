@@ -179,11 +179,15 @@ export default function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = `/store/custom-domain${pathname}`;
 
-  // Pass the original host in a header for the route handler to use
-  const response = NextResponse.rewrite(url);
-  response.headers.set("x-custom-domain", hostnameWithoutPort);
+  // Pass the original host as a REQUEST header so server components can read it
+  // via headers(). Using the request.headers option ensures the header is available
+  // to downstream server components, layouts, and route handlers.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-custom-domain", hostnameWithoutPort);
 
-  return response;
+  return NextResponse.rewrite(url, {
+    request: { headers: requestHeaders },
+  });
 }
 
 export const config = {

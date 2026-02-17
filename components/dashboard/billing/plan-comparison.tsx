@@ -45,11 +45,14 @@ export function PlanComparison({
   const router = useRouter();
 
   const isPro = subscription.plan === "pro";
+  const isActivePro = isPro && subscription.status === "active";
   const showUpgrade =
-    !isPro &&
+    !isActivePro &&
     (subscription.status === "trialing" ||
       subscription.status === "expired" ||
-      subscription.status === "active");
+      subscription.status === "active" ||
+      subscription.status === "cancelled" ||
+      subscription.status === "past_due");
 
   const handleUpgrade = () => {
     // Navigate to upgrade page for payment method selection
@@ -138,7 +141,7 @@ export function PlanComparison({
             <div className="absolute -top-2.5 left-3">
               <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
                 <Crown className="size-2.5" />
-                {isPro ? "Current" : "Best Value"}
+                {isActivePro ? "Current" : "Best Value"}
               </span>
             </div>
 
@@ -181,10 +184,10 @@ export function PlanComparison({
             {showUpgrade && (
               <Button size="sm" className="mt-4 w-full" onClick={handleUpgrade}>
                 <Crown className="mr-1.5 size-3.5" />
-                Upgrade to Pro
+                {isPro ? "Reactivate Pro" : "Upgrade to Pro"}
               </Button>
             )}
-            {isPro && (
+            {isActivePro && (
               <Button
                 variant="outline"
                 size="sm"

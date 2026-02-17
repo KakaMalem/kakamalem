@@ -246,7 +246,7 @@ export function InvoiceList({
                                   </span>
                                 </Button>
                               )}
-                              {onDownloadInvoice && invoice.pdfUrl && (
+                              {onDownloadInvoice && (
                                 <Button
                                   variant="ghost"
                                   size="sm"

@@ -106,20 +106,12 @@ export default async function AffiliateProgramPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 {isApprovedAffiliate ? (
-                  <>
-                    <Button size="lg" asChild>
-                      <Link href="/affiliate/dashboard">
-                        <LayoutDashboard className="mr-2 size-4" />
-                        Go to Dashboard
-                      </Link>
-                    </Button>
-                    <Button size="lg" variant="outline" asChild>
-                      <Link href={`/${affiliateStatus.slug}`} target="_blank">
-                        View Your Link
-                        <ArrowRight className="ml-2 size-4" />
-                      </Link>
-                    </Button>
-                  </>
+                  <Button size="lg" asChild>
+                    <Link href="/affiliate/dashboard">
+                      <LayoutDashboard className="mr-2 size-4" />
+                      Go to Dashboard
+                    </Link>
+                  </Button>
                 ) : (
                   <>
                     <Button size="lg" asChild>

@@ -139,6 +139,35 @@ export function BillingPageClient({
     [invoices]
   );
 
+  // Handler for downloading invoice PDF
+  const handleDownloadInvoice = useCallback(
+    async (invoiceId: string) => {
+      try {
+        const res = await fetch(
+          `/api/dashboard/${storeSlug}/billing/invoices/${invoiceId}/download`
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          alert(err?.error || "Failed to download invoice");
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const invoice = invoices.find((inv) => inv.id === invoiceId);
+        a.href = url;
+        a.download = `invoice-${invoice?.invoiceNumber || invoiceId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch {
+        alert("Failed to download invoice. Please try again.");
+      }
+    },
+    [storeSlug, invoices]
+  );
+
   // Track if we've already cleared the URL
   const clearedUrl = useRef(false);
 
@@ -218,13 +247,20 @@ export function BillingPageClient({
       )}
 
       {/* Subscription Status Card */}
-      <BillingStatusCard subscription={subscription} currency={currency} />
+      <BillingStatusCard
+        subscription={subscription}
+        currency={currency}
+        storeSlug={storeSlug}
+      />
 
       {/* Subscription Management Actions (Cancel/Resume/Manage) */}
       <SubscriptionActions subscription={subscription} tenantId={tenantId} />
 
-      {/* Plan Comparison - only show for non-Pro users */}
-      {subscription.plan !== "pro" && (
+      {/* Plan Comparison - show for non-Pro users and cancelled/past_due/expired Pro users */}
+      {(subscription.plan !== "pro" ||
+        subscription.status === "cancelled" ||
+        subscription.status === "past_due" ||
+        subscription.status === "expired") && (
         <PlanComparison
           subscription={subscription}
           currency={currency}
@@ -240,6 +276,7 @@ export function BillingPageClient({
         currency={currency}
         hasStripeSubscription={subscription.hasStripeSubscription}
         onViewInvoice={handleViewInvoice}
+        onDownloadInvoice={handleDownloadInvoice}
       />
 
       {/* Invoice Detail Dialog */}

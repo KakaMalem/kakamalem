@@ -69,7 +69,11 @@ async function fetchSarafiRates(): Promise<ExchangeRates | null> {
     const data = await response.json();
     const marketRates: SarafiRate[] = data?.default_market_rates?.rates;
 
-    if (!marketRates || !Array.isArray(marketRates) || marketRates.length === 0) {
+    if (
+      !marketRates ||
+      !Array.isArray(marketRates) ||
+      marketRates.length === 0
+    ) {
       throw new Error("No rates in sarafi.af response");
     }
 
@@ -245,10 +249,7 @@ async function getCachedRates(): Promise<ExchangeRates | null> {
 /**
  * Save exchange rates to the database cache.
  */
-async function cacheRates(
-  rates: ExchangeRates,
-  source: string
-): Promise<void> {
+async function cacheRates(rates: ExchangeRates, source: string): Promise<void> {
   try {
     const now = new Date().toISOString();
 
@@ -304,37 +305,6 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
 }
 
 /**
- * Convert an amount from AFN to another currency.
- *
- * @param amountAFN Amount in Afghan Afghani
- * @param targetCurrency Target currency code (e.g., "USD", "EUR")
- * @param rates Optional pre-fetched rates (to avoid multiple DB calls)
- * @returns Converted amount in target currency
- */
-export async function convertFromAFN(
-  amountAFN: number,
-  targetCurrency: string,
-  rates?: ExchangeRates
-): Promise<number> {
-  if (targetCurrency === BASE_CURRENCY) {
-    return amountAFN;
-  }
-
-  const exchangeRates = rates || (await getExchangeRates());
-  const rate = exchangeRates[targetCurrency];
-
-  if (!rate) {
-    console.warn(
-      `[Currency] No rate found for ${targetCurrency}, using fallback`
-    );
-    const fallback = getFallbackRates();
-    return amountAFN * (fallback[targetCurrency] || 1);
-  }
-
-  return amountAFN * rate;
-}
-
-/**
  * Convert an amount from another currency to AFN.
  *
  * @param amount Amount in source currency
@@ -360,58 +330,6 @@ export async function convertToAFN(
   }
 
   return amount / rate;
-}
-
-/**
- * Format an amount in a specific currency.
- *
- * @param amount Amount to format
- * @param currency Currency code
- * @param locale Optional locale for formatting
- */
-export function formatCurrency(
-  amount: number,
-  currency: string,
-  locale?: string
-): string {
-  try {
-    return new Intl.NumberFormat(locale || "en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: currency === "AFN" || currency === "PKR" ? 0 : 2,
-      maximumFractionDigits: currency === "AFN" || currency === "PKR" ? 0 : 2,
-    }).format(amount);
-  } catch {
-    // Fallback for unsupported currencies
-    return `${currency} ${amount.toFixed(2)}`;
-  }
-}
-
-/**
- * Lock exchange rate for checkout.
- * Returns the rate and expiry time.
- *
- * @param targetCurrency Customer's currency
- * @param lockDurationMinutes How long to lock the rate (default 15 min)
- */
-export async function lockExchangeRate(
-  targetCurrency: string,
-  lockDurationMinutes: number = 15
-): Promise<{
-  rate: number;
-  expiresAt: Date;
-  lockedAt: Date;
-}> {
-  const rates = await getExchangeRates();
-  const rate = rates[targetCurrency] || 1;
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + lockDurationMinutes * 60 * 1000);
-
-  return {
-    rate,
-    expiresAt,
-    lockedAt: now,
-  };
 }
 
 // Re-export types and utils

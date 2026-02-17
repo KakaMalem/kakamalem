@@ -252,13 +252,14 @@ async function handlePaymentSuccess(
         .where(eq(orders.id, session.orderId));
 
       // Credit seller earnings when order is fully paid
+      // Credit in the order's base currency (store currency), not the payment gateway currency
       if (isFullyPaid) {
         await creditSellerEarnings(
           session.tenantId,
           session.orderId,
           order.orderNumber,
           orderTotal,
-          session.currency,
+          order.currencyCode || "AFN",
           "HesabPay"
         );
       }
@@ -291,6 +292,11 @@ async function handlePaymentSuccess(
         })
         .where(eq(invoices.id, session.invoiceId));
 
+      // Determine billing interval from invoice items
+      const isYearly = (
+        invoice.items as Array<{ description?: string }> | null
+      )?.some((item) => item.description?.toLowerCase().includes("yearly"));
+
       // Update tenant subscription status
       await db
         .update(tenants)
@@ -299,6 +305,7 @@ async function handlePaymentSuccess(
           subscriptionPlan: "pro",
           subscriptionStartedAt: new Date().toISOString(),
           subscriptionEndsAt: invoice.periodEnd,
+          billingInterval: isYearly ? "yearly" : "monthly",
           updatedAt: new Date().toISOString(),
         })
         .where(eq(tenants.id, invoice.tenantId));
@@ -315,6 +322,23 @@ async function handlePaymentSuccess(
       console.log(
         `[HesabPay Webhook] Invoice ${invoice.invoiceNumber} marked as paid, subscription activated`
       );
+
+      // Generate and send subscription invoice PDF + email (non-blocking)
+      try {
+        const { sendSubscriptionInvoice } =
+          await import("@/lib/invoice/send-subscription-invoice");
+        await sendSubscriptionInvoice({
+          invoiceId: session.invoiceId,
+          tenantId: invoice.tenantId,
+          paymentMethod: "HesabPay",
+          transactionId: payload.transaction_id,
+        });
+      } catch (invoiceError) {
+        console.error(
+          "[HesabPay Webhook] Failed to send subscription invoice:",
+          invoiceError
+        );
+      }
     }
   }
 

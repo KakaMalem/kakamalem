@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   Clock,
   CheckCircle,
@@ -8,6 +9,7 @@ import {
   Crown,
   Package,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -25,6 +27,7 @@ import type { SubscriptionStatus } from "@/lib/db/schema";
 interface BillingStatusCardProps {
   subscription: SubscriptionOverview;
   currency: string;
+  storeSlug?: string;
 }
 
 const STATUS_CONFIG: Record<
@@ -82,6 +85,7 @@ function formatPrice(price: string | number, currency: string): string {
 export function BillingStatusCard({
   subscription,
   currency,
+  storeSlug,
 }: BillingStatusCardProps) {
   const config = STATUS_CONFIG[subscription.status];
   const StatusIcon = config.icon;
@@ -158,6 +162,19 @@ export function BillingStatusCard({
                     </span>
                   )}
                 </p>
+                {/* Renew Now prompt for non-Stripe users approaching expiry */}
+                {!subscription.hasStripeSubscription &&
+                  storeSlug &&
+                  subscription.daysRemainingInPeriod !== null &&
+                  subscription.daysRemainingInPeriod <= 7 && (
+                    <Link
+                      href={`/dashboard/${storeSlug}/billing/upgrade`}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                    >
+                      <RefreshCw className="size-3" />
+                      Renew Now
+                    </Link>
+                  )}
               </>
             )}
             {subscription.status === "active" && !isPro && (

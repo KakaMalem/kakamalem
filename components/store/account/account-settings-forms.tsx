@@ -27,10 +27,12 @@ import {
   changePasswordAction,
   setPasswordAction,
   deleteAccountAction,
+} from "@/lib/actions/account";
+import {
   updateNameSchema,
   changePasswordSchema,
   setPasswordSchema,
-} from "@/lib/actions/account";
+} from "@/lib/validations/account";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
@@ -146,27 +148,27 @@ export function ChangePasswordForm({ hasPassword }: ChangePasswordFormProps) {
     setErrors({});
     setIsPending(true);
 
-    if (hasPassword) {
-      // User has a password, validate with current password
-      const validation = changePasswordSchema.safeParse({
-        currentPassword,
-        newPassword,
-        confirmPassword,
-      });
-
-      if (!validation.success) {
-        const fieldErrors: Record<string, string> = {};
-        validation.error.issues.forEach((issue) => {
-          const field = issue.path[0] as string;
-          fieldErrors[field] = issue.message;
+    try {
+      if (hasPassword) {
+        // User has a password, validate with current password
+        const validation = changePasswordSchema.safeParse({
+          currentPassword,
+          newPassword,
+          confirmPassword,
         });
-        setErrors(fieldErrors);
-        toast.error(validation.error.issues[0].message);
-        setIsPending(false);
-        return;
-      }
 
-      try {
+        if (!validation.success) {
+          const fieldErrors: Record<string, string> = {};
+          validation.error.issues.forEach((issue) => {
+            const field = issue.path[0] as string;
+            fieldErrors[field] = issue.message;
+          });
+          setErrors(fieldErrors);
+          toast.error(validation.error.issues[0].message);
+          setIsPending(false);
+          return;
+        }
+
         const result = await changePasswordAction({
           currentPassword,
           newPassword,
@@ -185,32 +187,25 @@ export function ChangePasswordForm({ hasPassword }: ChangePasswordFormProps) {
         setNewPassword("");
         setConfirmPassword("");
         setIsPending(false);
-      } catch {
-        const errorMsg = "An unexpected error occurred";
-        setErrors({ currentPassword: errorMsg });
-        toast.error(errorMsg);
-        setIsPending(false);
-      }
-    } else {
-      // OAuth user setting password for the first time
-      const validation = setPasswordSchema.safeParse({
-        newPassword,
-        confirmPassword,
-      });
-
-      if (!validation.success) {
-        const fieldErrors: Record<string, string> = {};
-        validation.error.issues.forEach((issue) => {
-          const field = issue.path[0] as string;
-          fieldErrors[field] = issue.message;
+      } else {
+        // OAuth user setting password for the first time
+        const validation = setPasswordSchema.safeParse({
+          newPassword,
+          confirmPassword,
         });
-        setErrors(fieldErrors);
-        toast.error(validation.error.issues[0].message);
-        setIsPending(false);
-        return;
-      }
 
-      try {
+        if (!validation.success) {
+          const fieldErrors: Record<string, string> = {};
+          validation.error.issues.forEach((issue) => {
+            const field = issue.path[0] as string;
+            fieldErrors[field] = issue.message;
+          });
+          setErrors(fieldErrors);
+          toast.error(validation.error.issues[0].message);
+          setIsPending(false);
+          return;
+        }
+
         const result = await setPasswordAction({
           newPassword,
           confirmPassword,
@@ -229,12 +224,12 @@ export function ChangePasswordForm({ hasPassword }: ChangePasswordFormProps) {
         setIsPending(false);
         // Reload page to update hasPassword state
         window.location.reload();
-      } catch {
-        const errorMsg = "An unexpected error occurred";
-        setErrors({ newPassword: errorMsg });
-        toast.error(errorMsg);
-        setIsPending(false);
       }
+    } catch {
+      const errorMsg = "An unexpected error occurred";
+      setErrors({ newPassword: errorMsg });
+      toast.error(errorMsg);
+      setIsPending(false);
     }
   }
 

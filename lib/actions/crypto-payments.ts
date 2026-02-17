@@ -573,13 +573,14 @@ export async function verifyCryptoPayment(
           .where(eq(orders.id, order.id));
 
         // Credit seller earnings if fully paid
+        // Credit in the order's base currency (store currency)
         if (isPaid) {
           await creditSellerEarnings(
             session.tenantId,
             order.id,
             order.orderNumber,
-            parseFloat(session.amount),
-            "AFN",
+            orderTotal,
+            order.currencyCode || "AFN",
             "crypto_usdt"
           );
         }
@@ -644,6 +645,23 @@ export async function verifyCryptoPayment(
               updatedAt: now,
             })
             .where(eq(billingTransactions.invoiceId, invoice.id));
+
+          // Generate and send subscription invoice PDF + email (non-blocking)
+          try {
+            const { sendSubscriptionInvoice } =
+              await import("@/lib/invoice/send-subscription-invoice");
+            await sendSubscriptionInvoice({
+              invoiceId: invoice.id,
+              tenantId: session.tenantId,
+              paymentMethod: "USDT",
+              transactionId: cryptoPayment.transactionHash || undefined,
+            });
+          } catch (invoiceError) {
+            console.error(
+              "[verifyCryptoPayment] Failed to send subscription invoice:",
+              invoiceError
+            );
+          }
         }
 
         revalidatePath(`/dashboard/[slug]/billing`);

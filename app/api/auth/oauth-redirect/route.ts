@@ -1,16 +1,22 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 
 // =============================================================================
-// OAUTH REDIRECT FOR CUSTOM DOMAINS
+// OAUTH REDIRECT FOR CUSTOM DOMAINS (Server-Side)
 // =============================================================================
 // When a user on a custom domain (e.g., tuhfaa.com) clicks "Sign in with Google",
-// we redirect them to this endpoint on the main domain (kakamalem.com).
-// This page triggers the OAuth flow from the main domain so that:
-// 1. The OAuth state cookie is set on kakamalem.com (where Google will redirect back)
-// 2. The registered redirect_uri matches (kakamalem.com/api/auth/callback/google)
+// they are redirected to this endpoint on the main domain (kakamalem.com).
 //
-// After OAuth completes, the cross-domain-callback transfers the session back
-// to the custom domain via a signed exchange token.
+// This route calls Better Auth's sign-in handler SERVER-SIDE to get the OAuth
+// authorization URL, then redirects the browser directly. No client-side
+// JavaScript or fetch() is needed — this eliminates CORS, service worker,
+// and browser compatibility issues entirely.
+//
+// Flow:
+// 1. Custom domain → redirect to kakamalem.com/api/auth/oauth-redirect
+// 2. This route calls auth.handler() to get Google/Facebook OAuth URL
+// 3. Browser is redirected to the OAuth provider (with state cookie set)
+// 4. After OAuth, callback → cross-domain-callback → token exchange
 // =============================================================================
 
 const VALID_PROVIDERS = ["google", "facebook"];
@@ -31,41 +37,59 @@ export async function GET(request: NextRequest) {
     return new Response("Invalid return domain", { status: 400 });
   }
 
-  // After OAuth, Better Auth will redirect to this callback URL
+  // After OAuth completes, Better Auth will redirect to this callback URL,
+  // which transfers the session to the custom domain.
   const callbackURL = `/api/auth/cross-domain-callback?returnDomain=${encodeURIComponent(returnDomain)}&returnPath=${encodeURIComponent(returnPath)}`;
 
-  // Serve a minimal HTML page that triggers the OAuth flow via fetch.
-  // The fetch to /api/auth/sign-in/social is same-origin (on kakamalem.com),
-  // so the OAuth state cookie is correctly set on kakamalem.com.
-  // Values are safely embedded using JSON.stringify to prevent XSS.
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Signing in...</title>
-<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#555}</style>
-</head><body>
-<p>Redirecting to sign-in provider...</p>
-<script>
-(async function() {
-  try {
-    const res = await fetch("/api/auth/sign-in/social", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: ${JSON.stringify(provider)}, callbackURL: ${JSON.stringify(callbackURL)} }),
-      credentials: "include"
-    });
-    const data = await res.json();
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      document.body.innerHTML = '<p>Failed to initiate sign-in. <a href="https://' + ${JSON.stringify(returnDomain)} + '/auth/login">Go back</a></p>';
-    }
-  } catch(e) {
-    document.body.innerHTML = '<p>Failed to initiate sign-in. <a href="https://' + ${JSON.stringify(returnDomain)} + '/auth/login">Go back</a></p>';
-  }
-})();
-</script>
-</body></html>`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
 
-  return new Response(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
+  try {
+    // Call Better Auth's social sign-in handler SERVER-SIDE.
+    // This creates the OAuth state, sets the state cookie, and returns the
+    // authorization URL — all without client-side JavaScript.
+    const signInRequest = new Request(`${appUrl}/api/auth/sign-in/social`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: appUrl,
+      },
+      body: JSON.stringify({
+        provider,
+        callbackURL,
+      }),
+    });
+
+    const response = await auth.handler(signInRequest);
+
+    // Better Auth always returns JSON for POST sign-in/social:
+    // { url: "https://accounts.google.com/...", redirect: true }
+    const data = await response.json();
+
+    if (data.url) {
+      const redirectResponse = NextResponse.redirect(data.url);
+
+      // Forward Set-Cookie headers from Better Auth (OAuth state cookie).
+      // This cookie is needed when Google redirects back to kakamalem.com
+      // for Better Auth to validate the OAuth state parameter.
+      const setCookies = response.headers.getSetCookie?.();
+      if (setCookies) {
+        for (const cookie of setCookies) {
+          redirectResponse.headers.append("Set-Cookie", cookie);
+        }
+      }
+
+      return redirectResponse;
+    }
+
+    // Better Auth didn't return a URL — provider might be misconfigured
+    console.error("[oauth-redirect] No URL in Better Auth response:", data);
+    return NextResponse.redirect(
+      `https://${returnDomain}/auth/login?error=oauth_failed`
+    );
+  } catch (error) {
+    console.error("[oauth-redirect] Failed to initiate OAuth:", error);
+    return NextResponse.redirect(
+      `https://${returnDomain}/auth/login?error=oauth_failed`
+    );
+  }
 }

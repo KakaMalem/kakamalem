@@ -71,28 +71,38 @@ export function StoreOAuthButton({
     setIsLoading(true);
     setError(null);
 
+    // Detect custom domain by comparing hostname against the main app domain.
+    // This is more reliable than checking basePath === "" because it directly
+    // checks the browser's actual origin rather than relying on server-side
+    // context propagation through React providers.
+    const mainDomain =
+      process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+    const mainHostname = new URL(mainDomain).hostname;
+    const currentHostname = window.location.hostname;
+    const isCustomDomain =
+      currentHostname !== mainHostname &&
+      currentHostname !== "localhost" &&
+      currentHostname !== "127.0.0.1";
+
     // On custom domains, OAuth must go through the main domain because:
     // 1. Google's registered redirect_uri points to kakamalem.com
     // 2. OAuth state cookies must be on the same domain as the callback
-    // After OAuth, a token exchange transfers the session back to the custom domain.
-    const isCustomDomain = basePath === "";
-
+    // The oauth-redirect endpoint handles everything server-side and redirects
+    // the browser directly to the OAuth provider (no client-side fetch needed).
     if (isCustomDomain) {
-      const mainDomain =
-        process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
-      const returnDomain = window.location.hostname;
+      const returnDomain = currentHostname;
       const returnPath = redirectTo || "/";
       window.location.href = `${mainDomain}/api/auth/oauth-redirect?provider=${provider}&returnDomain=${encodeURIComponent(returnDomain)}&returnPath=${encodeURIComponent(returnPath)}`;
       return;
     }
 
     try {
-      // Better Auth social sign in with store redirect
+      // On the main domain, use Better Auth's client directly.
+      // The redirect plugin will navigate to the OAuth provider.
       await authClient.signIn.social({
         provider,
         callbackURL,
       });
-      // If successful, the user will be redirected to the provider
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unexpected error occurred"

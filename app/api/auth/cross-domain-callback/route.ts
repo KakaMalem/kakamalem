@@ -32,9 +32,7 @@ function createExchangeToken(
     e: Date.now() + 60000, // expires in 60 seconds
   });
   const encoded = Buffer.from(payload).toString("base64url");
-  const hmac = createHmac("sha256", secret)
-    .update(encoded)
-    .digest("base64url");
+  const hmac = createHmac("sha256", secret).update(encoded).digest("base64url");
   return `${encoded}.${hmac}`;
 }
 

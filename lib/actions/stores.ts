@@ -25,11 +25,12 @@ import { canAddStore } from "@/lib/db/queries/billing";
 import { completeOnboardingItem } from "@/lib/db/queries/onboarding";
 import { db } from "@/lib/db";
 import {
+  orders,
   platformAffiliates,
   platformAffiliateReferrals,
   platformAffiliateClicks,
 } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import {
   AFFILIATE_COOKIE_NAME,
   VISITOR_ID_COOKIE_NAME,
@@ -449,6 +450,40 @@ export async function updateGeneralSettings(
   }
 
   try {
+    const newCurrency = formValues.currency;
+    const oldCurrency = store.currency || "USD";
+
+    // Block currency change if there are pending (unpaid) orders in progress
+    if (newCurrency !== oldCurrency) {
+      const [pendingOrders] = await db
+        .select({
+          count: sql<number>`count(*)::int`,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.tenantId, storeId),
+            eq(orders.isPaid, false),
+            inArray(orders.status, [
+              "pending",
+              "confirmed",
+              "processing",
+              "shipped",
+            ])
+          )
+        );
+
+      if ((pendingOrders?.count ?? 0) > 0) {
+        return {
+          error: {
+            message:
+              "Cannot change currency while there are pending unpaid orders. Please wait for all orders to be completed or cancelled first.",
+            field: "currency",
+          },
+        };
+      }
+    }
+
     await updateTenant(storeId, {
       name: formValues.name,
       tagline: formValues.tagline || null,
@@ -465,9 +500,15 @@ export async function updateGeneralSettings(
 
     revalidatePath("/dashboard/settings", "page");
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error("[updateGeneralSettings] Error:", error);
     return {
-      error: { message: "Failed to update settings. Please try again." },
+      error: {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to update settings. Please try again.",
+      },
     };
   }
 }

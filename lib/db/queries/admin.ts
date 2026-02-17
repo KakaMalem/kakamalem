@@ -192,9 +192,7 @@ export async function getAdminStoreById(storeId: string) {
       total: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
     })
     .from(orders)
-    .where(
-      and(eq(orders.tenantId, storeId), eq(orders.isPaid, true))
-    );
+    .where(and(eq(orders.tenantId, storeId), eq(orders.isPaid, true)));
 
   return {
     ...store,

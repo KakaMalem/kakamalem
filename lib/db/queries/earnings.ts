@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  tenants,
   sellerBalances,
   sellerTransactions,
   sellerPayoutMethods,
@@ -43,6 +44,13 @@ export const getSellerBalance = cache(async (tenantId: string) => {
 
   // Create balance record if it doesn't exist
   if (!balance) {
+    // Look up the store's currency (default to AFN if not set)
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(tenants.id, tenantId),
+      columns: { currency: true },
+    });
+    const storeCurrency = tenant?.currency || "AFN";
+
     const [newBalance] = await db
       .insert(sellerBalances)
       .values({
@@ -52,7 +60,7 @@ export const getSellerBalance = cache(async (tenantId: string) => {
         reserved: "0",
         lifetimeEarnings: "0",
         lifetimePaidOut: "0",
-        currency: "AFN",
+        currency: storeCurrency,
       })
       .returning();
     balance = newBalance;

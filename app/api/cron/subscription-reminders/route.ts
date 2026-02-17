@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { tenants, tenantMembers, user } from "@/lib/db/schema";
+import { tenants, tenantMembers, user, invoices } from "@/lib/db/schema";
 import { eq, and, gte, lte, or, isNull, inArray, not } from "drizzle-orm";
 import { sendSubscriptionRenewalReminder } from "@/lib/push";
+import { sendEmail } from "@/lib/email";
+import { getSubscriptionReminderEmailHtml } from "@/lib/email/templates/subscription-reminder";
+import { getSubscriptionExpiredEmailHtml } from "@/lib/email/templates/subscription-expired";
+import { getRenewalInvoiceEmailHtml } from "@/lib/email/templates/renewal-invoice";
+import { generateInvoiceNumber } from "@/lib/db/queries/billing";
+import { getPlatformSettings } from "@/lib/db/queries/admin";
 
 /**
  * Subscription Reminders Cron Job
@@ -35,6 +41,8 @@ export async function GET(request: Request) {
 
   const results = {
     reminders: { sent: 0, skipped: 0, failed: 0 },
+    emails: { sent: 0, failed: 0 },
+    renewalInvoices: { created: 0, skipped: 0, failed: 0 },
     autoResume: { processed: 0 },
     expired: { processed: 0 },
     details: [] as Array<{
@@ -43,6 +51,9 @@ export async function GET(request: Request) {
       success: boolean;
     }>,
   };
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+  const settings = await getPlatformSettings();
 
   const now = new Date();
   const nowIso = now.toISOString();
@@ -83,6 +94,7 @@ export async function GET(request: Request) {
           id: true,
           slug: true,
           name: true,
+          billingInterval: true,
           subscriptionEndsAt: true,
           lastReminderSentAt: true,
           lastReminderDaysBefore: true,
@@ -117,16 +129,151 @@ export async function GET(request: Request) {
             columns: { id: true, email: true, name: true },
           });
 
-          // Send reminder to each owner/admin
-          for (const user of users) {
+          // Determine pricing for email
+          const isYearly = tenant.billingInterval === "yearly";
+          const planPrice = isYearly
+            ? settings.proPlanYearlyPriceAfn
+            : settings.proPlanPriceAfn;
+
+          // Send reminder to each owner/admin (push + email)
+          for (const u of users) {
+            // Push notification
             await sendSubscriptionRenewalReminder({
-              userId: user.id,
+              userId: u.id,
               tenantId: tenant.id,
               storeName: tenant.name,
               storeSlug: tenant.slug,
               daysUntilExpiry: daysUntil,
               expiryDate: tenant.subscriptionEndsAt!,
             });
+
+            // Email reminder
+            if (u.email) {
+              try {
+                const html = getSubscriptionReminderEmailHtml({
+                  ownerName: u.name || "Store Owner",
+                  storeName: tenant.name,
+                  storeSlug: tenant.slug,
+                  daysUntilExpiry: daysUntil,
+                  expiryDate: tenant.subscriptionEndsAt!,
+                  planPrice: planPrice,
+                  currency: "AFN",
+                  billingInterval: isYearly ? "Yearly" : "Monthly",
+                  baseUrl,
+                });
+                await sendEmail({
+                  to: u.email,
+                  subject:
+                    daysUntil <= 1
+                      ? `Final Notice: Your Pro subscription expires tomorrow`
+                      : `Renewal Reminder: Pro subscription expires in ${daysUntil} days`,
+                  html,
+                });
+                results.emails.sent++;
+              } catch (emailError) {
+                console.error(
+                  `[SubReminders] Email failed for ${u.email}:`,
+                  emailError
+                );
+                results.emails.failed++;
+              }
+            }
+          }
+
+          // Create renewal invoice at 7 days (first reminder) for existing Pro subscribers
+          // This gives them a full week to pay before expiry
+          if (daysUntil === 7) {
+            try {
+              const periodStart = new Date(tenant.subscriptionEndsAt!);
+              const periodEnd = new Date(periodStart);
+              if (isYearly) {
+                periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+              } else {
+                periodEnd.setMonth(periodEnd.getMonth() + 1);
+              }
+
+              // Check if renewal invoice already exists for next period
+              const existingRenewal = await db.query.invoices.findFirst({
+                where: and(
+                  eq(invoices.tenantId, tenant.id),
+                  eq(invoices.periodStart, periodStart.toISOString()),
+                  not(eq(invoices.status, "void"))
+                ),
+                columns: { id: true },
+              });
+
+              if (!existingRenewal) {
+                const invoiceNumber = generateInvoiceNumber(tenant.slug);
+                const priceNum = parseFloat(planPrice);
+                const description = isYearly
+                  ? "Kaka Malem Pro - Yearly Subscription"
+                  : "Kaka Malem Pro - Monthly Subscription";
+
+                const [newInvoice] = await db
+                  .insert(invoices)
+                  .values({
+                    tenantId: tenant.id,
+                    invoiceNumber,
+                    subtotal: priceNum.toString(),
+                    tax: "0",
+                    total: priceNum.toString(),
+                    currency: "AFN",
+                    periodStart: periodStart.toISOString(),
+                    periodEnd: periodEnd.toISOString(),
+                    dueDate: tenant.subscriptionEndsAt!,
+                    status: "sent",
+                    items: [
+                      {
+                        description,
+                        quantity: 1,
+                        unitPrice: priceNum,
+                        total: priceNum,
+                      },
+                    ],
+                    billingName: tenant.name || "Store Owner",
+                  })
+                  .returning();
+
+                results.renewalInvoices.created++;
+
+                // Email renewal invoice to owners
+                for (const u of users) {
+                  if (u.email) {
+                    try {
+                      const html = getRenewalInvoiceEmailHtml({
+                        ownerName: u.name || "Store Owner",
+                        storeName: tenant.name,
+                        storeSlug: tenant.slug,
+                        invoiceNumber: newInvoice.invoiceNumber,
+                        amount: planPrice,
+                        currency: "AFN",
+                        billingInterval: isYearly ? "Yearly" : "Monthly",
+                        dueDate: tenant.subscriptionEndsAt!,
+                        periodStart: periodStart.toISOString(),
+                        periodEnd: periodEnd.toISOString(),
+                        baseUrl,
+                      });
+                      await sendEmail({
+                        to: u.email,
+                        subject: `Renewal Invoice ${newInvoice.invoiceNumber} - Kaka Malem Pro`,
+                        html,
+                      });
+                      results.emails.sent++;
+                    } catch {
+                      results.emails.failed++;
+                    }
+                  }
+                }
+              } else {
+                results.renewalInvoices.skipped++;
+              }
+            } catch (invoiceError) {
+              console.error(
+                `[SubReminders] Renewal invoice failed for ${tenant.slug}:`,
+                invoiceError
+              );
+              results.renewalInvoices.failed++;
+            }
           }
 
           // Update reminder tracking to avoid duplicate sends
@@ -252,6 +399,7 @@ export async function GET(request: Request) {
       columns: {
         id: true,
         slug: true,
+        name: true,
         subscriptionEndsAt: true,
       },
     });
@@ -278,7 +426,46 @@ export async function GET(request: Request) {
           success: true,
         });
 
-        // TODO: Send expiration notification to owners
+        // Send expiration email to owners/admins
+        try {
+          const members = await db.query.tenantMembers.findMany({
+            where: and(
+              eq(tenantMembers.tenantId, tenant.id),
+              inArray(tenantMembers.role, ["owner", "admin"])
+            ),
+            columns: { userId: true },
+          });
+          const ownerIds = members.map((m) => m.userId);
+          if (ownerIds.length > 0) {
+            const owners = await db.query.user.findMany({
+              where: inArray(user.id, ownerIds),
+              columns: { email: true, name: true },
+            });
+            for (const owner of owners) {
+              if (owner.email) {
+                const html = getSubscriptionExpiredEmailHtml({
+                  ownerName: owner.name || "Store Owner",
+                  storeName: tenant.name,
+                  storeSlug: tenant.slug,
+                  expiredDate: tenant.subscriptionEndsAt!,
+                  baseUrl,
+                });
+                await sendEmail({
+                  to: owner.email,
+                  subject: `Your Pro subscription for ${tenant.name} has expired`,
+                  html,
+                });
+                results.emails.sent++;
+              }
+            }
+          }
+        } catch (emailError) {
+          console.error(
+            `[SubReminders] Expiration email failed for ${tenant.slug}:`,
+            emailError
+          );
+          results.emails.failed++;
+        }
       } catch (error) {
         console.error(`[SubReminders] Error expiring ${tenant.slug}:`, error);
         results.details.push({
@@ -290,7 +477,8 @@ export async function GET(request: Request) {
     }
 
     console.log(
-      `[SubReminders] Complete: ${results.reminders.sent} reminders sent, ` +
+      `[SubReminders] Complete: ${results.reminders.sent} push reminders, ` +
+        `${results.emails.sent} emails sent, ${results.renewalInvoices.created} renewal invoices, ` +
         `${results.autoResume.processed} auto-resumed, ${results.expired.processed} expired`
     );
 

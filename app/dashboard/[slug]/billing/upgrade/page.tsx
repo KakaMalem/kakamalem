@@ -41,8 +41,21 @@ export default async function BillingUpgradePage({ params }: PageProps) {
     redirect(`/dashboard/${slug}/billing`);
   }
 
-  // Already Pro? Redirect back to billing
-  if (subscription.plan === "pro" && subscription.status === "active") {
+  // Already active Pro? Redirect back to billing — unless:
+  // - They're on a non-Stripe plan approaching expiry (need to renew manually)
+  // - They're paused
+  // Cancelled, past_due, and expired Pro users can always access to re-subscribe
+  const isNonStripeRenewal =
+    !subscription.hasStripeSubscription &&
+    subscription.daysRemainingInPeriod !== null &&
+    subscription.daysRemainingInPeriod <= 7;
+
+  if (
+    subscription.plan === "pro" &&
+    subscription.status === "active" &&
+    !subscription.isPaused &&
+    !isNonStripeRenewal
+  ) {
     redirect(`/dashboard/${slug}/billing`);
   }
 

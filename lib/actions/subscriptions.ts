@@ -140,7 +140,7 @@ export async function initiateProUpgrade(
         ? parseFloat(settings?.proPlanYearlyPriceAfn || "12000")
         : parseFloat(settings?.proPlanPriceAfn || "1100");
 
-    // Check for existing unpaid subscription invoice
+    // Check for existing unpaid subscription invoice with matching amount
     const [existingInvoice] = await db
       .select()
       .from(invoices)
@@ -153,9 +153,18 @@ export async function initiateProUpgrade(
       .orderBy(desc(invoices.createdAt))
       .limit(1);
 
-    let invoice = existingInvoice;
+    let invoice: typeof existingInvoice | undefined = existingInvoice;
 
-    // Create new invoice if none exists
+    // Void existing invoice if it has a different amount (interval changed)
+    if (invoice && parseFloat(invoice.total) !== proPlanPrice) {
+      await db
+        .update(invoices)
+        .set({ status: "void", updatedAt: new Date().toISOString() })
+        .where(eq(invoices.id, invoice.id));
+      invoice = undefined;
+    }
+
+    // Create new invoice if none exists or previous was voided
     if (!invoice) {
       const now = new Date();
       const periodEnd = new Date(now);

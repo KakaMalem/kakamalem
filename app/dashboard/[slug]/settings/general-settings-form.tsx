@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check } from "lucide-react";
 import {
   generalSettingsSchema,
   currencyOptions,
@@ -288,10 +288,12 @@ export function GeneralSettingsForm({
         <CardHeader>
           <CardTitle>Currency</CardTitle>
           <CardDescription>
-            The currency used for your store prices.
+            The base currency for your product prices and store admin. Customers
+            can still browse in their preferred currency — prices are
+            automatically converted at checkout.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Field>
             <Select
               value={formData.currency}
@@ -312,7 +314,33 @@ export function GeneralSettingsForm({
                 })}
               </SelectContent>
             </Select>
+            <FieldError>{fieldErrors.currency}</FieldError>
           </Field>
+
+          {formData.currency !== initialData.currency && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="space-y-2">
+                <p className="font-medium">
+                  Changing your store currency from {initialData.currency} to{" "}
+                  {formData.currency}
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                  <li>
+                    Product prices will <strong>not</strong> be automatically
+                    converted — you will need to update them manually
+                  </li>
+                  <li>
+                    Existing orders will remain in their original currency
+                  </li>
+                  <li>
+                    International customers will continue to see prices
+                    converted to their preferred currency automatically
+                  </li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
         <CardFooter className="border-t pt-6">
           <Button type="submit" disabled={isPending}>
