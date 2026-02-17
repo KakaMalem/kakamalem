@@ -38,12 +38,8 @@ export class HesabPayClient implements PaymentGatewayProvider {
   readonly gateway = "hesabpay" as const;
   readonly displayName = "HesabPay";
 
-  private getBaseUrl(isLive: boolean): string {
-    // Allow env var override for flexibility
-    if (process.env.HESABPAY_API_URL) {
-      return process.env.HESABPAY_API_URL;
-    }
-    return isLive ? HESABPAY_API.PRODUCTION_URL : HESABPAY_API.SANDBOX_URL;
+  private getBaseUrl(): string {
+    return HESABPAY_API.SANDBOX_URL;
   }
 
   /**
@@ -53,7 +49,7 @@ export class HesabPayClient implements PaymentGatewayProvider {
     params: CreatePaymentSessionParams,
     credentials: GatewayCredentials
   ): Promise<PaymentSessionResult> {
-    const baseUrl = this.getBaseUrl(credentials.isLive);
+    const baseUrl = this.getBaseUrl();
     const url = `${baseUrl}${HESABPAY_API.CREATE_SESSION}`;
 
     // Build the request payload according to HesabPay API docs
@@ -172,7 +168,7 @@ export class HesabPayClient implements PaymentGatewayProvider {
     params: VerifyPaymentParams,
     credentials: GatewayCredentials
   ): Promise<PaymentVerificationResult> {
-    const baseUrl = this.getBaseUrl(credentials.isLive);
+    const baseUrl = this.getBaseUrl();
     const url = `${baseUrl}${HESABPAY_API.VERIFY_PAYMENT}/${params.sessionId}`;
 
     try {
@@ -305,10 +301,10 @@ export class HesabPayClient implements PaymentGatewayProvider {
   private async verifySignatureViaApi(
     signature: string,
     timestamp: string,
-    isLive: boolean,
+    _isLive: boolean,
     apiKey: string
   ): Promise<boolean> {
-    const baseUrl = this.getBaseUrl(isLive);
+    const baseUrl = this.getBaseUrl();
     const url = `${baseUrl}${HESABPAY_API.VERIFY_WEBHOOK_SIGNATURE}`;
 
     try {
@@ -349,7 +345,7 @@ export class HesabPayClient implements PaymentGatewayProvider {
     params: RefundParams,
     credentials: GatewayCredentials
   ): Promise<RefundResult> {
-    const baseUrl = this.getBaseUrl(credentials.isLive);
+    const baseUrl = this.getBaseUrl();
     const url = `${baseUrl}${HESABPAY_API.REFUND}`;
 
     try {

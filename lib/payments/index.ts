@@ -265,11 +265,8 @@ async function getPlatformCredentials(
       return null;
     }
 
-    // Determine live mode: explicit env var > API key prefix > NODE_ENV
-    const isLive =
-      process.env.HESABPAY_IS_LIVE === "true" ||
-      apiKey.startsWith("hpay_live_") ||
-      process.env.NODE_ENV === "production";
+    // Live mode in production, sandbox in development
+    const isLive = process.env.NODE_ENV === "production";
     return {
       apiKey,
       isLive,
