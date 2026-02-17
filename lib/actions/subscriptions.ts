@@ -145,10 +145,7 @@ export async function initiateProUpgrade(
       .select()
       .from(invoices)
       .where(
-        and(
-          eq(invoices.tenantId, tenantId),
-          eq(invoices.status, "sent") // Unpaid invoice
-        )
+        and(eq(invoices.tenantId, tenantId), eq(invoices.status, "unpaid"))
       )
       .orderBy(desc(invoices.createdAt))
       .limit(1);
@@ -196,7 +193,7 @@ export async function initiateProUpgrade(
             periodStart: now.toISOString(),
             periodEnd: periodEnd.toISOString(),
             dueDate: now.toISOString(),
-            status: "sent",
+            status: "unpaid",
             items: [
               {
                 description: subscriptionDescription,
@@ -238,7 +235,7 @@ export async function initiateProUpgrade(
           .select()
           .from(invoices)
           .where(
-            and(eq(invoices.tenantId, tenantId), eq(invoices.status, "sent"))
+            and(eq(invoices.tenantId, tenantId), eq(invoices.status, "unpaid"))
           )
           .orderBy(desc(invoices.createdAt))
           .limit(1);
@@ -390,7 +387,7 @@ export async function initiateProUpgradeWithCrypto(
       .values({
         tenantId,
         invoiceNumber,
-        status: "sent",
+        status: "unpaid",
         currency: "AFN",
         subtotal: proPlanPriceAfn.toString(),
         total: proPlanPriceAfn.toString(),

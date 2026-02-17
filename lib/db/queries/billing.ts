@@ -485,7 +485,7 @@ export const getBillingSummary = cache(
           .where(
             and(
               eq(invoices.tenantId, tenantId),
-              sql`${invoices.status} IN ('sent', 'overdue', 'partially_paid')`
+              sql`${invoices.status} IN ('unpaid', 'overdue', 'partially_paid')`
             )
           ),
         db

@@ -221,7 +221,7 @@ export async function GET(request: Request) {
                     periodStart: periodStart.toISOString(),
                     periodEnd: periodEnd.toISOString(),
                     dueDate: tenant.subscriptionEndsAt!,
-                    status: "sent",
+                    status: "unpaid",
                     items: [
                       {
                         description,

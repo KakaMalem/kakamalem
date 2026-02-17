@@ -60,8 +60,8 @@ const STATUS_CONFIG: Record<
     variant: "secondary",
     color: "text-gray-600",
   },
-  sent: {
-    label: "Sent",
+  unpaid: {
+    label: "Unpaid",
     icon: Clock,
     variant: "outline",
     color: "text-blue-600",

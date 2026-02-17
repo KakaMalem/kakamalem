@@ -493,7 +493,7 @@ async function handleSubscriptionUpdate(subscription: {
         .where(
           and(
             eq(invoices.tenantId, tenantId),
-            inArray(invoices.status, ["sent", "draft"])
+            inArray(invoices.status, ["unpaid", "draft"])
           )
         );
     } catch (voidErr) {

@@ -33,8 +33,8 @@ const STATUS_CONFIG: Record<
     variant: "secondary",
     color: "bg-gray-100 text-gray-700",
   },
-  sent: {
-    label: "Sent",
+  unpaid: {
+    label: "Unpaid",
     variant: "outline",
     color: "bg-blue-50 text-blue-700",
   },

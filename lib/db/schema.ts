@@ -286,7 +286,7 @@ export const billingTransactionStatusEnum = pgEnum(
 // Invoice Status
 export const invoiceStatusEnum = pgEnum("invoice_status", [
   "draft", // Not yet finalized
-  "sent", // Sent to customer
+  "unpaid", // Awaiting payment
   "paid", // Fully paid
   "overdue", // Past due date
   "void", // Cancelled/voided

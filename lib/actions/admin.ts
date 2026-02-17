@@ -695,7 +695,7 @@ export async function createInvoice(data: {
         periodStart,
         periodEnd,
         dueDate: dueDate ?? now,
-        status: "sent",
+        status: "unpaid",
         paidAmount: "0",
         items: [
           {
