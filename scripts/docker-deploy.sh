@@ -319,9 +319,34 @@ deploy() {
     # If port is still in use, try to force-kill the process holding it
     if ss -tlnp | grep -q ":$target_port "; then
         warn "Port $target_port still in use after ${wait_count}s, force-killing..."
-        ss -tlnp | grep ":$target_port " 2>&1 | tee -a "$LOG_FILE"
-        fuser -k $target_port/tcp 2>&1 | tee -a "$LOG_FILE" || true
-        sleep 3
+        local port_info
+        port_info=$(ss -tlnp | grep ":$target_port ")
+        echo "$port_info" 2>&1 | tee -a "$LOG_FILE"
+
+        # Extract PID from ss output
+        local blocking_pid
+        blocking_pid=$(echo "$port_info" | grep -oP 'pid=\K[0-9]+' | head -1)
+
+        # If PM2 is holding the port, stop it cleanly first
+        if echo "$port_info" | grep -qi "pm2"; then
+            warn "PM2 is holding port $target_port. Stopping PM2..."
+            pm2 kill 2>&1 | tee -a "$LOG_FILE" || true
+            sleep 3
+        fi
+
+        # If still in use, try fuser -k (SIGKILL)
+        if ss -tlnp | grep -q ":$target_port "; then
+            warn "Sending SIGKILL via fuser..."
+            fuser -k $target_port/tcp 2>&1 | tee -a "$LOG_FILE" || true
+            sleep 3
+        fi
+
+        # If STILL in use, kill -9 the specific PID directly
+        if ss -tlnp | grep -q ":$target_port " && [ -n "$blocking_pid" ]; then
+            warn "Sending kill -9 to PID $blocking_pid..."
+            kill -9 "$blocking_pid" 2>&1 | tee -a "$LOG_FILE" || true
+            sleep 3
+        fi
 
         if ss -tlnp | grep -q ":$target_port "; then
             error "Port $target_port could not be freed. Something is still listening on it."

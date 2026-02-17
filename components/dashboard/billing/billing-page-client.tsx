@@ -124,7 +124,7 @@ export function BillingPageClient({
   const [showAlert, setShowAlert] = useState(!!paymentResult);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Verify payment with HesabPay API on successful redirect
+  // Verify payment on successful redirect (HesabPay or Stripe)
   const verified = useRef(false);
 
   useEffect(() => {
@@ -138,11 +138,16 @@ export function BillingPageClient({
 
     const verify = async () => {
       try {
+        // Try verifying via HesabPay API (for HesabPay payments)
         const result = await verifyPendingSubscriptionPayment(tenantId);
         if (result.activated) {
-          // Refresh server component data to show updated subscription
           router.refresh();
+          return;
         }
+
+        // For Stripe (or if HesabPay verification didn't find a session),
+        // the webhook may have already updated the DB — just refresh the page
+        router.refresh();
       } catch (err) {
         console.error("[Billing] Payment verification failed:", err);
       } finally {
@@ -150,7 +155,7 @@ export function BillingPageClient({
       }
     };
 
-    // Small delay to let gateway finish processing
+    // Small delay to let webhook/gateway finish processing
     const timer = setTimeout(verify, 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
