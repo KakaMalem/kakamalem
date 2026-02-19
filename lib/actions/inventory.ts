@@ -13,7 +13,7 @@ import { getUser } from "@/lib/auth/server";
 import {
   sendLowStockNotification,
   sendBackInStockNotification,
-} from "@/lib/push";
+} from "@/lib/notifications/triggers";
 
 const LOW_STOCK_THRESHOLD = 5;
 

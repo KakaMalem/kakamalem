@@ -3,18 +3,34 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import type { LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  Store,
+  Users,
+  Settings,
+  Handshake,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface NavItem {
-  href: string;
-  icon: LucideIcon;
-  label: string;
-  badge: number;
-}
-
-export function AdminSidebarNav({ navItems }: { navItems: NavItem[] }) {
+export function AdminSidebarNav({
+  affiliateBadge = 0,
+}: {
+  affiliateBadge?: number;
+}) {
   const pathname = usePathname();
+
+  const navItems = [
+    { href: "/admin", icon: LayoutDashboard, label: "Dashboard", badge: 0 },
+    { href: "/admin/stores", icon: Store, label: "Stores", badge: 0 },
+    { href: "/admin/users", icon: Users, label: "Users", badge: 0 },
+    {
+      href: "/admin/affiliates",
+      icon: Handshake,
+      label: "Affiliates",
+      badge: affiliateBadge,
+    },
+    { href: "/admin/settings", icon: Settings, label: "Settings", badge: 0 },
+  ];
 
   const isActive = (href: string) => {
     if (href === "/admin") {

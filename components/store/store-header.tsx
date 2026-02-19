@@ -282,15 +282,16 @@ export function StoreHeader({
                   {userContext?.isMember && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <a
-                          href={`${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <LayoutDashboard className="mr-2 size-4" />
-                          Store Dashboard
-                        </a>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const url = `${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`;
+                          // Empty features string is a workaround for PWAs to open links outside the app context
+                          // See: https://github.com/pwa-builder/PWABuilder-CLI/issues/261
+                          window.open(url, "_blank", "");
+                        }}
+                      >
+                        <LayoutDashboard className="mr-2 size-4" />
+                        Store Dashboard
                       </DropdownMenuItem>
                     </>
                   )}
@@ -448,15 +449,16 @@ export function StoreHeader({
                       {userContext?.isMember && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem asChild>
-                            <a
-                              href={`${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <LayoutDashboard className="mr-2 size-4" />
-                              Store Dashboard
-                            </a>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              const url = `${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`;
+                              // Empty features string is a workaround for PWAs to open links outside the app context
+                              // See: https://github.com/pwa-builder/PWABuilder-CLI/issues/261
+                              window.open(url, "_blank", "");
+                            }}
+                          >
+                            <LayoutDashboard className="mr-2 size-4" />
+                            Store Dashboard
                           </DropdownMenuItem>
                         </>
                       )}

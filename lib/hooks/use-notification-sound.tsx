@@ -8,19 +8,15 @@ import {
   type NotificationSoundType,
 } from "@/lib/stores/use-notification-sound-store";
 
-interface ServiceWorkerSoundMessage {
-  type: "PLAY_NOTIFICATION_SOUND";
-  notificationType?: NotificationSoundType;
-}
-
 /**
  * Hook to play custom notification sounds.
  *
- * Listens to multiple sources:
- * 1. Service worker messages (push notifications)
- * 2. Global event emitter (polling/real-time in-app notifications)
- *
+ * Listens to the global event emitter for sound triggers.
+ * The NotificationBell component emits sounds when new notifications arrive.
  * Respects user settings from the notification sound store.
+ *
+ * The browser's own autoplay policy handles blocking before user interaction.
+ * The NotificationBell's initial-load guard prevents false triggers on page load.
  */
 export function useNotificationSound() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -29,10 +25,7 @@ export function useNotificationSound() {
 
   const playSound = useCallback(
     (notificationType: NotificationSoundType = "default") => {
-      // Check if sounds are enabled globally
       if (!settings.enabled) return;
-
-      // Check if this specific sound type is enabled
       if (!settings.soundPerType[notificationType]) return;
 
       // Debounce: prevent duplicate plays within 500ms
@@ -40,11 +33,9 @@ export function useNotificationSound() {
       if (now - lastPlayedRef.current < 500) return;
       lastPlayedRef.current = now;
 
-      // Get sound path for this type
       const soundPath =
         NOTIFICATION_SOUNDS[notificationType] || NOTIFICATION_SOUNDS.default;
 
-      // Create and play audio
       const audio = new Audio(soundPath);
       audio.volume = settings.volume;
 
@@ -54,50 +45,20 @@ export function useNotificationSound() {
           updateLastPlayed();
         })
         .catch((error) => {
-          // Browser may block autoplay if user hasn't interacted
           console.warn("Could not play notification sound:", error.message);
         });
 
-      // Store reference for cleanup
       audioRef.current = audio;
     },
     [settings.enabled, settings.volume, settings.soundPerType, updateLastPlayed]
   );
 
   useEffect(() => {
-    // 1. Listen for service worker messages (push notifications)
-    const handleServiceWorkerMessage = (
-      event: MessageEvent<ServiceWorkerSoundMessage>
-    ) => {
-      if (event.data?.type === "PLAY_NOTIFICATION_SOUND") {
-        playSound(event.data.notificationType);
-      }
-    };
-
-    // 2. Subscribe to global event emitter (polling/real-time)
     const unsubscribe = notificationSoundEmitter.subscribe(playSound);
 
-    // Register service worker listener
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.addEventListener(
-        "message",
-        handleServiceWorkerMessage
-      );
-    }
-
     return () => {
-      // Cleanup service worker listener
-      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-        navigator.serviceWorker.removeEventListener(
-          "message",
-          handleServiceWorkerMessage
-        );
-      }
-
-      // Cleanup event emitter subscription
       unsubscribe();
 
-      // Cleanup audio
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;

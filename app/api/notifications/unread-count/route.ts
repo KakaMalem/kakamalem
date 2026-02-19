@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth/server";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/db/schema";
-import { eq, and, isNull, inArray, sql } from "drizzle-orm";
+import { eq, and, isNull, inArray, count } from "drizzle-orm";
 
 const OWNER_TYPES = [
   "new_order",
@@ -34,20 +34,21 @@ const CUSTOMER_TYPES = [
   "price_drop",
 ];
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const user = await getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { searchParams } = request.nextUrl;
-  const tenantId = searchParams.get("tenantId");
   const context = searchParams.get("context") || "owner";
+  const tenantId = searchParams.get("tenantId");
 
   const typeFilter = context === "customer" ? CUSTOMER_TYPES : OWNER_TYPES;
 
   const conditions = [
     eq(notifications.userId, user.id),
+    isNull(notifications.archivedAt),
     isNull(notifications.readAt),
     inArray(notifications.type, typeFilter),
   ];
@@ -56,10 +57,10 @@ export async function POST(request: NextRequest) {
     conditions.push(eq(notifications.tenantId, tenantId));
   }
 
-  await db
-    .update(notifications)
-    .set({ readAt: sql`now()` })
+  const [result] = await db
+    .select({ count: count() })
+    .from(notifications)
     .where(and(...conditions));
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ count: result?.count ?? 0 });
 }

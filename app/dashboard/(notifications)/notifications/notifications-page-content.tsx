@@ -31,7 +31,6 @@ import {
   XCircle,
   AlertTriangle,
   Star,
-  Archive,
   RefreshCw,
   Store,
   Settings,
@@ -137,9 +136,9 @@ export function NotificationsPageContent({
           setOffset((prev) => prev + ITEMS_PER_PAGE);
         }
 
-        setTotalCount(data.totalCount);
-        setUnreadCount(data.unreadCount);
-        setHasMore(data.pagination.hasMore);
+        setTotalCount(data.pagination?.total ?? 0);
+        setUnreadCount(data.unreadCount ?? 0);
+        setHasMore(data.pagination?.hasMore ?? false);
       } catch (error) {
         console.error("Failed to fetch notifications:", error);
         toast.error("Failed to load notifications");
@@ -186,6 +185,7 @@ export function NotificationsPageContent({
   const markAllAsRead = async () => {
     try {
       const params = new URLSearchParams();
+      params.set("context", "owner");
       if (selectedStore !== "all") {
         params.set("tenantId", selectedStore);
       }
@@ -205,20 +205,6 @@ export function NotificationsPageContent({
     } catch (error) {
       console.error("Failed to mark all as read:", error);
       toast.error("Failed to mark all as read");
-    }
-  };
-
-  const archiveNotification = async (notificationId: string) => {
-    try {
-      await fetch(`/api/notifications/${notificationId}/archive`, {
-        method: "POST",
-      });
-      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
-      setTotalCount((prev) => prev - 1);
-      toast.success("Notification archived");
-    } catch (error) {
-      console.error("Failed to archive:", error);
-      toast.error("Failed to archive notification");
     }
   };
 
@@ -497,15 +483,6 @@ export function NotificationsPageContent({
                                 Mark as read
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                archiveNotification(notification.id);
-                              }}
-                            >
-                              <Archive className="mr-2 h-4 w-4" />
-                              Archive
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { tenants, tenantMembers, user, invoices } from "@/lib/db/schema";
 import { eq, and, gte, lte, or, isNull, inArray, not } from "drizzle-orm";
-import { sendSubscriptionRenewalReminder } from "@/lib/push";
+import { sendSubscriptionRenewalReminder } from "@/lib/notifications/triggers";
 import { sendEmail } from "@/lib/email";
 import { getSubscriptionReminderEmailHtml } from "@/lib/email/templates/subscription-reminder";
 import { getSubscriptionExpiredEmailHtml } from "@/lib/email/templates/subscription-expired";
@@ -180,9 +180,9 @@ export async function GET(request: Request) {
             }
           }
 
-          // Create renewal invoice at 14 days (first reminder) for existing Pro subscribers
-          // This gives them two weeks to pay before expiry
-          if (daysUntil === 14) {
+          // Create renewal invoice at 7 days (first reminder) for existing Pro subscribers
+          // This gives them a week to pay before expiry
+          if (daysUntil === 7) {
             try {
               const periodStart = new Date(tenant.subscriptionEndsAt!);
               const periodEnd = new Date(periodStart);

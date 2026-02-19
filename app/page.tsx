@@ -65,7 +65,7 @@ const pricingPlans = [
   },
   {
     name: "Pro",
-    price: "$15",
+    price: "$20",
     period: "month",
     description: "Everything you need to grow",
     features: [

@@ -36,7 +36,7 @@ import type { CartPriceTier } from "@/lib/db/queries/carts";
 import type { PaymentMethod } from "@/lib/db/schema";
 import { getActiveDeliveryZones } from "@/lib/actions/delivery-zones";
 import { checkDeliveryZone } from "@/lib/geo/delivery-zone-check";
-import { sendOrderNotificationToTenant } from "@/lib/push";
+import { sendOrderNotificationToTenant } from "@/lib/notifications/triggers";
 import {
   validateCouponAction,
   recordCouponUsage,
@@ -1397,23 +1397,17 @@ export async function createOrderAction(
         columns: { name: true },
       });
 
-      // Pass user?.id to exclude from notification if they're also store staff
-      // This prevents store owners from seeing notifications about their own orders
-      sendOrderNotificationToTenant(
-        tenantId,
-        storeSlug,
-        {
-          orderNumber: order.orderNumber,
-          orderId: order.id,
-          customerName: order.customerSnapshot.name,
-          total: order.total,
-          currency: storeCurrency,
-          isOffline: false,
-          storeName: tenant?.name,
-          productNames,
-        },
-        user?.id
-      ).catch((error) => {
+      // Notify all store staff about the new order (including the owner)
+      sendOrderNotificationToTenant(tenantId, storeSlug, {
+        orderNumber: order.orderNumber,
+        orderId: order.id,
+        customerName: order.customerSnapshot.name,
+        total: order.total,
+        currency: storeCurrency,
+        isOffline: false,
+        storeName: tenant?.name,
+        productNames,
+      }).catch((error) => {
         console.error("Failed to send order notification:", error);
       });
 

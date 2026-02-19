@@ -4,15 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { AdminSidebarNav } from "@/components/admin/admin-sidebar-nav";
-import {
-  LayoutDashboard,
-  Store,
-  Users,
-  Settings,
-  LogOut,
-  Shield,
-  Handshake,
-} from "lucide-react";
+import { LogOut, Shield } from "lucide-react";
 
 // =============================================================================
 // ADMIN LAYOUT
@@ -69,19 +61,6 @@ export default async function AdminLayout({
   const totalPending =
     pendingCounts.pendingApplications + pendingCounts.pendingPayouts;
 
-  const navItems = [
-    { href: "/admin", icon: LayoutDashboard, label: "Dashboard", badge: 0 },
-    { href: "/admin/stores", icon: Store, label: "Stores", badge: 0 },
-    { href: "/admin/users", icon: Users, label: "Users", badge: 0 },
-    {
-      href: "/admin/affiliates",
-      icon: Handshake,
-      label: "Affiliates",
-      badge: totalPending,
-    },
-    { href: "/admin/settings", icon: Settings, label: "Settings", badge: 0 },
-  ];
-
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Mobile Header */}
@@ -100,7 +79,7 @@ export default async function AdminLayout({
           </div>
 
           {/* Navigation */}
-          <AdminSidebarNav navItems={navItems} />
+          <AdminSidebarNav affiliateBadge={totalPending} />
 
           {/* User info & logout */}
           <div className="absolute bottom-0 left-0 right-0 border-t p-4">

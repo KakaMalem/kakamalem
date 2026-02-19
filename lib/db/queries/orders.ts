@@ -114,6 +114,32 @@ export const getOrderById = cache(
 );
 
 /**
+ * Get an order for the checkout flow (success/payment pages).
+ * Uses orderId + tenantId only — no userId required.
+ * The orderId UUID serves as the access credential (unguessable, 122-bit entropy).
+ * For authenticated order history, use getOrderById instead.
+ */
+export const getOrderForCheckout = cache(
+  async (orderId: string, tenantId: string) => {
+    const order = await db.query.orders.findFirst({
+      where: and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)),
+      with: {
+        items: true,
+        shipments: {
+          with: {
+            trackingEvents: {
+              orderBy: (events, { desc }) => [desc(events.eventTime)],
+            },
+          },
+        },
+      },
+    });
+
+    return order;
+  }
+);
+
+/**
  * Get order items with product/variant images for display
  * Prioritizes variant image over product image
  */

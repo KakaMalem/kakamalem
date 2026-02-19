@@ -51,7 +51,7 @@ import {
   sendOrderCancelledNotification,
   sendCustomerOrderStatusNotification,
   type OrderStatusNotificationType,
-} from "@/lib/push";
+} from "@/lib/notifications/triggers";
 
 export type OrderActionResult = {
   success: boolean;

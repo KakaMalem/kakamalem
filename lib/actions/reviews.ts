@@ -20,7 +20,7 @@ import {
   type ReviewInput,
 } from "@/lib/validations/reviews";
 import { hasMinimumRole } from "@/lib/auth/context";
-import { sendNewReviewNotification } from "@/lib/push";
+import { sendNewReviewNotification } from "@/lib/notifications/triggers";
 
 // =============================================================================
 // REVIEW SERVER ACTIONS

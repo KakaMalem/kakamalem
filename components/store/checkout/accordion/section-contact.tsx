@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { NotificationPrompt } from "../notification-prompt";
+
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { guestCheckoutSchema } from "@/lib/validations/checkout";
 
@@ -24,10 +24,12 @@ interface SectionContactProps {
 export function SectionContact({
   user,
   userPhone,
-  tenantId,
-  storeName,
+  tenantId: _tenantId,
+  storeName: _storeName,
   onContinue,
 }: SectionContactProps) {
+  void _tenantId;
+  void _storeName;
   const { customerInfo, setCustomerInfo } = useCheckoutStore();
 
   // Guest checkout form state - only phone required
@@ -113,15 +115,6 @@ export function SectionContact({
             )}
           </div>
         </div>
-      )}
-
-      {/* Push Notification Prompt - Only for logged-in users */}
-      {user && (
-        <NotificationPrompt
-          tenantId={tenantId}
-          storeName={storeName}
-          isLoggedIn={!!user}
-        />
       )}
 
       {/* Continue Button */}

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { OrdersFilters, OrdersChannelFilter } from "./orders-filters";
 import { OrdersList } from "./orders-list";
@@ -34,6 +34,7 @@ import type {
 } from "@/lib/db/queries/orders";
 import { bulkUpdateOrderStatus } from "@/lib/actions/orders";
 import { getValidNextStatuses } from "@/lib/validations/orders";
+import { playNotificationSound } from "@/lib/hooks/use-notification-sound";
 
 interface OrdersPageClientProps {
   storeSlug: string;
@@ -51,6 +52,31 @@ interface OrdersPageClientProps {
   showRecordSale?: boolean;
 }
 
+async function fetchDashboardOrders(
+  tenantId: string,
+  searchParams: Record<string, string | undefined>
+): Promise<{
+  orders: DashboardOrder[];
+  pagination: { page: number; totalPages: number; total: number };
+  orderCounts: OrderCounts;
+}> {
+  const params = new URLSearchParams();
+  params.set("tenantId", tenantId);
+  if (searchParams.page) params.set("page", searchParams.page);
+  if (searchParams.limit) params.set("limit", searchParams.limit);
+  if (searchParams.search) params.set("search", searchParams.search);
+  if (searchParams.status) params.set("status", searchParams.status);
+  if (searchParams.channel) params.set("channel", searchParams.channel);
+  if (searchParams.dateFrom) params.set("dateFrom", searchParams.dateFrom);
+  if (searchParams.dateTo) params.set("dateTo", searchParams.dateTo);
+  if (searchParams.sort) params.set("sort", searchParams.sort);
+  if (searchParams.order) params.set("order", searchParams.order);
+
+  const res = await fetch(`/api/dashboard/orders?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch orders");
+  return res.json();
+}
+
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "Pending",
   confirmed: "Confirmed",
@@ -65,14 +91,54 @@ export function OrdersPageClient({
   storeSlug,
   tenantId,
   currency,
-  orders,
-  pagination,
+  orders: initialOrders,
+  pagination: initialPagination,
   searchParams,
   currentLimit,
-  orderCounts,
+  orderCounts: initialOrderCounts,
   showRecordSale = false,
 }: OrdersPageClientProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Stable key for React Query based on current filters
+  const searchParamsKey = useMemo(
+    () => JSON.stringify(searchParams),
+    [searchParams]
+  );
+
+  // Poll orders every 15 seconds
+  const { data } = useQuery({
+    queryKey: ["dashboard-orders", tenantId, searchParamsKey],
+    queryFn: () => fetchDashboardOrders(tenantId, searchParams),
+    initialData: {
+      orders: initialOrders,
+      pagination: initialPagination,
+      orderCounts: initialOrderCounts,
+    },
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const orders = data.orders;
+  const pagination = data.pagination;
+  const orderCounts = data.orderCounts;
+
+  // Play sound when new orders arrive
+  const prevTotalRef = useRef<number>(initialPagination.total);
+  const isInitialLoad = useRef(true);
+
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      prevTotalRef.current = pagination.total;
+      isInitialLoad.current = false;
+      return;
+    }
+
+    if (pagination.total > prevTotalRef.current) {
+      playNotificationSound("order");
+    }
+    prevTotalRef.current = pagination.total;
+  }, [pagination.total]);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -152,13 +218,15 @@ export function OrdersPageClient({
       setBulkStatusDialogOpen(false);
       setSelectedIds(new Set());
       setSelectionMode(false);
-      router.refresh();
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard-orders", tenantId],
+      });
     } else {
       toast.error(result.error?.message || "Failed to update orders");
     }
 
     setIsUpdating(false);
-  }, [selectedIds, bulkNewStatus, tenantId, router]);
+  }, [selectedIds, bulkNewStatus, tenantId, queryClient]);
 
   // Export orders to Excel
   const handleExport = useCallback(() => {

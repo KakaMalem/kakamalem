@@ -12,7 +12,7 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   orders,
@@ -66,16 +66,17 @@ export async function createOrderPaymentSession(
 ): Promise<PaymentResult> {
   try {
     // Verify the caller owns this order
+    // Logged-in: match orderId + userId. Guest: match orderId + userId IS NULL.
     const user = await getUser();
-    if (!user) {
-      return { success: false, error: "Authentication required" };
-    }
 
-    // Get the order
     const [order] = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, orderId), eq(orders.userId, user.id)))
+      .where(
+        user
+          ? and(eq(orders.id, orderId), eq(orders.userId, user.id))
+          : and(eq(orders.id, orderId), isNull(orders.userId))
+      )
       .limit(1);
 
     if (!order) {
@@ -183,9 +184,22 @@ export async function createOrderPaymentSession(
       })
       .where(eq(orders.id, orderId));
 
+    // For crypto payments, the paymentUrl points to an internal page.
+    // Convert to a relative path so it works regardless of NEXT_PUBLIC_APP_URL
+    // (avoids mismatch between env var and actual browser origin).
+    let paymentUrl = result.paymentUrl;
+    if (gateway === "crypto_usdt" && paymentUrl) {
+      try {
+        const url = new URL(paymentUrl);
+        paymentUrl = url.pathname + url.search;
+      } catch {
+        // Not a valid absolute URL — already relative, use as-is
+      }
+    }
+
     return {
       success: true,
-      paymentUrl: result.paymentUrl,
+      paymentUrl,
       paymentSessionId: result.paymentSessionId,
     };
   } catch (error) {

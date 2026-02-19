@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -81,12 +81,20 @@ function generateConfettiParticles() {
   }));
 }
 
-export function WelcomeContent({ store }: WelcomeContentProps) {
-  const [showConfetti, setShowConfetti] = useState(true);
-  const storeUrl = useStoreUrl();
+// Stable references for useSyncExternalStore (client-only gate for confetti)
+const emptySubscribe = () => () => {};
+const returnTrue = () => true as const;
+const returnFalse = () => false as const;
 
-  // Generate confetti particles once using useMemo (stable across renders)
+export function WelcomeContent({ store }: WelcomeContentProps) {
+  const isClient = useSyncExternalStore(
+    emptySubscribe,
+    returnTrue,
+    returnFalse
+  );
+  const [showConfetti, setShowConfetti] = useState(true);
   const confettiParticles = useMemo(() => generateConfettiParticles(), []);
+  const storeUrl = useStoreUrl();
 
   // Hide confetti after animation
   useEffect(() => {
@@ -98,7 +106,7 @@ export function WelcomeContent({ store }: WelcomeContentProps) {
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
       {/* Confetti animation */}
       <AnimatePresence>
-        {showConfetti && (
+        {isClient && showConfetti && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none">
             {confettiParticles.map((particle) => (
               <ConfettiParticle

@@ -3,8 +3,7 @@ import type { Metadata } from "next";
 
 import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getStoreBasePath } from "@/lib/utils/store-path";
-import { getOrderById } from "@/lib/db/queries/orders";
-import { getUser } from "@/lib/auth/server";
+import { getOrderForCheckout } from "@/lib/db/queries/orders";
 import { getEnabledGateways } from "@/lib/payments";
 import { PaymentPageClient } from "@/components/store/checkout/payment-page-client";
 
@@ -58,16 +57,9 @@ export default async function PaymentPage({
     redirect(`${basePath}`);
   }
 
-  // Get user
-  const user = await getUser();
+  // Fetch order (works for both guests and logged-in users)
+  const order = await getOrderForCheckout(orderId, store.id);
 
-  // Fetch order
-  let order = null;
-  if (user) {
-    order = await getOrderById(orderId, user.id, store.id);
-  }
-
-  // If order not found or already paid, redirect appropriately
   if (!order) {
     redirect(`${basePath}`);
   }

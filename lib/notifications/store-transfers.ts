@@ -1,4 +1,4 @@
-import { sendNotificationToUser } from "@/lib/push";
+import { sendNotificationToUser } from "@/lib/notifications/triggers";
 
 /**
  * Notify user of incoming transfer request

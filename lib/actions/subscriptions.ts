@@ -732,7 +732,8 @@ export async function pauseSubscription(
       .where(eq(tenants.id, tenantId));
 
     // 6. Send notification to all owners/admins
-    const { sendSubscriptionPausedNotification } = await import("@/lib/push");
+    const { sendSubscriptionPausedNotification } =
+      await import("@/lib/notifications/triggers");
     const members = await db.query.tenantMembers.findMany({
       where: and(
         eq(tenantMembers.tenantId, tenantId),
@@ -843,7 +844,8 @@ export async function resumeSubscription(
       .where(eq(tenants.id, tenantId));
 
     // 7. Send notification to all owners/admins
-    const { sendSubscriptionResumedNotification } = await import("@/lib/push");
+    const { sendSubscriptionResumedNotification } =
+      await import("@/lib/notifications/triggers");
     const members = await db.query.tenantMembers.findMany({
       where: and(
         eq(tenantMembers.tenantId, tenantId),

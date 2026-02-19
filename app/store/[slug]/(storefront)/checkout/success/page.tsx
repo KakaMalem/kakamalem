@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 
 import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getStoreBasePath } from "@/lib/utils/store-path";
-import { getOrderById, getOrderItemsWithImages } from "@/lib/db/queries/orders";
+import {
+  getOrderForCheckout,
+  getOrderItemsWithImages,
+} from "@/lib/db/queries/orders";
 import { getUser } from "@/lib/auth/server";
 import { OrderSuccessContent } from "@/components/store/checkout/order-success-content";
 import { ClearCartSession } from "@/components/store/checkout/clear-cart-session";
@@ -63,47 +66,39 @@ export default async function CheckoutSuccessPage({
   // Get user (optional - guest orders have no user)
   const user = await getUser();
 
-  // Fetch order
-  // Note: getOrderById requires userId, but for guest orders we need a different approach
-  // For now, we'll show a generic confirmation for guest orders
-  let order = null;
-  if (user) {
-    order = await getOrderById(orderId, user.id, store.id);
-  }
+  // Fetch order (works for both guests and logged-in users)
+  const order = await getOrderForCheckout(orderId, store.id);
 
-  // If user is logged in but order not found, they may be trying to view someone else's order
-  if (user && !order) {
+  if (!order) {
     redirect(`${basePath}`);
   }
 
   // Fetch order items with images (prioritizes variant images)
-  const itemsWithImages = order ? await getOrderItemsWithImages(orderId) : [];
+  const itemsWithImages = await getOrderItemsWithImages(orderId);
   const itemImageMap = new Map(
     itemsWithImages.map((item) => [item.id, item.productImage])
   );
 
   // Transform order data for client component
-  const orderData = order
-    ? {
-        id: order.id,
-        orderNumber: order.orderNumber,
-        createdAt: order.createdAt,
-        items: order.items.map((item) => {
-          const image = itemImageMap.get(item.id);
-          return {
-            id: item.id,
-            productName: item.productName,
-            variantName: item.variantName,
-            quantity: item.quantity,
-            image: image ? { url: image.url, alt: image.alt } : null,
-          };
-        }),
-        total: order.total,
-        shippingAddress: order.shippingAddress as Address | undefined,
-        paymentStatus: order.paymentStatus,
-        paymentMethod: order.paymentMethod,
-      }
-    : null;
+  const orderData = {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    createdAt: order.createdAt,
+    items: order.items.map((item) => {
+      const image = itemImageMap.get(item.id);
+      return {
+        id: item.id,
+        productName: item.productName,
+        variantName: item.variantName,
+        quantity: item.quantity,
+        image: image ? { url: image.url, alt: image.alt } : null,
+      };
+    }),
+    total: order.total,
+    shippingAddress: order.shippingAddress as Address | undefined,
+    paymentStatus: order.paymentStatus,
+    paymentMethod: order.paymentMethod,
+  };
 
   return (
     <>

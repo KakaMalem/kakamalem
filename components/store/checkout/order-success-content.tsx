@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -90,6 +90,11 @@ function generateConfettiParticles() {
   }));
 }
 
+// Stable references for useSyncExternalStore (client-only gate for confetti)
+const emptySubscribe = () => () => {};
+const returnTrue = () => true as const;
+const returnFalse = () => false as const;
+
 interface OrderItem {
   id: string;
   productName: string;
@@ -129,9 +134,14 @@ export function OrderSuccessContent({
 }: OrderSuccessContentProps) {
   const { format: formatPrice } = useCurrencyStore();
   const basePath = useStoreBasePath();
+  const isClient = useSyncExternalStore(
+    emptySubscribe,
+    returnTrue,
+    returnFalse
+  );
   const [showConfetti, setShowConfetti] = useState(true);
-  const { resetCheckout } = useCheckoutStore();
   const confettiParticles = useMemo(() => generateConfettiParticles(), []);
+  const { resetCheckout } = useCheckoutStore();
 
   // Clear cart and checkout state on mount (after successful order)
   useEffect(() => {
@@ -185,7 +195,7 @@ export function OrderSuccessContent({
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Confetti animation */}
       <AnimatePresence>
-        {showConfetti && (
+        {isClient && showConfetti && (
           <div className="fixed inset-0 overflow-hidden pointer-events-none z-50 flex justify-center">
             {confettiParticles.map((particle) => (
               <ConfettiParticle
