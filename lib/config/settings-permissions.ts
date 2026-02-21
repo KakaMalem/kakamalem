@@ -29,6 +29,8 @@ export type SettingsPageKey =
   | "general"
   | "location"
   | "branding"
+  | "theme"
+  | "layout"
   | "social"
   | "seo"
   | "domains"
@@ -48,6 +50,8 @@ export interface SettingsPageConfig {
   minRole: "owner" | "admin";
   /** Nav group this page belongs to */
   group: SettingsGroup;
+  /** Hide from settings navigation (page still accessible via direct URL) */
+  hidden?: boolean;
 }
 
 /** Role hierarchy for permission checks */
@@ -77,6 +81,25 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     href: "/branding",
     minRole: "admin",
     group: "store-profile",
+    hidden: true,
+  },
+  {
+    key: "theme",
+    title: "Theme",
+    description: "Colors, fonts, and styling",
+    href: "/theme",
+    minRole: "admin",
+    group: "store-profile",
+    hidden: true,
+  },
+  {
+    key: "layout",
+    title: "Layout",
+    description: "Header, footer, and navigation style",
+    href: "/layout",
+    minRole: "admin",
+    group: "store-profile",
+    hidden: true,
   },
   {
     key: "social",
@@ -183,7 +206,7 @@ export function getAccessibleSettingsPages(
 
   const userLevel = ROLE_HIERARCHY[role];
   return SETTINGS_PAGES.filter(
-    (page) => userLevel >= ROLE_HIERARCHY[page.minRole]
+    (page) => !page.hidden && userLevel >= ROLE_HIERARCHY[page.minRole]
   );
 }
 

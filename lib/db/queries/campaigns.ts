@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { saleCampaigns, categories, products } from "@/lib/db/schema";
 import { eq, and, desc, asc, lte, gte, sql, inArray } from "drizzle-orm";
+import { unstable_cache, CACHE_TTL, cacheTags } from "@/lib/cache";
 import {
   getCampaignStatus,
   type CampaignStatus,
@@ -135,10 +136,7 @@ export async function isCampaignSlugUnique(
 // STOREFRONT QUERIES
 // =============================================================================
 
-/**
- * Get all active campaigns for a tenant (for storefront display)
- */
-export async function getActiveCampaigns(tenantId: string) {
+async function _getActiveCampaigns(tenantId: string) {
   const now = new Date().toISOString();
 
   return db.query.saleCampaigns.findMany({
@@ -150,6 +148,21 @@ export async function getActiveCampaigns(tenantId: string) {
     ),
     orderBy: [desc(saleCampaigns.priority), asc(saleCampaigns.startsAt)],
   });
+}
+
+/**
+ * Get all active campaigns for a tenant (for storefront display).
+ * Cached with 5-minute TTL, invalidated on campaign CRUD.
+ */
+export async function getActiveCampaigns(tenantId: string) {
+  return unstable_cache(
+    () => _getActiveCampaigns(tenantId),
+    ["campaigns", tenantId],
+    {
+      revalidate: CACHE_TTL.campaigns,
+      tags: [cacheTags.campaigns(tenantId)],
+    }
+  )();
 }
 
 /**

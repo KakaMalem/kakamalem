@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { categories, media } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { revalidateTag, cacheTags } from "@/lib/cache";
 import {
   categorySchema,
   reorderCategoriesSchema,
@@ -63,6 +64,7 @@ export async function createCategory(
     })
     .returning({ id: categories.id });
 
+  revalidateTag(cacheTags.categories(tenantId));
   return { success: true, data: { id: category.id } };
 }
 
@@ -108,6 +110,7 @@ export async function updateCategory(
       and(eq(categories.tenantId, tenantId), eq(categories.id, categoryId))
     );
 
+  revalidateTag(cacheTags.categories(tenantId));
   return { success: true };
 }
 
@@ -126,6 +129,7 @@ export async function deleteCategory(
       and(eq(categories.tenantId, tenantId), eq(categories.id, categoryId))
     );
 
+  revalidateTag(cacheTags.categories(tenantId));
   return { success: true };
 }
 

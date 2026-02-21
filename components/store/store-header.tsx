@@ -35,6 +35,34 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 import type { Tenant } from "@/lib/db/schema";
 import type { StoreRole } from "@/lib/auth/context";
+import type { HeaderConfig } from "@/lib/theme/layout-types";
+import { defaultHeaderConfig } from "@/lib/theme/layout-types";
+
+const headerColorSchemeClasses: Record<
+  HeaderConfig["colorScheme"],
+  { bg: string; text: string }
+> = {
+  light: { bg: "bg-background", text: "" },
+  dark: { bg: "bg-gray-900", text: "text-white" },
+  primary: { bg: "bg-primary", text: "text-primary-foreground" },
+  transparent: { bg: "bg-transparent", text: "" },
+  custom: { bg: "", text: "" },
+};
+
+const headerPaddingMap: Record<HeaderConfig["padding"], string> = {
+  compact: "py-1",
+  normal: "",
+  spacious: "py-2",
+};
+
+const logoSizeToComponent: Record<
+  HeaderConfig["logoSize"],
+  "sm" | "md" | "lg"
+> = {
+  sm: "sm",
+  md: "md",
+  lg: "lg",
+};
 
 interface StoreHeaderProps {
   store: Tenant;
@@ -48,6 +76,8 @@ interface StoreHeaderProps {
   } | null;
   /** Initial search query from server - avoids useSearchParams() hydration issues */
   initialSearchQuery?: string;
+  /** Full header configuration */
+  headerConfig?: HeaderConfig;
 }
 
 export function StoreHeader({
@@ -56,12 +86,18 @@ export function StoreHeader({
   user,
   userContext,
   initialSearchQuery = "",
+  headerConfig,
 }: StoreHeaderProps) {
+  const cfg = headerConfig ?? defaultHeaderConfig;
   const router = useRouter();
   const basePath = useStoreBasePath();
   // Initialize from server prop to avoid hydration mismatch
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [isSearching, startSearchTransition] = useTransition();
+
+  // Derive values from config
+  const headerStyle = cfg.headerStyle;
+  const showSearchBar = cfg.showSearchBar;
 
   // Sync with URL changes (back/forward navigation) after hydration
   useEffect(() => {
@@ -83,23 +119,34 @@ export function StoreHeader({
   const hydratedCartCount = useHydratedCartCount(cartItemCount);
 
   // Check if online cart should be disabled
-  // - catalog: Display only, no checkout anywhere
-  // - offline_only: POS only, no online checkout
   const isCartDisabled =
     store.storeMode === "catalog" || store.storeMode === "offline_only";
 
-  // Determine what to show in the header based on headerDisplay setting
-  // Only show logo if the setting enables it AND a logo URL exists
-  const hasLogo = Boolean(store.logoUrl);
+  // Determine what to show in the header
+  // Config logoUrl takes priority; fall back to store.logoUrl
+  const effectiveLogoUrl = cfg.logoUrl || store.logoUrl;
+  const hasLogo = Boolean(effectiveLogoUrl);
+  const displayMode =
+    cfg.headerDisplay || store.headerDisplay || "logo_and_name";
   const showLogo =
-    hasLogo &&
-    (store.headerDisplay === "logo_only" ||
-      store.headerDisplay === "logo_and_name");
-  // Show name if setting enables it, OR if logo_only is set but no logo exists (fallback)
+    hasLogo && (displayMode === "logo_only" || displayMode === "logo_and_name");
   const showName =
-    store.headerDisplay === "name_only" ||
-    store.headerDisplay === "logo_and_name" ||
-    (store.headerDisplay === "logo_only" && !hasLogo);
+    displayMode === "name_only" ||
+    displayMode === "logo_and_name" ||
+    (displayMode === "logo_only" && !hasLogo);
+
+  // Color scheme styling
+  const colorScheme = headerColorSchemeClasses[cfg.colorScheme];
+  const customHeaderStyle =
+    cfg.colorScheme === "custom"
+      ? {
+          backgroundColor: cfg.backgroundColor || undefined,
+          color: cfg.textColor || undefined,
+        }
+      : undefined;
+
+  // Logo size
+  const logoComponentSize = logoSizeToComponent[cfg.logoSize];
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {
@@ -140,183 +187,210 @@ export function StoreHeader({
   const userInitials = getInitials(user?.name, user?.email);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background">
+    <header
+      className={cn(
+        "z-50 w-full",
+        cfg.stickyHeader && "sticky top-0",
+        cfg.borderBottom && "border-b",
+        colorScheme.bg,
+        colorScheme.text,
+        headerPaddingMap[cfg.padding]
+      )}
+      style={customHeaderStyle}
+    >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Desktop & Tablet Header */}
-        <div className="hidden h-16 items-center gap-3 md:flex lg:gap-6">
-          {/* Left: Logo / Store Name */}
-          <Link
-            href={basePath || "/"}
-            className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80 lg:gap-2.5"
-          >
-            {showLogo && (
-              <Logo
-                logoUrl={store.logoUrl}
-                alt={store.name}
-                size="lg"
-                priority
-              />
-            )}
-            {showName && (
-              <span className="max-w-32 truncate text-base font-semibold tracking-tight lg:max-w-none lg:text-lg">
-                {store.name}
-              </span>
-            )}
-          </Link>
-
-          {/* Center: Search Bar */}
-          <form onSubmit={handleSearch} className="flex flex-1 justify-center">
-            <div className="relative w-full max-w-md lg:max-w-lg">
-              <Search
-                className={cn(
-                  "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
-                  isSearching && "animate-pulse"
+        {headerStyle === "centered" ? (
+          /* Centered: Logo on top row, search + actions below */
+          <div className="hidden flex-col md:flex">
+            {/* Row 1: Centered logo */}
+            <div className="flex h-14 items-center justify-center">
+              <Link
+                href={basePath || "/"}
+                className="flex items-center gap-2 transition-opacity hover:opacity-80"
+              >
+                {showLogo && (
+                  <Logo
+                    logoUrl={effectiveLogoUrl}
+                    alt={store.name}
+                    size={logoComponentSize}
+                    priority
+                  />
                 )}
-              />
-              <Input
-                type="search"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 pl-10 pr-4 focus-visible:bg-background"
-                aria-label="Search products"
+                {showName && (
+                  <span className="text-lg font-semibold tracking-tight">
+                    {store.name}
+                  </span>
+                )}
+              </Link>
+            </div>
+            {/* Row 2: Search + actions */}
+            <div className="flex h-12 items-center gap-3 border-t lg:gap-6">
+              {showSearchBar ? (
+                <form
+                  onSubmit={handleSearch}
+                  className="flex flex-1 justify-center"
+                >
+                  <div className="relative w-full max-w-md lg:max-w-lg">
+                    <Search
+                      className={cn(
+                        "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
+                        isSearching && "animate-pulse"
+                      )}
+                    />
+                    <Input
+                      type="search"
+                      placeholder="Search products..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="h-9 pl-10 pr-4 focus-visible:bg-background"
+                      aria-label="Search products"
+                    />
+                  </div>
+                </form>
+              ) : (
+                <div className="flex-1" />
+              )}
+              <DesktopActions
+                store={store}
+                user={user}
+                userContext={userContext}
+                isCartDisabled={isCartDisabled}
+                hydratedCartCount={hydratedCartCount}
+                cartItemCount={cartItemCount}
+                userInitials={userInitials}
+                basePath={basePath}
+                handleSignOut={handleSignOut}
               />
             </div>
-          </form>
-
-          {/* Right: Actions */}
-          <div className="flex shrink-0 items-center gap-1 lg:gap-2">
-            {/* Cart Button - Hidden in catalog mode */}
-            {!isCartDisabled && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative"
-                onClick={() => cartActions.setIsOpen(true)}
-                aria-label={`Shopping cart with ${hydratedCartCount} items`}
-              >
-                <ShoppingCart className="size-5" />
-                <CartBadge initialCount={cartItemCount} />
-              </Button>
-            )}
-
-            {/* Auth - Desktop */}
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-9 rounded-full"
-                    aria-label="Account menu"
-                  >
-                    <Avatar className="size-8">
-                      {user.avatarUrl && (
-                        <AvatarImage
-                          src={user.avatarUrl}
-                          alt={user.name || "User"}
-                        />
-                      )}
-                      <AvatarFallback className="text-xs">
-                        {userInitials}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-2 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">
-                        {user.name || "User"}
-                      </p>
-                      {userContext?.isOwner && (
-                        <Badge
-                          variant="secondary"
-                          className="h-5 gap-0.5 text-[10px] px-1.5"
-                        >
-                          <Crown className="size-2.5" />
-                          Owner
-                        </Badge>
-                      )}
-                      {userContext?.isStaff && !userContext?.isOwner && (
-                        <Badge
-                          variant="outline"
-                          className="h-5 gap-0.5 text-[10px] px-1.5"
-                        >
-                          <Shield className="size-2.5" />
-                          {userContext.role === "admin" ? "Admin" : "Staff"}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {user.email}
-                    </p>
-                  </div>
-                  <DropdownMenuSeparator />
-                  {/* Customer Account Links */}
-                  <DropdownMenuItem asChild>
-                    <Link href={`${basePath}/account`}>
-                      <User className="mr-2 size-4" />
-                      My Account
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={`${basePath}/account/orders`}>
-                      <Package className="mr-2 size-4" />
-                      My Orders
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={`${basePath}/account/wishlist`}>
-                      <Heart className="mr-2 size-4" />
-                      Wishlist
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={`${basePath}/account/notifications`}>
-                      <Bell className="mr-2 size-4" />
-                      Notifications
-                    </Link>
-                  </DropdownMenuItem>
-                  {/* Owner/Staff Dashboard Link */}
-                  {userContext?.isMember && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => {
-                          const url = `${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`;
-                          // Empty features string is a workaround for PWAs to open links outside the app context
-                          // See: https://github.com/pwa-builder/PWABuilder-CLI/issues/261
-                          window.open(url, "_blank", "");
-                        }}
-                      >
-                        <LayoutDashboard className="mr-2 size-4" />
-                        Store Dashboard
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={handleSignOut}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <LogOut className="mr-2 size-4" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`${basePath}/auth/login`}>Sign in</Link>
-                </Button>
-                <Button size="sm" asChild className="hidden lg:inline-flex">
-                  <Link href={`${basePath}/auth/signup`}>Register</Link>
-                </Button>
-              </>
-            )}
           </div>
-        </div>
+        ) : headerStyle === "minimal" ? (
+          /* Minimal: Compact single row, search via icon toggle */
+          <div className="hidden h-14 items-center gap-2 md:flex">
+            <Link
+              href={basePath || "/"}
+              className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
+            >
+              {showLogo && (
+                <Logo
+                  logoUrl={effectiveLogoUrl}
+                  alt={store.name}
+                  size={logoComponentSize}
+                  priority
+                />
+              )}
+              {showName && (
+                <span className="max-w-32 truncate text-sm font-semibold tracking-tight lg:max-w-none lg:text-base">
+                  {store.name}
+                </span>
+              )}
+            </Link>
+            <div className="flex-1" />
+            {showSearchBar && (
+              <form onSubmit={handleSearch} className="flex max-w-xs flex-1">
+                <div className="relative w-full">
+                  <Search
+                    className={cn(
+                      "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
+                      isSearching && "animate-pulse"
+                    )}
+                  />
+                  <Input
+                    type="search"
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-9 pl-10 pr-4 text-sm focus-visible:bg-background"
+                    aria-label="Search products"
+                  />
+                </div>
+              </form>
+            )}
+            <DesktopActions
+              store={store}
+              user={user}
+              userContext={userContext}
+              isCartDisabled={isCartDisabled}
+              hydratedCartCount={hydratedCartCount}
+              cartItemCount={cartItemCount}
+              userInitials={userInitials}
+              basePath={basePath}
+              handleSignOut={handleSignOut}
+            />
+          </div>
+        ) : (
+          /* Default: Logo left, search center, actions right */
+          <div className="hidden h-16 items-center gap-3 md:flex lg:gap-6">
+            <Link
+              href={basePath || "/"}
+              className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80 lg:gap-2.5"
+            >
+              {showLogo && (
+                <Logo
+                  logoUrl={store.logoUrl}
+                  alt={store.name}
+                  size="lg"
+                  priority
+                />
+              )}
+              {showName && (
+                <span className="max-w-32 truncate text-base font-semibold tracking-tight lg:max-w-none lg:text-lg">
+                  {store.name}
+                </span>
+              )}
+            </Link>
+            {/* Nav items */}
+            {cfg.navItems.length > 0 && (
+              <nav className="hidden items-center gap-4 lg:flex">
+                {cfg.navItems.map((item, i) => (
+                  <Link
+                    key={i}
+                    href={item.href || "#"}
+                    className="text-sm font-medium opacity-80 transition-opacity hover:opacity-100"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+            {showSearchBar ? (
+              <form
+                onSubmit={handleSearch}
+                className="flex flex-1 justify-center"
+              >
+                <div className="relative w-full max-w-md lg:max-w-lg">
+                  <Search
+                    className={cn(
+                      "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
+                      isSearching && "animate-pulse"
+                    )}
+                  />
+                  <Input
+                    type="search"
+                    placeholder="Search products..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-10 pl-10 pr-4 focus-visible:bg-background"
+                    aria-label="Search products"
+                  />
+                </div>
+              </form>
+            ) : (
+              <div className="flex-1" />
+            )}
+            <DesktopActions
+              store={store}
+              user={user}
+              userContext={userContext}
+              isCartDisabled={isCartDisabled}
+              hydratedCartCount={hydratedCartCount}
+              cartItemCount={cartItemCount}
+              userInitials={userInitials}
+              basePath={basePath}
+              handleSignOut={handleSignOut}
+            />
+          </div>
+        )}
 
         {/* Mobile Header */}
         <div className="flex flex-col gap-3 py-3 md:hidden">
@@ -329,9 +403,9 @@ export function StoreHeader({
             >
               {showLogo && (
                 <Logo
-                  logoUrl={store.logoUrl}
+                  logoUrl={effectiveLogoUrl}
                   alt={store.name}
-                  size="md"
+                  size={logoComponentSize}
                   priority
                 />
               )}
@@ -494,25 +568,175 @@ export function StoreHeader({
             </div>
           </div>
 
-          {/* Bottom Row: Search Bar - Always visible */}
-          <form onSubmit={handleSearch} className="relative">
-            <Search
-              className={cn(
-                "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
-                isSearching && "animate-pulse"
-              )}
-            />
-            <Input
-              type="search"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 pl-10 pr-4 focus-visible:bg-background"
-              aria-label="Search products"
-            />
-          </form>
+          {/* Bottom Row: Search Bar */}
+          {showSearchBar && (
+            <form onSubmit={handleSearch} className="relative">
+              <Search
+                className={cn(
+                  "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
+                  isSearching && "animate-pulse"
+                )}
+              />
+              <Input
+                type="search"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 pl-10 pr-4 focus-visible:bg-background"
+                aria-label="Search products"
+              />
+            </form>
+          )}
         </div>
       </div>
     </header>
+  );
+}
+
+/** Extracted desktop action buttons (cart, user menu, sign in) to avoid duplication across header variants */
+function DesktopActions({
+  store,
+  user,
+  userContext,
+  isCartDisabled,
+  hydratedCartCount,
+  cartItemCount,
+  userInitials,
+  basePath,
+  handleSignOut,
+}: {
+  store: Tenant;
+  user?: { name?: string; email?: string; avatarUrl?: string } | null;
+  userContext?: {
+    isOwner: boolean;
+    isStaff: boolean;
+    isMember: boolean;
+    role: StoreRole;
+  } | null;
+  isCartDisabled: boolean;
+  hydratedCartCount: number;
+  cartItemCount: number;
+  userInitials: string;
+  basePath: string;
+  handleSignOut: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1 lg:gap-2">
+      {!isCartDisabled && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          onClick={() => cartActions.setIsOpen(true)}
+          aria-label={`Shopping cart with ${hydratedCartCount} items`}
+        >
+          <ShoppingCart className="size-5" />
+          <CartBadge initialCount={cartItemCount} />
+        </Button>
+      )}
+      {user ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full"
+              aria-label="Account menu"
+            >
+              <Avatar className="size-8">
+                {user.avatarUrl && (
+                  <AvatarImage src={user.avatarUrl} alt={user.name || "User"} />
+                )}
+                <AvatarFallback className="text-xs">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="px-2 py-1.5">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">{user.name || "User"}</p>
+                {userContext?.isOwner && (
+                  <Badge
+                    variant="secondary"
+                    className="h-5 gap-0.5 text-[10px] px-1.5"
+                  >
+                    <Crown className="size-2.5" />
+                    Owner
+                  </Badge>
+                )}
+                {userContext?.isStaff && !userContext?.isOwner && (
+                  <Badge
+                    variant="outline"
+                    className="h-5 gap-0.5 text-[10px] px-1.5"
+                  >
+                    <Shield className="size-2.5" />
+                    {userContext.role === "admin" ? "Admin" : "Staff"}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">{user.email}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href={`${basePath}/account`}>
+                <User className="mr-2 size-4" />
+                My Account
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`${basePath}/account/orders`}>
+                <Package className="mr-2 size-4" />
+                My Orders
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`${basePath}/account/wishlist`}>
+                <Heart className="mr-2 size-4" />
+                Wishlist
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`${basePath}/account/notifications`}>
+                <Bell className="mr-2 size-4" />
+                Notifications
+              </Link>
+            </DropdownMenuItem>
+            {userContext?.isMember && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    const url = `${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`;
+                    window.open(url, "_blank", "");
+                  }}
+                >
+                  <LayoutDashboard className="mr-2 size-4" />
+                  Store Dashboard
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              className="text-destructive focus:text-destructive"
+            >
+              <LogOut className="mr-2 size-4" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`${basePath}/auth/login`}>Sign in</Link>
+          </Button>
+          <Button size="sm" asChild className="hidden lg:inline-flex">
+            <Link href={`${basePath}/auth/signup`}>Register</Link>
+          </Button>
+        </>
+      )}
+    </div>
   );
 }

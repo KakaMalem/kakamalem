@@ -74,6 +74,7 @@ interface InfiniteScrollProductsWithSortProps {
 }
 
 const SORT_OPTIONS = [
+  { value: "displayOrder-asc", label: "Featured" },
   { value: "createdAt-desc", label: "Newest" },
   { value: "createdAt-asc", label: "Oldest" },
   { value: "price-asc", label: "Price: Low to High" },
@@ -83,14 +84,14 @@ const SORT_OPTIONS = [
 ];
 
 function parseSortParam(sort: string | undefined): ProductSort {
-  if (!sort) return { field: "createdAt", direction: "desc" };
+  if (!sort) return { field: "displayOrder", direction: "asc" };
   const [field, direction] = sort.split("-") as [
-    "name" | "price" | "createdAt",
+    ProductSort["field"],
     "asc" | "desc",
   ];
   return {
-    field: field || "createdAt",
-    direction: direction || "desc",
+    field: field || "displayOrder",
+    direction: direction || "asc",
   };
 }
 
@@ -150,7 +151,7 @@ export function InfiniteScrollProductsWithSort({
   currency,
   basePath,
   filters,
-  currentSort = "createdAt-desc",
+  currentSort = "displayOrder-asc",
   catalogMode = false,
   activeCampaigns = [],
 }: InfiniteScrollProductsWithSortProps) {

@@ -625,3 +625,65 @@
 .leaflet-control-attribution a {
   color: oklch(0.4 0 0) !important;
 }
+
+/* Puck editor overrides — all header chrome is hidden via sr-only in JSX,
+   these rules handle any remaining Puck frame/layout borders */
+[class*="PuckHeader"] {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+[class*="PuckHeader-inner"] {
+  border: none !important;
+}
+
+/* Hide Puck's built-in ViewportControls — we render our own unified toolbar */
+[class*="PuckCanvas-controls"] {
+  display: none !important;
+}
+
+/* ─── Puck sidebar: make both panels independently scrollable ─── */
+[class*="PuckSideBar"],
+[class*="PuckSideBarInner"],
+[class*="PuckSideBar-root"] {
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+/* Left drawer panel (section list) */
+[class*="PuckDrawer"],
+[class*="PuckComponentList"],
+[class*="PuckDrawer-root"] {
+  overflow-y: auto !important;
+  max-height: 100% !important;
+  overscroll-behavior: contain;
+}
+
+/* Right inspector / fields panel */
+[class*="PuckFields"],
+[class*="PuckFieldsComponent"],
+[class*="PuckFields-root"] {
+  overflow-y: auto !important;
+  max-height: 100% !important;
+  overscroll-behavior: contain;
+}
+
+/* Make the left sidebar column full height and scrollable */
+[class*="Puck-leftSideBar"],
+[class*="Puck-rightSideBar"] {
+  overflow-y: auto !important;
+  height: 100% !important;
+}
+
+/* Smoother drag-and-drop: hardware-accelerate draggable items */
+[class*="PuckDraggable"],
+[class*="DraggableComponent"] {
+  will-change: transform;
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+[class*="PuckDraggable"][data-dragging="true"],
+[class*="DraggableComponent"][data-dragging="true"] {
+  opacity: 0.85;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}

@@ -14,6 +14,7 @@ import { ConversionFunnelChart } from "./charts/conversion-funnel-chart";
 import { ProductPerformanceTable } from "./tables/product-performance-table";
 import { TrafficSourcesTable } from "./tables/traffic-sources-table";
 import { RealTimeIndicator } from "./widgets/real-time-indicator";
+import { SectionEngagementCard } from "./section-engagement-card";
 import { ExportDropdown } from "./export";
 import { useAnalyticsFilters } from "@/lib/hooks/use-analytics-filters";
 import { useRealTimeMetrics } from "@/lib/hooks/use-analytics";
@@ -40,6 +41,12 @@ interface EnhancedAnalyticsPageClientProps {
   funnelData?: ConversionFunnelData[];
   productTableData?: ProductPerformanceRow[];
   trafficData?: TrafficSourceData[];
+  sectionData?: {
+    sectionType: string;
+    impressions: number;
+    clicks: number;
+    ctr: number;
+  }[];
 }
 
 function EnhancedAnalyticsPageClientInner({
@@ -53,6 +60,7 @@ function EnhancedAnalyticsPageClientInner({
   funnelData,
   productTableData,
   trafficData,
+  sectionData,
 }: EnhancedAnalyticsPageClientProps) {
   const { filters, setRange, setDateRange, setTab } = useAnalyticsFilters();
 
@@ -166,6 +174,9 @@ function EnhancedAnalyticsPageClientInner({
               <SalesHeatmap data={heatmapData} currency={currency} />
             )}
           </div>
+
+          {/* Section engagement */}
+          {sectionData && <SectionEngagementCard data={sectionData} />}
         </TabsContent>
 
         {/* Products Tab */}

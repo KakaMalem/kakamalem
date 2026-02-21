@@ -3,17 +3,14 @@
 import { db } from "@/lib/db";
 import { categories, products, media } from "@/lib/db/schema";
 import { eq, and, asc, count, sql } from "drizzle-orm";
+import { unstable_cache, CACHE_TTL, cacheTags } from "@/lib/cache";
 
 export type CategoryWithProductCount = Awaited<
   ReturnType<typeof getCategoriesWithCounts>
 >[number];
 
-/**
- * Get all categories for a tenant with their product counts and image URLs
- * Only counts active products (consistent with POS and storefront views)
- */
-export async function getCategoriesWithCounts(tenantId: string) {
-  const categoriesList = await db
+async function _getCategoriesWithCounts(tenantId: string) {
+  return db
     .select({
       id: categories.id,
       tenantId: categories.tenantId,
@@ -36,8 +33,21 @@ export async function getCategoriesWithCounts(tenantId: string) {
     .where(eq(categories.tenantId, tenantId))
     .groupBy(categories.id, media.url)
     .orderBy(asc(categories.displayOrder), asc(categories.name));
+}
 
-  return categoriesList;
+/**
+ * Get all categories for a tenant with their product counts and image URLs.
+ * Cached with 5-minute TTL, invalidated on category CRUD.
+ */
+export async function getCategoriesWithCounts(tenantId: string) {
+  return unstable_cache(
+    () => _getCategoriesWithCounts(tenantId),
+    ["categories", tenantId],
+    {
+      revalidate: CACHE_TTL.categories,
+      tags: [cacheTags.categories(tenantId)],
+    }
+  )();
 }
 
 /**

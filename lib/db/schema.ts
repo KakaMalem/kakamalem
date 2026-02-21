@@ -842,6 +842,16 @@ export const tenants = pgTable(
     socialLinks: jsonb("social_links").$type<SocialLinks>(),
     seo: jsonb("seo").$type<SeoMetadata>(),
 
+    // Theme (per-store visual customization — colors, fonts, border radius)
+    themeConfig:
+      jsonb("theme_config").$type<import("@/lib/theme/types").ThemeConfig>(),
+
+    // Layout (header style, footer toggles, categories bar)
+    layoutConfig:
+      jsonb("layout_config").$type<
+        import("@/lib/theme/layout-types").LayoutConfig
+      >(),
+
     // Settings
     currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
 
@@ -1060,6 +1070,9 @@ export const tenants = pgTable(
     // Plus Code for easy sharing (e.g., "8J7XMJRV+97")
     storeLocationPlusCode: varchar("store_location_plus_code", { length: 20 }),
 
+    // Custom CSS (pro plan only, sanitized before injection)
+    customCss: text("custom_css"),
+
     // Analytics (system-managed, read-only for owners)
     analytics: jsonb("analytics").$type<StoreAnalytics>().default({
       totalViews: 0,
@@ -1086,6 +1099,139 @@ export const tenants = pgTable(
     // Index for custom domain lookups (partial - only non-null domains)
     index("tenants_custom_domain_idx").on(table.customDomain),
   ]
+);
+
+// ============================================================================
+// PAGE LAYOUTS (Puck visual editor data per store page)
+// ============================================================================
+
+export const pageLayouts = pgTable(
+  "page_layouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Page categorisation: homepage | about | contact | faq | custom
+    pageType: varchar("page_type", { length: 50 })
+      .notNull()
+      .default("homepage"),
+
+    // Human-readable page title shown in the dashboard (e.g. "About Us")
+    title: varchar("title", { length: 255 }).notNull().default("Untitled"),
+
+    // URL slug used for routing: /store/[storeSlug]/page/[slug]
+    // For the homepage this is "home"; built-in types default to their name.
+    slug: varchar("slug", { length: 255 }).notNull().default("home"),
+
+    // Which page renders at /store/[slug]/ (the store root)
+    isHomepage: boolean("is_homepage").notNull().default(false),
+
+    // Sort order for navigation / page list
+    displayOrder: integer("display_order").notNull().default(0),
+
+    // Puck editor data — draft and published versions
+    draftData:
+      jsonb("draft_data").$type<
+        import("@/lib/page-builder/types").PuckPageData
+      >(),
+    publishedData:
+      jsonb("published_data").$type<
+        import("@/lib/page-builder/types").PuckPageData
+      >(),
+
+    // Publishing metadata
+    publishedAt: timestamp("published_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    publishedBy: text("published_by").references(() => user.id),
+    lastEditedBy: text("last_edited_by").references(() => user.id),
+
+    // Version counter (incremented on each publish)
+    version: integer("version").default(1).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    // Unique per tenant + slug (replaces the old pageType unique constraint)
+    uniqueIndex("page_layouts_tenant_slug_idx").on(table.tenantId, table.slug),
+    index("page_layouts_tenant_id_idx").on(table.tenantId),
+    index("page_layouts_homepage_idx").on(table.tenantId, table.isHomepage),
+  ]
+);
+
+export const pageLayoutsRelations = relations(pageLayouts, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [pageLayouts.tenantId],
+    references: [tenants.id],
+  }),
+  versions: many(pageLayoutVersions),
+}));
+
+// ============================================================================
+// PAGE LAYOUT VERSIONS (Publish history for visual editor)
+// ============================================================================
+// Each time a page layout is published, a snapshot is saved here.
+// Allows restoring previous versions of the storefront.
+
+export const pageLayoutVersions = pgTable(
+  "page_layout_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pageLayoutId: uuid("page_layout_id")
+      .notNull()
+      .references(() => pageLayouts.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Snapshot of the published data
+    data: jsonb("data")
+      .notNull()
+      .$type<import("@/lib/page-builder/types").PuckPageData>(),
+
+    // Version number (mirrors pageLayouts.version at time of publish)
+    version: integer("version").notNull(),
+
+    // Who published this version
+    publishedBy: text("published_by").references(() => user.id),
+    publishedByName: varchar("published_by_name", { length: 255 }),
+
+    // Optional label (e.g., "Holiday Sale", "Spring Refresh")
+    label: varchar("label", { length: 255 }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("page_layout_versions_layout_idx").on(
+      table.pageLayoutId,
+      table.version
+    ),
+    index("page_layout_versions_tenant_idx").on(table.tenantId),
+  ]
+);
+
+export const pageLayoutVersionsRelations = relations(
+  pageLayoutVersions,
+  ({ one }) => ({
+    pageLayout: one(pageLayouts, {
+      fields: [pageLayoutVersions.pageLayoutId],
+      references: [pageLayouts.id],
+    }),
+    tenant: one(tenants, {
+      fields: [pageLayoutVersions.tenantId],
+      references: [tenants.id],
+    }),
+  })
 );
 
 // ============================================================================
@@ -7420,6 +7566,15 @@ export const paymentSessionStatusEnum = pgEnum("payment_session_status", [
   "cancelled", // Cancelled by user
 ]);
 
+// ============================================================================
+// SECTION ANALYTICS ENUMS
+// ============================================================================
+
+export const sectionEventTypeEnum = pgEnum("section_event_type", [
+  "impression",
+  "click",
+]);
+
 export const paymentSessions = pgTable(
   "payment_sessions",
   {
@@ -7608,6 +7763,41 @@ export const exchangeRates = pgTable(
       table.targetCurrency
     ),
     index("exchange_rates_fetched_at_idx").on(table.fetchedAt),
+  ]
+);
+
+// ============================================================================
+// STOREFRONT SECTION EVENTS (Section analytics tracking)
+// ============================================================================
+
+export const storefrontSectionEvents = pgTable(
+  "storefront_section_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    pageType: varchar("page_type", { length: 50 }).notNull(),
+    sectionType: varchar("section_type", { length: 100 }).notNull(),
+    sectionIndex: integer("section_index").notNull(),
+    eventType: sectionEventTypeEnum("event_type").notNull(),
+    visitorId: varchar("visitor_id", { length: 255 }),
+    sessionId: varchar("session_id", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("section_events_tenant_type_idx").on(
+      table.tenantId,
+      table.sectionType,
+      table.createdAt
+    ),
+    index("section_events_tenant_page_idx").on(
+      table.tenantId,
+      table.pageType,
+      table.createdAt
+    ),
   ]
 );
 
@@ -9506,6 +9696,16 @@ export const storeCreditTransactionsRelations = relations(
   })
 );
 
+export const storefrontSectionEventsRelations = relations(
+  storefrontSectionEvents,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [storefrontSectionEvents.tenantId],
+      references: [tenants.id],
+    }),
+  })
+);
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -9950,3 +10150,18 @@ export type NewExchangeRate = typeof exchangeRates.$inferInsert;
 // Order invoice token types
 export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;
 export type NewOrderInvoiceToken = typeof orderInvoiceTokens.$inferInsert;
+
+// Page layout types
+export type PageLayout = typeof pageLayouts.$inferSelect;
+export type NewPageLayout = typeof pageLayouts.$inferInsert;
+
+// Page layout version types
+export type PageLayoutVersion = typeof pageLayoutVersions.$inferSelect;
+export type NewPageLayoutVersion = typeof pageLayoutVersions.$inferInsert;
+
+// Section analytics types
+export type SectionEventType = (typeof sectionEventTypeEnum.enumValues)[number];
+export type StorefrontSectionEvent =
+  typeof storefrontSectionEvents.$inferSelect;
+export type NewStorefrontSectionEvent =
+  typeof storefrontSectionEvents.$inferInsert;

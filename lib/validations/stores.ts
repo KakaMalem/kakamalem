@@ -377,6 +377,45 @@ export const storeLocationSchema = z
 
 export type StoreLocationInput = z.infer<typeof storeLocationSchema>;
 
+// ============================================================================
+// THEME CONFIG VALIDATION
+// ============================================================================
+
+const fontFamilyValues = [
+  "geist",
+  "inter",
+  "dm-sans",
+  "poppins",
+  "noto-naskh-arabic",
+] as const;
+
+const extendedColorsSchema = z
+  .object({
+    backgroundColor: z.string().max(100).optional(),
+    foregroundColor: z.string().max(100).optional(),
+    mutedColor: z.string().max(100).optional(),
+    mutedForegroundColor: z.string().max(100).optional(),
+    borderColor: z.string().max(100).optional(),
+    cardColor: z.string().max(100).optional(),
+    cardForegroundColor: z.string().max(100).optional(),
+    destructiveColor: z.string().max(100).optional(),
+  })
+  .optional();
+
+export const themeConfigSchema = z.object({
+  primaryColor: z.string().min(1, "Primary color is required").max(100),
+  secondaryColor: z.string().min(1, "Secondary color is required").max(100),
+  accentColor: z.string().min(1, "Accent color is required").max(100),
+  fontFamily: z.enum(fontFamilyValues),
+  headingFontFamily: z.enum(fontFamilyValues).optional(),
+  borderRadius: z.enum(["none", "sm", "md", "lg", "xl", "full"] as const),
+  buttonStyle: z.enum(["solid", "outline", "soft"] as const),
+  presetName: z.string().nullable(),
+  extendedColors: extendedColorsSchema,
+});
+
+export type ThemeConfigInput = z.infer<typeof themeConfigSchema>;
+
 /**
  * Generate slug from store name (supports Unicode including Persian)
  * Modern browsers display Unicode URLs nicely in the address bar

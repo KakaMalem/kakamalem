@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { tenants, tenantMembers } from "@/lib/db/schema";
 import { eq, or, inArray, and, isNotNull } from "drizzle-orm";
+import { unstable_cache, CACHE_TTL, cacheTags } from "@/lib/cache";
 
 export async function getTenantByOwnerId(ownerId: string) {
   const tenant = await db.query.tenants.findFirst({
@@ -57,38 +58,52 @@ export async function getTenantById(tenantId: string) {
   return tenant;
 }
 
+async function _getTenantBySlug(normalizedSlug: string) {
+  return db.query.tenants.findFirst({
+    where: eq(tenants.slug, normalizedSlug),
+  });
+}
+
 export async function getTenantBySlug(slug: string) {
   // Normalize Unicode to match how slugs are stored (NFKC from slugify)
-  // Also decode URL encoding in case it wasn't decoded by the framework
   let normalizedSlug: string;
   try {
     normalizedSlug = decodeURIComponent(slug).normalize("NFKC");
   } catch {
-    // If decoding fails, just normalize the original
     normalizedSlug = slug.normalize("NFKC");
   }
 
-  const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.slug, normalizedSlug),
-  });
-
-  return tenant;
+  return unstable_cache(
+    () => _getTenantBySlug(normalizedSlug),
+    ["tenant", normalizedSlug],
+    { revalidate: CACHE_TTL.tenant, tags: [cacheTags.tenant(normalizedSlug)] }
+  )();
 }
 
 /**
  * Get a tenant by custom domain (for custom domain routing)
  * Only returns tenants with active custom domain configuration
  */
-export async function getTenantByCustomDomain(domain: string) {
-  const tenant = await db.query.tenants.findFirst({
+async function _getTenantByCustomDomain(domain: string) {
+  return db.query.tenants.findFirst({
     where: and(
       eq(tenants.customDomain, domain.toLowerCase()),
       eq(tenants.customDomainStatus, "active"),
       isNotNull(tenants.customDomain)
     ),
   });
+}
 
-  return tenant;
+export async function getTenantByCustomDomain(domain: string) {
+  const normalizedDomain = domain.toLowerCase();
+  return unstable_cache(
+    () => _getTenantByCustomDomain(normalizedDomain),
+    ["tenant-domain", normalizedDomain],
+    {
+      revalidate: CACHE_TTL.tenant,
+      tags: [cacheTags.tenantDomain(normalizedDomain)],
+    }
+  )();
 }
 
 /**
@@ -230,6 +245,8 @@ export async function updateTenant(
     receiptPrintMode: string;
     socialLinks: Record<string, string | boolean | undefined>;
     seo: Record<string, string | undefined>;
+    themeConfig: import("@/lib/theme/types").ThemeConfig;
+    layoutConfig: import("@/lib/theme/layout-types").LayoutConfig;
     status: "pending_review" | "active" | "suspended" | "inactive";
     // Store location
     storeLocationLat: string | null;
@@ -238,6 +255,7 @@ export async function updateTenant(
     storeLocationAccuracy: number | null;
     storeLocationSource: string | null;
     storeLocationPlusCode: string | null;
+    customCss: string | null;
   }>
 ) {
   const [updated] = await db

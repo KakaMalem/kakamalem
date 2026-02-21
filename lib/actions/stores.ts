@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateTag, cacheTags } from "@/lib/cache";
 import { cookies } from "next/headers";
 import { ZodError } from "zod";
 import { getUser } from "@/lib/auth/server";
@@ -498,6 +499,7 @@ export async function updateGeneralSettings(
       // Silently ignore - onboarding completion is not critical
     });
 
+    revalidateTag(cacheTags.tenant(store.slug));
     revalidatePath("/dashboard/settings", "page");
     return { success: true };
   } catch (error) {
@@ -564,6 +566,7 @@ export async function updateBrandingSettings(
       headerDisplay: formValues.headerDisplay,
     });
 
+    revalidateTag(cacheTags.tenant(store.slug));
     revalidatePath("/dashboard/settings/branding", "page");
     return { success: true };
   } catch {
@@ -658,6 +661,115 @@ export async function updateBrandingSettingsWithImages(
   } catch {
     return {
       error: { message: "Failed to update branding. Please try again." },
+    };
+  }
+}
+
+/**
+ * Update store theme configuration (colors, fonts, border radius)
+ */
+export async function updateThemeConfig(
+  storeId: string,
+  config: import("@/lib/validations/stores").ThemeConfigInput
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store) {
+    return { error: { message: "Store not found" } };
+  }
+
+  // Check admin role
+  const { hasMinimumRole } = await import("@/lib/auth/context");
+  const canManage = await hasMinimumRole(storeId, "admin");
+  if (!canManage) {
+    return {
+      error: { message: "You don't have permission to update theme settings" },
+    };
+  }
+
+  // Validate
+  const { themeConfigSchema } = await import("@/lib/validations/stores");
+  try {
+    themeConfigSchema.parse(config);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed",
+          field: firstError?.path[0] as string,
+        },
+      };
+    }
+  }
+
+  try {
+    await updateTenant(storeId, {
+      themeConfig: config,
+    });
+
+    revalidateTag(cacheTags.tenant(store.slug));
+    revalidatePath(`/store/${store.slug}`, "layout");
+    revalidatePath(`/dashboard/${store.slug}/settings/theme`, "page");
+    return { success: true };
+  } catch {
+    return {
+      error: { message: "Failed to update theme. Please try again." },
+    };
+  }
+}
+
+/**
+ * Update layout config (header style, footer toggles, categories bar)
+ */
+export async function updateLayoutConfig(
+  storeId: string,
+  config: import("@/lib/theme/layout-types").LayoutConfig
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store) {
+    return { error: { message: "Store not found" } };
+  }
+
+  const { hasMinimumRole } = await import("@/lib/auth/context");
+  const canManage = await hasMinimumRole(storeId, "admin");
+  if (!canManage) {
+    return {
+      error: {
+        message: "You don't have permission to update layout settings",
+      },
+    };
+  }
+
+  // Basic validation
+  const validHeaderStyles = ["default", "centered", "minimal"];
+  if (!validHeaderStyles.includes(config.header.headerStyle)) {
+    return { error: { message: "Invalid header style" } };
+  }
+
+  try {
+    await updateTenant(storeId, {
+      layoutConfig: config,
+    });
+
+    revalidateTag(cacheTags.tenant(store.slug));
+    revalidatePath(`/store/${store.slug}`, "layout");
+    revalidatePath(`/dashboard/${store.slug}/settings/layout`, "page");
+    return { success: true };
+  } catch {
+    return {
+      error: { message: "Failed to update layout. Please try again." },
     };
   }
 }
@@ -1254,4 +1366,48 @@ export async function updateStoreLocation(
       },
     };
   }
+}
+
+/**
+ * Update custom CSS for a store (pro plan only).
+ * Sanitizes CSS before saving.
+ */
+export async function updateCustomCss(
+  storeId: string,
+  storeSlug: string,
+  css: string
+) {
+  const user = await getUser();
+  if (!user) return { error: { message: "Unauthorized" } };
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id)
+    return { error: { message: "Unauthorized" } };
+
+  // Pro plan check
+  if (store.subscriptionPlan !== "pro") {
+    return {
+      error: { message: "Custom CSS is available on the Pro plan only" },
+    };
+  }
+
+  // Size limit
+  const MAX_CSS_LENGTH = 10 * 1024;
+  if (css.length > MAX_CSS_LENGTH) {
+    return {
+      error: { message: `CSS exceeds ${MAX_CSS_LENGTH / 1024}KB limit` },
+    };
+  }
+
+  // Sanitize and save
+  const { sanitizeCss } = await import("@/lib/theme/css-sanitizer");
+  const { css: sanitized, warnings } = sanitizeCss(css);
+
+  await updateTenant(storeId, { customCss: sanitized || null });
+
+  revalidateTag(cacheTags.tenant(storeSlug));
+  revalidatePath(`/store/${storeSlug}`, "layout");
+  revalidatePath(`/dashboard/${storeSlug}/settings/theme`);
+
+  return { success: true, warnings };
 }

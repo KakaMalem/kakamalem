@@ -147,7 +147,20 @@ export default function proxy(request: NextRequest) {
       }
     }
 
-    // Not an affiliate slug, continue normally
+    // Not an affiliate slug — set km_vid cookie for analytics on storefront pages
+    if (pathname.startsWith("/store/")) {
+      const response = NextResponse.next();
+      if (!request.cookies.get("km_vid")) {
+        response.cookies.set("km_vid", crypto.randomUUID(), {
+          maxAge: 365 * 24 * 60 * 60,
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+        });
+      }
+      return response;
+    }
+
     return NextResponse.next();
   }
 
@@ -184,9 +197,21 @@ export default function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-custom-domain", hostnameWithoutPort);
 
-  return NextResponse.rewrite(url, {
+  const response = NextResponse.rewrite(url, {
     request: { headers: requestHeaders },
   });
+
+  // Set km_vid cookie for analytics tracking on custom domain storefronts
+  if (!request.cookies.get("km_vid")) {
+    response.cookies.set("km_vid", crypto.randomUUID(), {
+      maxAge: 365 * 24 * 60 * 60,
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
+  }
+
+  return response;
 }
 
 export const config = {

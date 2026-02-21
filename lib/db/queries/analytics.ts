@@ -6,6 +6,7 @@ import {
   orderItems,
   products,
   reviews,
+  storefrontSectionEvents,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -1367,5 +1368,54 @@ export async function getGeographicSales(
     orders: g.orders,
     revenue: parseFloat(String(g.revenue) || "0"),
     uniqueCustomers: g.uniqueCustomers || 0,
+  }));
+}
+
+// ============================================================================
+// SECTION ANALYTICS
+// ============================================================================
+
+export async function getSectionAnalytics(
+  tenantId: string,
+  pageType: string,
+  startDate: string,
+  endDate: string
+) {
+  const rows = await db
+    .select({
+      sectionType: storefrontSectionEvents.sectionType,
+      impressions:
+        sql<number>`COUNT(*) FILTER (WHERE ${storefrontSectionEvents.eventType} = 'impression')`.as(
+          "impressions"
+        ),
+      clicks:
+        sql<number>`COUNT(*) FILTER (WHERE ${storefrontSectionEvents.eventType} = 'click')`.as(
+          "clicks"
+        ),
+    })
+    .from(storefrontSectionEvents)
+    .where(
+      and(
+        eq(storefrontSectionEvents.tenantId, tenantId),
+        eq(storefrontSectionEvents.pageType, pageType),
+        gte(storefrontSectionEvents.createdAt, startDate),
+        lte(storefrontSectionEvents.createdAt, endDate)
+      )
+    )
+    .groupBy(storefrontSectionEvents.sectionType)
+    .orderBy(
+      desc(
+        sql`COUNT(*) FILTER (WHERE ${storefrontSectionEvents.eventType} = 'impression')`
+      )
+    );
+
+  return rows.map((r) => ({
+    sectionType: r.sectionType,
+    impressions: Number(r.impressions),
+    clicks: Number(r.clicks),
+    ctr:
+      r.impressions > 0
+        ? Math.round((Number(r.clicks) / Number(r.impressions)) * 10000) / 100
+        : 0,
   }));
 }

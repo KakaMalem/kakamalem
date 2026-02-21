@@ -4,6 +4,7 @@ import { StoreHeader } from "@/components/store/store-header";
 
 import type { Tenant } from "@/lib/db/schema";
 import type { StoreRole } from "@/lib/auth/context";
+import type { HeaderConfig } from "@/lib/theme/layout-types";
 
 interface StoreHeaderWrapperProps {
   store: Tenant;
@@ -17,6 +18,8 @@ interface StoreHeaderWrapperProps {
   } | null;
   /** Initial search query from server - passed to avoid hydration issues */
   initialSearchQuery?: string;
+  /** Full header configuration from layout config */
+  headerConfig?: HeaderConfig;
 }
 
 /**
@@ -29,6 +32,7 @@ export function StoreHeaderWrapper({
   user,
   userContext,
   initialSearchQuery,
+  headerConfig,
 }: StoreHeaderWrapperProps) {
   return (
     <StoreHeader
@@ -37,6 +41,7 @@ export function StoreHeaderWrapper({
       user={user}
       userContext={userContext}
       initialSearchQuery={initialSearchQuery}
+      headerConfig={headerConfig}
     />
   );
 }

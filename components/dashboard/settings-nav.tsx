@@ -33,8 +33,8 @@ export function SettingsNav() {
 
   // Get user role and filter settings pages
   const userRole = useUserRole();
-  const accessiblePages = SETTINGS_PAGES.filter((page) =>
-    canAccessSettingsPage(userRole, page.key)
+  const accessiblePages = SETTINGS_PAGES.filter(
+    (page) => !page.hidden && canAccessSettingsPage(userRole, page.key)
   );
 
   const isActive = (href: string) => {
@@ -106,8 +106,8 @@ export function SettingsNavTabs() {
 
   // Get user role and filter settings pages
   const userRole = useUserRole();
-  const accessiblePages = SETTINGS_PAGES.filter((page) =>
-    canAccessSettingsPage(userRole, page.key)
+  const accessiblePages = SETTINGS_PAGES.filter(
+    (page) => !page.hidden && canAccessSettingsPage(userRole, page.key)
   );
 
   const isActive = (href: string) => {

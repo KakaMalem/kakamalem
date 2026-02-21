@@ -8,6 +8,7 @@ import {
   Package,
   FolderTree,
   Image,
+  Paintbrush,
   ShoppingCart,
   BarChart3,
   Store,
@@ -122,6 +123,9 @@ export function AppSidebar({
   // Build store-specific URL prefix
   const baseUrl = storeSlug ? `/dashboard/${storeSlug}` : "/dashboard";
 
+  // Check if user can access settings (owner or admin only)
+  const showSettings = userRole === "owner" || userRole === "admin";
+
   const isActive = (href: string) => {
     if (href === baseUrl) {
       return pathname === baseUrl;
@@ -156,6 +160,15 @@ export function AppSidebar({
       href: `${baseUrl}/media`,
       icon: Image,
     },
+    ...(showSettings
+      ? [
+          {
+            title: "Customize",
+            href: `${baseUrl}/customize`,
+            icon: Paintbrush,
+          },
+        ]
+      : []),
   ];
 
   const salesNavItems = [
@@ -210,9 +223,6 @@ export function AppSidebar({
         ]
       : []),
   ];
-
-  // Check if user can access settings (owner or admin only)
-  const showSettings = userRole === "owner" || userRole === "admin";
 
   // Subscription info for upgrade section
   const subscription = useSubscription();

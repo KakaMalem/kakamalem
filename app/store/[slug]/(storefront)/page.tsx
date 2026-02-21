@@ -4,8 +4,10 @@ import { Package } from "lucide-react";
 import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getProducts } from "@/lib/db/queries/products";
 import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
+import { getPublishedHomepageLayout } from "@/lib/db/queries/page-layouts";
 import { getStoreBasePath } from "@/lib/utils/store-path";
 import { InfiniteScrollProducts } from "@/components/store/infinite-scroll-products";
+import { StorefrontRenderer } from "@/components/page-builder/storefront-renderer";
 import { Button } from "@/components/ui/button";
 
 interface StorePageProps {
@@ -30,7 +32,31 @@ export default async function StorePage({
 
   const basePath = await getStoreBasePath(store.slug);
 
-  // Fetch products and active campaigns in parallel
+  // Check if online cart should be disabled
+  const isCartDisabled =
+    store.storeMode === "catalog" || store.storeMode === "offline_only";
+
+  // If no search query, check for custom layout
+  if (!searchQuery) {
+    const publishedLayout = await getPublishedHomepageLayout(store.id);
+
+    if (publishedLayout) {
+      return (
+        <StorefrontRenderer
+          data={publishedLayout}
+          context={{
+            tenantId: store.id,
+            storeSlug: store.slug,
+            currency: store.currency,
+            catalogMode: isCartDisabled,
+            basePath,
+          }}
+        />
+      );
+    }
+  }
+
+  // Default: fetch products and render classic layout
   const [productsResult, activeCampaigns] = await Promise.all([
     getProducts(store.id, {
       page: 1,
@@ -42,12 +68,6 @@ export default async function StorePage({
   ]);
 
   const hasProducts = productsResult.products.length > 0;
-
-  // Check if online cart should be disabled
-  // - catalog: Display only, no checkout anywhere
-  // - offline_only: POS only, no online checkout
-  const isCartDisabled =
-    store.storeMode === "catalog" || store.storeMode === "offline_only";
 
   return (
     <div className="flex flex-col min-h-[50vh]">

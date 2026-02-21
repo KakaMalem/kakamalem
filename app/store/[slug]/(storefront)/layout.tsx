@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Store } from "lucide-react";
+import { Inter, DM_Sans, Poppins, Noto_Naskh_Arabic } from "next/font/google";
 
 import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getStoreBasePath, getStoreBaseUrl } from "@/lib/utils/store-path";
@@ -29,6 +30,84 @@ import {
 import type { SocialLinks } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
 import { QueryProvider } from "@/lib/providers/query-provider";
+import { defaultThemeConfig } from "@/lib/theme/presets";
+import { themeConfigToCssVars } from "@/lib/theme/css-vars";
+import { sanitizeCss } from "@/lib/theme/css-sanitizer";
+import type { ThemeConfig, FontFamily } from "@/lib/theme/types";
+import {
+  defaultLayoutConfig,
+  defaultHeaderConfig,
+  defaultFooterConfig,
+  type LayoutConfig,
+  type HeaderConfig,
+  type FooterConfig,
+} from "@/lib/theme/layout-types";
+
+/**
+ * Migrate old flat layout config to new structured format.
+ * Old format: { headerStyle, showSearchBar, showCategoriesBar, footer: { showQuickLinks, ... } }
+ * New format: { header: HeaderConfig, footer: FooterConfig }
+ */
+function parseLayoutConfig(raw: unknown): LayoutConfig {
+  if (!raw || typeof raw !== "object") return defaultLayoutConfig;
+
+  const obj = raw as Record<string, unknown>;
+
+  // New structured format — has `header` key
+  if ("header" in obj && typeof obj.header === "object") {
+    return {
+      header: {
+        ...defaultHeaderConfig,
+        ...(obj.header as Partial<HeaderConfig>),
+      },
+      footer: {
+        ...defaultFooterConfig,
+        ...(obj.footer as Partial<FooterConfig>),
+      },
+    };
+  }
+
+  // Old flat format — migrate
+  const oldFooter = (obj.footer ?? {}) as Record<string, unknown>;
+  return {
+    header: {
+      ...defaultHeaderConfig,
+      headerStyle:
+        (obj.headerStyle as HeaderConfig["headerStyle"]) ?? "default",
+      showSearchBar: (obj.showSearchBar as boolean) ?? true,
+      showCategoriesBar: (obj.showCategoriesBar as boolean) ?? true,
+    },
+    footer: {
+      ...defaultFooterConfig,
+      showQuickLinks: (oldFooter.showQuickLinks as boolean) ?? true,
+      showCategories: (oldFooter.showCategories as boolean) ?? true,
+      showContact: (oldFooter.showContact as boolean) ?? true,
+    },
+  };
+}
+
+// Load additional fonts for per-store theming (Geist is loaded in root layout)
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"] });
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+const notoNaskhArabic = Noto_Naskh_Arabic({
+  variable: "--font-noto-naskh-arabic",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+});
+
+// Map font family keys to their CSS variable names
+const fontVarMap: Record<FontFamily, string> = {
+  geist: "var(--font-geist-sans)",
+  inter: "var(--font-inter)",
+  "dm-sans": "var(--font-dm-sans)",
+  poppins: "var(--font-poppins)",
+  "noto-naskh-arabic": "var(--font-noto-naskh-arabic)",
+};
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -210,6 +289,30 @@ export default async function StoreLayout({
   const showWhatsAppButton = socialLinks?.showWhatsAppButton ?? true;
   const whatsappNumber = socialLinks?.whatsapp || "";
 
+  // Per-store layout config (migrates old flat format automatically)
+  const layoutConfig = parseLayoutConfig(store.layoutConfig);
+
+  // Per-store theme: compute CSS overrides (zero client JS)
+  const themeConfig =
+    (store.themeConfig as ThemeConfig | null) ?? defaultThemeConfig;
+  const themeCss = themeConfigToCssVars(themeConfig);
+  const fontFamily = themeConfig.fontFamily || "geist";
+
+  // Build font override CSS: override --font-sans so Tailwind picks it up
+  const fontCssVar = fontVarMap[fontFamily];
+  const fontOverrideCss =
+    fontFamily !== "geist"
+      ? `--font-sans:${fontCssVar};font-family:${fontCssVar},ui-sans-serif,system-ui,sans-serif;`
+      : "";
+
+  // Combine all font variable classes so they're all available
+  const fontClasses = [
+    inter.variable,
+    dmSans.variable,
+    poppins.variable,
+    notoNaskhArabic.variable,
+  ].join(" ");
+
   return (
     <QueryProvider>
       <StorePathProvider basePath={basePath}>
@@ -239,7 +342,23 @@ export default async function StoreLayout({
             tenantId={store.id}
             initialProductIds={wishlistedProductIds}
           />
-          <div className="flex min-h-screen flex-col bg-background">
+          {/* Per-store theme CSS overrides (zero client JS) */}
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `:root{${themeCss}${fontOverrideCss}}`,
+            }}
+          />
+          {/* Custom CSS injection (pro plan only) */}
+          {store.subscriptionPlan === "pro" && store.customCss && (
+            <style
+              dangerouslySetInnerHTML={{
+                __html: sanitizeCss(store.customCss).css,
+              }}
+            />
+          )}
+          <div
+            className={`flex min-h-screen flex-col bg-background ${fontClasses}`}
+          >
             {/* Sale Banner - positioned at very top, only shown on homepage */}
             {activeCampaigns.length > 0 && (
               <SaleBanner
@@ -248,48 +367,57 @@ export default async function StoreLayout({
                 currency={store.currency}
               />
             )}
-            <StoreHeaderWrapper
-              store={store}
-              cartItemCount={cartItemCount}
-              user={
-                user
-                  ? {
-                      name: user.name,
-                      email: user.email,
-                      avatarUrl: user.image || undefined,
-                    }
-                  : null
-              }
-              userContext={
-                userContext
-                  ? {
-                      isOwner: userContext.isOwner,
-                      isStaff: userContext.isStaff,
-                      isMember: userContext.isMember,
-                      role: userContext.role,
-                    }
-                  : null
-              }
-            />
-            <StoreCategoriesBar
-              categories={categories.map((c) => ({
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-                imageUrl: c.imageUrl,
-              }))}
-              storeSlug={store.slug}
-            />
+            {layoutConfig.header.enabled !== false && (
+              <StoreHeaderWrapper
+                store={store}
+                cartItemCount={cartItemCount}
+                user={
+                  user
+                    ? {
+                        name: user.name,
+                        email: user.email,
+                        avatarUrl: user.image || undefined,
+                      }
+                    : null
+                }
+                userContext={
+                  userContext
+                    ? {
+                        isOwner: userContext.isOwner,
+                        isStaff: userContext.isStaff,
+                        isMember: userContext.isMember,
+                        role: userContext.role,
+                      }
+                    : null
+                }
+                headerConfig={layoutConfig.header}
+              />
+            )}
+            {layoutConfig.header.enabled !== false &&
+              layoutConfig.header.showCategoriesBar && (
+                <StoreCategoriesBar
+                  categories={categories.map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    slug: c.slug,
+                    imageUrl: c.imageUrl,
+                  }))}
+                  storeSlug={store.slug}
+                />
+              )}
             <main className="flex-1">{children}</main>
-            <StoreFooter
-              store={store}
-              categories={categories.map((c) => ({
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-              }))}
-              hideBranding={store.subscriptionPlan === "pro"}
-            />
+            {layoutConfig.footer.enabled !== false && (
+              <StoreFooter
+                store={store}
+                categories={categories.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  slug: c.slug,
+                }))}
+                hideBranding={store.subscriptionPlan === "pro"}
+                footerConfig={layoutConfig.footer}
+              />
+            )}
             {/* Cart Drawer - Hidden when online cart is disabled */}
             {!isCartDisabled && (
               <CartDrawer

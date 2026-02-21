@@ -22,12 +22,31 @@ import {
 
 import { useStoreBasePath } from "@/components/store/store-path-provider";
 
+import { cn } from "@/lib/utils";
 import type {
   Tenant,
   Category,
   SocialLinks,
   PreferredContactMethod,
 } from "@/lib/db/schema";
+import type { FooterConfig } from "@/lib/theme/layout-types";
+import { defaultFooterConfig } from "@/lib/theme/layout-types";
+
+const footerColorSchemeClasses: Record<
+  FooterConfig["colorScheme"],
+  { bg: string; text: string }
+> = {
+  light: { bg: "bg-muted/30", text: "" },
+  dark: { bg: "bg-gray-900", text: "text-gray-100" },
+  primary: { bg: "bg-primary", text: "text-primary-foreground" },
+  custom: { bg: "", text: "" },
+};
+
+const footerPaddingClasses: Record<FooterConfig["padding"], string> = {
+  compact: "py-6",
+  normal: "py-10",
+  spacious: "py-16",
+};
 
 // TikTok icon (not in lucide-react)
 function TikTokIcon({ className }: { className?: string }) {
@@ -92,14 +111,30 @@ interface StoreFooterProps {
   store: Tenant;
   categories: Pick<Category, "id" | "name" | "slug">[];
   hideBranding?: boolean;
+  footerConfig?: FooterConfig;
 }
 
 export function StoreFooter({
   store,
   categories,
   hideBranding,
+  footerConfig,
 }: StoreFooterProps) {
+  const cfg = footerConfig ?? defaultFooterConfig;
+  const showQuickLinks = cfg.showQuickLinks;
+  const showCategories = cfg.showCategories;
+  const showContact = cfg.showContact;
   const basePath = useStoreBasePath();
+
+  // Color scheme
+  const scheme = footerColorSchemeClasses[cfg.colorScheme];
+  const customStyle =
+    cfg.colorScheme === "custom"
+      ? {
+          backgroundColor: cfg.backgroundColor || undefined,
+          color: cfg.textColor || undefined,
+        }
+      : undefined;
   const socialLinks = store.socialLinks as SocialLinks | null;
   const currentYear = new Date().getFullYear();
 
@@ -142,10 +177,23 @@ export function StoreFooter({
     store.headerDisplay === "name_only" ||
     store.headerDisplay === "logo_and_name";
 
+  // Copyright text
+  const copyrightText =
+    cfg.copyrightText ||
+    `\u00A9 ${currentYear} ${store.name}. All rights reserved.`;
+
   return (
     <TooltipProvider>
-      <footer className="border-t bg-muted/30">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-12 lg:px-8">
+      <footer
+        className={cn(
+          "border-t",
+          scheme.bg,
+          scheme.text,
+          footerPaddingClasses[cfg.padding]
+        )}
+        style={customStyle}
+      >
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
             {/* Store Info */}
             <div className="space-y-4 sm:col-span-2 md:col-span-1">
@@ -215,34 +263,36 @@ export function StoreFooter({
             </div>
 
             {/* Quick Links */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wider">
-                Quick Links
-              </h3>
-              <nav className="flex flex-col gap-2.5">
-                <Link
-                  href={basePath || "/"}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Home
-                </Link>
-                <Link
-                  href={`${basePath}/products`}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  All Products
-                </Link>
-                <Link
-                  href={`${basePath}/categories`}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  Categories
-                </Link>
-              </nav>
-            </div>
+            {showQuickLinks && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wider">
+                  Quick Links
+                </h3>
+                <nav className="flex flex-col gap-2.5">
+                  <Link
+                    href={basePath || "/"}
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Home
+                  </Link>
+                  <Link
+                    href={`${basePath}/products`}
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    All Products
+                  </Link>
+                  <Link
+                    href={`${basePath}/categories`}
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Categories
+                  </Link>
+                </nav>
+              </div>
+            )}
 
             {/* Categories */}
-            {categories.length > 0 && (
+            {showCategories && categories.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wider">
                   Categories
@@ -270,146 +320,180 @@ export function StoreFooter({
             )}
 
             {/* Contact & Social */}
-            <div className="space-y-4">
-              {hasContactInfo && (
-                <>
-                  <h3 className="text-sm font-semibold uppercase tracking-wider">
-                    Contact Us
-                  </h3>
-                  <div className="flex flex-col gap-3">
-                    {store.contactEmail && (
-                      <a
-                        href={`mailto:${store.contactEmail}`}
-                        className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        <Mail className="size-4 shrink-0" />
-                        <span className="truncate">{store.contactEmail}</span>
-                      </a>
-                    )}
-                    {store.contactPhone &&
-                    preferredContactMethod === "both" &&
-                    hasWhatsApp ? (
-                      // Show both phone and WhatsApp
-                      <div className="flex flex-col gap-2">
+            {showContact && (
+              <div className="space-y-4">
+                {hasContactInfo && (
+                  <>
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">
+                      Contact Us
+                    </h3>
+                    <div className="flex flex-col gap-3">
+                      {store.contactEmail && (
                         <a
-                          href={`tel:${store.contactPhone}`}
+                          href={`mailto:${store.contactEmail}`}
                           className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
                         >
-                          <Phone className="size-4 shrink-0" />
-                          <span>{store.contactPhone}</span>
+                          <Mail className="size-4 shrink-0" />
+                          <span className="truncate">{store.contactEmail}</span>
                         </a>
+                      )}
+                      {store.contactPhone &&
+                      preferredContactMethod === "both" &&
+                      hasWhatsApp ? (
+                        // Show both phone and WhatsApp
+                        <div className="flex flex-col gap-2">
+                          <a
+                            href={`tel:${store.contactPhone}`}
+                            className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <Phone className="size-4 shrink-0" />
+                            <span>{store.contactPhone}</span>
+                          </a>
+                          <a
+                            href={`https://wa.me/${whatsappNumber}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <WhatsAppIcon className="size-4 shrink-0" />
+                            <span>WhatsApp</span>
+                          </a>
+                        </div>
+                      ) : store.contactPhone ? (
+                        // Show single preferred contact method
                         <a
-                          href={`https://wa.me/${whatsappNumber}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={getPhoneHref()}
+                          target={
+                            preferredContactMethod === "whatsapp" && hasWhatsApp
+                              ? "_blank"
+                              : undefined
+                          }
+                          rel={
+                            preferredContactMethod === "whatsapp" && hasWhatsApp
+                              ? "noopener noreferrer"
+                              : undefined
+                          }
                           className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
                         >
-                          <WhatsAppIcon className="size-4 shrink-0" />
-                          <span>WhatsApp</span>
+                          {(() => {
+                            const { Icon, label } = getPhoneDisplay();
+                            return (
+                              <>
+                                <Icon className="size-4 shrink-0" />
+                                <span>
+                                  {label === "WhatsApp"
+                                    ? "WhatsApp"
+                                    : store.contactPhone}
+                                </span>
+                              </>
+                            );
+                          })()}
                         </a>
-                      </div>
-                    ) : store.contactPhone ? (
-                      // Show single preferred contact method
-                      <a
-                        href={getPhoneHref()}
-                        target={
-                          preferredContactMethod === "whatsapp" && hasWhatsApp
-                            ? "_blank"
-                            : undefined
-                        }
-                        rel={
-                          preferredContactMethod === "whatsapp" && hasWhatsApp
-                            ? "noopener noreferrer"
-                            : undefined
-                        }
-                        className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        {(() => {
-                          const { Icon, label } = getPhoneDisplay();
-                          return (
-                            <>
-                              <Icon className="size-4 shrink-0" />
-                              <span>
-                                {label === "WhatsApp"
-                                  ? "WhatsApp"
-                                  : store.contactPhone}
-                              </span>
-                            </>
-                          );
-                        })()}
-                      </a>
-                    ) : null}
-                  </div>
-                </>
-              )}
+                      ) : null}
+                    </div>
+                  </>
+                )}
 
-              {/* Social Links - Tablet & Desktop */}
-              {hasSocialLinks && (
-                <div className="hidden space-y-3 md:block">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider">
-                    Follow Us
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {socialLinks?.facebook && (
-                      <SocialLink href={socialLinks.facebook} label="Facebook">
-                        <Facebook className="size-4" />
-                      </SocialLink>
-                    )}
-                    {socialLinks?.instagram && (
-                      <SocialLink
-                        href={socialLinks.instagram}
-                        label="Instagram"
-                      >
-                        <Instagram className="size-4" />
-                      </SocialLink>
-                    )}
-                    {socialLinks?.twitter && (
-                      <SocialLink
-                        href={socialLinks.twitter}
-                        label="Twitter / X"
-                      >
-                        <Twitter className="size-4" />
-                      </SocialLink>
-                    )}
-                    {socialLinks?.youtube && (
-                      <SocialLink href={socialLinks.youtube} label="YouTube">
-                        <Youtube className="size-4" />
-                      </SocialLink>
-                    )}
-                    {socialLinks?.tiktok && (
-                      <SocialLink href={socialLinks.tiktok} label="TikTok">
-                        <TikTokIcon className="size-4" />
-                      </SocialLink>
-                    )}
-                    {socialLinks?.telegram && (
-                      <SocialLink href={socialLinks.telegram} label="Telegram">
-                        <Send className="size-4" />
-                      </SocialLink>
-                    )}
-                    {socialLinks?.whatsapp && (
-                      <SocialLink
-                        href={`https://wa.me/${socialLinks.whatsapp.replace(
-                          /[^0-9]/g,
-                          ""
-                        )}`}
-                        label="WhatsApp"
-                      >
-                        <WhatsAppIcon className="size-4" />
-                      </SocialLink>
-                    )}
+                {/* Social Links - Tablet & Desktop */}
+                {hasSocialLinks && (
+                  <div className="hidden space-y-3 md:block">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">
+                      Follow Us
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {socialLinks?.facebook && (
+                        <SocialLink
+                          href={socialLinks.facebook}
+                          label="Facebook"
+                        >
+                          <Facebook className="size-4" />
+                        </SocialLink>
+                      )}
+                      {socialLinks?.instagram && (
+                        <SocialLink
+                          href={socialLinks.instagram}
+                          label="Instagram"
+                        >
+                          <Instagram className="size-4" />
+                        </SocialLink>
+                      )}
+                      {socialLinks?.twitter && (
+                        <SocialLink
+                          href={socialLinks.twitter}
+                          label="Twitter / X"
+                        >
+                          <Twitter className="size-4" />
+                        </SocialLink>
+                      )}
+                      {socialLinks?.youtube && (
+                        <SocialLink href={socialLinks.youtube} label="YouTube">
+                          <Youtube className="size-4" />
+                        </SocialLink>
+                      )}
+                      {socialLinks?.tiktok && (
+                        <SocialLink href={socialLinks.tiktok} label="TikTok">
+                          <TikTokIcon className="size-4" />
+                        </SocialLink>
+                      )}
+                      {socialLinks?.telegram && (
+                        <SocialLink
+                          href={socialLinks.telegram}
+                          label="Telegram"
+                        >
+                          <Send className="size-4" />
+                        </SocialLink>
+                      )}
+                      {socialLinks?.whatsapp && (
+                        <SocialLink
+                          href={`https://wa.me/${socialLinks.whatsapp.replace(
+                            /[^0-9]/g,
+                            ""
+                          )}`}
+                          label="WhatsApp"
+                        >
+                          <WhatsAppIcon className="size-4" />
+                        </SocialLink>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
+
+          <Separator className="my-8" />
+
+          {/* Custom columns from config */}
+          {cfg.customColumns.length > 0 && (
+            <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
+              {cfg.customColumns.map((col, i) => (
+                <div key={i} className="space-y-4">
+                  {col.title && (
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">
+                      {col.title}
+                    </h3>
+                  )}
+                  <nav className="flex flex-col gap-2.5">
+                    {col.links.map((link, j) => (
+                      <Link
+                        key={j}
+                        href={link.href || "#"}
+                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </nav>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Separator className="my-8" />
 
           {/* Bottom Bar */}
           <div className="flex flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
-            <p className="text-sm text-muted-foreground">
-              &copy; {currentYear} {store.name}. All rights reserved.
-            </p>
+            <p className="text-sm text-muted-foreground">{copyrightText}</p>
             {!hideBranding && (
               <p className="text-sm text-muted-foreground">
                 Powered by{" "}

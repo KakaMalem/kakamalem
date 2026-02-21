@@ -36,6 +36,8 @@ interface ProductCardProps {
     showStock: boolean;
     status: "draft" | "active" | "archived";
     image: { url: string; altText: string | null } | null;
+    /** Second product image for hover swap effect */
+    secondImage?: { url: string; altText: string | null } | null;
     /** Lowest variant price (for products with variants) */
     minVariantPrice?: string;
     /** Highest variant price (for products with variants) */
@@ -183,20 +185,34 @@ export function ProductCard({
 
         {/* Product image */}
         {product.image && !imageError ? (
-          <Image
-            src={product.image.url}
-            alt={product.image.altText || product.name}
-            fill
-            priority={priority}
-            className={cn(
-              "object-cover transition-all duration-500 ease-out",
-              "group-hover:scale-105",
-              imageLoaded ? "opacity-100" : "opacity-0"
+          <>
+            <Image
+              src={product.image.url}
+              alt={product.image.altText || product.name}
+              fill
+              priority={priority}
+              className={cn(
+                "object-cover transition-all duration-500 ease-out",
+                product.secondImage
+                  ? "group-hover:opacity-0"
+                  : "group-hover:scale-105",
+                imageLoaded ? "opacity-100" : "opacity-0"
+              )}
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+            />
+            {/* Second image for hover swap */}
+            {product.secondImage && (
+              <Image
+                src={product.secondImage.url}
+                alt={product.secondImage.altText || product.name}
+                fill
+                className="object-cover opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+              />
             )}
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-            onLoad={handleImageLoad}
-            onError={handleImageError}
-          />
+          </>
         ) : (
           // Placeholder for no image or error
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/30">

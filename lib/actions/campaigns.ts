@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateTag, cacheTags } from "@/lib/cache";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { saleCampaigns } from "@/lib/db/schema";
@@ -124,6 +125,7 @@ export async function createCampaignAction(
     })
     .returning({ id: saleCampaigns.id });
 
+  revalidateTag(cacheTags.campaigns(tenantId));
   revalidatePath(`/dashboard/${storeSlug}/campaigns`);
   return { success: true, data: { id: newCampaign.id } };
 }
@@ -220,6 +222,7 @@ export async function updateCampaignAction(
       )
     );
 
+  revalidateTag(cacheTags.campaigns(tenantId));
   revalidatePath(`/dashboard/${storeSlug}/campaigns`);
   revalidatePath(`/dashboard/${storeSlug}/campaigns/${campaignId}`);
   return { success: true };
@@ -253,6 +256,7 @@ export async function deleteCampaignAction(
       )
     );
 
+  revalidateTag(cacheTags.campaigns(tenantId));
   revalidatePath(`/dashboard/${storeSlug}/campaigns`);
   return { success: true };
 }
@@ -289,6 +293,7 @@ export async function toggleCampaignStatusAction(
       )
     );
 
+  revalidateTag(cacheTags.campaigns(tenantId));
   revalidatePath(`/dashboard/${storeSlug}/campaigns`);
   return { success: true };
 }
@@ -358,6 +363,7 @@ export async function duplicateCampaignAction(
     })
     .returning({ id: saleCampaigns.id });
 
+  revalidateTag(cacheTags.campaigns(tenantId));
   revalidatePath(`/dashboard/${storeSlug}/campaigns`);
   return { success: true, data: { id: newCampaign.id } };
 }

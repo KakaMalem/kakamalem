@@ -8,6 +8,8 @@ import {
   getConversionFunnel,
   getProductPerformance,
   getTrafficSources,
+  getSectionAnalytics,
+  getDateRangeFromTimeRange,
   type TimeRange,
 } from "@/lib/db/queries/analytics";
 import { EnhancedAnalyticsPageClient } from "@/components/dashboard/analytics/enhanced-analytics-page-client";
@@ -65,6 +67,9 @@ export default async function AnalyticsPage({
     timeRange = "7d"; // Fall back if custom but no dates provided
   }
 
+  // Compute date range for section analytics
+  const { current } = getDateRangeFromTimeRange(timeRange);
+
   // Fetch all analytics data in parallel
   const [
     analyticsData,
@@ -74,6 +79,7 @@ export default async function AnalyticsPage({
     funnelData,
     productTableResult,
     trafficData,
+    sectionData,
   ] = await Promise.all([
     getAnalyticsData(store.id, timeRange),
     getEnhancedKPIs(store.id, timeRange),
@@ -82,6 +88,12 @@ export default async function AnalyticsPage({
     getConversionFunnel(store.id, timeRange),
     getProductPerformance(store.id, timeRange, { page: 1, pageSize: 10 }),
     getTrafficSources(store.id, timeRange),
+    getSectionAnalytics(
+      store.id,
+      "homepage",
+      current.start.toISOString(),
+      current.end.toISOString()
+    ),
   ]);
 
   return (
@@ -96,6 +108,7 @@ export default async function AnalyticsPage({
       funnelData={funnelData}
       productTableData={productTableResult.data}
       trafficData={trafficData}
+      sectionData={sectionData}
     />
   );
 }
