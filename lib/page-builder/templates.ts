@@ -9,10 +9,11 @@ export interface PageTemplate {
   name: string;
   description: string;
   category: string;
+  previewColor?: string; // accent color shown in the template card
   data: PuckPageData;
 }
 
-// Shared header/footer sections for all templates
+// Shared header/footer sections — every template uses these
 const headerSection = {
   type: "StoreHeader",
   props: { id: "store-header", config: defaultHeaderConfig },
@@ -22,799 +23,699 @@ const footerSection = {
   props: { id: "store-footer", config: defaultFooterConfig },
 };
 
-/**
- * Code-defined page templates. No DB table needed.
- * Each template is a complete PuckPageData snapshot.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. MODERN MINIMAL
+//    Clean, image-focused layout for boutique / fashion stores.
+//    Lets the product photography do the talking.
+// ─────────────────────────────────────────────────────────────────────────────
+const modernMinimal: PageTemplate = {
+  id: "modern-minimal",
+  name: "Modern Minimal",
+  description:
+    "Clean, image-focused layout. One bold hero, a product grid, and nothing in the way.",
+  category: "General",
+  previewColor: "#0f172a",
+  data: {
+    root: { props: {} },
+    content: [
+      headerSection,
+      // Announcement bar — free shipping nudge
+      {
+        type: "AnnouncementBar",
+        props: {
+          id: "tpl-mm-bar",
+          text: "Free delivery on orders over ؋2,000 — Shop now",
+          linkText: "Browse",
+          linkUrl: "/products",
+          backgroundColor: "#0f172a",
+          textColor: "#ffffff",
+          dismissible: true,
+          icon: "none",
+        },
+      },
+      // Full-screen hero
+      {
+        type: "HeroBanner",
+        props: {
+          id: "tpl-mm-hero",
+          imageUrl: "",
+          mobileImageUrl: "",
+          imageAlt: "Welcome to our store",
+          title: "New Collection",
+          subtitle: "Handpicked quality — delivered to your door in Afghanistan",
+          headingSize: "2xl",
+          ctaButtons: [
+            { text: "Shop Now", href: "/products", style: "primary" },
+            { text: "Browse Categories", href: "/categories", style: "outline" },
+          ],
+          overlayOpacity: 50,
+          textAlignment: "center",
+          contentPosition: "center",
+          minHeight: "large",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-mm-sp1", height: "lg" },
+      },
+      // Product grid — newest arrivals
+      {
+        type: "ProductGrid",
+        props: {
+          id: "tpl-mm-grid",
+          title: "New Arrivals",
+          source: "newest",
+          productIds: [],
+          categoryId: "",
+          limit: 8,
+          columns: 4,
+          showViewAll: true,
+          cardStyle: "standard",
+          imageAspectRatio: "square",
+          showPrice: true,
+          showBadge: true,
+          cardBorderRadius: "md",
+          cardShadow: "sm",
+          hoverEffect: "lift",
+          textAlign: "left",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-mm-sp2", height: "xl" },
+      },
+      // Marquee — brand values strip
+      {
+        type: "MarqueeBar",
+        props: {
+          id: "tpl-mm-marquee",
+          items: [
+            { text: "Free Delivery", icon: "truck" },
+            { text: "Secure Payment", icon: "shield" },
+            { text: "Easy Returns", icon: "refresh" },
+            { text: "Afghan Made", icon: "star" },
+            { text: "Cash on Delivery", icon: "check" },
+          ],
+          speed: "slow",
+          direction: "left",
+          backgroundColor: "#f8fafc",
+          textColor: "#0f172a",
+          pauseOnHover: true,
+          fontSize: "sm",
+          separator: "dot",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-mm-sp3", height: "lg" },
+      },
+      footerSection,
+    ],
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. BAZAAR STYLE
+//    Vibrant, category-heavy, sale-forward layout. Designed for busy general
+//    merchants who carry many product lines — the Afghan bazaar aesthetic.
+// ─────────────────────────────────────────────────────────────────────────────
+const bazaarStyle: PageTemplate = {
+  id: "bazaar-style",
+  name: "Bazaar Style",
+  description:
+    "Vibrant and category-heavy. Perfect for merchants with many product lines and regular sales.",
+  category: "Commerce",
+  previewColor: "#dc2626",
+  data: {
+    root: { props: {} },
+    content: [
+      headerSection,
+      // Red sale announcement bar
+      {
+        type: "AnnouncementBar",
+        props: {
+          id: "tpl-bz-bar",
+          text: "🎉 Eid Sale — Up to 40% off selected items",
+          linkText: "See Deals",
+          linkUrl: "/products",
+          backgroundColor: "#dc2626",
+          textColor: "#ffffff",
+          dismissible: false,
+          icon: "none",
+        },
+      },
+      // Hero with overlay content
+      {
+        type: "HeroBanner",
+        props: {
+          id: "tpl-bz-hero",
+          imageUrl: "",
+          mobileImageUrl: "",
+          imageAlt: "Shop our biggest sale",
+          title: "Everything You Need",
+          subtitle:
+            "Thousands of products. Afghan prices. Delivered to your door.",
+          headingSize: "xl",
+          ctaButtons: [
+            { text: "Shop Sale", href: "/products", style: "primary" },
+          ],
+          overlayOpacity: 45,
+          textAlignment: "left",
+          contentPosition: "left",
+          minHeight: "medium",
+        },
+      },
+      // Featured categories
+      {
+        type: "FeaturedCategories",
+        props: {
+          id: "tpl-bz-cats",
+          title: "Shop by Category",
+          categoryIds: [],
+          layout: "grid",
+          columns: 4,
+          showProductCount: true,
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-bz-sp1", height: "sm" },
+      },
+      // Newest arrivals carousel
+      {
+        type: "ProductCarousel",
+        props: {
+          id: "tpl-bz-carousel",
+          heading: "Just Arrived",
+          subtitle: "Fresh stock",
+          source: "newest",
+          productIds: [],
+          categoryId: "",
+          limit: 10,
+          showViewAll: true,
+          viewAllUrl: "/products",
+          slidesPerView: "4",
+          showArrows: true,
+          cardStyle: "standard",
+          backgroundColor: "",
+          textColor: "dark",
+        },
+      },
+      // Sale banner strip — bento grid for promotions
+      {
+        type: "ContentCards",
+        props: {
+          id: "tpl-bz-promo",
+          heading: "Special Offers",
+          cards: [
+            {
+              id: "card-1",
+              imageUrl: "",
+              title: "Clothing & Fashion",
+              subtitle: "Up to 30% off",
+              linkUrl: "/categories",
+              linkText: "Shop Now",
+            },
+            {
+              id: "card-2",
+              imageUrl: "",
+              title: "Electronics",
+              subtitle: "New arrivals weekly",
+              linkUrl: "/categories",
+              linkText: "Explore",
+            },
+            {
+              id: "card-3",
+              imageUrl: "",
+              title: "Home & Kitchen",
+              subtitle: "Afghan craftsmanship",
+              linkUrl: "/categories",
+              linkText: "Browse",
+            },
+          ],
+          layout: "grid",
+          columns: "3",
+          gap: "md",
+          cardStyle: "overlay-bottom",
+          overlayGradient: true,
+          backgroundColor: "",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-bz-sp2", height: "md" },
+      },
+      // On sale products grid
+      {
+        type: "ProductGrid",
+        props: {
+          id: "tpl-bz-sale",
+          title: "On Sale Now",
+          source: "on_sale",
+          productIds: [],
+          categoryId: "",
+          limit: 8,
+          columns: 4,
+          showViewAll: true,
+          cardStyle: "standard",
+          imageAspectRatio: "square",
+          showPrice: true,
+          showBadge: true,
+          cardBorderRadius: "md",
+          cardShadow: "sm",
+          hoverEffect: "lift",
+          textAlign: "left",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-bz-sp3", height: "md" },
+      },
+      // Trust strip
+      {
+        type: "MarqueeBar",
+        props: {
+          id: "tpl-bz-marquee",
+          items: [
+            { text: "Cash on Delivery", icon: "check" },
+            { text: "Fast Kabul Delivery", icon: "truck" },
+            { text: "Nationwide Shipping", icon: "truck" },
+            { text: "Secure Payments", icon: "shield" },
+            { text: "Easy Returns", icon: "refresh" },
+            { text: "Verified Sellers", icon: "star" },
+          ],
+          speed: "normal",
+          direction: "left",
+          backgroundColor: "#0f172a",
+          textColor: "#ffffff",
+          pauseOnHover: false,
+          fontSize: "sm",
+          separator: "dot",
+        },
+      },
+      footerSection,
+    ],
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. SINGLE PRODUCT
+//    One flagship product as the entire store experience.
+//    Spotlight, testimonials, and a clear call-to-action.
+// ─────────────────────────────────────────────────────────────────────────────
+const singleProduct: PageTemplate = {
+  id: "single-product",
+  name: "Single Product",
+  description:
+    "Put one product front and centre. Hero, spotlight, testimonials — built to convert.",
+  category: "Commerce",
+  previewColor: "#7c3aed",
+  data: {
+    root: { props: {} },
+    content: [
+      headerSection,
+      // Hero specifically for the product
+      {
+        type: "HeroBanner",
+        props: {
+          id: "tpl-sp-hero",
+          imageUrl: "",
+          mobileImageUrl: "",
+          imageAlt: "Product hero",
+          title: "The Only One You Need",
+          subtitle:
+            "Premium quality. Authentic Afghan craftsmanship. Limited stock available.",
+          headingSize: "2xl",
+          ctaButtons: [
+            { text: "Order Now", href: "/products", style: "primary" },
+            { text: "Learn More", href: "#details", style: "outline" },
+          ],
+          overlayOpacity: 55,
+          textAlignment: "center",
+          contentPosition: "center",
+          minHeight: "large",
+        },
+      },
+      // Product spotlight — the star of the show
+      {
+        type: "ProductSpotlight",
+        props: {
+          id: "tpl-sp-spot",
+          productId: "",
+          layout: "image_left",
+          showDescription: true,
+          showPrice: true,
+          ctaText: "Add to Cart",
+          backgroundColor: "",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-sp-sp1", height: "md" },
+      },
+      // About / details rich text
+      {
+        type: "RichText",
+        props: {
+          id: "tpl-sp-about",
+          content: `<h2>Why Our Customers Love It</h2>
+<p>We started with one simple idea: create something Afghans can be proud of. No shortcuts. No compromise on quality. Just honest craftsmanship at a fair price.</p>
+<p>Every order is carefully packed and delivered with care — whether you're in Kabul, Herat, Mazar, or anywhere across Afghanistan.</p>`,
+          maxWidth: "medium",
+          padding: "large",
+        },
+      },
+      // Social proof — testimonials
+      {
+        type: "Testimonials",
+        props: {
+          id: "tpl-sp-reviews",
+          title: "What Customers Say",
+          subtitle: "Honest reviews from real buyers",
+          testimonials: [
+            {
+              id: "t1",
+              authorName: "Ahmad Karimi",
+              authorRole: "Verified Buyer — Kabul",
+              authorImageUrl: "",
+              quote:
+                "Best quality I've found in Afghanistan. Delivered in 2 days and exactly as described. Will definitely order again.",
+              rating: 5,
+            },
+            {
+              id: "t2",
+              authorName: "Fatima Noori",
+              authorRole: "Verified Buyer — Herat",
+              authorImageUrl: "",
+              quote:
+                "Finally a store that keeps its promises. The product is even better in person. Highly recommended.",
+              rating: 5,
+            },
+            {
+              id: "t3",
+              authorName: "Khalid Ahmadzai",
+              authorRole: "Verified Buyer — Kandahar",
+              authorImageUrl: "",
+              quote:
+                "Ordered cash on delivery. No problems at all. Fast, easy, and exactly what I wanted.",
+              rating: 5,
+            },
+          ],
+          layout: "grid",
+          columns: 3,
+          showRating: true,
+          backgroundColor: "#f8fafc",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-sp-sp2", height: "md" },
+      },
+      footerSection,
+    ],
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. SERVICE BUSINESS
+//    For stores that sell services rather than physical products.
+//    About section, services showcase, testimonials, and contact.
+// ─────────────────────────────────────────────────────────────────────────────
+const serviceBusiness: PageTemplate = {
+  id: "service-business",
+  name: "Service Business",
+  description:
+    "For service providers: about section, service cards, testimonials, and contact info.",
+  category: "Services",
+  previewColor: "#0891b2",
+  data: {
+    root: { props: {} },
+    content: [
+      headerSection,
+      // Hero
+      {
+        type: "HeroBanner",
+        props: {
+          id: "tpl-svc-hero",
+          imageUrl: "",
+          mobileImageUrl: "",
+          imageAlt: "Our services",
+          title: "We're Here to Help",
+          subtitle:
+            "Professional services trusted by hundreds of customers across Afghanistan.",
+          headingSize: "xl",
+          ctaButtons: [
+            { text: "Get in Touch", href: "#contact", style: "primary" },
+            { text: "Our Services", href: "#services", style: "secondary" },
+          ],
+          overlayOpacity: 50,
+          textAlignment: "center",
+          contentPosition: "center",
+          minHeight: "medium",
+        },
+      },
+      // About us
+      {
+        type: "RichText",
+        props: {
+          id: "tpl-svc-about",
+          content: `<h2>About Us</h2>
+<p>We are a team of dedicated professionals committed to delivering quality services to our Afghan community. From Kabul to the provinces, we've been serving customers for years with honesty and integrity.</p>
+<p>Our mission is simple: make quality services accessible and affordable for every Afghan.</p>`,
+          maxWidth: "medium",
+          padding: "large",
+        },
+      },
+      // Service cards
+      {
+        type: "ContentCards",
+        props: {
+          id: "tpl-svc-cards",
+          heading: "Our Services",
+          cards: [
+            {
+              id: "svc-1",
+              imageUrl: "",
+              title: "Consultation",
+              subtitle: "Expert advice tailored to your needs",
+              linkUrl: "/contact",
+              linkText: "Book Now",
+            },
+            {
+              id: "svc-2",
+              imageUrl: "",
+              title: "Installation",
+              subtitle: "Professional setup at your location",
+              linkUrl: "/contact",
+              linkText: "Get Quote",
+            },
+            {
+              id: "svc-3",
+              imageUrl: "",
+              title: "Support",
+              subtitle: "After-sale assistance when you need it",
+              linkUrl: "/contact",
+              linkText: "Contact Us",
+            },
+          ],
+          layout: "grid",
+          columns: "3",
+          gap: "md",
+          cardStyle: "overlay-bottom",
+          overlayGradient: true,
+          backgroundColor: "",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-svc-sp1", height: "md" },
+      },
+      // Testimonials
+      {
+        type: "Testimonials",
+        props: {
+          id: "tpl-svc-reviews",
+          title: "Client Feedback",
+          subtitle: "",
+          testimonials: [
+            {
+              id: "r1",
+              authorName: "Mohammad Hassan",
+              authorRole: "Business Owner — Kabul",
+              authorImageUrl: "",
+              quote:
+                "Professional, fast, and fair pricing. These guys know what they're doing and actually deliver on their promises.",
+              rating: 5,
+            },
+            {
+              id: "r2",
+              authorName: "Zainab Sultani",
+              authorRole: "Customer — Mazar-e-Sharif",
+              authorImageUrl: "",
+              quote:
+                "I was skeptical at first but they exceeded my expectations. The work was clean and done on time.",
+              rating: 5,
+            },
+          ],
+          layout: "grid",
+          columns: 2,
+          showRating: true,
+          backgroundColor: "",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-svc-sp2", height: "md" },
+      },
+      // Contact info
+      {
+        type: "RichText",
+        props: {
+          id: "tpl-svc-contact",
+          content: `<h2>Contact Us</h2>
+<p>Ready to work with us? Reach out and we'll get back to you within a few hours.</p>
+<p>📞 <strong>Call / WhatsApp:</strong> +93 700 000 000<br>
+📍 <strong>Location:</strong> Kabul, Afghanistan<br>
+🕐 <strong>Hours:</strong> 8:00 AM – 8:00 PM, Saturday to Thursday</p>
+<p>We also accept orders via WhatsApp and phone call.</p>`,
+          maxWidth: "medium",
+          padding: "large",
+        },
+      },
+      footerSection,
+    ],
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. CATALOG ONLY
+//    No-cart product showcase. Built for stores that take orders via
+//    WhatsApp / phone. Emphasises browsing and contact over checkout.
+// ─────────────────────────────────────────────────────────────────────────────
+const catalogOnly: PageTemplate = {
+  id: "catalog-only",
+  name: "Catalog Only",
+  description:
+    "Product showcase without a checkout flow. Ideal for WhatsApp / phone order businesses.",
+  category: "Catalog",
+  previewColor: "#059669",
+  data: {
+    root: { props: {} },
+    content: [
+      headerSection,
+      // Contact announcement at the top
+      {
+        type: "AnnouncementBar",
+        props: {
+          id: "tpl-cat-bar",
+          text: "To order, call or WhatsApp us on +93 700 000 000",
+          linkText: "WhatsApp",
+          linkUrl: "https://wa.me/93700000000",
+          backgroundColor: "#059669",
+          textColor: "#ffffff",
+          dismissible: false,
+          icon: "none",
+        },
+      },
+      // Minimal hero
+      {
+        type: "HeroBanner",
+        props: {
+          id: "tpl-cat-hero",
+          imageUrl: "",
+          mobileImageUrl: "",
+          imageAlt: "Browse our catalog",
+          title: "Browse Our Collection",
+          subtitle:
+            "See what we have in stock. Call or WhatsApp to place your order.",
+          headingSize: "xl",
+          ctaButtons: [
+            { text: "View All Products", href: "/products", style: "primary" },
+          ],
+          overlayOpacity: 40,
+          textAlignment: "center",
+          contentPosition: "center",
+          minHeight: "medium",
+        },
+      },
+      // Category grid — navigate by type
+      {
+        type: "FeaturedCategories",
+        props: {
+          id: "tpl-cat-cats",
+          title: "Browse by Category",
+          categoryIds: [],
+          layout: "grid",
+          columns: 3,
+          showProductCount: true,
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-cat-sp1", height: "md" },
+      },
+      // Full product catalog grid — show everything
+      {
+        type: "ProductGrid",
+        props: {
+          id: "tpl-cat-grid",
+          title: "All Products",
+          source: "all",
+          productIds: [],
+          categoryId: "",
+          limit: 16,
+          columns: 4,
+          showViewAll: false,
+          cardStyle: "standard",
+          imageAspectRatio: "square",
+          showPrice: true,
+          showBadge: false,
+          cardBorderRadius: "md",
+          cardShadow: "none",
+          hoverEffect: "scale",
+          textAlign: "left",
+        },
+      },
+      {
+        type: "Spacer",
+        props: { id: "tpl-cat-sp2", height: "md" },
+      },
+      // How to order info
+      {
+        type: "RichText",
+        props: {
+          id: "tpl-cat-howto",
+          content: `<h2>How to Order</h2>
+<p>Ordering is simple:</p>
+<ol>
+  <li>Browse the catalog above and find what you want</li>
+  <li>Note down the product name or screenshot it</li>
+  <li>Call or WhatsApp us on <strong>+93 700 000 000</strong></li>
+  <li>We confirm availability and delivery details</li>
+  <li>Pay cash on delivery — no online payment needed</li>
+</ol>
+<p>We deliver across Kabul and to most provinces. Delivery typically takes 1–3 days.</p>`,
+          maxWidth: "medium",
+          padding: "large",
+        },
+      },
+      footerSection,
+    ],
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exported registry
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const pageTemplates: PageTemplate[] = [
-  {
-    id: "product-launch",
-    name: "Product Launch",
-    description: "Hero banner, newest products grid, and featured categories",
-    category: "Commerce",
-    data: {
-      root: { props: {} },
-      content: [
-        headerSection,
-        {
-          type: "HeroBanner",
-          props: {
-            id: "tpl-hero-1",
-            imageUrl: "",
-            imageAlt: "",
-            title: "New Collection",
-            subtitle: "Discover our latest arrivals",
-            ctaText: "Shop Now",
-            ctaLink: "/products",
-            overlayOpacity: 40,
-            textAlignment: "center",
-            minHeight: "large",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-spacer-1", height: "md" },
-        },
-        {
-          type: "ProductGrid",
-          props: {
-            id: "tpl-products-1",
-            title: "New Arrivals",
-            source: "newest",
-            productIds: [],
-            categoryId: "",
-            limit: 8,
-            columns: 4,
-            showViewAll: true,
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-spacer-2", height: "md" },
-        },
-        {
-          type: "FeaturedCategories",
-          props: {
-            id: "tpl-cats-1",
-            title: "Shop by Category",
-            categoryIds: [],
-            layout: "grid",
-            columns: 3,
-            showProductCount: true,
-          },
-        },
-        footerSection,
-      ],
-    },
-  },
-  {
-    id: "sale-event",
-    name: "Sale Event",
-    description: "Announcement bar, bold hero, and on-sale products grid",
-    category: "Promotions",
-    data: {
-      root: { props: {} },
-      content: [
-        headerSection,
-        {
-          type: "AnnouncementBar",
-          props: {
-            id: "tpl-ann-1",
-            text: "Limited time offer! Up to 50% off everything",
-            linkText: "Shop the sale",
-            linkUrl: "/products",
-            backgroundColor: "#dc2626",
-            textColor: "#ffffff",
-            dismissible: true,
-            icon: "tag",
-          },
-        },
-        {
-          type: "HeroBanner",
-          props: {
-            id: "tpl-hero-2",
-            imageUrl: "",
-            imageAlt: "",
-            title: "Big Sale Event",
-            subtitle: "Don't miss out on our biggest discounts of the year",
-            ctaText: "Browse Deals",
-            ctaLink: "/products",
-            overlayOpacity: 50,
-            textAlignment: "center",
-            minHeight: "medium",
-          },
-        },
-        {
-          type: "ProductGrid",
-          props: {
-            id: "tpl-products-2",
-            title: "On Sale Now",
-            source: "on_sale",
-            productIds: [],
-            categoryId: "",
-            limit: 12,
-            columns: 4,
-            showViewAll: true,
-          },
-        },
-        footerSection,
-      ],
-    },
-  },
-  {
-    id: "brand-story",
-    name: "Brand Story",
-    description:
-      "Hero, rich text about your brand, image gallery, and testimonials",
-    category: "Branding",
-    data: {
-      root: { props: {} },
-      content: [
-        headerSection,
-        {
-          type: "HeroBanner",
-          props: {
-            id: "tpl-hero-3",
-            imageUrl: "",
-            imageAlt: "",
-            title: "Our Story",
-            subtitle: "Crafted with care, delivered with love",
-            ctaText: "Learn More",
-            ctaLink: "#about",
-            overlayOpacity: 30,
-            textAlignment: "center",
-            minHeight: "large",
-          },
-        },
-        {
-          type: "RichText",
-          props: {
-            id: "tpl-text-1",
-            content:
-              "<h2>About Us</h2><p>We believe in quality and craftsmanship. Every product we offer is carefully curated to bring you the best. Our journey started with a simple idea: make great products accessible to everyone.</p>",
-            maxWidth: "medium",
-            padding: "large",
-          },
-        },
-        {
-          type: "ImageGallery",
-          props: {
-            id: "tpl-gallery-1",
-            title: "Behind the Scenes",
-            images: [],
-            layout: "grid",
-            columns: 3,
-            gap: "md",
-            aspectRatio: "landscape",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-spacer-3", height: "lg" },
-        },
-        {
-          type: "Testimonials",
-          props: {
-            id: "tpl-testimonials-1",
-            title: "What Our Customers Say",
-            subtitle: "",
-            testimonials: [
-              {
-                quote:
-                  "Amazing quality and fast delivery. Will definitely order again!",
-                authorName: "Happy Customer",
-                authorRole: "Verified Buyer",
-                authorImageUrl: "",
-                rating: 5,
-              },
-              {
-                quote:
-                  "The best shopping experience I've had. Great customer service too.",
-                authorName: "Satisfied Shopper",
-                authorRole: "Loyal Customer",
-                authorImageUrl: "",
-                rating: 5,
-              },
-              {
-                quote:
-                  "High quality products at fair prices. Highly recommended!",
-                authorName: "Product Fan",
-                authorRole: "Repeat Buyer",
-                authorImageUrl: "",
-                rating: 4,
-              },
-            ],
-            layout: "grid",
-            columns: 3,
-            showRating: true,
-            backgroundColor: "",
-          },
-        },
-        footerSection,
-      ],
-    },
-  },
-  {
-    id: "minimal-catalog",
-    name: "Minimal Catalog",
-    description: "Clean product grid with categories — no hero banner",
-    category: "Commerce",
-    data: {
-      root: { props: {} },
-      content: [
-        headerSection,
-        {
-          type: "Spacer",
-          props: { id: "tpl-spacer-4", height: "sm" },
-        },
-        {
-          type: "ProductGrid",
-          props: {
-            id: "tpl-products-3",
-            title: "All Products",
-            source: "all",
-            productIds: [],
-            categoryId: "",
-            limit: 12,
-            columns: 4,
-            showViewAll: false,
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-spacer-5", height: "lg" },
-        },
-        {
-          type: "FeaturedCategories",
-          props: {
-            id: "tpl-cats-2",
-            title: "Categories",
-            categoryIds: [],
-            layout: "scroll",
-            columns: 4,
-            showProductCount: true,
-          },
-        },
-        footerSection,
-      ],
-    },
-  },
-  {
-    id: "classic-store",
-    name: "Classic Store",
-    description:
-      "The default store look — product grid with standard header and footer. No custom sections needed.",
-    category: "Commerce",
-    data: {
-      root: { props: {} },
-      content: [headerSection, footerSection],
-    },
-  },
-  {
-    id: "gymshark-style",
-    name: "GymShark Style",
-    description:
-      "Enterprise-level layout with marquee bar, video hero, product carousels, tabbed collections, and content cards",
-    category: "Enterprise",
-    data: {
-      root: { props: {} },
-      content: [
-        headerSection,
-        {
-          type: "MarqueeBar",
-          props: {
-            id: "tpl-marquee-1",
-            items: [
-              { text: "Free Delivery Over 2000 AFN", icon: "truck", href: "" },
-              { text: "60 Day Returns", icon: "refresh", href: "" },
-              { text: "1-2 Day Delivery", icon: "clock", href: "" },
-              { text: "Secure Payments", icon: "shield", href: "" },
-            ],
-            speed: "normal",
-            direction: "left",
-            backgroundColor: "#000000",
-            textColor: "#ffffff",
-            pauseOnHover: true,
-            fontSize: "sm",
-            separator: "dot",
-          },
-        },
-        {
-          type: "VideoHero",
-          props: {
-            id: "tpl-video-hero-1",
-            mediaType: "image",
-            imageUrl: "",
-            mobileImageUrl: "",
-            videoUrl: "",
-            mobileVideoUrl: "",
-            videoPosterUrl: "",
-            mobileVideoPosterUrl: "",
-            autoplay: true,
-            loop: true,
-            muted: true,
-            overlayOpacity: 30,
-            overlayColor: "#000000",
-            heading: "NEW COLLECTION",
-            subheading: "Discover the latest styles",
-            headingSize: "2xl",
-            textAlign: "center",
-            textColor: "light",
-            overlayImageUrl: "",
-            ctaButtons: [
-              { text: "Shop Now", href: "/products", style: "primary" },
-              { text: "Learn More", href: "#about", style: "outline" },
-            ],
-            height: "lg",
-            contentPosition: "center",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-gs-spacer-1", height: "md" },
-        },
-        {
-          type: "ProductCarousel",
-          props: {
-            id: "tpl-carousel-1",
-            heading: "New Arrivals",
-            subtitle: "Just dropped",
-            source: "newest",
-            productIds: [],
-            categoryId: "",
-            limit: 12,
-            showViewAll: true,
-            viewAllUrl: "/products",
-            slidesPerView: "4",
-            showArrows: true,
-            cardStyle: "standard",
-            backgroundColor: "",
-            textColor: "dark",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-gs-spacer-2", height: "md" },
-        },
-        {
-          type: "HeroBanner",
-          props: {
-            id: "tpl-gs-banner-2",
-            imageUrl: "",
-            mobileImageUrl: "",
-            imageAlt: "",
-            title: "Best Sellers",
-            subtitle: "Our most popular products",
-            headingSize: "xl",
-            ctaText: "",
-            ctaLink: "",
-            ctaButtons: [
-              {
-                text: "Shop Best Sellers",
-                href: "/products",
-                style: "primary",
-              },
-            ],
-            overlayOpacity: 40,
-            textAlignment: "center",
-            contentPosition: "center",
-            minHeight: "medium",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-gs-spacer-3", height: "md" },
-        },
-        {
-          type: "ProductCarousel",
-          props: {
-            id: "tpl-carousel-2",
-            heading: "Best Sellers",
-            subtitle: "Top picks",
-            source: "all",
-            productIds: [],
-            categoryId: "",
-            limit: 12,
-            showViewAll: true,
-            viewAllUrl: "/products",
-            slidesPerView: "4",
-            showArrows: true,
-            cardStyle: "standard",
-            backgroundColor: "",
-            textColor: "dark",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-gs-spacer-4", height: "md" },
-        },
-        {
-          type: "CollectionTabs",
-          props: {
-            id: "tpl-tabs-1",
-            heading: "POPULAR RIGHT NOW",
-            tabs: [
-              {
-                label: "Women",
-                cards: [
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Tops",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Bottoms",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Accessories",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Shoes",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                ],
-              },
-              {
-                label: "Men",
-                cards: [
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Tops",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Bottoms",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Accessories",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Shoes",
-                    subtitle: "",
-                    href: "/products",
-                    aspectRatio: "4/5",
-                  },
-                ],
-              },
-            ],
-            layout: "grid",
-            columns: "4",
-            cardStyle: "overlay",
-            gap: "md",
-            backgroundColor: "",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-gs-spacer-5", height: "md" },
-        },
-        {
-          type: "ContentCards",
-          props: {
-            id: "tpl-content-cards-1",
-            heading: "Shop by Category",
-            cards: [
-              {
-                imageUrl: "",
-                mobileImageUrl: "",
-                title: "Women",
-                subtitle: "New season styles",
-                href: "/products",
-                ctaText: "Shop Women",
-                aspectRatio: "4/5",
-              },
-              {
-                imageUrl: "",
-                mobileImageUrl: "",
-                title: "Men",
-                subtitle: "Latest collection",
-                href: "/products",
-                ctaText: "Shop Men",
-                aspectRatio: "4/5",
-              },
-              {
-                imageUrl: "",
-                mobileImageUrl: "",
-                title: "Accessories",
-                subtitle: "Complete the look",
-                href: "/products",
-                ctaText: "Shop Now",
-                aspectRatio: "4/5",
-              },
-            ],
-            layout: "grid",
-            columns: "3",
-            gap: "md",
-            cardStyle: "overlay-bottom",
-            overlayGradient: true,
-            backgroundColor: "",
-          },
-        },
-        footerSection,
-      ],
-    },
-  },
-  {
-    id: "fashion-brand",
-    name: "Fashion Brand",
-    description:
-      "Elegant layout with announcement bar, hero image, product carousels, content cards, and tabbed collections",
-    category: "Enterprise",
-    data: {
-      root: { props: {} },
-      content: [
-        headerSection,
-        {
-          type: "AnnouncementBar",
-          props: {
-            id: "tpl-fb-ann-1",
-            text: "Season Sale — Up to 40% off selected items",
-            linkText: "Shop the sale",
-            linkUrl: "/products",
-            backgroundColor: "#18181b",
-            textColor: "#ffffff",
-            dismissible: true,
-            icon: "sparkles",
-          },
-        },
-        {
-          type: "HeroBanner",
-          props: {
-            id: "tpl-fb-hero-1",
-            imageUrl: "",
-            mobileImageUrl: "",
-            imageAlt: "",
-            title: "The New Edit",
-            subtitle: "Curated styles for every occasion",
-            headingSize: "2xl",
-            ctaText: "",
-            ctaLink: "",
-            ctaButtons: [
-              { text: "Shop Collection", href: "/products", style: "primary" },
-              { text: "View Lookbook", href: "#lookbook", style: "outline" },
-            ],
-            overlayOpacity: 35,
-            textAlignment: "center",
-            contentPosition: "bottom-center",
-            minHeight: "large",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-fb-spacer-1", height: "md" },
-        },
-        {
-          type: "ProductCarousel",
-          props: {
-            id: "tpl-fb-carousel-1",
-            heading: "Featured Collection",
-            subtitle: "Handpicked favorites",
-            source: "newest",
-            productIds: [],
-            categoryId: "",
-            limit: 10,
-            showViewAll: true,
-            viewAllUrl: "/products",
-            slidesPerView: "4",
-            showArrows: true,
-            cardStyle: "standard",
-            backgroundColor: "",
-            textColor: "dark",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-fb-spacer-2", height: "md" },
-        },
-        {
-          type: "ContentCards",
-          props: {
-            id: "tpl-fb-content-1",
-            heading: "",
-            cards: [
-              {
-                imageUrl: "",
-                mobileImageUrl: "",
-                title: "Shop Women",
-                subtitle: "New season arrivals",
-                href: "/products",
-                ctaText: "Explore",
-                aspectRatio: "3/4",
-              },
-              {
-                imageUrl: "",
-                mobileImageUrl: "",
-                title: "Shop Men",
-                subtitle: "Modern essentials",
-                href: "/products",
-                ctaText: "Explore",
-                aspectRatio: "3/4",
-              },
-              {
-                imageUrl: "",
-                mobileImageUrl: "",
-                title: "Accessories",
-                subtitle: "Finishing touches",
-                href: "/products",
-                ctaText: "Explore",
-                aspectRatio: "3/4",
-              },
-            ],
-            layout: "grid",
-            columns: "3",
-            gap: "sm",
-            cardStyle: "overlay-center",
-            overlayGradient: true,
-            backgroundColor: "",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-fb-spacer-3", height: "md" },
-        },
-        {
-          type: "ProductCarousel",
-          props: {
-            id: "tpl-fb-carousel-2",
-            heading: "On Sale",
-            subtitle: "Limited time offers",
-            source: "on_sale",
-            productIds: [],
-            categoryId: "",
-            limit: 10,
-            showViewAll: true,
-            viewAllUrl: "/products",
-            slidesPerView: "4",
-            showArrows: true,
-            cardStyle: "standard",
-            backgroundColor: "",
-            textColor: "dark",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-fb-spacer-4", height: "md" },
-        },
-        {
-          type: "CollectionTabs",
-          props: {
-            id: "tpl-fb-tabs-1",
-            heading: "HOW TO STYLE",
-            tabs: [
-              {
-                label: "Casual",
-                cards: [
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Weekend Vibes",
-                    subtitle: "Easy, relaxed looks",
-                    href: "/products",
-                    aspectRatio: "1/1",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Street Style",
-                    subtitle: "Urban edge",
-                    href: "/products",
-                    aspectRatio: "1/1",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Loungewear",
-                    subtitle: "Stay comfortable",
-                    href: "/products",
-                    aspectRatio: "1/1",
-                  },
-                ],
-              },
-              {
-                label: "Formal",
-                cards: [
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Office Ready",
-                    subtitle: "Professional looks",
-                    href: "/products",
-                    aspectRatio: "1/1",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Evening Wear",
-                    subtitle: "Dress to impress",
-                    href: "/products",
-                    aspectRatio: "1/1",
-                  },
-                  {
-                    imageUrl: "",
-                    mobileImageUrl: "",
-                    title: "Occasion Wear",
-                    subtitle: "For special moments",
-                    href: "/products",
-                    aspectRatio: "1/1",
-                  },
-                ],
-              },
-            ],
-            layout: "grid",
-            columns: "3",
-            cardStyle: "overlay",
-            gap: "md",
-            backgroundColor: "",
-          },
-        },
-        {
-          type: "Spacer",
-          props: { id: "tpl-fb-spacer-5", height: "md" },
-        },
-        {
-          type: "Testimonials",
-          props: {
-            id: "tpl-fb-testimonials-1",
-            title: "What Our Customers Say",
-            subtitle: "",
-            testimonials: [
-              {
-                quote:
-                  "Beautiful quality and the packaging was gorgeous. My new favorite store!",
-                authorName: "Sarah K.",
-                authorRole: "Verified Buyer",
-                authorImageUrl: "",
-                rating: 5,
-              },
-              {
-                quote:
-                  "Fast delivery and exactly as pictured. Will definitely order again.",
-                authorName: "Ahmed R.",
-                authorRole: "Repeat Customer",
-                authorImageUrl: "",
-                rating: 5,
-              },
-            ],
-            layout: "grid",
-            columns: 2,
-            showRating: true,
-            backgroundColor: "",
-          },
-        },
-        footerSection,
-      ],
-    },
-  },
+  modernMinimal,
+  bazaarStyle,
+  singleProduct,
+  serviceBusiness,
+  catalogOnly,
 ];
+
+export function getTemplateById(id: string): PageTemplate | undefined {
+  return pageTemplates.find((t) => t.id === id);
+}
