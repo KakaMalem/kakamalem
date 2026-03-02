@@ -39,7 +39,7 @@ export class HesabPayClient implements PaymentGatewayProvider {
   readonly displayName = "HesabPay";
 
   private getBaseUrl(): string {
-    return HESABPAY_API.SANDBOX_URL;
+    return HESABPAY_API.PRODUCTION_URL;
   }
 
   /**
