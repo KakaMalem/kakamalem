@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { tenants, tenantMembers } from "@/lib/db/schema";
 import { eq, or, inArray, and, isNotNull } from "drizzle-orm";
+import { getPlatformSettings } from "@/lib/db/queries/admin";
 
 export async function getTenantByOwnerId(ownerId: string) {
   const tenant = await db.query.tenants.findFirst({
@@ -162,6 +163,15 @@ export async function createTenant(data: {
     // "full" mode keeps all channels enabled
   }
 
+  // Calculate trial dates
+  const platformSettings = await getPlatformSettings();
+  const trialDurationDays = platformSettings?.trialDurationDays ?? 7;
+
+  const now = new Date();
+  const trialEndsAtDate = new Date(
+    now.getTime() + trialDurationDays * 24 * 60 * 60 * 1000
+  );
+
   const [newTenant] = await db
     .insert(tenants)
     .values({
@@ -178,6 +188,8 @@ export async function createTenant(data: {
       onlineCheckoutEnabled,
       posEnabled,
       status: "active", // New stores are active by default
+      trialStartedAt: now.toISOString(),
+      trialEndsAt: trialEndsAtDate.toISOString(),
       // Store location
       storeLocationLat: data.storeLocationLat?.toString() ?? null,
       storeLocationLng: data.storeLocationLng?.toString() ?? null,

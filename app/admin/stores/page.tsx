@@ -143,10 +143,12 @@ export default async function AdminStoresPage({
                         <p className="truncate">{store.owner?.name || "—"}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Trial</p>
-                        <TrialEndDate
+                        <p className="text-xs text-muted-foreground">Access</p>
+                        <SubscriptionEndDate
                           trialEndsAt={store.trialEndsAt}
+                          subscriptionEndsAt={store.subscriptionEndsAt}
                           subscriptionStatus={store.subscriptionStatus}
+                          subscriptionPlan={store.subscriptionPlan}
                         />
                       </div>
                     </div>
@@ -164,7 +166,7 @@ export default async function AdminStoresPage({
                       <TableHead>Status</TableHead>
                       <TableHead>Subscription</TableHead>
                       <TableHead>Plan</TableHead>
-                      <TableHead>Trial Ends</TableHead>
+                      <TableHead>Access Ends</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -204,9 +206,11 @@ export default async function AdminStoresPage({
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <TrialEndDate
+                          <SubscriptionEndDate
                             trialEndsAt={store.trialEndsAt}
+                            subscriptionEndsAt={store.subscriptionEndsAt}
                             subscriptionStatus={store.subscriptionStatus}
+                            subscriptionPlan={store.subscriptionPlan}
                           />
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
@@ -345,51 +349,73 @@ function SubscriptionBadge({ status }: { status: string }) {
   );
 }
 
-function TrialEndDate({
+function SubscriptionEndDate({
   trialEndsAt,
+  subscriptionEndsAt,
   subscriptionStatus,
+  subscriptionPlan,
 }: {
   trialEndsAt: string | null;
+  subscriptionEndsAt: string | null;
   subscriptionStatus: string;
+  subscriptionPlan: string;
 }) {
-  // Don't show trial date for paid subscriptions
-  if (subscriptionStatus === "active") {
+  const isFreePlan = subscriptionPlan === "free";
+
+  let endDateStr: string | null = null;
+  if (subscriptionStatus === "trialing") {
+    endDateStr = trialEndsAt;
+  } else if (subscriptionStatus === "active" && !isFreePlan) {
+    endDateStr = subscriptionEndsAt;
+  } else if (
+    ["past_due", "expired", "cancelled"].includes(subscriptionStatus)
+  ) {
+    endDateStr = subscriptionEndsAt || trialEndsAt;
+  }
+
+  if (!endDateStr) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
 
-  if (!trialEndsAt) {
-    return <span className="text-xs text-muted-foreground">—</span>;
-  }
-
-  const trialEnd = new Date(trialEndsAt);
+  const end = new Date(endDateStr);
   const now = new Date();
-  const isExpired = trialEnd < now;
-  const daysRemaining = Math.ceil(
-    (trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const isExpired = end < now;
+
+  // Calculate difference
+  const diffTime = end.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const monthsRemaining = Math.floor(daysRemaining / 30);
 
   if (isExpired) {
     return (
       <div className="text-sm">
         <span className="text-red-600">Expired</span>
         <p className="text-xs text-muted-foreground">
-          {trialEnd.toLocaleDateString()}
+          {end.toLocaleDateString()}
         </p>
       </div>
     );
   }
 
-  const isEndingSoon = daysRemaining <= 3;
+  const isEndingSoon = daysRemaining <= 7;
+
+  let timeString = "";
+  if (monthsRemaining > 1) {
+    const remainingDays = daysRemaining % 30;
+    timeString = `${monthsRemaining} mos${remainingDays > 0 ? `, ${remainingDays}d` : ""}`;
+  } else {
+    timeString = `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""}`;
+  }
 
   return (
     <div className="text-sm">
       <span
         className={isEndingSoon ? "text-amber-600" : "text-muted-foreground"}
       >
-        {daysRemaining} day{daysRemaining !== 1 ? "s" : ""}
+        {timeString}
       </span>
       <p className="text-xs text-muted-foreground">
-        {trialEnd.toLocaleDateString()}
+        {end.toLocaleDateString()}
       </p>
     </div>
   );
