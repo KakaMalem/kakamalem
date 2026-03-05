@@ -71,19 +71,23 @@ export async function GET(request: NextRequest) {
       ? returnPath
       : "/";
 
-  // Get the current domain from the Host header
-  const host = request.headers.get("host")?.split(":")[0] || "";
+  // Get the current domain from the Host header - explicitly reconstruct the URL
+  // to avoid Docker/container internal hostname issues (e.g., 0.0.0.0:3000)
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  const hostname = host.split(":")[0];
+  const protocol = request.nextUrl.protocol || "https:";
+  const currentOrigin = `${protocol}//${hostname}`;
 
   // Validate the exchange token (checks HMAC, expiry, and target domain)
-  const sessionCookieValue = validateExchangeToken(token, host);
+  const sessionCookieValue = validateExchangeToken(token, hostname);
   if (!sessionCookieValue) {
     return NextResponse.redirect(
-      new URL("/auth/login?error=token_invalid", request.url)
+      new URL(`/auth/login?error=token_invalid`, currentOrigin)
     );
   }
 
   // Set the session cookie on this custom domain and redirect
-  const response = NextResponse.redirect(new URL(safePath, request.url));
+  const response = NextResponse.redirect(new URL(safePath, currentOrigin));
   response.cookies.set(SESSION_COOKIE_NAME, sessionCookieValue, {
     httpOnly: true,
     secure: true,
