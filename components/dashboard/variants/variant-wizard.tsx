@@ -395,8 +395,7 @@ export function VariantWizard({
       (opt) => opt.name.trim().length >= 2 && opt.values.length > 0
     );
     onChange(validOptions);
-    onOpenChange(false);
-  }, [draftOptions, onChange, onOpenChange]);
+  }, [draftOptions, onChange]);
 
   const currentStepIndex = WIZARD_STEPS.findIndex((s) => s.id === currentStep);
 
