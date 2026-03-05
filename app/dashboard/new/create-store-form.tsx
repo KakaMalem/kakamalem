@@ -18,9 +18,7 @@ import {
   StepBasicInfo,
   StepBranding,
   StepContact,
-  StepLocation,
 } from "@/components/dashboard/wizard";
-import type { LocationValue } from "@/components/shared";
 import {
   createStoreSchema,
   generateSlug,
@@ -206,31 +204,6 @@ export function CreateStoreForm({
     setFormData((prev) => ({ ...prev, currency: value }));
   };
 
-  // Update location from LocationPicker
-  const updateLocation = (location: LocationValue | null) => {
-    if (location) {
-      setFormData((prev) => ({
-        ...prev,
-        storeLocationLat: location.latitude,
-        storeLocationLng: location.longitude,
-        storeLocationCity: location.city || "",
-        storeLocationAccuracy: location.accuracy || null,
-        storeLocationSource: location.source,
-        storeLocationPlusCode: location.plusCode || "",
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        storeLocationLat: null,
-        storeLocationLng: null,
-        storeLocationCity: "",
-        storeLocationAccuracy: null,
-        storeLocationSource: null,
-        storeLocationPlusCode: "",
-      }));
-    }
-  };
-
   // Handle logo upload
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -328,7 +301,7 @@ export function CreateStoreForm({
     e.stopPropagation();
     if (validateStep(currentStep)) {
       setDirection(1);
-      setCurrentStep((prev) => Math.min(prev + 1, 4));
+      setCurrentStep((prev) => Math.min(prev + 1, 3));
     }
   };
 
@@ -339,17 +312,17 @@ export function CreateStoreForm({
 
   const skipStep = () => {
     setDirection(1);
-    setCurrentStep((prev) => Math.min(prev + 1, 4));
+    setCurrentStep((prev) => Math.min(prev + 1, 3));
   };
 
-  // Steps 2 (Branding), 3 (Contact), and 4 (Location) are optional
-  const isOptionalStep = currentStep >= 2 && currentStep <= 4;
+  // Steps 2 (Branding), and 3 (Contact) are optional
+  const isOptionalStep = currentStep >= 2 && currentStep <= 3;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    // Only allow submission on the final step (Step 4: Location)
-    if (currentStep !== 4) return;
+    // Only allow submission on the final step (Step 3: Contact)
+    if (currentStep !== 3) return;
 
     if (!validateStep(currentStep)) return;
 
@@ -495,27 +468,6 @@ export function CreateStoreForm({
                   disabled={isPending}
                 />
               )}
-
-              {/* Step 4: Location */}
-              {currentStep === 4 && (
-                <StepLocation
-                  location={
-                    formData.storeLocationLat !== null &&
-                    formData.storeLocationLng !== null
-                      ? {
-                          latitude: formData.storeLocationLat,
-                          longitude: formData.storeLocationLng,
-                          city: formData.storeLocationCity || undefined,
-                          plusCode: formData.storeLocationPlusCode || undefined,
-                          accuracy: formData.storeLocationAccuracy || undefined,
-                          source: formData.storeLocationSource || "manual",
-                        }
-                      : null
-                  }
-                  onLocationChange={updateLocation}
-                  disabled={isPending}
-                />
-              )}
             </motion.div>
           </AnimatePresence>
 
@@ -536,8 +488,8 @@ export function CreateStoreForm({
             )}
 
             <div className="flex items-center gap-2">
-              {/* Skip button for optional steps (2, 3, 4) - but not on final step */}
-              {isOptionalStep && currentStep < 4 && (
+              {/* Skip button for optional steps (2, 3) - but not on final step */}
+              {isOptionalStep && currentStep < 3 && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -549,7 +501,7 @@ export function CreateStoreForm({
                 </Button>
               )}
 
-              {currentStep < 4 ? (
+              {currentStep < 3 ? (
                 <Button
                   type="button"
                   onClick={(e) => nextStep(e)}
