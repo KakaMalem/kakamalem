@@ -235,6 +235,15 @@ export function POSTerminal({
     setDiscountValue(0);
   }, []);
 
+  // Set individual item custom price
+  const handleUpdateItemPrice = useCallback((id: string, newPrice: number) => {
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === id ? { ...item, price: newPrice } : item
+      )
+    );
+  }, []);
+
   // Handle successful sale
   const handleSaleSuccess = useCallback(() => {
     setItems([]);
@@ -285,6 +294,7 @@ export function POSTerminal({
             onClearCart={handleClearCart}
             onDiscountTypeChange={setDiscountType}
             onDiscountValueChange={setDiscountValue}
+            onUpdateItemPrice={handleUpdateItemPrice}
           />
 
           {/* Checkout button - Desktop */}
@@ -354,6 +364,7 @@ export function POSTerminal({
                     onClearCart={handleClearCart}
                     onDiscountTypeChange={setDiscountType}
                     onDiscountValueChange={setDiscountValue}
+                    onUpdateItemPrice={handleUpdateItemPrice}
                   />
                 </div>
                 <div className="border-t p-4 bg-background">

@@ -146,7 +146,7 @@ export function POSPaymentModal({
         productName: item.productName,
         variantName: item.variantName,
         sku: item.sku,
-        price: item.price,
+        price: item.originalPrice, // Use original price since item-level discounts are aggregated into totalDiscount
         quantity: item.quantity,
         trackInventory: item.trackInventory,
       }));
@@ -217,7 +217,7 @@ export function POSPaymentModal({
             name: item.productName,
             variantName: item.variantName,
             quantity: item.quantity,
-            price: item.price,
+            price: item.originalPrice, // Use original price on receipt to properly reflect the discount
           })),
           subtotal: total + discountAmount,
           discount: discountAmount,

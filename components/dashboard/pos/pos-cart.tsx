@@ -11,6 +11,7 @@ import {
   Tag,
   Percent,
   ChevronDown,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ interface POSCartProps {
   onClearCart: () => void;
   onDiscountTypeChange: (type: "amount" | "percent") => void;
   onDiscountValueChange: (value: number) => void;
+  onUpdateItemPrice?: (id: string, newPrice: number) => void;
 }
 
 const DISCOUNT_PRESETS = [5, 10, 15, 20];
@@ -64,8 +66,11 @@ export function POSCart({
   onClearCart,
   onDiscountTypeChange,
   onDiscountValueChange,
+  onUpdateItemPrice,
 }: POSCartProps) {
   const [discountExpanded, setDiscountExpanded] = useState(false);
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState("");
 
   // Calculate totals
   const subtotal = items.reduce(
@@ -153,9 +158,59 @@ export function POSCart({
                       </p>
                     )}
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm font-medium">
-                        {formatPrice(item.price * item.quantity, currency)}
-                      </span>
+                      {editingPriceId === item.id ? (
+                        <Input
+                          type="number"
+                          autoFocus
+                          value={editPriceValue}
+                          onChange={(e) => setEditPriceValue(e.target.value)}
+                          onBlur={() => {
+                            const newPrice = parseFloat(editPriceValue);
+                            if (
+                              !isNaN(newPrice) &&
+                              newPrice >= 0 &&
+                              onUpdateItemPrice
+                            ) {
+                              onUpdateItemPrice(item.id, newPrice);
+                            }
+                            setEditingPriceId(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const newPrice = parseFloat(editPriceValue);
+                              if (
+                                !isNaN(newPrice) &&
+                                newPrice >= 0 &&
+                                onUpdateItemPrice
+                              ) {
+                                onUpdateItemPrice(item.id, newPrice);
+                              }
+                              setEditingPriceId(null);
+                            } else if (e.key === "Escape") {
+                              setEditingPriceId(null);
+                            }
+                          }}
+                          className="h-7 w-20 px-1 py-0 text-sm"
+                        />
+                      ) : (
+                        <div
+                          className="flex items-center gap-1 cursor-pointer group"
+                          onClick={() => {
+                            if (onUpdateItemPrice) {
+                              setEditingPriceId(item.id);
+                              setEditPriceValue(item.price.toString());
+                            }
+                          }}
+                        >
+                          <span className="text-sm font-medium hover:underline decoration-dashed underline-offset-4">
+                            {formatPrice(item.price * item.quantity, currency)}
+                          </span>
+                          {onUpdateItemPrice && (
+                            <Pencil className="size-3 hidden group-hover:block text-muted-foreground mr-1" />
+                          )}
+                        </div>
+                      )}
+
                       {item.price < item.originalPrice && (
                         <span className="text-xs text-muted-foreground line-through">
                           {formatPrice(
