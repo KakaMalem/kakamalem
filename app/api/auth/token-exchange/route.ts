@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
 
   // Get the current domain from the Host header - explicitly reconstruct the URL
   // to avoid Docker/container internal hostname issues (e.g., 0.0.0.0:3000)
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  const host =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    "";
   const hostname = host.split(":")[0];
   const protocol = request.nextUrl.protocol || "https:";
   const currentOrigin = `${protocol}//${hostname}`;

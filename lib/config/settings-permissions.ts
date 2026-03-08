@@ -36,6 +36,7 @@ export type SettingsPageKey =
   | "delivery"
   | "payments"
   | "store-mode"
+  | "integrations"
   | "danger";
 
 export interface SettingsPageConfig {
@@ -125,6 +126,14 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     description: "Physical store location on map",
     href: "/location",
     minRole: "admin",
+    group: "operations",
+  },
+  {
+    key: "integrations",
+    title: "Integrations",
+    description: "Connect to AutoDS and other platforms",
+    href: "/integrations",
+    minRole: "owner",
     group: "operations",
   },
   // --- Growth ---

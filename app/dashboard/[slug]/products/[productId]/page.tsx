@@ -6,6 +6,7 @@ import { getProductById, getTenantCategories } from "@/lib/db/queries/products";
 import { getProductVariantOptionTypes } from "@/lib/db/queries/variants";
 import { getProductPriceTiers } from "@/lib/db/queries/pricing";
 import { ProductForm } from "@/components/dashboard/products/product-form";
+import { ProductSourceBadge } from "@/components/dashboard/products/product-source-badge";
 import { Button } from "@/components/ui/button";
 import {
   transformDbOptionsToInlineOptions,
@@ -95,9 +96,28 @@ export default async function EditProductPage({
             <ChevronLeft className="size-5" />
           </Link>
         </Button>
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">Edit Product</h1>
-          <p className="text-muted-foreground">Update {product.name}</p>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Edit Product</h1>
+            <ProductSourceBadge
+              sourceType={
+                product.sourceType as
+                  | "aliexpress"
+                  | "amazon"
+                  | "autods"
+                  | "manual"
+              }
+              sourceId={product.sourceId}
+              sourceUrl={product.sourceUrl}
+              lastSyncedAt={product.sourceLastSyncedAt}
+              syncEnabled={product.sourceSyncEnabled}
+              productId={productId}
+              tenantId={store.id}
+            />
+          </div>
+          <p className="text-muted-foreground truncate">
+            Update {product.name}
+          </p>
         </div>
       </div>
 

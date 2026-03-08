@@ -29,7 +29,7 @@ export default function RootLayout({
       <head>
         <meta name="color-scheme" content="light only" />
         {/* PWA Meta Tags */}
-        <meta name="theme-color" content="#000000" />
+        <meta name="theme-color" content="#ffffff" />
         {/* iOS PWA Support */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Menu } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,133 +11,126 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu } from "lucide-react";
 
 interface NavLink {
   label: string;
   href: string;
 }
 
-interface NavCTA {
-  label: string;
-  href: string;
-  variant?: "default" | "outline";
-  icon?: React.ReactNode;
-}
-
-interface LandingNavbarProps {
-  user?: { id: string; email: string } | null;
-  navLinks?: NavLink[];
-  ctas?: NavCTA[];
-}
-
-const defaultNavLinks: NavLink[] = [
-  { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Affiliates", href: "/affiliate" },
-];
-
 export function LandingNavbar({
   user,
-  navLinks = defaultNavLinks,
-  ctas,
-}: LandingNavbarProps) {
-  const defaultCTAs: NavCTA[] = user
-    ? [{ label: "Dashboard", href: "/dashboard", variant: "default" }]
-    : [
-        { label: "Login", href: "/login", variant: "outline" },
-        { label: "Start Free", href: "/signup", variant: "default" },
-      ];
+  links,
+}: {
+  user?: unknown;
+  links?: NavLink[];
+}) {
+  const defaultNavLinks: NavLink[] = [
+    { label: "Features", href: "/#features" },
+    { label: "Pricing", href: "/#pricing" },
+    { label: "Affiliates", href: "/affiliate" },
+  ];
 
-  const activeCTAs = ctas || defaultCTAs;
+  const navLinks = links || defaultNavLinks;
 
   return (
-    <header className="landing-section sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-      <div className="landing-section-content flex h-16 items-center justify-between">
+    <div className="fixed top-0 inset-x-0 z-50 flex justify-center pt-5 px-4 pointer-events-none">
+      <header className="pointer-events-auto flex h-14 w-full max-w-4xl items-center justify-between rounded-full border border-zinc-200/80 bg-white/70 px-5 backdrop-blur-2xl shadow-[0_2px_16px_-4px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.03)]">
         {/* Logo */}
-        <Link href="/" className="text-xl font-bold">
-          Kaka Malem
+        <Link href="/" className="flex items-center gap-2 group shrink-0">
+          <Image
+            src="/icons/android-chrome-192x192.png"
+            alt="Kaka Malem"
+            width={24}
+            height={24}
+            className="rounded-md"
+          />
+          <span className="font-bold tracking-tight text-zinc-950">
+            Kaka Malem
+          </span>
         </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden items-center gap-8 md:flex">
-          {navLinks.map((link) => (
+        {/* Desktop Nav */}
+        <nav className="hidden md:flex items-center gap-1.5">
+          {navLinks.map((item) => (
             <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              key={item.label}
+              href={item.href}
+              className="text-sm font-medium text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/80 px-3 py-1.5 rounded-full transition-all duration-200"
             >
-              {link.label}
+              {item.label}
             </Link>
           ))}
         </nav>
 
-        {/* Desktop CTAs */}
-        <div className="hidden items-center gap-3 md:flex">
-          {activeCTAs.map((cta) => (
-            <Button
-              key={cta.href}
-              variant={cta.variant || "default"}
-              size="sm"
-              asChild
+        {/* CTA section */}
+        <div className="flex items-center gap-3">
+          {/* Login — hidden when signed in */}
+          {!user && (
+            <Link
+              href="/login"
+              className="hidden md:block text-sm font-semibold text-zinc-600 hover:text-zinc-950 transition-colors"
             >
-              <Link href={cta.href}>
-                {cta.label}
-                {cta.icon}
-              </Link>
-            </Button>
-          ))}
-        </div>
+              Login
+            </Link>
+          )}
 
-        {/* Mobile Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon" className="size-9">
-              <Menu className="size-5" />
-              <span className="sr-only">Toggle navigation menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            sideOffset={8}
-            className="w-[calc(100vw-2rem)] min-w-70 max-w-sm"
+          {/* Primary CTA */}
+          <Button
+            size="sm"
+            className="rounded-full h-8 px-4 text-xs font-semibold bg-linear-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 shadow-sm shadow-violet-500/25 hover:shadow-violet-500/40 transition-all duration-200"
+            asChild
           >
-            <nav className="grid gap-1 p-1">
-              {navLinks.map((link) => (
-                <DropdownMenuItem
-                  key={link.href}
-                  asChild
-                  className="h-11 cursor-pointer px-3 text-base font-medium"
-                >
-                  <Link href={link.href}>{link.label}</Link>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem
-                asChild
-                className="h-11 cursor-pointer px-3 text-base font-medium"
+            <Link href={user ? "/dashboard" : "/signup"}>
+              {user ? "Dashboard" : "Start Building"}
+            </Link>
+          </Button>
+
+          {/* Mobile Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild className="md:hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full hover:bg-zinc-100/80 focus-visible:ring-0 focus-visible:ring-offset-0"
               >
-                <Link href="/">Home</Link>
-              </DropdownMenuItem>
-            </nav>
-            <DropdownMenuSeparator className="mx-2 my-2" />
-            <div className="grid gap-2 p-2">
-              {activeCTAs.map((cta) => (
-                <Button
-                  key={cta.href}
-                  variant={cta.variant || "default"}
-                  className="w-full justify-center"
-                  asChild
-                >
-                  <Link href={cta.href}>
-                    {cta.label}
-                    {cta.icon}
-                  </Link>
-                </Button>
-              ))}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </header>
+                <Menu className="h-4 w-4 text-zinc-600" />
+                <span className="sr-only">Toggle menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              sideOffset={24}
+              className="w-[280px] sm:w-80 rounded-3xl border border-zinc-200/80 bg-white/90 backdrop-blur-3xl shadow-[0_24px_60px_-15px_rgba(0,0,0,0.1)] p-3 z-100 animate-in fade-in zoom-in-95 slide-in-from-top-4 overflow-hidden"
+            >
+              <nav className="grid gap-1">
+                {navLinks.map((item) => (
+                  <DropdownMenuItem
+                    key={item.label}
+                    asChild
+                    className="h-12 cursor-pointer rounded-xl px-4 text-[15px] font-semibold text-zinc-600 hover:text-zinc-950 focus:text-zinc-950 hover:bg-zinc-100/80 focus:bg-zinc-100/80 transition-all duration-200"
+                  >
+                    <Link href={item.href}>{item.label}</Link>
+                  </DropdownMenuItem>
+                ))}
+              </nav>
+              {!user && (
+                <>
+                  <DropdownMenuSeparator className="mx-2 my-2 bg-zinc-100" />
+                  <div className="px-1 pb-1">
+                    <Button
+                      variant="outline"
+                      className="w-full h-11 justify-center rounded-xl border-zinc-200 bg-white hover:bg-zinc-50 hover:text-zinc-950 text-[15px] font-semibold shadow-sm transition-all duration-200"
+                      asChild
+                    >
+                      <Link href="/login">Login</Link>
+                    </Button>
+                  </div>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+    </div>
   );
 }

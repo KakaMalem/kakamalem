@@ -147,6 +147,14 @@ export const productStatusEnum = pgEnum("product_status", [
   "archived", // Hidden but preserved for historical orders
 ]);
 
+// Product source (origin of the product data)
+export const productSourceTypeEnum = pgEnum("product_source_type", [
+  "manual", // Created by store owner
+  "aliexpress", // Imported from AliExpress
+  "amazon", // Imported from Amazon
+  "autods", // Imported/Synced via AutoDS
+]);
+
 // Order status
 // Order status - Fulfillment/Delivery status (NOT payment status)
 // Payment status is tracked separately in paymentStatusEnum
@@ -1068,6 +1076,12 @@ export const tenants = pgTable(
       totalRevenue: 0,
     }),
 
+    // ==========================================================================
+    // EXTERNAL INTEGRATIONS
+    // ==========================================================================
+    // API key for AutoDS and other external platforms (Sales Channel API)
+    externalApiKey: text("external_api_key").unique(),
+
     // Ownership - references Better Auth user
     ownerId: text("owner_id")
       .notNull()
@@ -1811,6 +1825,21 @@ export const products = pgTable(
     // Display & status
     displayOrder: integer("display_order").default(0).notNull(),
     status: productStatusEnum("status").default("draft").notNull(),
+
+    // External Sourcing & Dropshipping
+    sourceType: productSourceTypeEnum("source_type")
+      .default("manual")
+      .notNull(),
+    sourceId: text("source_id"), // Original ID from supplier (ASIN, AliExpress ID, etc.)
+    sourceUrl: text("source_url"), // Original product URL
+    sourceData: jsonb("source_data"), // Raw API response snapshot
+    sourcePrice: decimal("source_price", { precision: 12, scale: 2 }), // Original price at source
+    sourceCurrency: varchar("source_currency", { length: 3 }).default("USD"),
+    sourceLastSyncedAt: timestamp("source_last_synced_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    sourceSyncEnabled: boolean("source_sync_enabled").default(true).notNull(),
 
     // Channel visibility (where the product can be sold)
     showOnStorefront: boolean("show_on_storefront").default(true).notNull(),

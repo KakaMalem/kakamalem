@@ -19,35 +19,53 @@ export async function getTenantByOwnerId(ownerId: string) {
  * Includes the user's role at each store for client-side navigation
  */
 export async function getUserStores(userId: string) {
-  // First, get tenant IDs where user is a member (with their role)
-  const memberships = await db.query.tenantMembers.findMany({
-    where: eq(tenantMembers.userId, userId),
-    columns: { tenantId: true, role: true },
-  });
+  try {
+    // First, get tenant IDs where user is a member (with their role)
+    const memberships = await db.query.tenantMembers.findMany({
+      where: eq(tenantMembers.userId, userId),
+      columns: { tenantId: true, role: true },
+    });
 
-  const membershipMap = new Map(memberships.map((m) => [m.tenantId, m.role]));
-  const memberTenantIds = memberships.map((m) => m.tenantId);
+    const membershipMap = new Map(memberships.map((m) => [m.tenantId, m.role]));
+    const memberTenantIds = memberships.map((m) => m.tenantId);
 
-  // Get all tenants where user is owner OR a member
-  const userTenants = await db.query.tenants.findMany({
-    where:
-      memberTenantIds.length > 0
-        ? or(eq(tenants.ownerId, userId), inArray(tenants.id, memberTenantIds))
-        : eq(tenants.ownerId, userId),
-    orderBy: (tenants, { desc }) => [desc(tenants.createdAt)],
-  });
+    // Get all tenants where user is owner OR a member
+    // Only select columns needed for the dashboard sidebar & store switcher
+    const userTenants = await db.query.tenants.findMany({
+      where:
+        memberTenantIds.length > 0
+          ? or(
+              eq(tenants.ownerId, userId),
+              inArray(tenants.id, memberTenantIds)
+            )
+          : eq(tenants.ownerId, userId),
+      columns: {
+        id: true,
+        slug: true,
+        name: true,
+        logoUrl: true,
+        posEnabled: true,
+        ownerId: true,
+        createdAt: true,
+      },
+      orderBy: (tenants, { desc }) => [desc(tenants.createdAt)],
+    });
 
-  // Add user's role for each store
-  return userTenants.map((tenant) => ({
-    ...tenant,
-    userRole: (tenant.ownerId === userId
-      ? "owner"
-      : (membershipMap.get(tenant.id) ?? null)) as
-      | "owner"
-      | "admin"
-      | "staff"
-      | null,
-  }));
+    // Add user's role for each store
+    return userTenants.map((tenant) => ({
+      ...tenant,
+      userRole: (tenant.ownerId === userId
+        ? "owner"
+        : (membershipMap.get(tenant.id) ?? null)) as
+        | "owner"
+        | "admin"
+        | "staff"
+        | null,
+    }));
+  } catch (error) {
+    console.error("getUserStores failed:", error);
+    return [];
+  }
 }
 
 export async function getTenantById(tenantId: string) {

@@ -53,12 +53,6 @@ export async function GET(request: NextRequest) {
       ? returnPath
       : "/";
 
-  // Explicitly reconstruct the origin from headers to avoid Docker internal hostname
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
-  const hostname = host.split(":")[0];
-  const protocol = request.nextUrl.protocol || "https:";
-  const currentOrigin = `${protocol}//${hostname}`;
-
   // Read the session cookie that Better Auth set during the OAuth callback.
   // This cookie is on kakamalem.com (the main domain where OAuth happened).
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
