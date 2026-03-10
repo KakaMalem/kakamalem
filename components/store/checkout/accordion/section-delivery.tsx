@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Plus, Check } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -336,24 +336,14 @@ export function SectionDelivery({
                   <Label
                     htmlFor={`address-${address.id}`}
                     className={cn(
-                      "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+                      "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors w-full min-w-0 max-w-full overflow-hidden",
                       "hover:bg-muted/50",
-                      "peer-data-[state=checked]:border-primary peer-data-[state=checked]:ring-1 peer-data-[state=checked]:ring-primary"
+                      selectedAddressId === address.id
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-muted"
                     )}
                   >
-                    <div
-                      className={cn(
-                        "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2",
-                        selectedAddressId === address.id
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground"
-                      )}
-                    >
-                      {selectedAddressId === address.id && (
-                        <Check className="size-3" />
-                      )}
-                    </div>
-                    <div className="flex-1 space-y-1">
+                    <div className="flex-1 space-y-1 min-w-0 w-full overflow-hidden">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-medium truncate max-w-45 sm:max-w-none">
                           {address.firstName} {address.lastName}

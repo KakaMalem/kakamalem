@@ -147,7 +147,7 @@ export function PaymentMethodSelector({
                     value={method.gateway}
                     id={`payment-${method.gateway}`}
                     disabled={disabled}
-                    className="mt-1"
+                    className="sr-only"
                   />
                   <div
                     className={cn(

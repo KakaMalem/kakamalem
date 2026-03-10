@@ -116,13 +116,9 @@ export function SectionShipping({
       );
       const hasShipping = returnedMethods.some((m) => m.type === "shipping");
 
-      // Out of zone scenario: delivery zones enabled, no shipping, and outside zone
-      if (
-        deliveryZonesEnabled &&
-        !shippingEnabled &&
-        !isWithinDeliveryZone &&
-        returnedMethods.length === 0
-      ) {
+      // Out of zone scenario: delivery zones enabled and outside zone
+      // Do not show any shipping methods if out of zone when delivery zones are enabled
+      if (deliveryZonesEnabled && !isWithinDeliveryZone) {
         setFetchState((prev) => ({
           ...prev,
           isLoading: false,
@@ -132,6 +128,7 @@ export function SectionShipping({
           shippingEnabled,
           hasLocalDelivery: false,
           hasShipping: false,
+          methods: [],
         }));
         return;
       }
@@ -170,8 +167,7 @@ export function SectionShipping({
       setFetchState({
         isLoading: false,
         error: null,
-        isOutOfZone:
-          deliveryZonesEnabled && !isWithinDeliveryZone && !hasShipping,
+        isOutOfZone: deliveryZonesEnabled && !isWithinDeliveryZone,
         zoneName: data?.zone?.name || null,
         methods: returnedMethods,
         hasLocalDelivery,
@@ -473,20 +469,14 @@ function FulfillmentOption({
       <Label
         htmlFor={`shipping-${method.id}`}
         className={cn(
-          "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+          "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors w-full min-w-0 max-w-full overflow-hidden",
           "hover:bg-muted/50",
-          "peer-data-[state=checked]:border-primary peer-data-[state=checked]:ring-1 peer-data-[state=checked]:ring-primary"
+          isSelected
+            ? "border-primary bg-primary/5 ring-1 ring-primary"
+            : "border-muted"
         )}
       >
-        <div
-          className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded-full border-2 mt-0.5",
-            isSelected ? "border-primary bg-primary" : "border-muted-foreground"
-          )}
-        >
-          {isSelected && <div className="size-2 rounded-full bg-white" />}
-        </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 w-full">
           <div className="flex items-start justify-between gap-2">
             <p className="font-medium">{method.name}</p>
             <span className="shrink-0 font-semibold">

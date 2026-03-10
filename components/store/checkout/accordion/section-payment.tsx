@@ -75,6 +75,7 @@ export function SectionPayment({
   const { appliedCoupon, discountTotal } = useAppliedCoupon();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [cartErrors, setCartErrors] = useState<
     Array<{ itemId: string; productName: string; error: string }>
   >([]);
@@ -114,6 +115,7 @@ export function SectionPayment({
 
     setIsSubmitting(true);
     setCartErrors([]);
+    setCheckoutError(null);
 
     try {
       // Re-validate cart before submission
@@ -175,11 +177,15 @@ export function SectionPayment({
             if (result.error?.cartErrors) {
               setCartErrors(result.error.cartErrors);
             }
+            setCheckoutError("Some items need attention in your cart.");
             toast.error("Some items need attention");
             setIsSubmitting(false);
             return;
 
           case "OUTSIDE_DELIVERY_ZONE":
+            setCheckoutError(
+              errorMessage || "Delivery not available for this location."
+            );
             toast.error("Delivery not available", {
               description: errorMessage,
             });
@@ -188,17 +194,22 @@ export function SectionPayment({
             return;
 
           case "MIN_ORDER_NOT_MET":
+            setCheckoutError(errorMessage || "Minimum order amount not met.");
             toast.error("Minimum order not met", { description: errorMessage });
             setIsSubmitting(false);
             return;
 
           case "SHIPPING_METHOD_REQUIRED":
+            setCheckoutError("Please select a shipping method.");
             toast.error("Shipping method required");
             onEditShipping();
             setIsSubmitting(false);
             return;
 
           case "VALIDATION_ERROR":
+            setCheckoutError(
+              errorMessage || "Please check your information and try again."
+            );
             toast.error("Invalid information", { description: errorMessage });
             setIsSubmitting(false);
             return;
@@ -207,6 +218,7 @@ export function SectionPayment({
             if (result.error?.cartErrors) {
               setCartErrors(result.error.cartErrors);
             }
+            setCheckoutError(errorMessage || "An unexpected error occurred.");
             toast.error(errorMessage);
             setIsSubmitting(false);
             return;
@@ -231,6 +243,10 @@ export function SectionPayment({
         );
 
         if (!paymentResult.success) {
+          setCheckoutError(
+            paymentResult.error ||
+              "Failed to create payment session. Please try again."
+          );
           toast.error("Failed to create payment session", {
             description: paymentResult.error || "Please try again.",
           });
@@ -253,6 +269,7 @@ export function SectionPayment({
       }
     } catch (error) {
       console.error("Failed to place order:", error);
+      setCheckoutError("An unexpected error occurred. Please try again.");
       toast.error("An unexpected error occurred. Please try again.");
       setIsSubmitting(false);
     }
@@ -315,6 +332,15 @@ export function SectionPayment({
               Update Cart
             </Button>
           </AlertDescription>
+        </Alert>
+      )}
+
+      {/* General Checkout Error */}
+      {checkoutError && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Order could not be placed</AlertTitle>
+          <AlertDescription>{checkoutError}</AlertDescription>
         </Alert>
       )}
 

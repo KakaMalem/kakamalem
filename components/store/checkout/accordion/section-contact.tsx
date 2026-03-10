@@ -104,14 +104,18 @@ export function SectionContact({
       {/* Logged-in user info */}
       {user && (
         <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
-          <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-semibold">
+          <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-semibold shrink-0">
             {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
           </div>
-          <div>
-            <p className="font-medium">{user.name || "Customer"}</p>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium truncate">{user.name || "Customer"}</p>
+            <p className="text-sm text-muted-foreground truncate">
+              {user.email}
+            </p>
             {userPhone && (
-              <p className="text-sm text-muted-foreground">{userPhone}</p>
+              <p className="text-sm text-muted-foreground truncate">
+                {userPhone}
+              </p>
             )}
           </div>
         </div>

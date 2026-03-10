@@ -146,7 +146,7 @@ export function CheckoutContainer({
       {/* Main Layout */}
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Accordion Sections */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 min-w-0 w-full max-w-full">
           <CheckoutAccordion
             tenantId={tenantId}
             storeSlug={storeSlug}
@@ -164,7 +164,7 @@ export function CheckoutContainer({
         </div>
 
         {/* Desktop Order Summary Sidebar */}
-        <div className="hidden lg:block lg:col-span-1">
+        <div className="hidden lg:block lg:col-span-1 min-w-0 max-w-full">
           <div className="sticky top-4">
             <CheckoutSummary
               cart={cart}
