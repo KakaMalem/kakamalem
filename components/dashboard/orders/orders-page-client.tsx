@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { OrdersFilters, OrdersChannelFilter } from "./orders-filters";
+import { OrdersFilters } from "./orders-filters";
 import { OrdersList } from "./orders-list";
 import { OrdersBottomBar } from "./orders-bottom-bar";
 import {
@@ -351,29 +351,11 @@ export function OrdersPageClient({
   return (
     <>
       <div className="space-y-4 pb-36">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Orders</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage all your orders in one place
-            </p>
-          </div>
-          <OrdersChannelFilter
-            storeSlug={storeSlug}
-            orderCounts={orderCounts}
-            currentChannel={searchParams.channel}
-          />
-        </div>
-
         {/* Filters */}
         <OrdersFilters
           storeSlug={storeSlug}
           orderCounts={orderCounts}
           currentStatus={searchParams.status}
-          currentDateRange={searchParams.dateRange}
-          currentSort={searchParams.sort}
-          currentOrder={searchParams.order}
         />
 
         {/* Orders List */}

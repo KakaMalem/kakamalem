@@ -562,48 +562,48 @@ async function calculateShippingWithUnifiedSystem(
   let isWithinDeliveryZone = false;
 
   if (result.zones && result.zones.length > 0) {
-    // Process each matched zone
-    for (const zoneMatch of result.zones) {
-      const zone = zoneMatch.zone;
+    // Only process the best specifically matching zone to avoid showing
+    // slower/expensive fallback methods to local customers.
+    const bestZoneMatch = result.zones[0];
+    const zone = bestZoneMatch.zone;
 
-      // For local delivery zones (radius/polygon), track as delivery zone
-      if (zone.zoneType === "radius" || zone.zoneType === "polygon") {
-        isWithinDeliveryZone = true;
-        if (!matchedDeliveryZone) {
-          matchedDeliveryZone = { id: zone.id, name: zone.name };
-        }
+    // For local delivery zones (radius/polygon), track as delivery zone
+    if (zone.zoneType === "radius" || zone.zoneType === "polygon") {
+      isWithinDeliveryZone = true;
+      if (!matchedDeliveryZone) {
+        matchedDeliveryZone = { id: zone.id, name: zone.name };
+      }
+    }
+
+    // Add each rate as a fulfillment method
+    // CalculatedRate has: methodId, methodName, rate, isFree, freeReason, deliveryEstimate
+    for (const rate of bestZoneMatch.rates) {
+      // Determine fulfillment type based on zone type
+      const isLocalDelivery =
+        zone.zoneType === "radius" || zone.zoneType === "polygon";
+
+      // Track delivery zone fee for first local delivery method
+      if (isLocalDelivery && deliveryZoneFee === 0) {
+        deliveryZoneFee = rate.rate;
       }
 
-      // Add each rate as a fulfillment method
-      // CalculatedRate has: methodId, methodName, rate, isFree, freeReason, deliveryEstimate
-      for (const rate of zoneMatch.rates) {
-        // Determine fulfillment type based on zone type
-        const isLocalDelivery =
-          zone.zoneType === "radius" || zone.zoneType === "polygon";
-
-        // Track delivery zone fee for first local delivery method
-        if (isLocalDelivery && deliveryZoneFee === 0) {
-          deliveryZoneFee = rate.rate;
-        }
-
-        // Build description
-        let description = rate.deliveryEstimate || "";
-        if (rate.isFree && rate.freeReason) {
-          description = rate.freeReason;
-        }
-
-        methods.push({
-          id: `unified-${zone.id}-${rate.methodId}`,
-          name: `${zone.name} - ${rate.methodName}`,
-          description,
-          price: rate.rate,
-          basePrice: rate.rate,
-          minDeliveryDays: null, // Not available in CalculatedRate
-          maxDeliveryDays: null, // Not available in CalculatedRate
-          type: isLocalDelivery ? "local_delivery" : "shipping",
-          zoneId: isLocalDelivery ? zone.id : undefined,
-        });
+      // Build description
+      let description = rate.deliveryEstimate || "";
+      if (rate.isFree && rate.freeReason) {
+        description = rate.freeReason;
       }
+
+      methods.push({
+        id: `unified-${zone.id}-${rate.methodId}`,
+        name: `${zone.name} - ${rate.methodName}`,
+        description,
+        price: rate.rate,
+        basePrice: rate.rate,
+        minDeliveryDays: null, // Not available in CalculatedRate
+        maxDeliveryDays: null, // Not available in CalculatedRate
+        type: isLocalDelivery ? "local_delivery" : "shipping",
+        zoneId: isLocalDelivery ? zone.id : undefined,
+      });
     }
   }
 

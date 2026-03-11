@@ -118,12 +118,21 @@ export async function findMatchingZones(
     const matchResult = matchLocationToZone(location, zone);
 
     if (matchResult.matches) {
+      // Dynamic specificity boost: smaller radius zones get higher priority
+      // Enables distance-based pricing by prioritizing the tightest matching radius
+      let dynamicSpecificity = zone.specificityScore;
+      if (zone.zoneType === "radius" && zone.radiusMeters) {
+        const radiusKm = Math.max(zone.radiusMeters / 1000, 1);
+        // Gives up to +99 points to smaller radii (e.g. 1km gets +98, 10km gets +89)
+        dynamicSpecificity = zone.specificityScore + Math.max(0, 99 - radiusKm);
+      }
+
       results.push({
         zone: {
           id: zone.id,
           name: zone.name,
           zoneType: zone.zoneType,
-          specificityScore: zone.specificityScore,
+          specificityScore: dynamicSpecificity,
           color: zone.color,
         },
         methods: zone.methods.map((m) => ({
@@ -151,11 +160,29 @@ export async function findMatchingZones(
           displayOrder: m.displayOrder,
         })),
         matchReason: matchResult.reason,
-      });
+      } as ZoneMatchResult & { _displayOrder: number });
     }
   }
 
-  return results;
+  // Sort by dynamic specificity (descending), then by display order (ascending)
+  results.sort((a, b) => {
+    if (b.zone.specificityScore !== a.zone.specificityScore) {
+      return b.zone.specificityScore - a.zone.specificityScore; // Highest score first
+    }
+    const aOrder = (a as ZoneMatchResult & { _displayOrder: number })
+      ._displayOrder;
+    const bOrder = (b as ZoneMatchResult & { _displayOrder: number })
+      ._displayOrder;
+    return aOrder - bOrder; // Lowest display order first
+  });
+
+  // Clean up the temporary sorting field
+  return results.map((r) => {
+    const { _displayOrder, ...cleanResult } = r as ZoneMatchResult & {
+      _displayOrder?: number;
+    };
+    return cleanResult as ZoneMatchResult;
+  });
 }
 
 /**
