@@ -4,7 +4,7 @@ import { join } from "path";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { invoices, tenants } from "@/lib/db/schema";
-import { requireAuth } from "@/lib/auth/server";
+import { requireAuth, isPlatformAdmin } from "@/lib/auth/server";
 import { canManageStore } from "@/lib/auth/context";
 
 const STORAGE_ROOT = process.env.STORAGE_PATH || "/var/www/kakamalem-uploads";
@@ -29,9 +29,11 @@ export async function GET(
       return NextResponse.json({ error: "Store not found" }, { status: 404 });
     }
 
-    // Check permission
-    const hasAccess = await canManageStore(tenant.id);
-    if (!hasAccess) {
+    // Check permission - allow if store member OR platform admin
+    const isAdmin = await isPlatformAdmin();
+    const isMember = await canManageStore(tenant.id);
+
+    if (!isMember && !isAdmin) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 

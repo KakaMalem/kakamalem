@@ -1,12 +1,34 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Font,
+} from "@react-pdf/renderer";
 import { computePaymentStatus } from "@/lib/utils/payment-status";
+import path from "path";
 
-// Use built-in Helvetica font for reliability (no network requests)
+// Register Vazirmatn for Persian support
+Font.register({
+  family: "Vazirmatn",
+  fonts: [
+    {
+      src: path.join(process.cwd(), "public", "fonts", "Vazirmatn-Regular.ttf"),
+    },
+    {
+      src: path.join(process.cwd(), "public", "fonts", "Vazirmatn-Bold.ttf"),
+      fontWeight: "bold",
+    },
+  ],
+});
+
+// Use Vazirmatn to properly render Persian/Arabic text
 const styles = StyleSheet.create({
   page: {
     padding: 40,
     fontSize: 10,
-    fontFamily: "Helvetica",
+    fontFamily: "Vazirmatn",
     color: "#1f2937",
   },
   header: {

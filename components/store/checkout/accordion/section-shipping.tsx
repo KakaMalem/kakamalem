@@ -487,11 +487,13 @@ function FulfillmentOption({
               )}
             </span>
           </div>
-          {method.description && (
-            <p className="text-sm text-muted-foreground">
-              {method.description}
-            </p>
-          )}
+          {method.description &&
+            method.description !== method.name &&
+            method.description !== deliveryEstimate && (
+              <p className="text-sm text-muted-foreground">
+                {method.description}
+              </p>
+            )}
           {deliveryEstimate && (
             <p className="text-sm text-muted-foreground">
               Est. {deliveryEstimate}

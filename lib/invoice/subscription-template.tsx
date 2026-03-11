@@ -1,10 +1,32 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Font,
+} from "@react-pdf/renderer";
+import path from "path";
+
+// Register Vazirmatn for Persian support
+Font.register({
+  family: "Vazirmatn",
+  fonts: [
+    {
+      src: path.join(process.cwd(), "public", "fonts", "Vazirmatn-Regular.ttf"),
+    },
+    {
+      src: path.join(process.cwd(), "public", "fonts", "Vazirmatn-Bold.ttf"),
+      fontWeight: "bold",
+    },
+  ],
+});
 
 const styles = StyleSheet.create({
   page: {
     padding: 40,
     fontSize: 10,
-    fontFamily: "Helvetica",
+    fontFamily: "Vazirmatn",
     color: "#1f2937",
   },
   header: {
@@ -325,12 +347,7 @@ export function SubscriptionInvoiceDocument({
             {data.buyer.phone && (
               <Text style={styles.addressText}>{data.buyer.phone}</Text>
             )}
-            <Text
-              style={[
-                styles.addressText,
-                { marginTop: 4, fontStyle: "italic" },
-              ]}
-            >
+            <Text style={[styles.addressText, { marginTop: 4 }]}>
               Store: {data.buyer.storeName}
             </Text>
           </View>

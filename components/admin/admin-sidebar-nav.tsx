@@ -9,6 +9,7 @@ import {
   Users,
   Settings,
   Handshake,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,12 @@ export function AdminSidebarNav({
     { href: "/admin", icon: LayoutDashboard, label: "Dashboard", badge: 0 },
     { href: "/admin/stores", icon: Store, label: "Stores", badge: 0 },
     { href: "/admin/users", icon: Users, label: "Users", badge: 0 },
+    {
+      href: "/admin/payments",
+      icon: Receipt,
+      label: "Payments",
+      badge: 0,
+    },
     {
       href: "/admin/affiliates",
       icon: Handshake,

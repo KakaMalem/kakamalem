@@ -5,6 +5,8 @@ import {
   products,
   user,
   adminAuditLog,
+  billingTransactions,
+  invoices,
 } from "@/lib/db/schema";
 import { eq, sql, desc, and, or, ilike, count } from "drizzle-orm";
 import { cache } from "react";
@@ -313,4 +315,81 @@ export async function getSubscriptionPlanDistribution() {
     .groupBy(tenants.subscriptionPlan, tenants.subscriptionStatus);
 
   return distribution;
+}
+
+/**
+ * Get all platform invoices across all stores
+ */
+export async function getPlatformInvoices(
+  options: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+  } = {}
+) {
+  const { limit = 50, offset = 0, status } = options;
+
+  const conditions = [];
+  if (status) {
+    conditions.push(
+      eq(invoices.status, status as (typeof invoices.status.enumValues)[number])
+    );
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  return db.query.invoices.findMany({
+    where: whereClause,
+    with: {
+      tenant: {
+        columns: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
+    },
+    orderBy: desc(invoices.createdAt),
+    limit,
+    offset,
+  });
+}
+
+/**
+ * Get all platform billing transactions across all stores
+ */
+export async function getPlatformTransactions(
+  options: {
+    limit?: number;
+    offset?: number;
+  } = {}
+) {
+  const { limit = 50, offset = 0 } = options;
+
+  return db.query.billingTransactions.findMany({
+    with: {
+      tenant: {
+        columns: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
+      processedBy: {
+        columns: {
+          id: true,
+          name: true,
+        },
+      },
+      invoice: {
+        columns: {
+          id: true,
+          invoiceNumber: true,
+        },
+      },
+    },
+    orderBy: desc(billingTransactions.createdAt),
+    limit,
+    offset,
+  });
 }

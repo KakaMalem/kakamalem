@@ -595,7 +595,7 @@ async function calculateShippingWithUnifiedSystem(
 
       methods.push({
         id: `unified-${zone.id}-${rate.methodId}`,
-        name: `${zone.name} - ${rate.methodName}`,
+        name: rate.methodName,
         description,
         price: rate.rate,
         basePrice: rate.rate,

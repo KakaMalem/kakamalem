@@ -7705,7 +7705,7 @@ export const billingTransactionsRelations = relations(
       fields: [billingTransactions.invoiceId],
       references: [invoices.id],
     }),
-    processedByUser: one(user, {
+    processedBy: one(user, {
       fields: [billingTransactions.processedBy],
       references: [user.id],
     }),

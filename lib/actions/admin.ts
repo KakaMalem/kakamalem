@@ -118,6 +118,7 @@ export async function updateStoreSubscription(
   storeId: string,
   plan: "free" | "pro",
   status: "trialing" | "active" | "past_due" | "cancelled" | "expired",
+  months: number = 1,
   notes?: string
 ): Promise<ActionResult> {
   try {
@@ -132,6 +133,7 @@ export async function updateStoreSubscription(
         subscriptionPlan: true,
         subscriptionStatus: true,
         subscriptionStartedAt: true,
+        subscriptionEndsAt: true,
       },
     });
 
@@ -150,13 +152,25 @@ export async function updateStoreSubscription(
 
     // If upgrading to pro with active status, set subscription dates
     if (plan === "pro" && status === "active") {
-      // Only set subscriptionStartedAt for new subscriptions, not renewals
-      if (!store.subscriptionStartedAt) {
+      // Only set subscriptionStartedAt for new subscriptions or upgrades from free
+      if (!store.subscriptionStartedAt || store.subscriptionPlan === "free") {
         updateData.subscriptionStartedAt = now;
       }
-      // Set subscription end to 30 days from now
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 30);
+
+      // Calculate end date based on months
+      // If already Pro and extending, start from current end date
+      let currentEnd =
+        store.subscriptionPlan === "pro" && store.subscriptionEndsAt
+          ? new Date(store.subscriptionEndsAt)
+          : new Date();
+
+      // If current end date is in the past, start from now
+      if (currentEnd < new Date()) {
+        currentEnd = new Date();
+      }
+
+      const endDate = new Date(currentEnd);
+      endDate.setMonth(endDate.getMonth() + months);
       updateData.subscriptionEndsAt = endDate.toISOString();
     }
 
@@ -411,7 +425,10 @@ export async function recordBillingTransaction(data: {
     let invoiceId: string | undefined;
 
     // Create invoice if requested
-    if (createInvoice && type === "subscription_payment") {
+    if (
+      createInvoice &&
+      (type === "subscription_payment" || type === "subscription_upgrade")
+    ) {
       const invoiceNumber = generateInvoiceNumber(store.slug);
       const periodLabel =
         periodMonths === 1
@@ -471,8 +488,10 @@ export async function recordBillingTransaction(data: {
       })
       .returning({ id: billingTransactions.id });
 
-    // Upgrade/extend pro subscription if this is a payment
-    if (upgradeToProOnPayment && type === "subscription_payment") {
+    if (
+      (upgradeToProOnPayment || store.subscriptionPlan === "pro") &&
+      (type === "subscription_payment" || type === "subscription_upgrade")
+    ) {
       // Industry standard: extend from the LATER of (now) or (current subscription end)
       // This allows payments to "stack" - if already Pro until March 15,
       // adding another month extends to April 15, not "today + 30 days"
@@ -488,7 +507,8 @@ export async function recordBillingTransaction(data: {
 
       const extendFrom = isAlreadyProWithTimeRemaining ? currentEnd : nowDate;
       const subscriptionEnd = new Date(extendFrom);
-      subscriptionEnd.setDate(subscriptionEnd.getDate() + periodMonths * 30);
+      // Use setMonth for more accurate multi-month calculation
+      subscriptionEnd.setMonth(subscriptionEnd.getMonth() + periodMonths);
 
       // Only update subscriptionStartedAt if this is a NEW subscription (not extension)
       const isNewSubscription = !isAlreadyProWithTimeRemaining;

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getAdminStoreById, getPlatformSettings } from "@/lib/db/queries/admin";
-import { getBillingTransactions } from "@/lib/db/queries/billing";
+import { getInvoices, getBillingTransactions } from "@/lib/db/queries/billing";
 import {
   Card,
   CardContent,
@@ -9,6 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -33,8 +34,15 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  AlertTriangle,
+  MinusCircle,
+  FileText,
+  Download,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { StoreActionsClient } from "./store-actions-client";
+
+export const dynamic = "force-dynamic";
 
 // =============================================================================
 // ADMIN STORE DETAIL PAGE
@@ -50,10 +58,11 @@ export default async function AdminStoreDetailPage({
   params,
 }: StoreDetailPageProps) {
   const { id } = await params;
-  const [store, settings, billingData] = await Promise.all([
+  const [store, settings, billingData, invoicesData] = await Promise.all([
     getAdminStoreById(id),
     getPlatformSettings(),
     getBillingTransactions(id, { limit: 10 }),
+    getInvoices(id, { limit: 10 }),
   ]);
 
   if (!store) {
@@ -142,16 +151,30 @@ export default async function AdminStoreDetailPage({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Trial Ends
+              {store.subscriptionPlan === "pro"
+                ? "Subscription Ends"
+                : "Trial Ends"}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-lg font-semibold">
-              {store.trialEndsAt ? formatDate(store.trialEndsAt) : "No trial"}
+              {store.subscriptionPlan === "pro"
+                ? store.subscriptionEndsAt
+                  ? formatDate(store.subscriptionEndsAt)
+                  : "No end date"
+                : store.trialEndsAt
+                  ? formatDate(store.trialEndsAt)
+                  : "No trial"}
             </p>
-            {store.trialEndsAt && new Date(store.trialEndsAt) < new Date() && (
-              <p className="text-xs text-red-600">Expired</p>
-            )}
+            {store.subscriptionPlan === "pro"
+              ? store.subscriptionEndsAt &&
+                new Date(store.subscriptionEndsAt) < new Date() && (
+                  <p className="text-xs text-red-600">Expired Subscription</p>
+                )
+              : store.trialEndsAt &&
+                new Date(store.trialEndsAt) < new Date() && (
+                  <p className="text-xs text-red-600">Expired Trial</p>
+                )}
           </CardContent>
         </Card>
 
@@ -300,71 +323,180 @@ export default async function AdminStoreDetailPage({
             </CardContent>
           </Card>
 
-          {/* Transaction History */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Receipt className="size-5" />
-                Transaction History
-              </CardTitle>
-              <CardDescription>
-                Recent billing transactions ({billingData.total} total)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {billingData.transactions.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">
-                  <Receipt className="mx-auto mb-3 size-10 opacity-50" />
-                  <p>No transactions yet</p>
-                  <p className="mt-1 text-sm">
-                    Transactions will appear here when you record payments
-                  </p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Recorded By</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {billingData.transactions.map((tx) => (
-                      <TableRow key={tx.id}>
-                        <TableCell className="text-sm">
-                          {new Date(tx.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="capitalize text-xs"
-                          >
-                            {tx.type.replace(/_/g, " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {parseFloat(tx.amount).toLocaleString()} {tx.currency}
-                        </TableCell>
-                        <TableCell>
-                          <TransactionStatusBadge status={tx.status} />
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {tx.processedByName || "System"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          {/* Billing Tabs */}
+          <Tabs defaultValue="transactions" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="transactions">Transactions</TabsTrigger>
+              <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="transactions">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Receipt className="size-5" />
+                    Transaction History
+                  </CardTitle>
+                  <CardDescription>
+                    Recent billing transactions ({billingData.total} total)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {billingData.transactions.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      <Receipt className="mx-auto mb-3 size-10 opacity-50" />
+                      <p>No transactions yet</p>
+                      <p className="mt-1 text-sm">
+                        Transactions will appear here when you record payments
+                      </p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Recorded By</TableHead>
+                          <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {billingData.transactions.map((tx) => (
+                          <TableRow key={tx.id}>
+                            <TableCell className="text-sm">
+                              {new Date(tx.createdAt).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                }
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className="capitalize text-xs"
+                              >
+                                {tx.type.replace(/_/g, " ")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {parseFloat(tx.amount).toLocaleString()}{" "}
+                              {tx.currency}
+                            </TableCell>
+                            <TableCell>
+                              <TransactionStatusBadge status={tx.status} />
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {tx.processedByName || "System"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {tx.invoiceId && (
+                                <a
+                                  href={`/api/dashboard/${store.slug}/billing/invoices/${tx.invoiceId}/download`}
+                                  title="Download Invoice"
+                                  className="inline-flex items-center text-primary hover:underline"
+                                >
+                                  <FileText className="size-4 mr-1" />
+                                  <span className="text-xs">Invoice</span>
+                                </a>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="invoices">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="size-5" />
+                    Invoices
+                  </CardTitle>
+                  <CardDescription>
+                    Recent invoices ({invoicesData.total} total)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {invoicesData.invoices.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      <FileText className="mx-auto mb-3 size-10 opacity-50" />
+                      <p>No invoices yet</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Number</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Due Date</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {invoicesData.invoices.map((inv) => (
+                          <TableRow key={inv.id}>
+                            <TableCell className="font-medium">
+                              {inv.invoiceNumber}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {new Date(inv.createdAt).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                }
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {inv.dueDate
+                                ? new Date(inv.dueDate).toLocaleDateString(
+                                    "en-US",
+                                    {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "numeric",
+                                    }
+                                  )
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {parseFloat(inv.total).toLocaleString()}{" "}
+                              {inv.currency}
+                            </TableCell>
+                            <TableCell>
+                              <InvoiceStatusBadge status={inv.status} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <a
+                                href={`/api/dashboard/${store.slug}/billing/invoices/${inv.id}/download`}
+                                title="Download PDF"
+                                className="inline-flex items-center text-primary hover:underline"
+                              >
+                                <Download className="size-4 mr-1" />
+                                <span className="text-xs">Download</span>
+                              </a>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
 
           {/* Admin Notes */}
           {store.subscriptionNotes && (
@@ -493,6 +625,62 @@ function TransactionStatusBadge({ status }: { status: string }) {
   return (
     <Badge className={`${statusConfig.color} text-xs`}>
       <Icon className="mr-1 size-3" />
+      {statusConfig.label}
+    </Badge>
+  );
+}
+
+function InvoiceStatusBadge({ status }: { status: string }) {
+  const config: Record<
+    string,
+    {
+      icon: LucideIcon;
+      variant: "default" | "secondary" | "destructive" | "outline";
+      label: string;
+    }
+  > = {
+    draft: {
+      icon: FileText,
+      variant: "secondary",
+      label: "Draft",
+    },
+    unpaid: {
+      icon: Clock,
+      variant: "outline",
+      label: "Unpaid",
+    },
+    paid: {
+      icon: CheckCircle,
+      variant: "default",
+      label: "Paid",
+    },
+    overdue: {
+      icon: AlertTriangle,
+      variant: "destructive",
+      label: "Overdue",
+    },
+    void: {
+      icon: XCircle,
+      variant: "secondary",
+      label: "Void",
+    },
+    partially_paid: {
+      icon: MinusCircle,
+      variant: "outline",
+      label: "Partial",
+    },
+  };
+
+  const statusConfig = config[status] || {
+    icon: Clock,
+    variant: "outline",
+    label: status,
+  };
+  const Icon = statusConfig.icon;
+
+  return (
+    <Badge variant={statusConfig.variant} className="gap-1 text-xs">
+      <Icon className="size-3" />
       {statusConfig.label}
     </Badge>
   );

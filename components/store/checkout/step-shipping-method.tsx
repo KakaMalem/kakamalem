@@ -377,11 +377,14 @@ export function StepShippingMethod({
                             </div>
                             <div>
                               <p className="font-medium">{method.name}</p>
-                              {method.description && (
-                                <p className="text-sm text-muted-foreground">
-                                  {method.description}
-                                </p>
-                              )}
+                              {method.description &&
+                                method.description !== method.name &&
+                                method.description !==
+                                  `Estimated delivery: ${deliveryEstimate}` && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {method.description}
+                                  </p>
+                                )}
                               {deliveryEstimate && (
                                 <p className="text-sm text-muted-foreground">
                                   Estimated delivery: {deliveryEstimate}

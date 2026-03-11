@@ -32,6 +32,7 @@ import {
   extendStoreTrial,
   addStoreNotes,
   recordBillingTransaction,
+  createInvoice,
 } from "@/lib/actions/admin";
 import {
   pauseSubscription,
@@ -106,8 +107,16 @@ export function StoreActionsClient({
     useState<PaymentMethod>("mobile_money");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
-  const [createInvoice, setCreateInvoice] = useState(true);
-  const [upgradeOnPayment, setUpgradeOnPayment] = useState(false);
+  const [shouldCreateInvoice, setShouldCreateInvoice] = useState(true);
+  const [upgradeOnPayment, setUpgradeOnPayment] = useState(
+    currentPlan === "free"
+  );
+  const [upgradeMonths, setUpgradeMonths] = useState(1);
+  const [invoiceAmount, setInvoiceAmount] = useState(settings.proPlanPriceAfn);
+  const [invoiceDescription, setInvoiceDescription] = useState(
+    "Kaka Malem Pro Subscription"
+  );
+  const [invoiceDueDate, setInvoiceDueDate] = useState("");
 
   // Refund state
   const [refundAmount, setRefundAmount] = useState("");
@@ -176,10 +185,16 @@ export function StoreActionsClient({
 
   const handleSubscriptionChange = (
     plan: "free" | "pro",
-    status: "trialing" | "active" | "past_due" | "cancelled" | "expired"
+    status: "trialing" | "active" | "past_due" | "cancelled" | "expired",
+    months: number = 1
   ) => {
     startTransition(async () => {
-      const result = await updateStoreSubscription(storeId, plan, status);
+      const result = await updateStoreSubscription(
+        storeId,
+        plan,
+        status,
+        months
+      );
       if (result.success) {
         toast.success(result.message || "Subscription updated");
       } else {
@@ -204,6 +219,33 @@ export function StoreActionsClient({
       const result = await addStoreNotes(storeId, notes);
       if (result.success) {
         toast.success("Notes saved");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleCreateInvoice = () => {
+    const amount = parseFloat(invoiceAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await createInvoice({
+        storeId,
+        amount,
+        description: invoiceDescription,
+        dueDate: invoiceDueDate || undefined,
+      });
+
+      if (result.success) {
+        toast.success(result.message || "Invoice issued");
+        // Reset
+        setInvoiceAmount(settings.proPlanPriceAfn);
+        setInvoiceDescription("Kaka Malem Pro Subscription");
+        setInvoiceDueDate("");
       } else {
         toast.error(result.error);
       }
@@ -240,7 +282,7 @@ export function StoreActionsClient({
         periodStart: periodStart.toISOString(),
         periodEnd: periodEnd.toISOString(),
         notes: paymentNotes || undefined,
-        createInvoice,
+        createInvoice: shouldCreateInvoice,
         upgradeToProOnPayment: upgradeOnPayment,
         periodMonths: paymentMonths,
       });
@@ -464,10 +506,52 @@ export function StoreActionsClient({
                     enabled. Make sure payment has been received.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="upgrade-duration">Duration (Months)</Label>
+                    <div className="flex items-center gap-4">
+                      {[1, 3, 6, 12].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setUpgradeMonths(m)}
+                          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                            upgradeMonths === m
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                        >
+                          {m}m
+                        </button>
+                      ))}
+                      <Input
+                        id="upgrade-duration"
+                        type="number"
+                        className="ml-auto w-20"
+                        value={upgradeMonths}
+                        onChange={(e) =>
+                          setUpgradeMonths(parseInt(e.target.value) || 1)
+                        }
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Ends on:{" "}
+                      {new Date(
+                        new Date().setMonth(
+                          new Date().getMonth() + upgradeMonths
+                        )
+                      ).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={() => handleSubscriptionChange("pro", "active")}
+                    onClick={() =>
+                      handleSubscriptionChange("pro", "active", upgradeMonths)
+                    }
                   >
                     Confirm Upgrade
                   </AlertDialogAction>
@@ -788,6 +872,64 @@ export function StoreActionsClient({
           </Card>
         )}
 
+      {/* Issue Unpaid Invoice */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-amber-600">
+            <FileText className="size-5" />
+            Issue Unpaid Invoice
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Create an invoice for a user who hasn&apos;t paid yet. They will be
+            able to see and download this invoice from their dashboard.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="inv-desc">Description</Label>
+            <Input
+              id="inv-desc"
+              value={invoiceDescription}
+              onChange={(e) => setInvoiceDescription(e.target.value)}
+              placeholder="e.g. Pro Plan Subscription (Annual)"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="inv-amount">Amount (AFN)</Label>
+              <Input
+                id="inv-amount"
+                type="number"
+                value={invoiceAmount}
+                onChange={(e) => setInvoiceAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inv-due">Due Date (optional)</Label>
+              <Input
+                id="inv-due"
+                type="date"
+                value={invoiceDueDate}
+                onChange={(e) => setInvoiceDueDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            className="w-full border-amber-200 hover:bg-amber-50"
+            onClick={handleCreateInvoice}
+            disabled={isPending || !invoiceAmount}
+          >
+            {isPending ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <FileText className="mr-2 size-4" />
+            )}
+            Issue Unpaid Invoice
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Record Payment */}
       <Card>
         <CardHeader>
@@ -923,9 +1065,9 @@ export function StoreActionsClient({
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="create-invoice"
-                checked={createInvoice}
+                checked={shouldCreateInvoice}
                 onCheckedChange={(checked) =>
-                  setCreateInvoice(checked === true)
+                  setShouldCreateInvoice(checked === true)
                 }
               />
               <Label

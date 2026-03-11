@@ -15,6 +15,8 @@ import {
 import { Store, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { StoresFilters } from "./stores-filters";
 
+export const dynamic = "force-dynamic";
+
 // =============================================================================
 // ADMIN STORES LIST
 // =============================================================================
