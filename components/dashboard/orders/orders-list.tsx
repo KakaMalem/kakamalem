@@ -10,6 +10,7 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -93,23 +94,6 @@ function OrderCard({
 }) {
   const formatPrice = (price: string) => {
     return `${parseFloat(price).toLocaleString()} ${currency}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
   };
 
   // Get context-aware status label (shows "Completed" for POS, "Picked Up" for pickup, etc.)
@@ -207,7 +191,7 @@ function OrderCard({
             <span className="hidden sm:inline">{order.itemCount} items</span>
             <span className="hidden sm:inline">•</span>
             <span className="hidden sm:inline">
-              {formatDate(order.createdAt)} at {formatTime(order.createdAt)}
+              <RelativeTime date={order.createdAt} />
             </span>
           </div>
           {/* Mobile only */}
@@ -234,7 +218,7 @@ function OrderCard({
         <div className="shrink-0 text-right">
           <div className="font-semibold">{formatPrice(order.total)}</div>
           <div className="text-xs text-muted-foreground sm:hidden">
-            {formatDate(order.createdAt)}
+            <RelativeTime date={order.createdAt} showTooltip={false} />
           </div>
         </div>
       </CardContent>

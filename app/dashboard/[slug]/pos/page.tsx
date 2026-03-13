@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
 import { POSTerminal } from "@/components/dashboard/pos/pos-terminal";
+import { hasStoreAccess } from "@/lib/auth/server";
 import type { ReceiptPrintMode } from "@/lib/validations/stores";
 
 interface POSPageProps {
@@ -15,6 +16,9 @@ export default async function POSPage({ params }: POSPageProps) {
   if (!store) {
     notFound();
   }
+
+  // Check role/access
+  const { role } = await hasStoreAccess(store.id);
 
   // Check if store mode allows offline sales
   if (store.storeMode === "online_only" || store.storeMode === "catalog") {
@@ -42,6 +46,7 @@ export default async function POSPage({ params }: POSPageProps) {
       storePhone={store.contactPhone}
       receiptFooterText={store.receiptFooterText}
       receiptPaperWidth={receiptPaperWidth}
+      userRole={role}
     />
   );
 }

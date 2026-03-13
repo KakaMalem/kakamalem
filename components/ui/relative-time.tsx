@@ -33,6 +33,8 @@ interface RelativeTimeProps {
   className?: string;
   /** Fallback text when date is null/undefined */
   fallback?: string;
+  /** Timezone for the tooltip (default: "Asia/Kabul") */
+  timeZone?: string;
 }
 
 /**
@@ -51,6 +53,7 @@ export function RelativeTime({
   showTooltip = true,
   className,
   fallback = "—",
+  timeZone = "Asia/Kabul",
 }: RelativeTimeProps) {
   const mounted = useIsMounted();
 
@@ -74,7 +77,7 @@ export function RelativeTime({
   }
 
   const relativeText = getRelativeTimeString(dateObj);
-  const fullDateTime = formatFullDateTime(dateObj);
+  const fullDateTime = formatFullDateTime(dateObj, timeZone);
 
   if (!showTooltip) {
     return <span className={className}>{relativeText}</span>;
@@ -158,9 +161,9 @@ function getRelativeTimeString(date: Date): string {
 
 /**
  * Formats a date to a full localized datetime string.
- * Uses the browser's timezone and locale.
+ * Uses the specified timezone and locale.
  */
-function formatFullDateTime(date: Date): string {
+function formatFullDateTime(date: Date, timeZone?: string): string {
   return date.toLocaleString(undefined, {
     weekday: "short",
     year: "numeric",
@@ -170,5 +173,6 @@ function formatFullDateTime(date: Date): string {
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
+    timeZone,
   });
 }

@@ -12,9 +12,11 @@ import {
   productCategories,
   inventoryMovements,
   storeCustomers,
+  orderEvents,
 } from "@/lib/db/schema";
 import type { CustomerSnapshot } from "@/lib/db/schema";
-import { getUser } from "@/lib/auth/server";
+import { subDays, isBefore, parseISO } from "date-fns";
+import { getUser, hasStoreAccess } from "@/lib/auth/server";
 import {
   recordOfflineSaleSchema,
   markOrderPaidSchema,
@@ -75,9 +77,11 @@ export type RecordPaymentResult = {
  */
 async function generateOrderNumber(
   tx: Transaction,
-  tenantId: string
+  tenantId: string,
+  orderDate: string
 ): Promise<string> {
-  const year = new Date().getFullYear();
+  const dateObj = new Date(orderDate);
+  const year = dateObj.getFullYear();
 
   const result = await tx
     .select({ count: sql<number>`count(*)::int` })
@@ -101,9 +105,11 @@ async function generateOrderNumber(
  */
 async function generateReceiptNumber(
   tx: Transaction,
-  tenantId: string
+  tenantId: string,
+  orderDate: string
 ): Promise<string> {
-  const year = new Date().getFullYear();
+  const dateObj = new Date(orderDate);
+  const year = dateObj.getFullYear();
 
   const result = await tx
     .select({ count: sql<number>`count(*)::int` })
@@ -244,8 +250,10 @@ async function reduceStock(
     productName: string;
   },
   orderId: string,
-  orderNumber: string
+  orderNumber: string,
+  createdAt?: string
 ): Promise<number> {
+  const moveDate = createdAt || new Date().toISOString();
   if (item.variantId) {
     // Get current variant stock
     const variant = await tx.query.productVariants.findFirst({
@@ -282,6 +290,7 @@ async function reduceStock(
       newStock,
       orderId,
       reason: `Offline Sale ${orderNumber}`,
+      createdAt: moveDate,
     });
 
     return newStock;
@@ -315,6 +324,7 @@ async function reduceStock(
       newStock,
       orderId,
       reason: `Offline Sale ${orderNumber}`,
+      createdAt: moveDate,
     });
 
     return newStock;
@@ -359,6 +369,36 @@ export async function recordOfflineSale(
 
     const validatedInput = validation.data;
 
+    // SECURITY: Limit backdating to certain roles and date ranges
+    if (validatedInput.orderDate) {
+      const { role } = await hasStoreAccess(tenantId);
+      const isAuthorized =
+        role === "owner" || role === "manager" || role === "admin";
+
+      if (!isAuthorized) {
+        return {
+          success: false,
+          error: {
+            message: "Only managers or owners can backdate orders",
+            code: "UNAUTHORIZED",
+          },
+        };
+      }
+
+      const backdateDate = parseISO(validatedInput.orderDate);
+      const limitDate = subDays(new Date(), 30); // 30 day limit
+
+      if (isBefore(backdateDate, limitDate)) {
+        return {
+          success: false,
+          error: {
+            message: "Cannot backdate orders more than 30 days",
+            code: "VALIDATION_ERROR",
+          },
+        };
+      }
+    }
+
     // Track updated stock levels to return to client
     const updatedStock: Array<{
       productId: string;
@@ -380,9 +420,21 @@ export async function recordOfflineSale(
         );
       }
 
+      // Determine timestamps
+      const now = new Date().toISOString();
+      const orderTimestamp = validatedInput.orderDate || now;
+
       // Generate order and receipt numbers
-      const orderNumber = await generateOrderNumber(tx, tenantId);
-      const receiptNumber = await generateReceiptNumber(tx, tenantId);
+      const orderNumber = await generateOrderNumber(
+        tx,
+        tenantId,
+        orderTimestamp
+      );
+      const receiptNumber = await generateReceiptNumber(
+        tx,
+        tenantId,
+        orderTimestamp
+      );
 
       // Calculate totals
       let subtotal = 0;
@@ -433,7 +485,8 @@ export async function recordOfflineSale(
           fulfillmentType: "instant",
           paymentMethod: orderPaymentMethod,
           isPaid: isFullyPaid,
-          paidAt: isFullyPaid ? new Date().toISOString() : null,
+          paidAt: isFullyPaid ? orderTimestamp : null,
+          placedAt: orderTimestamp,
           customerSnapshot,
           shippingAddress: null, // No shipping for POS sales
           billingAddress: null,
@@ -445,8 +498,10 @@ export async function recordOfflineSale(
           // For instant fulfillment, go directly to "delivered" if paid
           // (items are immediately handed to customer)
           status: isFullyPaid ? "delivered" : "pending",
-          completedAt: isFullyPaid ? new Date().toISOString() : null,
+          completedAt: isFullyPaid ? orderTimestamp : null,
           staffNotes: validatedInput.staffNotes || null,
+          createdAt: orderTimestamp,
+          updatedAt: now,
         })
         .returning();
 
@@ -458,6 +513,7 @@ export async function recordOfflineSale(
           paymentMethod: validatedInput.paymentMethod,
           notes: isFullyPaid ? null : "Partial payment at sale",
           recordedBy: user.id,
+          createdAt: orderTimestamp,
         });
       }
 
@@ -476,6 +532,8 @@ export async function recordOfflineSale(
           quantity: item.quantity,
           lineSubtotal: lineSubtotal.toFixed(2),
           lineTotal: lineSubtotal.toFixed(2),
+          createdAt: orderTimestamp,
+          updatedAt: now,
         });
 
         // Reduce stock if product tracks inventory
@@ -490,7 +548,8 @@ export async function recordOfflineSale(
               productName: item.productName,
             },
             newOrder.id,
-            orderNumber
+            orderNumber,
+            orderTimestamp
           );
           // Track updated stock to return to client
           updatedStock.push({
@@ -508,11 +567,29 @@ export async function recordOfflineSale(
           .set({
             totalOrders: sql`${storeCustomers.totalOrders} + 1`,
             totalSpent: sql`${storeCustomers.totalSpent} + ${total}`,
-            lastOrderAt: new Date().toISOString(),
-            firstOrderAt: sql`COALESCE(${storeCustomers.firstOrderAt}, NOW())`,
-            updatedAt: new Date().toISOString(),
+            lastOrderAt: orderTimestamp,
+            firstOrderAt: sql`COALESCE(${storeCustomers.firstOrderAt}, ${orderTimestamp})`,
+            updatedAt: now,
           })
           .where(eq(storeCustomers.id, storeCustomerId));
+      }
+
+      // Record audit event if backdated
+      if (validatedInput.orderDate) {
+        await tx.insert(orderEvents).values({
+          orderId: newOrder.id,
+          tenantId,
+          eventType: "order.backdated",
+          actorType: "staff",
+          actorId: user.id,
+          actorName: user.name,
+          data: {
+            originalPlacedAt: now,
+            backdatedTo: validatedInput.orderDate,
+            reason: "Manual backdate from POS",
+          },
+          occurredAt: now, // Real time of the action
+        });
       }
 
       return newOrder;
@@ -872,6 +949,7 @@ export async function searchProductsForSale(
           },
         },
         images: {
+          orderBy: (pi, { asc }) => [asc(pi.position)],
           limit: 1,
           columns: {},
           with: {
@@ -956,6 +1034,7 @@ export async function searchProductsForSale(
               },
             },
             images: {
+              orderBy: (pi, { asc }) => [asc(pi.position)],
               limit: 1,
               columns: {},
               with: {

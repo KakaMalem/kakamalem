@@ -126,6 +126,7 @@ async function syncSale(
     customerName?: string;
     customerPhone?: string;
     staffNotes?: string;
+    orderDate?: string;
     createdAt: string;
   };
 
@@ -133,6 +134,7 @@ async function syncSale(
   // Note: Server generates its own order/receipt numbers. The original offline
   // numbers are preserved in the local receipt for user reference.
   const result = await recordSaleOnServer(item.tenantId, payload.storeSlug, {
+    orderDate: payload.orderDate,
     amountPaid: payload.amountPaid,
     paymentMethod: payload.paymentMethod as
       | "cash"

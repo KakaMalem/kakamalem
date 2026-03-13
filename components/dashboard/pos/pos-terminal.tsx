@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { ShoppingCart, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,42 +21,8 @@ import { ConnectivityIndicator } from "./connectivity-indicator";
 import { InstallPrompt } from "./install-prompt";
 import { POSOfflineProvider } from "./pos-offline-provider";
 import { OFFLINE_POS_ENABLED } from "@/lib/offline/feature-flag";
+import { useHistoryState } from "@/hooks/use-history-state";
 import type { ReceiptPrintMode } from "@/lib/validations/stores";
-
-// Hook to integrate sheet with browser history for back button support
-function useSheetHistory(isOpen: boolean, onClose: () => void) {
-  const historyPushedRef = useRef(false);
-
-  const handlePopState = useCallback(() => {
-    if (historyPushedRef.current) {
-      historyPushedRef.current = false;
-      onClose();
-    }
-  }, [onClose]);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (!historyPushedRef.current) {
-        window.history.pushState(
-          { posCartSheet: true },
-          "",
-          window.location.href
-        );
-        historyPushedRef.current = true;
-      }
-    } else {
-      if (historyPushedRef.current) {
-        historyPushedRef.current = false;
-        window.history.back();
-      }
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [handlePopState]);
-}
 
 type Category = {
   id: string;
@@ -95,6 +61,7 @@ interface POSTerminalProps {
   storePhone: string | null;
   receiptFooterText: string | null;
   receiptPaperWidth: "58mm" | "80mm";
+  userRole: string | null;
 }
 
 export function POSTerminal({
@@ -108,6 +75,7 @@ export function POSTerminal({
   storePhone,
   receiptFooterText,
   receiptPaperWidth,
+  userRole,
 }: POSTerminalProps) {
   const [items, setItems] = useState<POSCartItem[]>([]);
   const [discountType, setDiscountType] = useState<"amount" | "percent">(
@@ -118,10 +86,10 @@ export function POSTerminal({
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   // Integrate mobile cart sheet with browser history for back button support
-  useSheetHistory(mobileCartOpen, () => setMobileCartOpen(false));
+  useHistoryState(mobileCartOpen, () => setMobileCartOpen(false), "pos-cart");
 
   // Calculate totals
-  const { total, totalDiscount, itemCount } = calculateCartTotals(
+  const { total, manualDiscount, itemCount } = calculateCartTotals(
     items,
     discountType,
     discountValue
@@ -370,7 +338,6 @@ export function POSTerminal({
                 <div className="border-t p-4 bg-background">
                   <Button
                     onClick={() => {
-                      setMobileCartOpen(false);
                       setPaymentModalOpen(true);
                     }}
                     disabled={items.length === 0}
@@ -392,7 +359,7 @@ export function POSTerminal({
           onOpenChange={setPaymentModalOpen}
           items={items}
           total={total}
-          discountAmount={totalDiscount}
+          discountAmount={manualDiscount}
           tenantId={tenantId}
           storeSlug={storeSlug}
           currency={currency}
@@ -402,6 +369,7 @@ export function POSTerminal({
           storePhone={storePhone}
           receiptFooterText={receiptFooterText}
           receiptPaperWidth={receiptPaperWidth}
+          userRole={userRole}
         />
       </div>
     </>

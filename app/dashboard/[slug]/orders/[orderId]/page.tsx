@@ -19,6 +19,7 @@ import { OrderQuickActions } from "@/components/dashboard/orders/order-quick-act
 import { OrderItemsCard } from "@/components/dashboard/orders/order-items-card";
 import { AutoPrintTrigger } from "@/components/dashboard/orders/auto-print-trigger";
 import { OrderRefundsSection } from "@/components/dashboard/orders/order-refunds-section";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
@@ -54,24 +55,6 @@ export default async function OrderDetailPage({
   const amountRefunded = parseFloat(order.amountRefunded || "0");
   const canRefund = canManage && amountPaid > amountRefunded;
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -85,9 +68,9 @@ export default async function OrderDetailPage({
           </Button>
           <div>
             <h1 className="text-xl font-semibold">{order.orderNumber}</h1>
-            <p className="text-sm text-muted-foreground">
-              {formatDate(order.createdAt)} at {formatTime(order.createdAt)}
-            </p>
+            <div className="text-sm text-muted-foreground">
+              <RelativeTime date={order.createdAt} />
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">

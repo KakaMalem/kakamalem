@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import {
   Banknote,
@@ -12,6 +13,7 @@ import {
   Receipt,
   User,
   ChevronDown,
+  Calendar,
 } from "lucide-react";
 import {
   Dialog,
@@ -30,11 +32,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn, formatPrice } from "@/lib/utils";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { recordOfflineSale as recordSaleOnServer } from "@/lib/actions/offline-sales";
 import { recordOfflineSale as recordSaleOffline } from "@/lib/offline/offline-sale";
 import { usePOSProductsStore } from "@/lib/stores/use-pos-products-store";
 import { useIsOffline } from "@/lib/stores/use-connectivity-store";
 import { OFFLINE_POS_ENABLED } from "@/lib/offline/feature-flag";
+import { useHistoryState } from "@/hooks/use-history-state";
 import {
   getThermalPrinter,
   type ReceiptData,
@@ -60,6 +64,7 @@ interface POSPaymentModalProps {
   storePhone: string | null;
   receiptFooterText: string | null;
   receiptPaperWidth: "58mm" | "80mm";
+  userRole: string | null;
 }
 
 const PAYMENT_METHODS: Array<{
@@ -88,6 +93,7 @@ export function POSPaymentModal({
   storePhone,
   receiptFooterText,
   receiptPaperWidth,
+  userRole,
 }: POSPaymentModalProps) {
   const [isPending, startTransition] = useTransition();
   const updateStock = usePOSProductsStore((state) => state.updateStock);
@@ -101,7 +107,12 @@ export function POSPaymentModal({
   const [customerExpanded, setCustomerExpanded] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [orderDate, setOrderDate] = useState<Date | null>(null);
+  const [isBackdated, setIsBackdated] = useState(false);
   const [staffNotes, setStaffNotes] = useState("");
+
+  // Integrate with browser history for back button support
+  useHistoryState(open, () => onOpenChange(false), "pos-payment");
 
   const amountReceived = isPayLater
     ? 0
@@ -123,6 +134,8 @@ export function POSPaymentModal({
         setCustomerName("");
         setCustomerPhone("");
         setStaffNotes("");
+        setOrderDate(null);
+        setIsBackdated(false);
         setCustomerExpanded(false);
       });
       return () => cancelAnimationFrame(id);
@@ -146,7 +159,7 @@ export function POSPaymentModal({
         productName: item.productName,
         variantName: item.variantName,
         sku: item.sku,
-        price: item.originalPrice, // Use original price since item-level discounts are aggregated into totalDiscount
+        price: item.price, // Use actual price which includes any item-level adjustments
         quantity: item.quantity,
         trackInventory: item.trackInventory,
       }));
@@ -163,6 +176,8 @@ export function POSPaymentModal({
             customerName: customerName || undefined,
             customerPhone: customerPhone || undefined,
             staffNotes: staffNotes || undefined,
+            orderDate:
+              isBackdated && orderDate ? orderDate.toISOString() : undefined,
           })
         : await recordSaleOnServer(tenantId, storeSlug, {
             amountPaid: effectiveAmount,
@@ -172,6 +187,8 @@ export function POSPaymentModal({
             items: saleItems,
             discountAmount,
             staffNotes: staffNotes || undefined,
+            orderDate:
+              isBackdated && orderDate ? orderDate.toISOString() : undefined,
           });
 
       const isQueued = "isQueued" in result && result.isQueued;
@@ -211,7 +228,10 @@ export function POSPaymentModal({
           storePhone,
           receiptNumber: result.order.receiptNumber,
           orderNumber: result.order.orderNumber,
-          date: new Date().toLocaleString(),
+          date:
+            isBackdated && orderDate
+              ? orderDate.toLocaleString()
+              : new Date().toLocaleString(),
           customerName: customerName || undefined,
           items: items.map((item) => ({
             name: item.productName,
@@ -511,6 +531,83 @@ export function POSPaymentModal({
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Order Details (collapsible acts as toggle) */}
+          {(userRole === "owner" ||
+            userRole === "manager" ||
+            userRole === "admin") && (
+            <Collapsible
+              open={isBackdated}
+              onOpenChange={(open) => {
+                setIsBackdated(open);
+                if (open && !orderDate) {
+                  setOrderDate(new Date());
+                }
+              }}
+            >
+              <CollapsibleTrigger className="flex w-full items-center justify-between py-2.5 hover:bg-muted/50 rounded-xl px-3 transition-all duration-200 group border border-transparent hover:border-border/50">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "p-2 rounded-lg transition-colors duration-200",
+                      isBackdated
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground group-hover:bg-muted/80"
+                    )}
+                  >
+                    <Calendar className="size-4" />
+                  </div>
+                  <div className="flex flex-col items-start gap-0.5 text-left">
+                    <span className="text-sm font-semibold">
+                      Backdate Order
+                    </span>
+                    {isBackdated && orderDate ? (
+                      <span className="text-[11px] font-medium text-primary flex items-center gap-1.5 leading-none">
+                        <span className="inline-block size-1.5 rounded-full bg-primary animate-pulse" />
+                        {format(orderDate, "MMM d, yyyy 'at' HH:mm")}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground leading-none">
+                        Tap to set a historical date
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "size-4 text-muted-foreground transition-transform duration-300",
+                    isBackdated && "rotate-180"
+                  )}
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-4 pt-4 pb-2 px-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground px-1">
+                      Select Historical Date & Time
+                    </Label>
+                    <DateTimePicker
+                      value={orderDate}
+                      onChange={setOrderDate}
+                      placeholder="Select order date"
+                      maxDate={new Date()}
+                      className="h-11 rounded-xl shadow-sm border-muted-foreground/20 focus-visible:ring-primary/20 transition-all"
+                    />
+                  </div>
+                  <div className="flex items-start gap-2.5 px-3 py-3 rounded-xl bg-primary/5 border border-primary/10">
+                    <div className="mt-0.5 text-primary">
+                      <Clock className="size-3.5" />
+                    </div>
+                    <p className="text-[11px] text-primary/80 leading-relaxed font-medium">
+                      The order sequence and financial reports will be
+                      recalculated for this specific point in time. Close this
+                      section to use the current time instead.
+                    </p>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           <Separator />
 

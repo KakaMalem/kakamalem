@@ -62,7 +62,10 @@ export const recordOfflineSaleSchema = z
       .min(1, "At least one item is required"),
 
     // Financials
-    discountAmount: z.number().min(0).default(0),
+    discountAmount: z.number().default(0),
+
+    // Optional historical date (for back-recording sales)
+    orderDate: z.string().datetime().optional().nullable(),
 
     // Notes
     staffNotes: z.string().max(1000).optional().nullable(),

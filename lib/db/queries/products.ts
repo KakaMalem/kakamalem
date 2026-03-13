@@ -170,8 +170,8 @@ export async function getProducts(
 
   const productIds = productsList.map((p) => p.id);
 
-  // Get first image for each product
-  const images =
+  // Get images for products, ordered by position to pick the first one as primary
+  const allImages =
     productIds.length > 0
       ? await db
           .select({
@@ -181,13 +181,17 @@ export async function getProducts(
           })
           .from(productImages)
           .innerJoin(media, eq(productImages.mediaId, media.id))
-          .where(
-            and(
-              inArray(productImages.productId, productIds),
-              eq(productImages.position, 0)
-            )
-          )
+          .where(inArray(productImages.productId, productIds))
+          .orderBy(asc(productImages.position))
       : [];
+
+  // Map first image to each product
+  const imageMap = new Map<string, { url: string; altText: string | null }>();
+  allImages.forEach((img) => {
+    if (!imageMap.has(img.productId)) {
+      imageMap.set(img.productId, img);
+    }
+  });
 
   // Get all categories for each product from junction table
   const productCategoriesData =
@@ -274,8 +278,7 @@ export async function getProducts(
           .groupBy(reviews.productId)
       : [];
 
-  // Map images, categories, variant stocks, price ranges, and review stats to products
-  const imageMap = new Map(images.map((img) => [img.productId, img]));
+  // Map categories, variant stocks, price ranges, and review stats to products
   const variantStockMap = new Map(
     variantStockSums.map((vs) => [vs.productId, vs.totalStock])
   );

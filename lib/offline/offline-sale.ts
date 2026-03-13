@@ -24,6 +24,7 @@ export interface OfflineSaleInput {
   paymentMethod: string | null;
   customerName?: string;
   customerPhone?: string;
+  orderDate?: string;
   staffNotes?: string;
 }
 
@@ -58,12 +59,15 @@ function generateClientId(): string {
  * Generate a local order number for offline sales.
  * Format: OFF-YYYYMMDD-XXXX (e.g., OFF-20240115-0001)
  */
-async function generateLocalOrderNumber(tenantId: string): Promise<string> {
-  const today = new Date();
-  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
+async function generateLocalOrderNumber(
+  tenantId: string,
+  orderDate?: string
+): Promise<string> {
+  const dateObj = orderDate ? new Date(orderDate) : new Date();
+  const dateStr = dateObj.toISOString().slice(0, 10).replace(/-/g, "");
 
-  // Count today's offline orders for this tenant
-  const startOfDay = new Date(today);
+  // Count that day's offline orders for this tenant
+  const startOfDay = new Date(dateObj);
   startOfDay.setHours(0, 0, 0, 0);
 
   const todaysOrders = await posDb.syncQueue
@@ -96,9 +100,13 @@ export async function recordOfflineSale(
 ): Promise<OfflineSaleResult> {
   try {
     const clientId = generateClientId();
-    const orderNumber = await generateLocalOrderNumber(input.tenantId);
+    const orderNumber = await generateLocalOrderNumber(
+      input.tenantId,
+      input.orderDate
+    );
     const receiptNumber = generateReceiptNumber();
     const now = new Date().toISOString();
+    const orderTimestamp = input.orderDate || now;
 
     // Calculate totals
     const subtotal = input.items.reduce(
@@ -124,7 +132,8 @@ export async function recordOfflineSale(
         staffNotes: input.staffNotes,
         subtotal,
         total,
-        createdAt: now,
+        orderDate: input.orderDate,
+        createdAt: orderTimestamp,
       },
       status: "pending",
       attempts: 0,
@@ -153,7 +162,7 @@ export async function recordOfflineSale(
       amountPaid: input.amountPaid,
       paymentMethod: input.paymentMethod,
       customerName: input.customerName || null,
-      createdAt: now,
+      createdAt: orderTimestamp,
       syncStatus: "pending",
       serverOrderId: null,
     };

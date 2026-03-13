@@ -35,9 +35,10 @@ export function ProductImageGallery({
   const [mounted, setMounted] = useState(false);
   const constraintsRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
-  // Track which images have been loaded to avoid showing spinner for cached images
-  const loadedImagesRef = useRef<Set<string>>(new Set());
-  const [isCurrentImageLoaded, setIsCurrentImageLoaded] = useState(false);
+  const [loadedImageIds, setLoadedImageIds] = useState<Set<string>>(new Set());
+  const isCurrentImageLoaded = images[currentIndex]
+    ? loadedImageIds.has(images[currentIndex].id)
+    : false;
 
   // Track client-side mount to prevent hydration mismatch with lightbox
   // This is a valid pattern for SSR/hydration safety - the one-time setState is intentional
@@ -62,20 +63,6 @@ export function ProductImageGallery({
     },
     [currentIndex]
   );
-
-  // Check if current image is already loaded when index changes
-  useEffect(() => {
-    const currentImage = images[currentIndex];
-    const isLoaded =
-      currentImage && loadedImagesRef.current.has(currentImage.id);
-
-    // Defer setState to avoid synchronous setState in effect
-    const timeoutId = setTimeout(() => {
-      setIsCurrentImageLoaded(!!isLoaded);
-    }, 0);
-
-    return () => clearTimeout(timeoutId);
-  }, [currentIndex, images]);
 
   // Swipe threshold - slightly higher for mobile to prevent accidental swipes
   const swipeThreshold = 50;
@@ -319,8 +306,12 @@ export function ProductImageGallery({
               priority={currentIndex === 0}
               draggable={false}
               onLoad={() => {
-                loadedImagesRef.current.add(currentImage.id);
-                setIsCurrentImageLoaded(true);
+                setLoadedImageIds((prev) => {
+                  if (prev.has(currentImage.id)) return prev;
+                  const next = new Set(prev);
+                  next.add(currentImage.id);
+                  return next;
+                });
               }}
             />
           </motion.div>

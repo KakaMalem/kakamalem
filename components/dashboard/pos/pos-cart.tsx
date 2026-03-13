@@ -425,7 +425,6 @@ export function POSCart({
                           type="number"
                           step="0.01"
                           min="0"
-                          max={maxPriceForFixed}
                           value={
                             discountValue === 0
                               ? maxPriceForFixed || ""
@@ -436,11 +435,8 @@ export function POSCart({
                             if (isNaN(newPrice) || newPrice < 0) {
                               // If empty or negative, set discount to full (price = 0)
                               onDiscountValueChange(maxPriceForFixed);
-                            } else if (newPrice > maxPriceForFixed) {
-                              // Can't set price higher than original
-                              onDiscountValueChange(0);
                             } else {
-                              // Calculate discount from new price
+                              // Calculate discount from new price (can be negative if price > max)
                               const discount = maxPriceForFixed - newPrice;
                               onDiscountValueChange(
                                 Math.round(discount * 100) / 100
@@ -455,11 +451,15 @@ export function POSCart({
                           {currency}
                         </span>
                       </div>
-                      {discountValue > 0 && (
+                      {discountValue > 0 ? (
                         <p className="text-xs text-green-600">
                           Discount: -{formatPrice(discountValue, currency)}
                         </p>
-                      )}
+                      ) : discountValue < 0 ? (
+                        <p className="text-xs text-amber-600">
+                          Surcharge: +{formatPrice(-discountValue, currency)}
+                        </p>
+                      ) : null}
                     </div>
                   )}
                 </div>
