@@ -393,12 +393,10 @@ export function POSCart({
                       <Input
                         type="number"
                         step="1"
-                        min="0"
-                        max={100}
                         value={discountValue || ""}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value);
-                          if (isNaN(val) || val < 0) {
+                          if (isNaN(val)) {
                             onDiscountValueChange(0);
                           } else if (val > 100) {
                             onDiscountValueChange(100);
@@ -424,7 +422,6 @@ export function POSCart({
                         <Input
                           type="number"
                           step="0.01"
-                          min="0"
                           value={
                             discountValue === 0
                               ? maxPriceForFixed || ""
@@ -432,9 +429,9 @@ export function POSCart({
                           }
                           onChange={(e) => {
                             const newPrice = parseFloat(e.target.value);
-                            if (isNaN(newPrice) || newPrice < 0) {
-                              // If empty or negative, set discount to full (price = 0)
-                              onDiscountValueChange(maxPriceForFixed);
+                            if (isNaN(newPrice)) {
+                              // If empty, set discount to 0 (price = subtotal)
+                              onDiscountValueChange(0);
                             } else {
                               // Calculate discount from new price (can be negative if price > max)
                               const discount = maxPriceForFixed - newPrice;

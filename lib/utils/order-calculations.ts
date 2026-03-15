@@ -72,7 +72,7 @@ export const orderFinancialsSchema = z.object({
   subtotal: z.number().min(0),
   shippingTotal: z.number().min(0),
   taxTotal: z.number().min(0),
-  discountTotal: z.number().min(0),
+  discountTotal: z.number(),
   total: z.number().min(0),
   amountPaid: z.number().min(0),
   amountRefunded: z.number().min(0),
@@ -358,6 +358,6 @@ export function calculateItemsDiscount(
 ): number {
   return items.reduce((sum, item) => {
     const discount = (item.originalPrice - item.price) * item.quantity;
-    return sum + Math.max(0, discount);
+    return sum + discount;
   }, 0);
 }

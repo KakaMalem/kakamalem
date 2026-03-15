@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { getUser } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
 import { LandingNavbar } from "@/components/landing/landing-navbar";
@@ -203,19 +203,24 @@ export default async function Home() {
         <section className="w-full border-y border-zinc-100 bg-linear-to-r from-zinc-50 via-white to-zinc-50 py-10">
           <div className="max-w-5xl mx-auto px-4 flex flex-col items-center gap-8">
             <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-[0.25em]">
-              Trusted by teams at
+              Empowering 1,200+ merchants with
             </p>
             <div className="flex flex-wrap items-center justify-center gap-10 md:gap-16">
-              {["Raycast", "Framer", "Vercel", "Linear", "Clerk"].map(
-                (name) => (
-                  <span
-                    key={name}
-                    className="text-xl font-bold tracking-tight text-zinc-200 hover:text-zinc-500 transition-colors cursor-default duration-300"
-                  >
-                    {name}
-                  </span>
-                )
-              )}
+              {[
+                "AliExpress",
+                "Amazon",
+                "AutoDS",
+                "Shopify",
+                "HesabPay",
+                "Stripe",
+              ].map((name) => (
+                <span
+                  key={name}
+                  className="text-xl font-bold tracking-tight text-zinc-200 hover:text-zinc-500 transition-colors cursor-default duration-300"
+                >
+                  {name}
+                </span>
+              ))}
             </div>
           </div>
         </section>
@@ -418,7 +423,7 @@ export default async function Home() {
           {/* Row 2 — three cards */}
           <div className="grid md:grid-cols-3 gap-5 mb-5">
             {/* Global Edge */}
-            <div className="relative rounded-3xl border border-zinc-100 bg-linear-to-br from-white to-indigo-50/30 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-indigo-100/40 transition-all duration-300 p-8 flex flex-col group">
+            <div className="relative h-full rounded-3xl border border-zinc-100 bg-linear-to-br from-white to-indigo-50/30 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-indigo-100/40 transition-all duration-300 p-8 flex flex-col group">
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br from-indigo-50/30 to-transparent pointer-events-none" />
               <div className="inline-flex items-center justify-center h-11 w-11 rounded-2xl bg-linear-to-br from-indigo-500 to-violet-500 shadow-md shadow-indigo-200 mb-4">
                 <Globe className="h-5 w-5 text-white" />
@@ -430,7 +435,7 @@ export default async function Home() {
                 Every storefront deployed to 30+ edge regions. Sub-50ms load
                 times, anywhere on the planet.
               </p>
-              <div className="mt-5 h-28 rounded-2xl border border-indigo-100/60 bg-linear-to-br from-indigo-50 to-violet-50 overflow-hidden relative flex items-center justify-center">
+              <div className="mt-5 h-52 rounded-2xl border border-indigo-100/60 bg-linear-to-br from-indigo-50 to-violet-50 overflow-hidden relative flex items-center justify-center">
                 <DotPattern className="absolute inset-0 text-indigo-200/50" />
                 <Globe className="relative h-12 w-12 text-indigo-200" />
                 {[
@@ -451,7 +456,7 @@ export default async function Home() {
             </div>
 
             {/* Live Analytics */}
-            <div className="relative rounded-3xl border border-zinc-100 bg-linear-to-br from-white to-sky-50/30 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-sky-100/40 transition-all duration-300 p-8 flex flex-col group">
+            <div className="relative h-full rounded-3xl border border-zinc-100 bg-linear-to-br from-white to-sky-50/30 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-sky-100/40 transition-all duration-300 p-8 flex flex-col group">
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br from-sky-50/30 to-transparent pointer-events-none" />
               <div className="inline-flex items-center justify-center h-11 w-11 rounded-2xl bg-linear-to-br from-sky-500 to-blue-500 shadow-md shadow-sky-200 mb-4">
                 <BarChart2 className="h-5 w-5 text-white" />
@@ -463,14 +468,14 @@ export default async function Home() {
                 Revenue, conversion, and traffic — all in one real-time
                 dashboard. No setup required.
               </p>
-              <div className="mt-5 h-28 rounded-2xl border border-sky-100/60 bg-linear-to-br from-sky-50 to-blue-50 px-3 pb-0 overflow-hidden relative flex items-end gap-1">
+              <div className="mt-5 h-52 rounded-2xl border border-sky-100/60 bg-linear-to-br from-sky-50 to-blue-50 px-3 pb-0 overflow-hidden relative flex items-end gap-1">
                 {[30, 55, 40, 70, 50, 85, 60, 95, 75, 100, 80, 90].map(
                   (v, i) => (
                     <div
                       key={i}
                       className="flex-1 rounded-t-sm transition-colors"
                       style={{
-                        height: `${v}%`,
+                        height: `${v * 0.75}%`,
                         background: `linear-gradient(to top, rgba(14,165,233,${0.3 + v / 200}), rgba(99,102,241,${0.2 + v / 300}))`,
                       }}
                     />
@@ -480,7 +485,7 @@ export default async function Home() {
             </div>
 
             {/* Integrations */}
-            <div className="relative rounded-3xl border border-zinc-100 bg-linear-to-br from-white to-rose-50/20 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-rose-100/30 transition-all duration-300 p-8 flex flex-col group">
+            <div className="relative h-full rounded-3xl border border-zinc-100 bg-linear-to-br from-white to-rose-50/20 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-rose-100/30 transition-all duration-300 p-8 flex flex-col group">
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-br from-rose-50/20 to-transparent pointer-events-none" />
               <div className="inline-flex items-center justify-center h-11 w-11 rounded-2xl bg-linear-to-br from-rose-500 to-orange-500 shadow-md shadow-rose-200 mb-4">
                 <Plug className="h-5 w-5 text-white" />
@@ -492,53 +497,55 @@ export default async function Home() {
                 Connect to your existing tools. AutoDS, AliExpress, WhatsApp,
                 Stripe and more.
               </p>
-              <div className="mt-5 grid grid-cols-3 gap-2">
-                {[
-                  {
-                    Icon: ShoppingBag,
-                    color: "text-orange-500",
-                    bg: "from-orange-50 to-rose-50",
-                    border: "border-orange-100",
-                  },
-                  {
-                    Icon: Bot,
-                    color: "text-blue-500",
-                    bg: "from-blue-50 to-indigo-50",
-                    border: "border-blue-100",
-                  },
-                  {
-                    Icon: CreditCard,
-                    color: "text-violet-500",
-                    bg: "from-violet-50 to-purple-50",
-                    border: "border-violet-100",
-                  },
-                  {
-                    Icon: Package,
-                    color: "text-amber-500",
-                    bg: "from-amber-50 to-yellow-50",
-                    border: "border-amber-100",
-                  },
-                  {
-                    Icon: BarChart3,
-                    color: "text-emerald-500",
-                    bg: "from-emerald-50 to-teal-50",
-                    border: "border-emerald-100",
-                  },
-                  {
-                    Icon: MessageSquare,
-                    color: "text-sky-500",
-                    bg: "from-sky-50 to-cyan-50",
-                    border: "border-sky-100",
-                  },
-                ].map((item, i) => (
-                  <div
-                    key={i}
-                    className={`aspect-square rounded-xl border ${item.border} bg-linear-to-br ${item.bg} flex items-center justify-center text-xl hover:scale-110 transition-transform duration-200 cursor-default shadow-xs`}
-                  >
-                    {" "}
-                    <item.Icon className={`h-6 w-6 ${item.color}`} />{" "}
-                  </div>
-                ))}
+              <div className="mt-5 h-52 flex items-center justify-center">
+                <div className="grid grid-cols-3 gap-2 w-full">
+                  {[
+                    {
+                      Icon: ShoppingBag,
+                      color: "text-orange-500",
+                      bg: "from-orange-50 to-rose-50",
+                      border: "border-orange-100",
+                    },
+                    {
+                      Icon: Bot,
+                      color: "text-blue-500",
+                      bg: "from-blue-50 to-indigo-50",
+                      border: "border-blue-100",
+                    },
+                    {
+                      Icon: CreditCard,
+                      color: "text-violet-500",
+                      bg: "from-violet-50 to-purple-50",
+                      border: "border-violet-100",
+                    },
+                    {
+                      Icon: Package,
+                      color: "text-amber-500",
+                      bg: "from-amber-50 to-yellow-50",
+                      border: "border-amber-100",
+                    },
+                    {
+                      Icon: BarChart3,
+                      color: "text-emerald-500",
+                      bg: "from-emerald-50 to-teal-50",
+                      border: "border-emerald-100",
+                    },
+                    {
+                      Icon: MessageSquare,
+                      color: "text-sky-500",
+                      bg: "from-sky-50 to-cyan-50",
+                      border: "border-sky-100",
+                    },
+                  ].map((item, i) => (
+                    <div
+                      key={i}
+                      className={`aspect-square rounded-xl border ${item.border} bg-linear-to-br ${item.bg} flex items-center justify-center text-xl hover:scale-110 transition-transform duration-200 cursor-default shadow-xs`}
+                    >
+                      {" "}
+                      <item.Icon className={`h-6 w-6 ${item.color}`} />{" "}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -884,10 +891,10 @@ export default async function Home() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="TikTok"
-                  className="h-8 w-8 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-500 hover:text-white hover:border-white/20 hover:bg-white/10 transition-all"
+                  className="h-8 w-8 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-500 hover:text-white hover:border-white/20 hover:bg-white/10 transition-all group"
                 >
                   <svg
-                    className="h-4 w-4"
+                    className="h-4 w-4 overflow-visible transition-all duration-300 group-hover:filter-[drop-shadow(-1px_-0.5px_0.3px_#25F4EE)_drop-shadow(2px_1px_0.3px_#FE2C55)]"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >

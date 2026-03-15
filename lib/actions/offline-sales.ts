@@ -442,7 +442,7 @@ export async function recordOfflineSale(
         subtotal += item.price * item.quantity;
       }
       const discountTotal = validatedInput.discountAmount || 0;
-      const total = subtotal - discountTotal;
+      const total = Math.max(0, subtotal - discountTotal);
 
       // Payment status derived from amountPaid
       const amountPaid = validatedInput.amountPaid ?? 0;
@@ -659,7 +659,14 @@ export async function markOrderPaid(
     // Find and update the order
     const order = await db.query.orders.findFirst({
       where: and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)),
-      columns: { id: true, isPaid: true, fulfillmentType: true, channel: true },
+      columns: {
+        id: true,
+        isPaid: true,
+        fulfillmentType: true,
+        channel: true,
+        status: true,
+        completedAt: true,
+      },
     });
 
     if (!order) {
@@ -683,8 +690,13 @@ export async function markOrderPaid(
         isPaid: true,
         paidAt: now,
         paymentMethod,
-        status: isPOSOrder ? "delivered" : "confirmed",
-        completedAt: isPOSOrder ? now : null,
+        status:
+          order.status === "pending"
+            ? isPOSOrder
+              ? "delivered"
+              : "confirmed"
+            : order.status,
+        completedAt: isPOSOrder ? order.completedAt || now : order.completedAt,
         updatedAt: now,
       })
       .where(eq(orders.id, orderId));
@@ -736,6 +748,8 @@ export async function recordOrderPayment(
         isPaid: true,
         fulfillmentType: true,
         channel: true,
+        status: true,
+        completedAt: true,
       },
       with: {
         payments: {
@@ -805,8 +819,15 @@ export async function recordOrderPayment(
           amountPaid: newTotalPaid.toFixed(2),
           amountDue: "0",
           paymentStatus: "paid",
-          status: isPOSOrder ? "delivered" : "confirmed",
-          completedAt: isPOSOrder ? now : null,
+          status:
+            order.status === "pending"
+              ? isPOSOrder
+                ? "delivered"
+                : "confirmed"
+              : order.status,
+          completedAt: isPOSOrder
+            ? order.completedAt || now
+            : order.completedAt,
           updatedAt: now,
         })
         .where(eq(orders.id, orderId));
