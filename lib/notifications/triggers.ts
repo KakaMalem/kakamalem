@@ -377,8 +377,8 @@ const ORDER_STATUS_MESSAGES: Record<
     bodyTemplate: "#{orderNumber} is out for delivery • {storeName}",
   },
   order_delivered: {
-    title: "Delivered",
-    bodyTemplate: "#{orderNumber} has been delivered • {storeName}",
+    title: "Completed",
+    bodyTemplate: "#{orderNumber} has been completed • {storeName}",
   },
   order_cancelled: {
     title: "Order cancelled",

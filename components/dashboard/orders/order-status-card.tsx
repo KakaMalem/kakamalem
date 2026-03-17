@@ -105,8 +105,8 @@ type ContextStatusConfig = {
 // Shipping context (default)
 const SHIPPING_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
   pending: {
-    label: "Pending",
-    description: "Waiting for confirmation",
+    label: "Placed",
+    description: "Order received, awaiting confirmation",
     nextAction: "Confirm Order",
     nextStatus: "confirmed",
     canCancel: true,
@@ -114,12 +114,12 @@ const SHIPPING_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
   confirmed: {
     label: "Confirmed",
     description: "Order confirmed, preparing",
-    nextAction: "Start Processing",
+    nextAction: "Start Preparing",
     nextStatus: "processing",
     canCancel: true,
   },
   processing: {
-    label: "Processing",
+    label: "Preparing",
     description: "Being prepared for shipment",
     nextAction: "Mark as Shipped",
     nextStatus: "shipped",
@@ -128,14 +128,14 @@ const SHIPPING_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
   shipped: {
     label: "Shipped",
     description: "On the way to customer",
-    nextAction: "Mark Delivered",
+    nextAction: "Mark Completed",
     nextStatus: "delivered",
     canCancel: true,
     canReturn: true,
   },
   delivered: {
-    label: "Delivered",
-    description: "Successfully delivered",
+    label: "Completed",
+    description: "Successfully completed",
     canReturn: true,
   },
   cancelled: {
@@ -151,8 +151,8 @@ const SHIPPING_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
 // Pickup context
 const PICKUP_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
   pending: {
-    label: "Pending",
-    description: "Waiting for confirmation",
+    label: "Placed",
+    description: "Awaiting confirmation",
     nextAction: "Confirm Order",
     nextStatus: "confirmed",
     canCancel: true,
@@ -165,22 +165,22 @@ const PICKUP_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
     canCancel: true,
   },
   processing: {
-    label: "Ready for Pickup",
+    label: "Ready for Collection",
     description: "Items ready for customer pickup",
-    nextAction: "Mark Picked Up",
+    nextAction: "Mark Collected",
     nextStatus: "delivered",
     icon: ShoppingBag,
     canCancel: true,
   },
   shipped: {
-    label: "Picked Up",
-    description: "Customer picked up the order",
+    label: "Collected",
+    description: "Customer collected the order",
     icon: Store,
     canReturn: true,
   },
   delivered: {
-    label: "Picked Up",
-    description: "Customer picked up the order",
+    label: "Collected",
+    description: "Customer collected the order",
     icon: Store,
     canReturn: true,
   },
@@ -191,6 +191,56 @@ const PICKUP_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
   returned: {
     label: "Returned",
     description: "Items returned by customer",
+  },
+};
+
+// Local delivery context
+const LOCAL_DELIVERY_STATUS_CONFIG: Record<
+  OrderStatusType,
+  ContextStatusConfig
+> = {
+  pending: {
+    label: "Placed",
+    description: "Awaiting confirmation",
+    nextAction: "Confirm Order",
+    nextStatus: "confirmed",
+    canCancel: true,
+  },
+  confirmed: {
+    label: "Confirmed",
+    description: "Order confirmed, packing",
+    nextAction: "Start Packing",
+    nextStatus: "processing",
+    canCancel: true,
+  },
+  processing: {
+    label: "Packing",
+    description: "Items being prepared for delivery",
+    nextAction: "Mark Out for Delivery",
+    nextStatus: "shipped",
+    canCancel: true,
+  },
+  shipped: {
+    label: "Out for Delivery",
+    description: "Rider is on the way",
+    nextAction: "Mark Completed",
+    nextStatus: "delivered",
+    icon: Truck,
+    canCancel: true,
+    canReturn: true,
+  },
+  delivered: {
+    label: "Completed",
+    description: "Delivered successfully",
+    canReturn: true,
+  },
+  cancelled: {
+    label: "Cancelled",
+    description: "Delivery cancelled",
+  },
+  returned: {
+    label: "Returned",
+    description: "Failed delivery/returned",
   },
 };
 
@@ -240,24 +290,29 @@ const POS_STATUS_CONFIG: Record<OrderStatusType, ContextStatusConfig> = {
 function getStatusContext(
   fulfillmentType?: FulfillmentType | null,
   channel?: OrderChannel | null
-): StatusContext {
+): StatusContext | "local_delivery" {
   if (fulfillmentType === "instant" || channel === "pos") {
     return "pos";
   }
   if (fulfillmentType === "pickup" || fulfillmentType === "curbside") {
     return "pickup";
   }
+  if (fulfillmentType === "local_delivery") {
+    return "local_delivery";
+  }
   return "shipping";
 }
 
 function getStatusConfig(
-  context: StatusContext
+  context: StatusContext | "local_delivery"
 ): Record<OrderStatusType, ContextStatusConfig> {
   switch (context) {
     case "pos":
       return POS_STATUS_CONFIG;
     case "pickup":
       return PICKUP_STATUS_CONFIG;
+    case "local_delivery":
+      return LOCAL_DELIVERY_STATUS_CONFIG;
     default:
       return SHIPPING_STATUS_CONFIG;
   }

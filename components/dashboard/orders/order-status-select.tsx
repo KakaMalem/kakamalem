@@ -48,11 +48,21 @@ const POS_STATUS_LABELS: Partial<Record<OrderStatusType, string>> = {
 };
 
 const PICKUP_STATUS_LABELS: Partial<Record<OrderStatusType, string>> = {
-  pending: "Pending",
+  pending: "Placed",
   confirmed: "Confirmed",
-  processing: "Ready for Pickup",
-  shipped: "Picked Up",
-  delivered: "Picked Up",
+  processing: "Ready for Collection",
+  shipped: "Collected",
+  delivered: "Collected",
+  returned: "Returned",
+  cancelled: "Cancelled",
+};
+
+const LOCAL_DELIVERY_STATUS_LABELS: Partial<Record<OrderStatusType, string>> = {
+  pending: "Placed",
+  confirmed: "Confirmed",
+  processing: "Packing",
+  shipped: "Out for Delivery",
+  delivered: "Completed",
   returned: "Returned",
   cancelled: "Cancelled",
 };
@@ -68,6 +78,15 @@ const PICKUP_STATUSES: OrderStatusType[] = [
   "pending",
   "confirmed",
   "processing",
+  "delivered",
+  "returned",
+  "cancelled",
+];
+const LOCAL_DELIVERY_STATUSES: OrderStatusType[] = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
   "delivered",
   "returned",
   "cancelled",
@@ -93,10 +112,11 @@ export function OrderStatusSelect({
   const [isPending, startTransition] = useTransition();
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Determine if this is a POS/instant fulfillment order
+  // Determine the fulfillment context
   const isInstant = fulfillmentType === "instant" || channel === "pos";
   const isPickup =
     fulfillmentType === "pickup" || fulfillmentType === "curbside";
+  const isLocalDelivery = fulfillmentType === "local_delivery";
 
   // Get context-aware statuses and labels
   const { availableStatuses, statusLabels } = useMemo(() => {
@@ -109,6 +129,9 @@ export function OrderStatusSelect({
     } else if (isPickup) {
       statuses = PICKUP_STATUSES;
       labels = { ...STATUS_LABELS, ...PICKUP_STATUS_LABELS };
+    } else if (isLocalDelivery) {
+      statuses = LOCAL_DELIVERY_STATUSES;
+      labels = { ...STATUS_LABELS, ...LOCAL_DELIVERY_STATUS_LABELS };
     } else {
       statuses = SHIPPING_STATUSES;
       labels = STATUS_LABELS;
@@ -124,7 +147,7 @@ export function OrderStatusSelect({
     }
 
     return { availableStatuses: statuses, statusLabels: labels };
-  }, [isInstant, isPickup, currentStatus]);
+  }, [isInstant, isPickup, isLocalDelivery, currentStatus]);
 
   // Check if current status is a legacy value
   const isLegacyStatus = !ALL_STATUSES.includes(

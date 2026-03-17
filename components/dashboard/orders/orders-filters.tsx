@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   useState,
   useTransition,
@@ -22,7 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { OrderCounts, OrderStatus } from "@/lib/db/queries/orders";
 
 interface OrdersFiltersProps {
-  storeSlug: string;
   orderCounts: OrderCounts;
   currentStatus?: string;
 }
@@ -31,21 +30,21 @@ type StatusOption = "all" | OrderStatus;
 
 const STATUS_OPTIONS: { value: StatusOption; label: string }[] = [
   { value: "all", label: "All Statuses" },
-  { value: "pending", label: "Pending" },
+  { value: "pending", label: "Placed" },
   { value: "confirmed", label: "Confirmed" },
-  { value: "processing", label: "Processing" },
+  { value: "processing", label: "Preparing" },
   { value: "shipped", label: "Shipped" },
-  { value: "delivered", label: "Delivered" },
+  { value: "delivered", label: "Completed" },
   { value: "returned", label: "Returned" },
   { value: "cancelled", label: "Cancelled" },
 ];
 
 export function OrdersFilters({
-  storeSlug,
   orderCounts,
   currentStatus,
 }: OrdersFiltersProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState(searchParams.get("search") || "");
@@ -99,10 +98,10 @@ export function OrdersFilters({
       });
 
       startTransition(() => {
-        router.push(`/dashboard/${storeSlug}/orders?${params.toString()}`);
+        router.push(`${pathname}?${params.toString()}`);
       });
     },
-    [searchParams, storeSlug, router]
+    [searchParams, router, pathname]
   );
 
   const handleStatusChange = (status: StatusOption) => {

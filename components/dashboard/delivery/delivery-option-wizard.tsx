@@ -268,12 +268,9 @@ export function DeliveryOptionWizard({
     method?.description || ""
   );
 
-  // ==========================================================================
-  // COMPUTED VALUES
-  // ==========================================================================
-
   const steps = useMemo(() => getStepsForAreaType(areaType), [areaType]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+
   const currentStep = steps[currentStepIndex];
 
   // Is this a local delivery type (radius/polygon)?

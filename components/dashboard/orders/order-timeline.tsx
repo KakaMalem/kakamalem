@@ -61,7 +61,7 @@ const POS_STATUSES: OrderStatus[] = [
 
 const CANCELLED_STATUSES: OrderStatus[] = ["cancelled", "returned"];
 
-type TimelineContext = "shipping" | "pickup" | "pos";
+type TimelineContext = "shipping" | "pickup" | "pos" | "local_delivery";
 
 function getTimelineContext(
   fulfillmentType?: FulfillmentType | null,
@@ -73,6 +73,9 @@ function getTimelineContext(
   if (fulfillmentType === "pickup" || fulfillmentType === "curbside") {
     return "pickup";
   }
+  if (fulfillmentType === "local_delivery") {
+    return "local_delivery";
+  }
   return "shipping";
 }
 
@@ -82,6 +85,8 @@ function getStatusOrder(context: TimelineContext): OrderStatus[] {
       return POS_STATUSES;
     case "pickup":
       return PICKUP_STATUSES;
+    case "local_delivery":
+      return SHIPPING_STATUSES; // Uses same status flow as shipping
     default:
       return SHIPPING_STATUSES;
   }
@@ -126,6 +131,24 @@ function getStepIcon(
     }
   }
 
+  // Local delivery context
+  if (context === "local_delivery") {
+    switch (status) {
+      case "pending":
+        return Clock;
+      case "confirmed":
+        return PackageCheck;
+      case "processing":
+        return Package; // Packing
+      case "shipped":
+        return Truck; // Out for delivery
+      case "delivered":
+        return Check;
+      default:
+        return Clock;
+    }
+  }
+
   // Shipping context
   switch (status) {
     case "pending":
@@ -133,9 +156,9 @@ function getStepIcon(
     case "confirmed":
       return PackageCheck;
     case "processing":
-      return Package;
+      return Package; // Preparing
     case "shipped":
-      return Truck;
+      return Truck; // Shipped (carrier)
     case "delivered":
       return Check;
     default:
@@ -167,9 +190,30 @@ function getStepLabel(status: OrderStatus, context: TimelineContext): string {
       case "confirmed":
         return "Confirmed";
       case "processing":
-        return "Ready";
+        return "Ready for Collection";
       case "delivered":
-        return "Picked Up";
+        return "Collected";
+      case "returned":
+        return "Returned";
+      case "cancelled":
+        return "Cancelled";
+      default:
+        return status;
+    }
+  }
+
+  if (context === "local_delivery") {
+    switch (status) {
+      case "pending":
+        return "Placed";
+      case "confirmed":
+        return "Confirmed";
+      case "processing":
+        return "Packing";
+      case "shipped":
+        return "Out for Delivery";
+      case "delivered":
+        return "Completed";
       case "returned":
         return "Returned";
       case "cancelled":
@@ -186,11 +230,11 @@ function getStepLabel(status: OrderStatus, context: TimelineContext): string {
     case "confirmed":
       return "Confirmed";
     case "processing":
-      return "Processing";
+      return "Preparing";
     case "shipped":
       return "Shipped";
     case "delivered":
-      return "Delivered";
+      return "Completed";
     case "returned":
       return "Returned";
     case "cancelled":

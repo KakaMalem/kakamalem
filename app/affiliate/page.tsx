@@ -607,7 +607,7 @@ export default async function AffiliateProgramPage() {
 
           <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-[13px] text-zinc-600">
-              © {new Date().getFullYear()} Kaka Malem Inc. All rights reserved.
+              © {new Date().getFullYear()} Kaka Malem Ltd. All rights reserved.
             </p>
             <div className="flex items-center gap-2 text-[13px] text-emerald-500 font-medium">
               <span className="relative flex h-2 w-2">

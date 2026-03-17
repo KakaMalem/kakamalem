@@ -78,11 +78,11 @@ async function fetchDashboardOrders(
 }
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: "Pending",
+  pending: "Placed",
   confirmed: "Confirmed",
-  processing: "Processing",
+  processing: "Preparing",
   shipped: "Shipped",
-  delivered: "Delivered",
+  delivered: "Completed",
   returned: "Returned",
   cancelled: "Cancelled",
 };
@@ -351,12 +351,15 @@ export function OrdersPageClient({
   return (
     <>
       <div className="space-y-4 pb-36">
-        {/* Filters */}
-        <OrdersFilters
-          storeSlug={storeSlug}
-          orderCounts={orderCounts}
-          currentStatus={searchParams.status}
-        />
+        {/* Filters and View Toggle */}
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex-1 w-full">
+            <OrdersFilters
+              orderCounts={orderCounts}
+              currentStatus={searchParams.status}
+            />
+          </div>
+        </div>
 
         {/* Orders List */}
         <OrdersList

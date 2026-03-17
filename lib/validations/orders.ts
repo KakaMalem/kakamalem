@@ -19,11 +19,11 @@ export const orderStatusSchema = z.enum([
 export type OrderStatusType = z.infer<typeof orderStatusSchema>;
 
 export const STATUS_LABELS: Record<OrderStatusType, string> = {
-  pending: "Pending",
+  pending: "Placed",
   confirmed: "Confirmed",
-  processing: "Processing",
+  processing: "Preparing",
   shipped: "Shipped",
-  delivered: "Delivered",
+  delivered: "Completed",
   returned: "Returned",
   cancelled: "Cancelled",
 };

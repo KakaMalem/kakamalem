@@ -18,6 +18,7 @@ import {
   Tag,
   CalendarDays,
   Crown,
+  Globe,
 } from "lucide-react";
 
 import {
@@ -163,6 +164,11 @@ export function AppSidebar({
       title: "Orders",
       href: `${baseUrl}/orders`,
       icon: ShoppingCart,
+    },
+    {
+      title: "Global Order Map",
+      href: `${baseUrl}/orders/map`,
+      icon: Globe,
     },
     ...(posEnabled
       ? [

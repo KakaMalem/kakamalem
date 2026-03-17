@@ -107,6 +107,7 @@ export function UnifiedDeliveryManager({
 
         {/* Delivery Option Wizard */}
         <DeliveryOptionWizard
+          key={editingZone?.id || "new"}
           tenantId={tenantId}
           open={wizardOpen}
           onOpenChange={setWizardOpen}
@@ -162,6 +163,7 @@ export function UnifiedDeliveryManager({
 
       {/* Delivery Option Wizard */}
       <DeliveryOptionWizard
+        key={editingZone?.id || "new"}
         tenantId={tenantId}
         open={wizardOpen}
         onOpenChange={setWizardOpen}

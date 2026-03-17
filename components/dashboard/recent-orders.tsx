@@ -16,11 +16,11 @@ const statusStyles: Record<
     label: string;
   }
 > = {
-  pending: { variant: "outline", label: "Pending" },
+  pending: { variant: "outline", label: "Placed" },
   confirmed: { variant: "secondary", label: "Confirmed" },
-  processing: { variant: "secondary", label: "Processing" },
+  processing: { variant: "secondary", label: "Preparing" },
   shipped: { variant: "default", label: "Shipped" },
-  delivered: { variant: "default", label: "Delivered" },
+  delivered: { variant: "default", label: "Completed" },
   cancelled: { variant: "destructive", label: "Cancelled" },
   refunded: { variant: "destructive", label: "Refunded" },
 };
