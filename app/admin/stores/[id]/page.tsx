@@ -529,6 +529,9 @@ export default async function AdminStoreDetailPage({
             }
             currentNotes={store.subscriptionNotes}
             settings={settings}
+            currency={store.currency || "AFN"}
+            billingInterval={store.billingInterval}
+            lastReminderSentAt={store.lastReminderSentAt}
           />
         </div>
       </div>

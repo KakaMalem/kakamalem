@@ -14,6 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,7 +58,6 @@ import {
   Pause,
   Play,
   Calculator,
-  Calendar,
 } from "lucide-react";
 import type { PaymentMethod } from "@/lib/db/schema";
 
@@ -80,6 +82,9 @@ interface StoreActionsClientProps {
     proPlanPriceAfn: string;
     trialDurationDays: number;
   };
+  currency: string;
+  billingInterval?: string | null;
+  lastReminderSentAt?: string | null;
 }
 
 export function StoreActionsClient({
@@ -94,6 +99,9 @@ export function StoreActionsClient({
   autoResumeAt,
   currentNotes,
   settings,
+  currency,
+  billingInterval,
+  lastReminderSentAt,
 }: StoreActionsClientProps) {
   const [isPending, startTransition] = useTransition();
   const [extendDays, setExtendDays] = useState(7);
@@ -111,12 +119,31 @@ export function StoreActionsClient({
   const [upgradeOnPayment, setUpgradeOnPayment] = useState(
     currentPlan === "free"
   );
-  const [upgradeMonths, setUpgradeMonths] = useState(1);
+  const [upgradeMonths, setUpgradeMonths] = useState<number>(1);
+  const [upgradeInterval, setUpgradeInterval] = useState<"monthly" | "yearly">(
+    "monthly"
+  );
+  const [useCustomEndDate, setUseCustomEndDate] = useState(false);
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [invoiceAmount, setInvoiceAmount] = useState(settings.proPlanPriceAfn);
   const [invoiceDescription, setInvoiceDescription] = useState(
     "Kaka Malem Pro Subscription"
   );
-  const [invoiceDueDate, setInvoiceDueDate] = useState("");
+  const [invoiceDueDate, setInvoiceDueDate] = useState<Date | null>(null);
+  const [invoiceMonths, setInvoiceMonths] = useState(1);
+  const [invoiceUseCustomPeriod, setInvoiceUseCustomPeriod] = useState(false);
+  const [invoiceCustomStart, setInvoiceCustomStart] = useState<Date | null>(
+    null
+  );
+  const [invoiceCustomEnd, setInvoiceCustomEnd] = useState<Date | null>(null);
+
+  // Edit Expiry state (for already Pro stores)
+  const [editExpiryDate, setEditExpiryDate] = useState<Date | null>(
+    subscriptionEndsAt ? new Date(subscriptionEndsAt) : null
+  );
+  const [editInterval, setEditInterval] = useState<"monthly" | "yearly">(
+    "monthly"
+  );
 
   // Refund state
   const [refundAmount, setRefundAmount] = useState("");
@@ -125,7 +152,9 @@ export function StoreActionsClient({
 
   // Pause/Resume state
   const [pauseReason, setPauseReason] = useState("");
-  const [pauseAutoResumeDate, setPauseAutoResumeDate] = useState("");
+  const [pauseAutoResumeDate, setPauseAutoResumeDate] = useState<Date | null>(
+    null
+  );
   const isPaused = !!pausedAt;
 
   // Prorated refund state
@@ -138,6 +167,12 @@ export function StoreActionsClient({
   const handleMonthsChange = (months: number) => {
     setPaymentMonths(months);
     const basePrice = parseFloat(settings.proPlanPriceAfn);
+    // Auto-detect yearly if 12 months selected
+    if (months === 12) {
+      setUpgradeInterval("yearly");
+    } else {
+      setUpgradeInterval("monthly");
+    }
     setPaymentAmount((basePrice * months).toString());
   };
 
@@ -186,15 +221,18 @@ export function StoreActionsClient({
   const handleSubscriptionChange = (
     plan: "free" | "pro",
     status: "trialing" | "active" | "past_due" | "cancelled" | "expired",
-    months: number = 1
+    options: {
+      months?: number;
+      billingInterval?: "monthly" | "yearly";
+      customEndDate?: string;
+    } = {}
   ) => {
     startTransition(async () => {
-      const result = await updateStoreSubscription(
-        storeId,
-        plan,
-        status,
-        months
-      );
+      const result = await updateStoreSubscription(storeId, plan, status, {
+        months: options.months,
+        billingInterval: options.billingInterval,
+        customEndDate: options.customEndDate,
+      });
       if (result.success) {
         toast.success(result.message || "Subscription updated");
       } else {
@@ -233,11 +271,36 @@ export function StoreActionsClient({
     }
 
     startTransition(async () => {
+      // Calculate period
+      let periodStart: string | undefined;
+      let periodEnd: string | undefined;
+
+      if (invoiceUseCustomPeriod) {
+        periodStart = invoiceCustomStart?.toISOString() || undefined;
+        periodEnd = invoiceCustomEnd?.toISOString() || undefined;
+      } else {
+        const now = new Date();
+        const currentEnd = subscriptionEndsAt
+          ? new Date(subscriptionEndsAt)
+          : null;
+        const isAlreadyProWithTimeRemaining =
+          currentPlan === "pro" && currentEnd && currentEnd > now;
+
+        const start = isAlreadyProWithTimeRemaining ? currentEnd : now;
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + invoiceMonths);
+
+        periodStart = start.toISOString();
+        periodEnd = end.toISOString();
+      }
+
       const result = await createInvoice({
         storeId,
         amount,
         description: invoiceDescription,
-        dueDate: invoiceDueDate || undefined,
+        dueDate: invoiceDueDate?.toISOString() || undefined,
+        periodStart,
+        periodEnd,
       });
 
       if (result.success) {
@@ -245,7 +308,10 @@ export function StoreActionsClient({
         // Reset
         setInvoiceAmount(settings.proPlanPriceAfn);
         setInvoiceDescription("Kaka Malem Pro Subscription");
-        setInvoiceDueDate("");
+        setInvoiceDueDate(null);
+        setInvoiceUseCustomPeriod(false);
+        setInvoiceCustomStart(null);
+        setInvoiceCustomEnd(null);
       } else {
         toast.error(result.error);
       }
@@ -335,13 +401,13 @@ export function StoreActionsClient({
     startTransition(async () => {
       const result = await pauseSubscription(storeId, {
         reason: pauseReason || undefined,
-        autoResumeAt: pauseAutoResumeDate || undefined,
+        autoResumeAt: pauseAutoResumeDate?.toISOString() || undefined,
       });
 
       if (result.success) {
         toast.success("Subscription paused successfully");
         setPauseReason("");
-        setPauseAutoResumeDate("");
+        setPauseAutoResumeDate(null);
       } else {
         toast.error(result.error);
       }
@@ -482,6 +548,63 @@ export function StoreActionsClient({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2 rounded-lg border bg-secondary/20 p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-secondary-foreground font-medium">
+                Plan
+              </span>
+              <div className="flex flex-col items-end">
+                <span className="font-bold capitalize">{currentPlan}</span>
+                {billingInterval && (
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+                    {billingInterval} Billing
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-secondary-foreground font-medium">
+                Status
+              </span>
+              <Badge
+                variant={
+                  currentSubscriptionStatus === "active"
+                    ? "default"
+                    : currentSubscriptionStatus === "trialing"
+                      ? "secondary"
+                      : "destructive"
+                }
+                className="capitalize h-5 text-[10px]"
+              >
+                {currentSubscriptionStatus}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between border-t border-border/50 pt-2 mt-1">
+              <span className="text-secondary-foreground font-medium">
+                {currentPlan === "pro" ? "Expiration" : "Trial Ends"}
+              </span>
+              <span
+                className={`font-semibold ${
+                  subscriptionEndsAt &&
+                  new Date(subscriptionEndsAt) < new Date()
+                    ? "text-destructive"
+                    : ""
+                }`}
+              >
+                {subscriptionEndsAt
+                  ? new Date(subscriptionEndsAt).toLocaleDateString()
+                  : "—"}
+              </span>
+            </div>
+
+            {lastReminderSentAt && (
+              <div className="mt-1 flex justify-between text-[9px] text-muted-foreground italic">
+                <span>Last Sent Reminder:</span>
+                <span>{new Date(lastReminderSentAt).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+
           {currentPlan === "free" && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -508,41 +631,122 @@ export function StoreActionsClient({
                 </AlertDialogHeader>
 
                 <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="upgrade-duration">Duration (Months)</Label>
-                    <div className="flex items-center gap-4">
-                      {[1, 3, 6, 12].map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setUpgradeMonths(m)}
-                          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                            upgradeMonths === m
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted hover:bg-muted/80"
-                          }`}
-                        >
-                          {m}m
-                        </button>
-                      ))}
-                      <Input
-                        id="upgrade-duration"
-                        type="number"
-                        className="ml-auto w-20"
-                        value={upgradeMonths}
-                        onChange={(e) =>
-                          setUpgradeMonths(parseInt(e.target.value) || 1)
+                  <div className="space-y-3">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Billing Configuration
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={
+                          upgradeInterval === "monthly" ? "default" : "outline"
                         }
+                        size="sm"
+                        onClick={() => {
+                          setUpgradeInterval("monthly");
+                          if (upgradeMonths === 12) setUpgradeMonths(1);
+                        }}
+                        className="w-full"
+                      >
+                        Monthly
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={
+                          upgradeInterval === "yearly" ? "default" : "outline"
+                        }
+                        size="sm"
+                        onClick={() => {
+                          setUpgradeInterval("yearly");
+                          setUpgradeMonths(12);
+                        }}
+                        className="w-full"
+                      >
+                        Yearly
+                      </Button>
+                    </div>
+                  </div>
+
+                  {!useCustomEndDate && (
+                    <div className="space-y-2">
+                      <Label htmlFor="upgrade-duration">
+                        Duration (Months)
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        {[1, 3, 6, 12, 24].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => {
+                              setUpgradeMonths(m);
+                              if (m >= 12) setUpgradeInterval("yearly");
+                            }}
+                            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                              upgradeMonths === m
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted hover:bg-muted/80"
+                            }`}
+                          >
+                            {m}m
+                          </button>
+                        ))}
+                        <Input
+                          id="upgrade-duration"
+                          type="number"
+                          className="ml-auto w-16 h-8 text-xs"
+                          value={upgradeMonths}
+                          onChange={(e) =>
+                            setUpgradeMonths(parseInt(e.target.value) || 1)
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label
+                        htmlFor="use-custom-date"
+                        className="text-xs cursor-pointer"
+                      >
+                        Override end date manually
+                      </Label>
+                      <Switch
+                        id="use-custom-date"
+                        checked={useCustomEndDate}
+                        onCheckedChange={setUseCustomEndDate}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Ends on:{" "}
-                      {new Date(
-                        new Date().setMonth(
-                          new Date().getMonth() + upgradeMonths
-                        )
-                      ).toLocaleDateString()}
-                    </p>
+
+                    {useCustomEndDate ? (
+                      <div className="space-y-1.5">
+                        <DateTimePicker
+                          value={customEndDate}
+                          onChange={setCustomEndDate}
+                          placeholder="Select end date"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          Precisely control when this store reverts to free.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg bg-muted/50 p-2 text-center border border-border/50">
+                        <p className="text-[10px] uppercase text-muted-foreground font-bold">
+                          Subscription End Date
+                        </p>
+                        <p className="text-sm font-semibold">
+                          {new Date(
+                            new Date().setMonth(
+                              new Date().getMonth() + upgradeMonths
+                            )
+                          ).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -550,7 +754,13 @@ export function StoreActionsClient({
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() =>
-                      handleSubscriptionChange("pro", "active", upgradeMonths)
+                      handleSubscriptionChange("pro", "active", {
+                        months: upgradeMonths,
+                        billingInterval: upgradeInterval,
+                        customEndDate: useCustomEndDate
+                          ? customEndDate?.toISOString()
+                          : undefined,
+                      })
                     }
                   >
                     Confirm Upgrade
@@ -626,7 +836,6 @@ export function StoreActionsClient({
               </div>
             </div>
           )}
-
           {currentSubscriptionStatus === "expired" && (
             <Button
               variant="outline"
@@ -637,6 +846,69 @@ export function StoreActionsClient({
               <Clock className="mr-2 size-4" />
               Restart Trial
             </Button>
+          )}
+
+          {currentPlan === "pro" && (
+            <div className="space-y-4 pt-4 border-t border-border mt-4">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Administrative Controls
+              </Label>
+
+              <div className="grid gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-expiry" className="text-xs">
+                    Modify Expiration Date
+                  </Label>
+                  <div className="flex gap-2">
+                    <DateTimePicker
+                      value={editExpiryDate}
+                      onChange={setEditExpiryDate}
+                      className="h-8"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isPending || !editExpiryDate}
+                      onClick={() =>
+                        handleSubscriptionChange("pro", "active", {
+                          customEndDate:
+                            editExpiryDate?.toISOString() || undefined,
+                          billingInterval: editInterval,
+                        })
+                      }
+                    >
+                      Update
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Billing Interval Override</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={
+                        editInterval === "monthly" ? "default" : "outline"
+                      }
+                      size="sm"
+                      className="h-8 text-[10px]"
+                      onClick={() => setEditInterval("monthly")}
+                    >
+                      Monthly
+                    </Button>
+                    <Button
+                      variant={
+                        editInterval === "yearly" ? "default" : "outline"
+                      }
+                      size="sm"
+                      className="h-8 text-[10px]"
+                      onClick={() => setEditInterval("yearly")}
+                    >
+                      Yearly
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -703,22 +975,11 @@ export function StoreActionsClient({
                     Auto-Resume Date (optional)
                   </Label>
                   <div className="flex items-center gap-2">
-                    <Calendar className="size-4 text-muted-foreground" />
-                    <Input
-                      id="auto-resume"
-                      type="date"
+                    <DateTimePicker
                       value={pauseAutoResumeDate}
-                      onChange={(e) => setPauseAutoResumeDate(e.target.value)}
-                      min={
-                        new Date(Date.now() + 86400000)
-                          .toISOString()
-                          .split("T")[0]
-                      }
-                      max={
-                        new Date(Date.now() + 90 * 86400000)
-                          .toISOString()
-                          .split("T")[0]
-                      }
+                      onChange={setPauseAutoResumeDate}
+                      minDate={new Date(Date.now() + 86400000)}
+                      maxDate={new Date(Date.now() + 90 * 86400000)}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -896,7 +1157,7 @@ export function StoreActionsClient({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="inv-amount">Amount (AFN)</Label>
+              <Label htmlFor="inv-amount">Amount ({currency})</Label>
               <Input
                 id="inv-amount"
                 type="number"
@@ -906,13 +1167,88 @@ export function StoreActionsClient({
             </div>
             <div className="space-y-2">
               <Label htmlFor="inv-due">Due Date (optional)</Label>
-              <Input
-                id="inv-due"
-                type="date"
+              <DateTimePicker
                 value={invoiceDueDate}
-                onChange={(e) => setInvoiceDueDate(e.target.value)}
+                onChange={setInvoiceDueDate}
+                placeholder="Pick a due date"
               />
             </div>
+          </div>
+
+          <div className="space-y-3 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Set Subscription Period</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground">
+                  Custom Range
+                </span>
+                <Switch
+                  checked={invoiceUseCustomPeriod}
+                  onCheckedChange={setInvoiceUseCustomPeriod}
+                />
+              </div>
+            </div>
+
+            {invoiceUseCustomPeriod ? (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Start Date
+                  </Label>
+                  <DateTimePicker
+                    value={invoiceCustomStart}
+                    onChange={setInvoiceCustomStart}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    End Date
+                  </Label>
+                  <DateTimePicker
+                    value={invoiceCustomEnd}
+                    onChange={setInvoiceCustomEnd}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {[1, 3, 6, 12, 24].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setInvoiceMonths(m)}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors border ${
+                        invoiceMonths === m
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted hover:bg-muted/80 border-border"
+                      }`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <Label className="text-[10px] text-muted-foreground">
+                      Custom:
+                    </Label>
+                    <Input
+                      type="number"
+                      className="w-16 h-8 text-xs"
+                      min={1}
+                      value={invoiceMonths}
+                      onChange={(e) =>
+                        setInvoiceMonths(parseInt(e.target.value) || 1)
+                      }
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Period starts from current end date (if Pro) or today.
+                </p>
+              </div>
+            )}
           </div>
           <Button
             variant="outline"
@@ -980,21 +1316,35 @@ export function StoreActionsClient({
           {/* Period / Duration Selection */}
           <div className="space-y-2">
             <Label>Subscription Period</Label>
-            <div className="grid grid-cols-4 gap-2">
-              {[1, 3, 6, 12].map((months) => (
+            <div className="flex flex-wrap items-center gap-2">
+              {[1, 3, 6, 12, 24].map((months) => (
                 <button
                   key={months}
                   type="button"
                   onClick={() => handleMonthsChange(months)}
-                  className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                  className={`py-1.5 px-3 rounded-md border text-xs font-medium transition-colors ${
                     paymentMonths === months
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-muted hover:bg-muted/80 border-border"
                   }`}
                 >
-                  {months} {months === 1 ? "month" : "months"}
+                  {months}m
                 </button>
               ))}
+              <div className="flex items-center gap-1.5 ml-auto">
+                <Label className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  Custom:
+                </Label>
+                <Input
+                  type="number"
+                  className="w-16 h-8 text-xs"
+                  min={1}
+                  value={paymentMonths}
+                  onChange={(e) =>
+                    handleMonthsChange(parseInt(e.target.value) || 1)
+                  }
+                />
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
               {paymentMonths} month{paymentMonths !== 1 && "s"} ={" "}

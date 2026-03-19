@@ -118,9 +118,22 @@ export async function updateStoreSubscription(
   storeId: string,
   plan: "free" | "pro",
   status: "trialing" | "active" | "past_due" | "cancelled" | "expired",
-  months: number = 1,
-  notes?: string
+  options: {
+    months?: number;
+    billingInterval?: "monthly" | "yearly";
+    customEndDate?: string;
+    notes?: string;
+    resetReminders?: boolean;
+  } = {}
 ): Promise<ActionResult> {
+  const {
+    months = 1,
+    billingInterval = "monthly",
+    customEndDate,
+    notes,
+    resetReminders = true,
+  } = options;
+
   try {
     const admin = await requirePlatformAdmin();
 
@@ -152,26 +165,39 @@ export async function updateStoreSubscription(
 
     // If upgrading to pro with active status, set subscription dates
     if (plan === "pro" && status === "active") {
+      updateData.billingInterval = billingInterval;
+
       // Only set subscriptionStartedAt for new subscriptions or upgrades from free
       if (!store.subscriptionStartedAt || store.subscriptionPlan === "free") {
         updateData.subscriptionStartedAt = now;
       }
 
-      // Calculate end date based on months
-      // If already Pro and extending, start from current end date
-      let currentEnd =
-        store.subscriptionPlan === "pro" && store.subscriptionEndsAt
-          ? new Date(store.subscriptionEndsAt)
-          : new Date();
+      // Calculate end date or use custom one
+      if (customEndDate) {
+        updateData.subscriptionEndsAt = customEndDate;
+      } else {
+        // Calculate end date based on months
+        // If already Pro and extending, start from current end date
+        let currentEnd =
+          store.subscriptionPlan === "pro" && store.subscriptionEndsAt
+            ? new Date(store.subscriptionEndsAt)
+            : new Date();
 
-      // If current end date is in the past, start from now
-      if (currentEnd < new Date()) {
-        currentEnd = new Date();
+        // If current end date is in the past, start from now
+        if (currentEnd < new Date()) {
+          currentEnd = new Date();
+        }
+
+        const endDate = new Date(currentEnd);
+        endDate.setMonth(endDate.getMonth() + months);
+        updateData.subscriptionEndsAt = endDate.toISOString();
       }
+    }
 
-      const endDate = new Date(currentEnd);
-      endDate.setMonth(endDate.getMonth() + months);
-      updateData.subscriptionEndsAt = endDate.toISOString();
+    // Reset reminder tracking to avoid annoying persistent emails for new periods
+    if (resetReminders) {
+      updateData.lastReminderSentAt = null;
+      updateData.lastReminderDaysBefore = null;
     }
 
     // Add notes if provided
@@ -385,6 +411,7 @@ export async function recordBillingTransaction(data: {
   createInvoice?: boolean;
   upgradeToProOnPayment?: boolean;
   periodMonths?: number; // For multi-month subscriptions
+  billingInterval?: "monthly" | "yearly"; // Force specific interval
 }): Promise<ActionResult & { transactionId?: string; invoiceId?: string }> {
   try {
     const admin = await requirePlatformAdmin();
@@ -401,6 +428,7 @@ export async function recordBillingTransaction(data: {
       createInvoice = false,
       upgradeToProOnPayment = false,
       periodMonths = 1,
+      billingInterval,
     } = data;
 
     // Get store info (including subscription end date for proper extension)
@@ -505,21 +533,36 @@ export async function recordBillingTransaction(data: {
       const isAlreadyProWithTimeRemaining =
         store.subscriptionPlan === "pro" && currentEnd > nowDate;
 
-      const extendFrom = isAlreadyProWithTimeRemaining ? currentEnd : nowDate;
-      const subscriptionEnd = new Date(extendFrom);
-      // Use setMonth for more accurate multi-month calculation
-      subscriptionEnd.setMonth(subscriptionEnd.getMonth() + periodMonths);
+      // Use provided periodEnd if available, otherwise calculate from months
+      const subscriptionEnd = periodEnd
+        ? new Date(periodEnd)
+        : (() => {
+            const extendFrom = isAlreadyProWithTimeRemaining
+              ? currentEnd
+              : nowDate;
+            const end = new Date(extendFrom);
+            end.setMonth(end.getMonth() + periodMonths);
+            return end;
+          })();
 
       // Only update subscriptionStartedAt if this is a NEW subscription (not extension)
       const isNewSubscription = !isAlreadyProWithTimeRemaining;
+
+      // Determine interval (if not provided, auto-detect yearly if months >= 12)
+      const interval =
+        billingInterval ?? (periodMonths >= 12 ? "yearly" : "monthly");
 
       await db
         .update(tenants)
         .set({
           subscriptionPlan: "pro",
           subscriptionStatus: "active",
+          billingInterval: interval,
           ...(isNewSubscription && { subscriptionStartedAt: now }),
           subscriptionEndsAt: subscriptionEnd.toISOString(),
+          // Reset reminders since we just updated the end date
+          lastReminderSentAt: null,
+          lastReminderDaysBefore: null,
           updatedAt: now,
         })
         .where(eq(tenants.id, storeId));
@@ -816,9 +859,28 @@ export async function markInvoicePaid(
       ...paymentData,
     });
 
+    // Update tenant subscription status and period
+    if (invoice.periodEnd) {
+      await db
+        .update(tenants)
+        .set({
+          subscriptionPlan: "pro",
+          subscriptionStatus: "active",
+          subscriptionEndsAt: invoice.periodEnd,
+          subscriptionStartedAt:
+            invoice.periodStart || new Date().toISOString(),
+          updatedAt: now,
+        })
+        .where(eq(tenants.id, invoice.tenantId));
+    }
+
+    revalidatePath("/admin/payments");
     revalidatePath(`/admin/stores/${invoice.tenantId}`);
 
-    return { success: true, message: "Invoice marked as paid" };
+    return {
+      success: true,
+      message: `Invoice ${invoice.invoiceNumber} marked as paid and subscription updated`,
+    };
   } catch (error) {
     console.error("Failed to mark invoice as paid:", error);
     return { success: false, error: "Failed to mark invoice as paid" };
@@ -844,8 +906,8 @@ export async function voidInvoice(
       return { success: false, error: "Invoice not found" };
     }
 
-    if (invoice.status === "paid") {
-      return { success: false, error: "Cannot void a paid invoice" };
+    if (invoice.status === "void") {
+      return { success: false, error: "Invoice is already voided" };
     }
 
     // Update invoice status
@@ -854,7 +916,7 @@ export async function voidInvoice(
       .set({
         status: "void",
         notes: reason
-          ? `${invoice.notes ?? ""}\n\nVoided: ${reason}`.trim()
+          ? `${invoice.notes ?? ""}\n\nVoided: ${reason} (Admin Override)`.trim()
           : invoice.notes,
         updatedAt: new Date().toISOString(),
       })
@@ -863,14 +925,78 @@ export async function voidInvoice(
     // Log the action
     await logAdminAction(admin.id, "invoice.void", "invoice", invoiceId, {
       invoiceNumber: invoice.invoiceNumber,
+      previousStatus: invoice.status,
       reason,
     });
 
+    revalidatePath("/admin/payments");
     revalidatePath(`/admin/stores/${invoice.tenantId}`);
 
-    return { success: true, message: "Invoice voided" };
+    return {
+      success: true,
+      message: `Invoice ${invoice.invoiceNumber} voided`,
+    };
   } catch (error) {
     console.error("Failed to void invoice:", error);
     return { success: false, error: "Failed to void invoice" };
+  }
+}
+
+export type InvoiceStatus =
+  | "draft"
+  | "unpaid"
+  | "paid"
+  | "overdue"
+  | "void"
+  | "partially_paid";
+
+/**
+ * Administrative override to edit ANY invoice field (even if paid/void)
+ * Use for production data fixes only.
+ */
+export async function updateInvoiceAdmin(
+  invoiceId: string,
+  data: {
+    total?: string;
+    subtotal?: string;
+    description?: string;
+    status?: InvoiceStatus;
+    dueDate?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    notes?: string;
+    invoiceNumber?: string;
+  }
+): Promise<ActionResult> {
+  try {
+    const admin = await requirePlatformAdmin();
+
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+    });
+
+    if (!invoice) return { success: false, error: "Invoice not found" };
+
+    await db
+      .update(invoices)
+      .set({
+        ...data,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(invoices.id, invoiceId));
+
+    // Log high-priority override
+    await logAdminAction(admin.id, "invoice.override", "invoice", invoiceId, {
+      invoiceNumber: invoice.invoiceNumber,
+      changes: data,
+    });
+
+    revalidatePath("/admin/payments");
+    revalidatePath(`/admin/stores/${invoice.tenantId}`);
+
+    return { success: true, message: "Invoice override successful" };
+  } catch (error) {
+    console.error("Failed to override invoice:", error);
+    return { success: false, error: "Override failed" };
   }
 }

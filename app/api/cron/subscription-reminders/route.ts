@@ -66,15 +66,19 @@ export async function GET(request: Request) {
     const reminderDays = [7, 3, 1];
 
     for (const daysUntil of reminderDays) {
-      // Calculate the target date range (within that day)
+      // Calculate the target date (normalized to UTC midnight for consistent matching)
       const targetDate = new Date(now);
       targetDate.setDate(targetDate.getDate() + daysUntil);
 
       const startOfDay = new Date(targetDate);
-      startOfDay.setHours(0, 0, 0, 0);
+      startOfDay.setUTCHours(0, 0, 0, 0);
 
       const endOfDay = new Date(targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      console.log(
+        `[SubReminders] Checking for expiry between ${startOfDay.toISOString()} and ${endOfDay.toISOString()} (${daysUntil} days)`
+      );
 
       // Find tenants with subscriptions expiring on this day
       const expiringTenants = await db.query.tenants.findMany({
