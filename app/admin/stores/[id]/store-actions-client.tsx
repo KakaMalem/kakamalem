@@ -548,22 +548,28 @@ export function StoreActionsClient({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2 rounded-lg border bg-secondary/20 p-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-secondary-foreground font-medium">
-                Plan
+          <div className="space-y-3 rounded-2xl border bg-muted/30 p-4 text-sm shadow-inner overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none" />
+            <div className="flex items-center justify-between relative z-10">
+              <span className="text-muted-foreground font-bold uppercase text-[10px] tracking-widest">
+                Current Plan
               </span>
               <div className="flex flex-col items-end">
-                <span className="font-bold capitalize">{currentPlan}</span>
+                <span className="font-black text-primary text-base tracking-tight capitalize">
+                  {currentPlan}
+                </span>
                 {billingInterval && (
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
-                    {billingInterval} Billing
-                  </span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="size-1 rounded-full bg-primary/40" />
+                    <span className="text-[9px] text-muted-foreground uppercase font-black tracking-tighter">
+                      {billingInterval} BILLING
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-secondary-foreground font-medium">
+            <div className="flex items-center justify-between relative z-10">
+              <span className="text-muted-foreground font-bold uppercase text-[10px] tracking-widest">
                 Status
               </span>
               <Badge
@@ -574,32 +580,44 @@ export function StoreActionsClient({
                       ? "secondary"
                       : "destructive"
                 }
-                className="capitalize h-5 text-[10px]"
+                className={`h-6 px-3 text-[10px] font-black uppercase tracking-tighter shadow-sm border-none ${
+                  currentSubscriptionStatus === "active"
+                    ? "bg-primary text-primary-foreground"
+                    : currentSubscriptionStatus === "trialing"
+                      ? "bg-secondary text-secondary-foreground"
+                      : "bg-destructive text-destructive-foreground"
+                }`}
               >
                 {currentSubscriptionStatus}
               </Badge>
             </div>
-            <div className="flex items-center justify-between border-t border-border/50 pt-2 mt-1">
-              <span className="text-secondary-foreground font-medium">
-                {currentPlan === "pro" ? "Expiration" : "Trial Ends"}
+            <div className="flex items-center justify-between border-t border-border/50 pt-3 mt-1 relative z-10">
+              <span className="text-muted-foreground font-bold uppercase text-[10px] tracking-widest">
+                {currentPlan === "pro"
+                  ? "Expiration Date"
+                  : "Trial Period Ends"}
               </span>
               <span
-                className={`font-semibold ${
+                className={`font-black tracking-tight text-sm ${
                   subscriptionEndsAt &&
                   new Date(subscriptionEndsAt) < new Date()
                     ? "text-destructive"
-                    : ""
+                    : "text-foreground"
                 }`}
               >
                 {subscriptionEndsAt
-                  ? new Date(subscriptionEndsAt).toLocaleDateString()
+                  ? new Date(subscriptionEndsAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
                   : "—"}
               </span>
             </div>
 
             {lastReminderSentAt && (
-              <div className="mt-1 flex justify-between text-[9px] text-muted-foreground italic">
-                <span>Last Sent Reminder:</span>
+              <div className="mt-2 flex justify-between text-[9px] text-muted-foreground/60 font-medium italic border-t border-border/30 pt-2">
+                <span>Last auto-reminder:</span>
                 <span>{new Date(lastReminderSentAt).toLocaleString()}</span>
               </div>
             )}
@@ -610,149 +628,183 @@ export function StoreActionsClient({
               <AlertDialogTrigger asChild>
                 <Button
                   variant="default"
-                  className="w-full justify-start"
+                  className="w-full h-11 font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all active:scale-[0.98]"
                   disabled={isPending}
                 >
                   {isPending ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    <Loader2 className="mr-2 size-5 animate-spin" />
                   ) : (
-                    <Crown className="mr-2 size-4" />
+                    <Crown className="mr-2 size-5 fill-current" />
                   )}
-                  Upgrade to Pro ({settings.proPlanPriceAfn} AFN/mo)
+                  Upgrade Store to Pro
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Upgrade to Pro?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will upgrade the store to Pro plan with all features
-                    enabled. Make sure payment has been received.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-3">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Billing Configuration
-                    </Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant={
-                          upgradeInterval === "monthly" ? "default" : "outline"
-                        }
-                        size="sm"
-                        onClick={() => {
-                          setUpgradeInterval("monthly");
-                          if (upgradeMonths === 12) setUpgradeMonths(1);
-                        }}
-                        className="w-full"
-                      >
-                        Monthly
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={
-                          upgradeInterval === "yearly" ? "default" : "outline"
-                        }
-                        size="sm"
-                        onClick={() => {
-                          setUpgradeInterval("yearly");
-                          setUpgradeMonths(12);
-                        }}
-                        className="w-full"
-                      >
-                        Yearly
-                      </Button>
+              <AlertDialogContent className="sm:max-w-[480px] p-0 overflow-hidden border-none shadow-2xl">
+                <div className="bg-primary/5 px-6 py-5 border-b border-primary/10">
+                  <AlertDialogHeader>
+                    <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                      <Crown className="size-6 text-primary fill-primary/20" />
                     </div>
-                  </div>
+                    <AlertDialogTitle className="text-xl font-black tracking-tight text-primary">
+                      Upgrade to Pro Plan
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-muted-foreground/80 font-medium">
+                      Store will gain access to all premium features. Please
+                      confirm that payment has been received ($
+                      {settings.proPlanPriceAfn} AFN/mo).
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                </div>
 
-                  {!useCustomEndDate && (
-                    <div className="space-y-2">
-                      <Label htmlFor="upgrade-duration">
-                        Duration (Months)
+                <div className="p-6 space-y-7">
+                  <div className="grid gap-5">
+                    <div className="space-y-3">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                        Billing Cycle
                       </Label>
-                      <div className="flex items-center gap-2">
-                        {[1, 3, 6, 12, 24].map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => {
-                              setUpgradeMonths(m);
-                              if (m >= 12) setUpgradeInterval("yearly");
-                            }}
-                            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                              upgradeMonths === m
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted hover:bg-muted/80"
-                            }`}
-                          >
-                            {m}m
-                          </button>
-                        ))}
-                        <Input
-                          id="upgrade-duration"
-                          type="number"
-                          className="ml-auto w-16 h-8 text-xs"
-                          value={upgradeMonths}
-                          onChange={(e) =>
-                            setUpgradeMonths(parseInt(e.target.value) || 1)
+                      <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-xl border border-border/50">
+                        <Button
+                          type="button"
+                          variant={
+                            upgradeInterval === "monthly" ? "default" : "ghost"
                           }
-                        />
+                          size="sm"
+                          onClick={() => {
+                            setUpgradeInterval("monthly");
+                            if (upgradeMonths >= 12) setUpgradeMonths(1);
+                          }}
+                          className={`w-full h-10 font-bold rounded-lg ${
+                            upgradeInterval === "monthly"
+                              ? "shadow-sm"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          Monthly
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={
+                            upgradeInterval === "yearly" ? "default" : "ghost"
+                          }
+                          size="sm"
+                          onClick={() => {
+                            setUpgradeInterval("yearly");
+                            setUpgradeMonths(12);
+                          }}
+                          className={`w-full h-10 font-bold rounded-lg ${
+                            upgradeInterval === "yearly"
+                              ? "shadow-sm"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          Yearly (Save)
+                        </Button>
                       </div>
                     </div>
-                  )}
 
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="use-custom-date"
-                        className="text-xs cursor-pointer"
-                      >
-                        Override end date manually
-                      </Label>
-                      <Switch
-                        id="use-custom-date"
-                        checked={useCustomEndDate}
-                        onCheckedChange={setUseCustomEndDate}
-                      />
-                    </div>
-
-                    {useCustomEndDate ? (
-                      <div className="space-y-1.5">
-                        <DateTimePicker
-                          value={customEndDate}
-                          onChange={setCustomEndDate}
-                          placeholder="Select end date"
-                        />
-                        <p className="text-[10px] text-muted-foreground">
-                          Precisely control when this store reverts to free.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg bg-muted/50 p-2 text-center border border-border/50">
-                        <p className="text-[10px] uppercase text-muted-foreground font-bold">
-                          Subscription End Date
-                        </p>
-                        <p className="text-sm font-semibold">
-                          {new Date(
-                            new Date().setMonth(
-                              new Date().getMonth() + upgradeMonths
-                            )
-                          ).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                        </p>
+                    {!useCustomEndDate && (
+                      <div className="space-y-3">
+                        <Label
+                          htmlFor="upgrade-duration"
+                          className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1"
+                        >
+                          Plan Duration
+                        </Label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {[1, 3, 6, 12, 24].map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setUpgradeMonths(m);
+                                if (m >= 12) setUpgradeInterval("yearly");
+                                else if (upgradeInterval === "yearly")
+                                  setUpgradeInterval("monthly");
+                              }}
+                              className={`rounded-xl px-4 py-2 text-xs font-black transition-all border ${
+                                upgradeMonths === m
+                                  ? "bg-primary text-primary-foreground border-primary shadow-md scale-105"
+                                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+                              }`}
+                            >
+                              {m} MONTHS
+                            </button>
+                          ))}
+                          <div className="relative ml-auto">
+                            <Input
+                              id="upgrade-duration"
+                              type="number"
+                              className="w-[70px] h-9 text-xs font-black border-dashed focus:border-solid text-center pr-0"
+                              value={upgradeMonths}
+                              onChange={(e) =>
+                                setUpgradeMonths(parseInt(e.target.value) || 1)
+                              }
+                            />
+                          </div>
+                        </div>
                       </div>
                     )}
+
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-center justify-between px-1">
+                        <div className="space-y-0.5">
+                          <Label
+                            htmlFor="use-custom-date"
+                            className="text-xs cursor-pointer font-bold"
+                          >
+                            Manual End Date
+                          </Label>
+                          <p className="text-[10px] text-muted-foreground">
+                            Override calculated expiration date
+                          </p>
+                        </div>
+                        <Switch
+                          id="use-custom-date"
+                          checked={useCustomEndDate}
+                          onCheckedChange={setUseCustomEndDate}
+                        />
+                      </div>
+
+                      {useCustomEndDate ? (
+                        <div className="p-1 bg-muted rounded-xl border border-border/50 animate-in fade-in slide-in-from-top-2">
+                          <DateTimePicker
+                            value={customEndDate}
+                            onChange={setCustomEndDate}
+                            placeholder="Select exact date & time"
+                            className="h-10 border-none bg-transparent"
+                          />
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl bg-primary/5 p-4 border-2 border-primary/10 flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] uppercase text-primary font-black tracking-widest opacity-80">
+                              Access Until
+                            </p>
+                            <p className="text-sm font-black text-primary">
+                              {new Date(
+                                new Date().setMonth(
+                                  new Date().getMonth() + upgradeMonths
+                                )
+                              ).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            </p>
+                          </div>
+                          <Clock className="size-5 text-primary opacity-20" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <div className="p-6 bg-muted/30 border-t border-border flex items-center gap-3">
+                  <AlertDialogCancel className="flex-1 h-12 font-bold rounded-xl border-none hover:bg-muted">
+                    Cancel
+                  </AlertDialogCancel>
                   <AlertDialogAction
+                    className="flex-2 h-12 font-black rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
                     onClick={() =>
                       handleSubscriptionChange("pro", "active", {
                         months: upgradeMonths,
@@ -763,111 +815,136 @@ export function StoreActionsClient({
                       })
                     }
                   >
-                    Confirm Upgrade
+                    Confirm & Upgrade
                   </AlertDialogAction>
-                </AlertDialogFooter>
+                </div>
               </AlertDialogContent>
             </AlertDialog>
           )}
-
-          {currentPlan === "pro" && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled={isPending}
-                >
-                  <AlertTriangle className="mr-2 size-4" />
-                  Downgrade to Free
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Downgrade to Free?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will downgrade the store to the free plan. They will
-                    lose access to Pro features and be limited to{" "}
-                    {settings.trialDurationDays} products.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => handleSubscriptionChange("free", "active")}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          <div className="grid gap-4 pt-4 border-t border-border/50">
+            {currentPlan === "pro" && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 h-10 font-bold transition-colors"
+                    disabled={isPending}
                   >
-                    Downgrade
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+                    <AlertTriangle className="mr-2 size-4" />
+                    Downgrade Store to Free
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-destructive">
+                      Downgrade to Free?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will immediately downgrade the store to the Free
+                      plan. The store will lose access to Pro features.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => handleSubscriptionChange("free", "active")}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
+                    >
+                      Confirm Downgrade
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
 
-          {currentSubscriptionStatus === "trialing" && (
-            <div className="space-y-2">
-              <Label>Extend Trial</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={90}
-                  value={extendDays}
-                  onChange={(e) => setExtendDays(parseInt(e.target.value) || 7)}
-                  onWheel={(e) => e.currentTarget.blur()}
-                  className="w-20"
-                />
-                <span className="flex items-center text-sm text-muted-foreground">
-                  days
-                </span>
-                <Button
-                  variant="outline"
-                  onClick={handleExtendTrial}
-                  disabled={isPending}
-                  className="flex-1"
-                >
-                  {isPending ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <Clock className="mr-2 size-4" />
-                  )}
-                  Extend
-                </Button>
+            {currentSubscriptionStatus === "trialing" && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-border/50" />
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Extend Trial
+                  </Label>
+                  <div className="flex-1 h-px bg-border/50" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={extendDays}
+                      onChange={(e) =>
+                        setExtendDays(parseInt(e.target.value) || 7)
+                      }
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="h-10 pr-12 font-bold focus-visible:ring-primary/20"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[9px] font-black text-muted-foreground">
+                      DAYS
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleExtendTrial}
+                    disabled={isPending}
+                    className="px-6 h-10 font-bold"
+                  >
+                    {isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Clock className="mr-2 size-4 text-primary" />
+                    )}
+                    Extend
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-          {currentSubscriptionStatus === "expired" && (
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => handleSubscriptionChange("free", "trialing")}
-              disabled={isPending}
-            >
-              <Clock className="mr-2 size-4" />
-              Restart Trial
-            </Button>
-          )}
+            )}
+
+            {currentSubscriptionStatus === "expired" && (
+              <Button
+                variant="outline"
+                className="w-full h-11 font-bold border-dashed border-2 hover:border-solid transition-all"
+                onClick={() => handleSubscriptionChange("free", "trialing")}
+                disabled={isPending}
+              >
+                <Clock className="mr-2 size-4 text-orange-500" />
+                Restart Trial Period
+              </Button>
+            )}
+          </div>
 
           {currentPlan === "pro" && (
-            <div className="space-y-4 pt-4 border-t border-border mt-4">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Administrative Controls
-              </Label>
+            <div className="mt-6 pt-5 border-y border-border -mx-6 px-6 bg-muted/40 rounded-b-xl">
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
+                  Quick Actions
+                </Label>
+                <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-0.5 rounded-full ring-1 ring-primary/20">
+                  <div className="size-1 rounded-full bg-primary animate-pulse" />
+                  <span className="text-[9px] font-black tracking-tighter">
+                    ADVANCED
+                  </span>
+                </div>
+              </div>
 
-              <div className="grid gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-expiry" className="text-xs">
-                    Modify Expiration Date
+              <div className="space-y-6 pb-6 pt-1">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] text-muted-foreground/80 font-bold uppercase ml-1">
+                    Expiration Date
                   </Label>
-                  <div className="flex gap-2">
-                    <DateTimePicker
-                      value={editExpiryDate}
-                      onChange={setEditExpiryDate}
-                      className="h-8"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                    <div className="sm:col-span-3">
+                      <DateTimePicker
+                        value={editExpiryDate}
+                        onChange={setEditExpiryDate}
+                        className="h-10 w-full font-medium"
+                      />
+                    </div>
                     <Button
-                      variant="outline"
+                      variant="default"
                       size="sm"
+                      className="h-10 w-full font-bold shadow-sm"
                       disabled={isPending || !editExpiryDate}
                       onClick={() =>
                         handleSubscriptionChange("pro", "active", {
@@ -882,29 +959,33 @@ export function StoreActionsClient({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs">Billing Interval Override</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant={
-                        editInterval === "monthly" ? "default" : "outline"
-                      }
-                      size="sm"
-                      className="h-8 text-[10px]"
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] text-muted-foreground/80 font-bold uppercase ml-1">
+                    Billing Interval
+                  </Label>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-background rounded-xl border border-border shadow-inner">
+                    <button
+                      type="button"
                       onClick={() => setEditInterval("monthly")}
+                      className={`h-9 flex items-center justify-center rounded-lg text-[10px] font-black tracking-wide transition-all ${
+                        editInterval === "monthly"
+                          ? "bg-primary text-primary-foreground shadow-md scale-[1.02] ring-1 ring-primary/50"
+                          : "text-muted-foreground hover:bg-muted"
+                      }`}
                     >
-                      Monthly
-                    </Button>
-                    <Button
-                      variant={
-                        editInterval === "yearly" ? "default" : "outline"
-                      }
-                      size="sm"
-                      className="h-8 text-[10px]"
+                      MONTHLY BILLING
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setEditInterval("yearly")}
+                      className={`h-9 flex items-center justify-center rounded-lg text-[10px] font-black tracking-wide transition-all ${
+                        editInterval === "yearly"
+                          ? "bg-primary text-primary-foreground shadow-md scale-[1.02] ring-1 ring-primary/50"
+                          : "text-muted-foreground hover:bg-muted"
+                      }`}
                     >
-                      Yearly
-                    </Button>
+                      YEARLY BILLING
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1316,34 +1397,44 @@ export function StoreActionsClient({
           {/* Period / Duration Selection */}
           <div className="space-y-2">
             <Label>Subscription Period</Label>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               {[1, 3, 6, 12, 24].map((months) => (
                 <button
                   key={months}
                   type="button"
                   onClick={() => handleMonthsChange(months)}
-                  className={`py-1.5 px-3 rounded-md border text-xs font-medium transition-colors ${
+                  className={`h-9 px-3 rounded-md border text-xs font-bold transition-all ${
                     paymentMonths === months
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted hover:bg-muted/80 border-border"
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105"
+                      : "bg-muted hover:bg-muted/80 border-border text-muted-foreground"
                   }`}
                 >
                   {months}m
                 </button>
               ))}
-              <div className="flex items-center gap-1.5 ml-auto">
-                <Label className="text-[10px] text-muted-foreground whitespace-nowrap">
-                  Custom:
-                </Label>
-                <Input
+
+              <div
+                className={`flex items-center gap-1.5 px-2.5 h-9 rounded-md border transition-all ${
+                  ![1, 3, 6, 12, 24].includes(paymentMonths)
+                    ? "bg-primary/5 border-primary ring-1 ring-primary/20 shadow-sm"
+                    : "bg-muted/30 border-dashed border-border"
+                }`}
+              >
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
+                  Custom
+                </span>
+                <input
                   type="number"
-                  className="w-16 h-8 text-xs"
+                  className="w-10 bg-transparent border-none text-xs font-black text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   min={1}
                   value={paymentMonths}
                   onChange={(e) =>
                     handleMonthsChange(parseInt(e.target.value) || 1)
                   }
                 />
+                <span className="text-[10px] font-bold text-muted-foreground/50">
+                  MOS
+                </span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">

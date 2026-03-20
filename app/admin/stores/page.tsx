@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAdminStores } from "@/lib/db/queries/admin";
+import { getAdminStores, getAdminDashboardStats } from "@/lib/db/queries/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,14 +56,85 @@ export default async function AdminStoresPage({
     subscriptionStatus: subscriptionFilter,
   });
 
+  const stats = await getAdminDashboardStats();
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Stores</h1>
-        <p className="text-muted-foreground">
-          Manage all stores on the platform
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-black tracking-tight bg-linear-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+          Store Ecosystem
+        </h1>
+        <p className="text-muted-foreground font-medium">
+          Monitor and manage all merchant environments across the platform.
         </p>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-none shadow-sm bg-primary/5">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary/70">
+              Active Stores
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-black tracking-tight">
+              {stats.activeStores}
+            </div>
+            <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1">
+              OF {stats.totalStores} TOTAL
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-muted/30">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Trialing Users
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-black tracking-tight text-secondary-foreground">
+              {stats.trialingStores}
+            </div>
+            <p className="text-[9px] text-orange-600/80 font-black uppercase mt-1">
+              {stats.expiredTrials} EXPIRED TRIALS
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-foreground/5">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Platform Volume
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-black tracking-tight">
+              {stats.totalProducts.toLocaleString()}
+            </div>
+            <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1">
+              TOTAL PRODUCTS LIVE
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-foreground/5">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Global Orders
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="text-2xl font-black tracking-tight">
+              {stats.totalOrders.toLocaleString()}
+            </div>
+            <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1">
+              PROCESSED TRANSACTIONS
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}

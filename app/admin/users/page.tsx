@@ -68,10 +68,13 @@ export default async function AdminUsersPage({ searchParams }: UsersPageProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-        <p className="text-muted-foreground">
-          Manage all users on the platform
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-black tracking-tight bg-linear-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+          User Directory
+        </h1>
+        <p className="text-muted-foreground font-medium">
+          Manage platform access, roles, and identity verification for all
+          accounts.
         </p>
       </div>
 

@@ -356,6 +356,48 @@ export async function getPlatformInvoices(
 }
 
 /**
+ * Get platform-wide billing stats for admin dashboard
+ */
+export async function getPlatformBillingStats() {
+  const [revenue] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${invoices.total}), 0)`,
+    })
+    .from(invoices)
+    .where(eq(invoices.status, "paid"));
+
+  const [pending] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${invoices.total}), 0)`,
+    })
+    .from(invoices)
+    .where(or(eq(invoices.status, "unpaid"), eq(invoices.status, "overdue")));
+
+  // Get store distribution for additional context
+  const planDistribution = await db
+    .select({
+      plan: tenants.subscriptionPlan,
+      status: tenants.subscriptionStatus,
+      count: count(),
+    })
+    .from(tenants)
+    .groupBy(tenants.subscriptionPlan, tenants.subscriptionStatus);
+
+  let activeProCount = 0;
+  planDistribution.forEach((p) => {
+    if (p.plan === "pro" && p.status === "active") {
+      activeProCount += Number(p.count);
+    }
+  });
+
+  return {
+    paidRevenue: parseFloat(revenue?.total ?? "0"),
+    pendingRevenue: parseFloat(pending?.total ?? "0"),
+    activeProCount,
+  };
+}
+
+/**
  * Get all platform billing transactions across all stores
  */
 export async function getPlatformTransactions(
