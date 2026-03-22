@@ -29,8 +29,61 @@ import type { Address } from "@/lib/db/schema";
 import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 import {
   shippingAddressSchema,
+  standardShippingAddressSchema,
   type ShippingAddressInput,
+  type StandardShippingAddressInput,
 } from "@/lib/validations/checkout";
+
+// =============================================================================
+// COUNTRY LIST FOR STANDARD FORM
+// =============================================================================
+
+const COUNTRIES = [
+  { code: "AF", name: "Afghanistan" },
+  { code: "AE", name: "United Arab Emirates" },
+  { code: "US", name: "United States" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "CA", name: "Canada" },
+  { code: "DE", name: "Germany" },
+  { code: "FR", name: "France" },
+  { code: "AU", name: "Australia" },
+  { code: "IN", name: "India" },
+  { code: "PK", name: "Pakistan" },
+  { code: "IR", name: "Iran" },
+  { code: "TR", name: "Turkey" },
+  { code: "SA", name: "Saudi Arabia" },
+  { code: "QA", name: "Qatar" },
+  { code: "KW", name: "Kuwait" },
+  { code: "OM", name: "Oman" },
+  { code: "BH", name: "Bahrain" },
+  { code: "JP", name: "Japan" },
+  { code: "CN", name: "China" },
+  { code: "KR", name: "South Korea" },
+  { code: "NL", name: "Netherlands" },
+  { code: "SE", name: "Sweden" },
+  { code: "NO", name: "Norway" },
+  { code: "DK", name: "Denmark" },
+  { code: "IT", name: "Italy" },
+  { code: "ES", name: "Spain" },
+  { code: "BR", name: "Brazil" },
+  { code: "MX", name: "Mexico" },
+  { code: "EG", name: "Egypt" },
+  { code: "NG", name: "Nigeria" },
+  { code: "ZA", name: "South Africa" },
+  { code: "MY", name: "Malaysia" },
+  { code: "SG", name: "Singapore" },
+  { code: "TH", name: "Thailand" },
+  { code: "ID", name: "Indonesia" },
+  { code: "PH", name: "Philippines" },
+  { code: "NZ", name: "New Zealand" },
+  { code: "TJ", name: "Tajikistan" },
+  { code: "UZ", name: "Uzbekistan" },
+  { code: "TM", name: "Turkmenistan" },
+].sort((a, b) => a.name.localeCompare(b.name));
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 interface SavedAddress {
   id: string;
@@ -60,6 +113,7 @@ interface SectionDeliveryProps {
   deliveryZones: CheckoutDeliveryZone[];
   storeLocation?: { lat: number; lng: number } | null;
   onContinue: () => void;
+  checkoutAddressMode?: "gps" | "standard_form";
 }
 
 export function SectionDelivery({
@@ -69,7 +123,338 @@ export function SectionDelivery({
   deliveryZones,
   storeLocation,
   onContinue,
+  checkoutAddressMode = "gps",
 }: SectionDeliveryProps) {
+  if (checkoutAddressMode === "standard_form") {
+    return (
+      <StandardFormDelivery
+        user={user}
+        userPhone={userPhone}
+        onContinue={onContinue}
+      />
+    );
+  }
+
+  return (
+    <GpsDelivery
+      user={user}
+      userPhone={userPhone}
+      savedAddresses={savedAddresses}
+      deliveryZones={deliveryZones}
+      storeLocation={storeLocation}
+      onContinue={onContinue}
+    />
+  );
+}
+
+// =============================================================================
+// STANDARD FORM DELIVERY (Shopify-style)
+// =============================================================================
+
+function StandardFormDelivery({
+  user,
+  userPhone,
+  onContinue,
+}: {
+  user: SectionDeliveryProps["user"];
+  userPhone: string;
+  onContinue: () => void;
+}) {
+  const { customerInfo, shippingAddress, setShippingAddress } =
+    useCheckoutStore();
+
+  const [form, setForm] = useState<StandardShippingAddressInput>(() => {
+    // Restore from store if available (user navigated back)
+    if (shippingAddress?.addressLine1) {
+      return {
+        firstName: shippingAddress.firstName || "",
+        lastName: shippingAddress.lastName || "",
+        phone: shippingAddress.phone || userPhone || customerInfo?.phone || "",
+        addressLine1: shippingAddress.addressLine1 || "",
+        addressLine2: shippingAddress.addressLine2 || "",
+        city: shippingAddress.city || "",
+        province: shippingAddress.province || "",
+        postalCode: shippingAddress.postalCode || "",
+        country: shippingAddress.country || "AF",
+        latitude: 0,
+        longitude: 0,
+        notes: shippingAddress.notes || "",
+      };
+    }
+    return {
+      firstName: user?.name?.split(" ")[0] || "",
+      lastName: user?.name?.split(" ").slice(1).join(" ") || "",
+      phone: userPhone || customerInfo?.phone || "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      province: "",
+      postalCode: "",
+      country: "AF",
+      latitude: 0,
+      longitude: 0,
+      notes: "",
+    };
+  });
+
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof StandardShippingAddressInput, string>>
+  >({});
+
+  // Scroll to first error
+  useEffect(() => {
+    const errorFields = Object.keys(errors);
+    if (errorFields.length === 0) return;
+
+    setTimeout(() => {
+      const firstErrorField = errorFields[0];
+      const element = document.getElementById(`delivery-${firstErrorField}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => element.focus(), 300);
+      }
+    }, 100);
+  }, [errors]);
+
+  const handleChange = (
+    field: keyof StandardShippingAddressInput,
+    value: string
+  ) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const handleContinue = () => {
+    // Use phone from contact section for guests
+    const formToValidate: StandardShippingAddressInput = {
+      ...form,
+      phone: user ? form.phone : customerInfo?.phone || form.phone,
+    };
+
+    const validation = standardShippingAddressSchema.safeParse(formToValidate);
+    if (!validation.success) {
+      const fieldErrors: Partial<
+        Record<keyof StandardShippingAddressInput, string>
+      > = {};
+      validation.error.issues.forEach((issue) => {
+        const field = issue.path[0] as keyof StandardShippingAddressInput;
+        fieldErrors[field] = issue.message;
+      });
+      setErrors(fieldErrors);
+      toast.error(validation.error.issues[0].message);
+      return;
+    }
+
+    const address: Address = {
+      firstName: validation.data.firstName,
+      lastName: validation.data.lastName,
+      phone: validation.data.phone,
+      latitude: 0,
+      longitude: 0,
+      addressLine1: validation.data.addressLine1,
+      addressLine2: validation.data.addressLine2,
+      city: validation.data.city,
+      province: validation.data.province,
+      postalCode: validation.data.postalCode,
+      country: validation.data.country,
+      notes: validation.data.notes,
+    };
+    setShippingAddress(address);
+    onContinue();
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Country */}
+      <Field>
+        <FieldLabel htmlFor="delivery-country">Country / Region</FieldLabel>
+        <select
+          id="delivery-country"
+          value={form.country}
+          onChange={(e) => handleChange("country", e.target.value)}
+          className={cn(
+            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+            errors.country && "border-destructive"
+          )}
+          aria-invalid={!!errors.country}
+        >
+          <option value="">Select a country</option>
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <FieldError>{errors.country}</FieldError>
+      </Field>
+
+      {/* Name fields */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="delivery-firstName">First name</FieldLabel>
+          <Input
+            id="delivery-firstName"
+            value={form.firstName}
+            onChange={(e) => handleChange("firstName", e.target.value)}
+            placeholder="First name"
+            aria-invalid={!!errors.firstName}
+          />
+          <FieldError>{errors.firstName}</FieldError>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="delivery-lastName">Last name</FieldLabel>
+          <Input
+            id="delivery-lastName"
+            value={form.lastName}
+            onChange={(e) => handleChange("lastName", e.target.value)}
+            placeholder="Last name"
+            aria-invalid={!!errors.lastName}
+          />
+          <FieldError>{errors.lastName}</FieldError>
+        </Field>
+      </div>
+
+      {/* Address Line 1 */}
+      <Field>
+        <FieldLabel htmlFor="delivery-addressLine1">Address</FieldLabel>
+        <Input
+          id="delivery-addressLine1"
+          value={form.addressLine1}
+          onChange={(e) => handleChange("addressLine1", e.target.value)}
+          placeholder="Street address, P.O. box"
+          aria-invalid={!!errors.addressLine1}
+        />
+        <FieldError>{errors.addressLine1}</FieldError>
+      </Field>
+
+      {/* Address Line 2 */}
+      <Field>
+        <FieldLabel htmlFor="delivery-addressLine2">
+          Apartment, suite, etc.
+          <span className="text-muted-foreground font-normal ml-1">
+            (optional)
+          </span>
+        </FieldLabel>
+        <Input
+          id="delivery-addressLine2"
+          value={form.addressLine2 || ""}
+          onChange={(e) => handleChange("addressLine2", e.target.value)}
+          placeholder="Apt, suite, unit, building, floor"
+        />
+      </Field>
+
+      {/* City + Province/State */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="delivery-city">City</FieldLabel>
+          <Input
+            id="delivery-city"
+            value={form.city}
+            onChange={(e) => handleChange("city", e.target.value)}
+            placeholder="City"
+            aria-invalid={!!errors.city}
+          />
+          <FieldError>{errors.city}</FieldError>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="delivery-province">
+            State / Province
+            <span className="text-muted-foreground font-normal ml-1">
+              (optional)
+            </span>
+          </FieldLabel>
+          <Input
+            id="delivery-province"
+            value={form.province || ""}
+            onChange={(e) => handleChange("province", e.target.value)}
+            placeholder="State or province"
+          />
+        </Field>
+      </div>
+
+      {/* Postal Code + Phone */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="delivery-postalCode">
+            Postal code
+            <span className="text-muted-foreground font-normal ml-1">
+              (optional)
+            </span>
+          </FieldLabel>
+          <Input
+            id="delivery-postalCode"
+            value={form.postalCode || ""}
+            onChange={(e) => handleChange("postalCode", e.target.value)}
+            placeholder="ZIP / Postal"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="delivery-phone">Phone</FieldLabel>
+          <PhoneInput
+            id="delivery-phone"
+            value={user ? form.phone : customerInfo?.phone || form.phone}
+            onChange={(value) => handleChange("phone", value || "")}
+            aria-invalid={!!errors.phone}
+            disabled={!user && !!customerInfo?.phone}
+          />
+          {!user && customerInfo?.phone && (
+            <FieldDescription>From your contact information</FieldDescription>
+          )}
+          <FieldError>{errors.phone}</FieldError>
+        </Field>
+      </div>
+
+      {/* Delivery Notes */}
+      <Field>
+        <FieldLabel htmlFor="delivery-notes">
+          Order notes
+          <span className="text-muted-foreground font-normal ml-1">
+            (optional)
+          </span>
+        </FieldLabel>
+        <Textarea
+          id="delivery-notes"
+          placeholder="Special instructions for delivery"
+          value={form.notes || ""}
+          onChange={(e) => handleChange("notes", e.target.value)}
+          rows={3}
+          maxLength={500}
+        />
+      </Field>
+
+      {/* Continue Button */}
+      <div className="flex justify-end pt-2">
+        <Button onClick={handleContinue} size="lg">
+          Continue to Shipping
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// GPS DELIVERY (Original map-based system)
+// =============================================================================
+
+function GpsDelivery({
+  user,
+  userPhone,
+  savedAddresses,
+  deliveryZones,
+  storeLocation,
+  onContinue,
+}: {
+  user: SectionDeliveryProps["user"];
+  userPhone: string;
+  savedAddresses: SavedAddress[];
+  deliveryZones: CheckoutDeliveryZone[];
+  storeLocation?: { lat: number; lng: number } | null;
+  onContinue: () => void;
+}) {
   const {
     customerInfo,
     shippingAddress,
@@ -519,14 +904,40 @@ export function SectionDelivery({
   );
 }
 
-// Summary component for collapsed state
+// =============================================================================
+// SUMMARY COMPONENT
+// =============================================================================
+
 export function DeliverySummary({
   shippingAddress,
+  checkoutAddressMode = "gps",
 }: {
   shippingAddress: Address | null;
+  checkoutAddressMode?: "gps" | "standard_form";
 }) {
   if (!shippingAddress) return null;
 
+  // Standard form: show formatted address
+  if (checkoutAddressMode === "standard_form" && shippingAddress.addressLine1) {
+    const parts = [
+      shippingAddress.addressLine1,
+      shippingAddress.city,
+      shippingAddress.province,
+      shippingAddress.postalCode,
+    ].filter(Boolean);
+
+    const name =
+      `${shippingAddress.firstName || ""} ${shippingAddress.lastName || ""}`.trim();
+
+    return (
+      <span className="truncate">
+        {name ? `${name} \u2022 ` : ""}
+        {parts.join(", ")}
+      </span>
+    );
+  }
+
+  // GPS mode: show plus code or coordinates
   const location = shippingAddress.plusCode
     ? formatPlusCodeForDisplay(shippingAddress.plusCode, shippingAddress.city)
     : `${shippingAddress.latitude.toFixed(6)}, ${shippingAddress.longitude.toFixed(6)}`;

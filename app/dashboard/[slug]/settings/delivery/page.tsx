@@ -6,6 +6,7 @@ import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { getUnifiedZones } from "@/lib/actions/unified-delivery";
 import { UnifiedDeliveryManager } from "@/components/dashboard/delivery/unified-delivery-manager";
+import { CheckoutAddressModeToggle } from "@/components/dashboard/delivery/checkout-address-mode-toggle";
 
 interface DeliverySettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -49,6 +50,13 @@ export default async function DeliverySettingsPage({
           Configure delivery zones and shipping rates for your store
         </p>
       </div>
+
+      {/* Checkout Address Mode Toggle */}
+      <CheckoutAddressModeToggle
+        tenantId={store.id}
+        storeSlug={store.slug}
+        currentMode={store.checkoutAddressMode}
+      />
 
       <UnifiedDeliveryManager tenantId={store.id} zones={zones} />
     </div>

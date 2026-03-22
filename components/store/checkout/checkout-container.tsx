@@ -47,6 +47,7 @@ interface CheckoutContainerProps {
   enabledPaymentMethods: EnabledGateway[];
   storeLocation?: { lat: number; lng: number } | null;
   showPromoCode?: boolean;
+  checkoutAddressMode?: "gps" | "standard_form";
 }
 
 export function CheckoutContainer({
@@ -63,6 +64,7 @@ export function CheckoutContainer({
   enabledPaymentMethods,
   storeLocation,
   showPromoCode = false,
+  checkoutAddressMode = "gps",
 }: CheckoutContainerProps) {
   const mounted = useMounted();
   const basePath = useStoreBasePath();
@@ -160,6 +162,7 @@ export function CheckoutContainer({
             enabledPaymentMethods={enabledPaymentMethods}
             storeLocation={storeLocation}
             showPromoCode={showPromoCode}
+            checkoutAddressMode={checkoutAddressMode}
           />
         </div>
 

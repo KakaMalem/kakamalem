@@ -248,6 +248,7 @@ export async function updateTenant(
     deliveryMode: "distance_based" | "service_level" | "weight_price_based";
     enableDeliveryZones: boolean;
     enableShipping: boolean;
+    checkoutAddressMode: "gps" | "standard_form";
     storeMode: "full" | "online_only" | "offline_only" | "catalog";
     onlineCheckoutEnabled: boolean;
     posEnabled: boolean;

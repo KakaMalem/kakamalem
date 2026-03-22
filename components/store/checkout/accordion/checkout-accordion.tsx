@@ -49,6 +49,7 @@ interface CheckoutAccordionProps {
   enabledPaymentMethods: EnabledGateway[];
   storeLocation?: { lat: number; lng: number } | null;
   showPromoCode?: boolean;
+  checkoutAddressMode?: "gps" | "standard_form";
 }
 
 export function CheckoutAccordion({
@@ -64,6 +65,7 @@ export function CheckoutAccordion({
   enabledPaymentMethods,
   storeLocation,
   showPromoCode = false,
+  checkoutAddressMode = "gps",
 }: CheckoutAccordionProps) {
   const {
     expandedSection,
@@ -127,13 +129,22 @@ export function CheckoutAccordion({
       <SectionWrapper
         section="delivery"
         stepNumber={2}
-        title="Delivery Address"
+        title={
+          checkoutAddressMode === "standard_form"
+            ? "Shipping Address"
+            : "Delivery Address"
+        }
         icon={MapPin}
         status={getSectionStatus("delivery")}
         isExpanded={expandedSection === "delivery"}
         onToggle={() => handleToggleSection("delivery")}
         onEdit={() => handleEditSection("delivery")}
-        summary={<DeliverySummary shippingAddress={shippingAddress} />}
+        summary={
+          <DeliverySummary
+            shippingAddress={shippingAddress}
+            checkoutAddressMode={checkoutAddressMode}
+          />
+        }
       >
         <SectionDelivery
           user={user}
@@ -142,6 +153,7 @@ export function CheckoutAccordion({
           deliveryZones={deliveryZones}
           storeLocation={storeLocation}
           onContinue={() => handleSectionComplete("delivery", "shipping")}
+          checkoutAddressMode={checkoutAddressMode}
         />
       </SectionWrapper>
 

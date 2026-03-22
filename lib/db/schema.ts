@@ -22,12 +22,13 @@ import type { Polygon } from "geojson";
 // SHARED TYPES
 // ============================================================================
 
-// Address structure for orders and shipments - GPS-based, works globally
+// Address structure for orders and shipments
+// Supports both GPS-based (map picker) and standard form (Shopify-style) addresses.
 export type Address = {
   firstName: string;
   lastName: string;
   phone: string; // REQUIRED - critical for delivery coordination
-  // GPS location (mandatory)
+  // GPS location (mandatory for GPS mode, 0/0 for standard form mode)
   latitude: number;
   longitude: number;
   // Geospatial indexing (computed on save)
@@ -40,6 +41,12 @@ export type Address = {
   source?: "gps" | "manual"; // How the location was set
   // Optional notes for delivery (landmarks, directions, building details)
   notes?: string;
+  // Standard form fields (Shopify-style) — used when store.checkoutAddressMode = "standard_form"
+  addressLine1?: string; // e.g., "123 Main St"
+  addressLine2?: string; // e.g., "Apt 4B"
+  province?: string; // State / Province / Region
+  postalCode?: string; // ZIP / Postal code
+  country?: string; // Country code (ISO 3166-1 alpha-2, e.g., "AF", "US")
 };
 
 // Preferred contact method for phone links
@@ -320,6 +327,12 @@ export const deliveryModeEnum = pgEnum("delivery_mode", [
   "distance_based", // GPS-based zones with distance-tiered pricing (like DoorDash/Talabat)
   "service_level", // Service tiers: Standard, Express, Same-Day (like Amazon)
   "weight_price_based", // Traditional shipping: weight/price-based rates (like Shopify)
+]);
+
+// Checkout Address Mode - how the checkout collects the delivery address
+export const checkoutAddressModeEnum = pgEnum("checkout_address_mode", [
+  "gps", // GPS/map-based location picker (current default)
+  "standard_form", // Traditional address form (Shopify-style: street, city, state, zip, country)
 ]);
 
 // Payment Method - how the customer paid (for offline sales tracking)
@@ -870,6 +883,13 @@ export const tenants = pgTable(
     // When true, customers can order from anywhere using configured shipping rates
     // Both can be enabled simultaneously for a hybrid fulfillment model
     enableShipping: boolean("enable_shipping").default(true).notNull(),
+
+    // Checkout address mode - how the checkout collects the delivery address
+    // "gps" = GPS/map-based location picker (default, original behavior)
+    // "standard_form" = Shopify-style address form (street, city, state, zip, country)
+    checkoutAddressMode: checkoutAddressModeEnum("checkout_address_mode")
+      .default("gps")
+      .notNull(),
 
     // Store Mode - determines how the store operates
     storeMode: storeModeEnum("store_mode").default("full").notNull(),

@@ -1022,6 +1022,53 @@ export async function updateDeliveryMode(
 }
 
 /**
+ * Update checkout address mode setting
+ * Controls how the checkout collects the delivery address:
+ * - "gps" = GPS/map-based location picker (default)
+ * - "standard_form" = Shopify-style address form (street, city, state, zip, country)
+ */
+export async function updateCheckoutAddressMode(
+  storeId: string,
+  storeSlug: string,
+  mode: "gps" | "standard_form"
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store || store.ownerId !== user.id) {
+    return {
+      error: { message: "You don't have permission to update this store" },
+    };
+  }
+
+  const validModes = ["gps", "standard_form"];
+  if (!validModes.includes(mode)) {
+    return { error: { message: "Invalid checkout address mode" } };
+  }
+
+  try {
+    await updateTenant(storeId, { checkoutAddressMode: mode });
+
+    // Revalidate relevant pages
+    revalidatePath(`/dashboard/${storeSlug}/settings/delivery`, "page");
+    revalidatePath(`/store/${storeSlug}`, "layout");
+    revalidatePath(`/store/${storeSlug}/checkout`, "page");
+
+    return { success: true };
+  } catch {
+    return {
+      error: {
+        message: "Failed to update checkout address mode. Please try again.",
+      },
+    };
+  }
+}
+
+/**
  * Update delivery zones enabled setting
  * When enabled, customers must be within a configured delivery zone to place orders
  * @deprecated Use updateFulfillmentSettings instead for the additive model

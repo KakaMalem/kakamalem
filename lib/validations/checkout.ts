@@ -53,6 +53,38 @@ export const shippingAddressSchema = z.object({
 export type ShippingAddressInput = z.infer<typeof shippingAddressSchema>;
 
 /**
+ * Standard form shipping address schema (Shopify-style)
+ * Used when store.checkoutAddressMode = "standard_form"
+ * Collects traditional address fields instead of GPS coordinates
+ */
+export const standardShippingAddressSchema = z.object({
+  firstName: z.string().min(1, "First name is required").max(100),
+  lastName: z.string().min(1, "Last name is required").max(100),
+  phone: z
+    .string()
+    .min(1, "Phone number is required")
+    .refine((value) => isValidPhoneNumber(value), {
+      message: "Please enter a valid phone number",
+    }),
+  // Standard address fields
+  addressLine1: z.string().min(1, "Address is required").max(300),
+  addressLine2: z.string().max(300).optional(),
+  city: z.string().min(1, "City is required").max(100),
+  province: z.string().max(100).optional(), // State / Province
+  postalCode: z.string().max(20).optional(), // ZIP / Postal code
+  country: z.string().min(1, "Country is required").max(2), // ISO 3166-1 alpha-2
+  // GPS coordinates default to 0 for standard form (not used for delivery)
+  latitude: z.number().default(0),
+  longitude: z.number().default(0),
+  // Optional notes for delivery
+  notes: z.string().max(500).optional(),
+});
+
+export type StandardShippingAddressInput = z.infer<
+  typeof standardShippingAddressSchema
+>;
+
+/**
  * Payment gateway options
  */
 export const paymentGatewaySchema = z.enum([

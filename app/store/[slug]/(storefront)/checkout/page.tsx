@@ -255,6 +255,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       enabledPaymentMethods={enabledPaymentMethods}
       storeLocation={storeLocation}
       showPromoCode={showPromoCode}
+      checkoutAddressMode={store.checkoutAddressMode}
     />
   );
 }
