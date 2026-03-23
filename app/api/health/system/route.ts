@@ -232,13 +232,14 @@ async function getDatabaseMetrics(): Promise<DatabaseMetrics> {
   try {
     const start = Date.now();
 
-    // Check connection and get connection stats
+    // Check connection and verify schema version/completeness
     const result = await db.execute(sql`
-      SELECT
+      SELECT 
         (SELECT count(*) FROM pg_stat_activity WHERE state = 'active') as active,
         (SELECT count(*) FROM pg_stat_activity WHERE state = 'idle') as idle,
         (SELECT count(*) FROM pg_stat_activity) as total,
-        (SELECT setting::int FROM pg_settings WHERE name = 'max_connections') as max_connections
+        (SELECT setting::int FROM pg_settings WHERE name = 'max_connections') as max_connections,
+        (SELECT count(checkout_address_mode) FROM tenants LIMIT 1) as schema_check
     `);
 
     const latency = Date.now() - start;

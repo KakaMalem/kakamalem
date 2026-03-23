@@ -14,6 +14,7 @@ import {
   index,
   jsonb,
   check,
+  serial,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { Polygon } from "geojson";
@@ -1395,6 +1396,20 @@ export const onboardingChecklists = pgTable(
   },
   (table) => [index("onboarding_checklists_tenant_id_idx").on(table.tenantId)]
 );
+
+// ============================================================================
+// SYSTEM TRACKING (Managed by scripts/migrate-custom.ts)
+// ============================================================================
+// This table tracks manual migrations to prevent re-running triggers/functions.
+// It is added here to prevent drizzle-kit push from trying to delete it.
+export const customMigrations = pgTable("custom_migrations", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" }).defaultNow(),
+});
+
+export type CustomMigration = typeof customMigrations.$inferSelect;
+export type CustomMigrationInsert = typeof customMigrations.$inferInsert;
 
 // ============================================================================
 // NOTIFICATION PREFERENCES (User & Store-level notification settings)
