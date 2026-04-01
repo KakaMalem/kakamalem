@@ -930,9 +930,9 @@ export function DeliverySummary({
       `${shippingAddress.firstName || ""} ${shippingAddress.lastName || ""}`.trim();
 
     return (
-      <span className="truncate">
-        {name ? `${name} \u2022 ` : ""}
-        {parts.join(", ")}
+      <span className="truncate block w-full">
+        {name && <span className="font-medium mr-1.5">{name} &bull;</span>}
+        <span className="opacity-90">{parts.join(", ")}</span>
       </span>
     );
   }
@@ -946,9 +946,9 @@ export function DeliverySummary({
     `${shippingAddress.firstName || ""} ${shippingAddress.lastName || ""}`.trim();
 
   return (
-    <span className="truncate">
-      {name ? `${name} \u2022 ` : ""}
-      {location}
+    <span className="truncate block w-full">
+      {name && <span className="font-medium mr-1.5">{name} &bull;</span>}
+      <span className="font-mono opacity-90">{location}</span>
     </span>
   );
 }

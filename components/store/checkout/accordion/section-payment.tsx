@@ -403,55 +403,69 @@ export function SectionPayment({
           </Field>
 
           {/* Order Total Summary */}
-          <div className="rounded-lg border bg-muted/30 p-4">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatPrice(subtotal)}</span>
+          <div className="rounded-lg border bg-muted/40 p-4 shadow-sm">
+            <div className="space-y-2.5 text-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span className="text-muted-foreground shrink-0 uppercase text-[10px] font-bold tracking-wider">
+                  Subtotal
+                </span>
+                <span className="font-medium ml-auto">
+                  {formatPrice(subtotal)}
+                </span>
               </div>
               {totalBulkSavings > 0 && (
-                <div className="flex items-center justify-between text-green-600">
-                  <span className="flex items-center gap-1.5">
-                    <Tag className="size-3.5" />
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-green-600">
+                  <span className="flex items-center gap-1.5 shrink-0 uppercase text-[10px] font-bold tracking-wider">
+                    <Tag className="size-3" />
                     Bulk discounts
                   </span>
-                  <span>-{formatPrice(totalBulkSavings)}</span>
+                  <span className="font-medium ml-auto">
+                    -{formatPrice(totalBulkSavings)}
+                  </span>
                 </div>
               )}
               {appliedCoupon && discountTotal > 0 && (
-                <div className="flex items-center justify-between gap-2 text-green-600">
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <Tag className="size-3.5 shrink-0" />
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-green-600">
+                  <span className="flex items-center gap-1.5 min-w-0 shrink-0 uppercase text-[10px] font-bold tracking-wider">
+                    <Tag className="size-3 shrink-0" />
                     <span className="truncate">{appliedCoupon.code}</span>
                   </span>
-                  <span className="shrink-0">
+                  <span className="font-medium ml-auto">
                     -{formatPrice(discountTotal)}
                   </span>
                 </div>
               )}
               {appliedCoupon?.type === "free_shipping" && (
-                <div className="flex items-center justify-between gap-2 text-green-600">
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <Tag className="size-3.5 shrink-0" />
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-green-600">
+                  <span className="flex items-center gap-1.5 min-w-0 shrink-0 uppercase text-[10px] font-bold tracking-wider">
+                    <Tag className="size-3 shrink-0" />
                     <span className="truncate">{appliedCoupon.code}</span>
                   </span>
-                  <span className="shrink-0">Free shipping</span>
+                  <span className="font-medium ml-auto uppercase text-[10px]">
+                    Free shipping
+                  </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Shipping</span>
-                <span>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span className="text-muted-foreground shrink-0 uppercase text-[10px] font-bold tracking-wider">
+                  Shipping
+                </span>
+                <span className="font-medium ml-auto">
                   {shippingTotal === 0 ? (
-                    <span className="text-green-600">Free</span>
+                    <span className="text-green-600 uppercase text-[10px] font-bold tracking-wider">
+                      Free
+                    </span>
                   ) : (
                     formatPrice(shippingTotal)
                   )}
                 </span>
               </div>
-              <Separator className="my-2" />
-              <div className="flex justify-between text-base font-semibold">
-                <span>Total</span>
-                <span>{formatPrice(total)}</span>
+              <Separator className="my-1.5" />
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-base sm:text-lg font-bold">
+                <span className="uppercase text-xs tracking-widest text-muted-foreground/80">
+                  Total
+                </span>
+                <span className="text-primary">{formatPrice(total)}</span>
               </div>
             </div>
           </div>

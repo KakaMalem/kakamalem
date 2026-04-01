@@ -271,6 +271,7 @@ export default async function StoreLayout({
                   : null
               }
             />
+            {/* Categories bar - hidden on checkout to keep focus */}
             <StoreCategoriesBar
               categories={categories.map((c) => ({
                 id: c.id,

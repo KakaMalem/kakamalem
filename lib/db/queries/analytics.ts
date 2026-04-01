@@ -6,6 +6,7 @@ import {
   orderItems,
   products,
   reviews,
+  categories,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -869,15 +870,15 @@ export async function getAnalyticsData(
     // Top products by quantity sold
     db
       .select({
-        id: products.id,
-        name: products.name,
+        id: sql<string>`COALESCE(${products.id}, ${orderItems.productId})`,
+        name: sql<string>`COALESCE(${products.name}, ${orderItems.productName})`,
         quantitySold: sum(orderItems.quantity),
-        revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+        revenue: sum(orderItems.lineTotal),
         ordersContaining: sql<number>`count(distinct ${orders.id})`,
       })
       .from(orderItems)
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .innerJoin(products, eq(orderItems.productId, products.id))
+      .leftJoin(products, eq(orderItems.productId, products.id))
       .where(
         and(
           eq(orders.tenantId, tenantId),
@@ -886,8 +887,11 @@ export async function getAnalyticsData(
           notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
         )
       )
-      .groupBy(products.id, products.name)
-      .orderBy(desc(sum(orderItems.quantity)))
+      .groupBy(
+        sql`COALESCE(${products.id}, ${orderItems.productId})`,
+        sql`COALESCE(${products.name}, ${orderItems.productName})`
+      )
+      .orderBy(desc(sum(orderItems.lineTotal)))
       .limit(5),
 
     // Count returning customers (customers who ordered in current period AND had previous orders)
@@ -1089,15 +1093,15 @@ export async function getCategoryPerformance(
   const categoryStats = await db
     .select({
       categoryId: sql<string>`COALESCE(${products.categoryId}::text, 'uncategorized')`,
-      categoryName: sql<string>`COALESCE(c.name, 'Uncategorized')`,
-      revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+      categoryName: sql<string>`COALESCE(${categories.name}, 'Uncategorized')`,
+      revenue: sum(orderItems.lineTotal),
       orders: sql<number>`count(distinct ${orders.id})`,
       quantitySold: sum(orderItems.quantity),
     })
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
-    .innerJoin(products, eq(orderItems.productId, products.id))
-    .leftJoin(sql`categories c`, sql`c.id = ${products.categoryId}`)
+    .leftJoin(products, eq(orderItems.productId, products.id))
+    .leftJoin(categories, eq(products.categoryId, categories.id))
     .where(
       and(
         eq(orders.tenantId, tenantId),
@@ -1107,9 +1111,10 @@ export async function getCategoryPerformance(
       )
     )
     .groupBy(
-      sql`COALESCE(${products.categoryId}::text, 'uncategorized'), COALESCE(c.name, 'Uncategorized')`
+      sql`COALESCE(${products.categoryId}::text, 'uncategorized')`,
+      sql`COALESCE(${categories.name}, 'Uncategorized')`
     )
-    .orderBy(desc(sum(sql`${orderItems.quantity} * ${orderItems.price}`)));
+    .orderBy(desc(sum(orderItems.lineTotal)));
 
   const totalRevenue = categoryStats.reduce(
     (acc, c) => acc + parseFloat(String(c.revenue) || "0"),
@@ -1206,7 +1211,7 @@ export async function getProductPerformance(
       sku: products.sku,
       category: sql<string>`c.name`,
       quantitySold: sum(orderItems.quantity),
-      revenue: sum(sql`${orderItems.quantity} * ${orderItems.price}`),
+      revenue: sum(orderItems.lineTotal),
       orders: sql<number>`count(distinct ${orders.id})`,
     })
     .from(products)
@@ -1220,13 +1225,13 @@ export async function getProductPerformance(
         notInArray(orders.status, EXCLUDED_REVENUE_STATUSES)
       )
     )
-    .leftJoin(sql`categories c`, sql`c.id = ${products.categoryId}`)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
     .where(eq(products.tenantId, tenantId))
-    .groupBy(products.id, products.name, products.sku, sql`c.name`)
+    .groupBy(products.id, products.name, products.sku, categories.name)
     .orderBy(
       sortOrder === "desc"
-        ? desc(sum(sql`${orderItems.quantity} * ${orderItems.price}`))
-        : sum(sql`${orderItems.quantity} * ${orderItems.price}`)
+        ? desc(sum(orderItems.lineTotal))
+        : sum(orderItems.lineTotal)
     )
     .limit(pageSize)
     .offset((page - 1) * pageSize);

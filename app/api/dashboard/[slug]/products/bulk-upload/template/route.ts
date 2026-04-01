@@ -24,6 +24,11 @@ const TEMPLATE_HEADERS = [
   "status",
   "show_on_storefront",
   "show_on_pos",
+  "min_order_quantity",
+  "max_order_quantity",
+  "display_order",
+  "source_url",
+  "source_id",
   "images", // For ZIP uploads: semicolon-separated filenames from images/ folder
   "parent_product", // For variants: name of the parent product
   "option_size", // Example option column - add more as needed
@@ -60,6 +65,11 @@ const EXAMPLE_ROWS = [
     "active", // status - وضعیت
     "true", // show_on_storefront - نمایش در فروشگاه
     "true", // show_on_pos - نمایش در صندوق
+    "1", // min_order_quantity - حداقل سفارش
+    "50", // max_order_quantity - حداکثر سفارش
+    "1", // display_order - ترتیب نمایش
+    "https://example.com/product", // source_url
+    "EXT-001", // source_id
     "product1.jpg", // images - تصاویر
     "", // parent_product - محصول والد (خالی = محصول اصلی)
     "", // option_size - سایز (خالی برای محصول بدون واریانت)
@@ -87,6 +97,11 @@ const EXAMPLE_ROWS = [
     "active", // status
     "true", // show_on_storefront
     "true", // show_on_pos
+    "1", // min_order_quantity
+    "", // max_order_quantity
+    "2", // display_order
+    "", // source_url
+    "", // source_id
     "blanket-main.jpg;blanket-black.jpg;blanket-white.jpg", // images - همه تصاویر برای گالری
     "", // parent_product - خالی = محصول اصلی
     "", // option_size - خالی برای والد
@@ -114,6 +129,11 @@ const EXAMPLE_ROWS = [
     "active", // status
     "true", // show_on_storefront
     "true", // show_on_pos
+    "", // min_order_quantity (inherits from parent usually, but could be specific)
+    "",
+    "1", // display_order within variants
+    "",
+    "",
     "blanket-black.jpg", // images - تصویر اختصاصی واریانت
     "پتو نمونه با واریانت", // parent_product - نام محصول والد
     "بزرگ", // option_size
@@ -141,6 +161,11 @@ const EXAMPLE_ROWS = [
     "active",
     "true",
     "true",
+    "", // min_order_quantity
+    "",
+    "2", // display_order
+    "",
+    "",
     "blanket-black.jpg",
     "پتو نمونه با واریانت",
     "کوچک",
@@ -168,6 +193,11 @@ const EXAMPLE_ROWS = [
     "active",
     "true",
     "false", // فقط در فروشگاه آنلاین
+    "", // min_order_quantity
+    "",
+    "3", // display_order
+    "",
+    "",
     "blanket-white.jpg",
     "پتو نمونه با واریانت",
     "بزرگ",
@@ -195,6 +225,11 @@ const EXAMPLE_ROWS = [
     "active",
     "false", // فقط در صندوق فروشگاه
     "true",
+    "", // min_order_quantity
+    "",
+    "4", // display_order
+    "",
+    "",
     "blanket-white.jpg",
     "پتو نمونه با واریانت",
     "کوچک",
@@ -235,6 +270,11 @@ export async function GET(request: NextRequest) {
     { wch: 10 }, // status
     { wch: 18 }, // show_on_storefront
     { wch: 12 }, // show_on_pos
+    { wch: 18 }, // min_order_quantity
+    { wch: 18 }, // max_order_quantity
+    { wch: 12 }, // display_order
+    { wch: 25 }, // source_url
+    { wch: 15 }, // source_id
     { wch: 40 }, // images
     { wch: 25 }, // parent_product
     { wch: 12 }, // option_size
@@ -278,10 +318,19 @@ images/
 - حداکثر حجم فایل ZIP: 50 مگابایت
 - محصول والد باید همه تصاویر واریانت‌ها را در ستون images داشته باشد تا در گالری نمایش داده شود
 
+## ستون‌های اختصاصی
+- min_order_quantity: حداقل میزان سفارش توسط مشتری
+- max_order_quantity: حداکثر میزان سفارش توسط مشتری
+- display_order: اولویت نمایش محصول در لیست (عدد بزرگتر = بالاتر)
+- source_url: لینک تامین‌کننده خارجی محصول
+- source_id: شناسه محصول در سیستم تامین‌کننده (مثلاً کد آمازون)
+
 ## ستون‌های اختیاری واریانت
 - option_size: سایز (مثلاً بزرگ، کوچک)
 - option_color: رنگ (مثلاً سیاه، سفید)
-می‌توانید ستون‌های option_ دیگری اضافه کنید (مثلاً option_material برای جنس)
+- display_order: ترتیب نمایش واریانت‌ها نسبت به هم
+- سایر ستون‌ها مثل قیمت و کد محصول نیز برای واریانت‌ها قابل درج هستند.
+- می‌توانید ستون‌های option_ دیگری اضافه کنید (مثلاً option_material برای جنس)
 `;
     zip.file("README.txt", readmeContent);
 

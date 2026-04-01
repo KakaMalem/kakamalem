@@ -536,14 +536,23 @@ export function ShippingSummary({
   );
 
   return (
-    <span>
-      {selectedMethod.name} &bull;{" "}
-      {selectedMethod.price === 0 ? (
-        <span className="text-green-600">Free</span>
-      ) : (
-        formatPrice(selectedMethod.price)
-      )}
-      {estimate && ` (${estimate})`}
+    <span className="truncate block w-full">
+      <span className="font-medium mr-1.5">{selectedMethod.name}</span>
+      <span className="opacity-90">
+        &bull;{" "}
+        {selectedMethod.price === 0 ? (
+          <span className="text-green-600 font-semibold uppercase text-[10px]">
+            Free
+          </span>
+        ) : (
+          formatPrice(selectedMethod.price)
+        )}
+        {estimate && (
+          <span className="text-xs text-muted-foreground ml-1">
+            ({estimate})
+          </span>
+        )}
+      </span>
     </span>
   );
 }

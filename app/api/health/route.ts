@@ -32,7 +32,9 @@ export async function GET(): Promise<NextResponse<HealthStatus>> {
   try {
     const dbStart = Date.now();
     // Verify schema completeness by checking a recent column
-    const dbPromise = db.execute(sql`SELECT id, checkout_address_mode FROM tenants LIMIT 1`);
+    const dbPromise = db.execute(
+      sql`SELECT id, checkout_address_mode FROM tenants LIMIT 1`
+    );
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Database check timed out (5s)")), 5000)
     );
@@ -42,8 +44,8 @@ export async function GET(): Promise<NextResponse<HealthStatus>> {
     status.status = "unhealthy";
     status.checks.database.status = "error";
     status.checks.database.error =
-      error instanceof Error 
-        ? `Schema mismatch or connection error: ${error.message}` 
+      error instanceof Error
+        ? `Schema mismatch or connection error: ${error.message}`
         : "Unknown database error";
   }
 

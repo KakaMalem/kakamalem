@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState, useCallback, useTransition, useEffect } from "react";
 import {
   ShoppingCart,
@@ -14,6 +14,7 @@ import {
   Crown,
   Shield,
   Bell,
+  Lock,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -58,7 +59,9 @@ export function StoreHeader({
   initialSearchQuery = "",
 }: StoreHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const basePath = useStoreBasePath();
+  const isCheckoutPage = pathname?.includes("/checkout");
   // Initialize from server prop to avoid hydration mismatch
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [isSearching, startSearchTransition] = useTransition();
@@ -164,30 +167,41 @@ export function StoreHeader({
             )}
           </Link>
 
-          {/* Center: Search Bar */}
-          <form onSubmit={handleSearch} className="flex flex-1 justify-center">
-            <div className="relative w-full max-w-md lg:max-w-lg">
-              <Search
-                className={cn(
-                  "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
-                  isSearching && "animate-pulse"
-                )}
-              />
-              <Input
-                type="search"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 pl-10 pr-4 focus-visible:bg-background"
-                aria-label="Search products"
-              />
+          {!isCheckoutPage && (
+            <form
+              onSubmit={handleSearch}
+              className="flex flex-1 justify-center"
+            >
+              <div className="relative w-full max-w-md lg:max-w-lg">
+                <Search
+                  className={cn(
+                    "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
+                    isSearching && "animate-pulse"
+                  )}
+                />
+                <input
+                  type="search"
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10 pr-4 focus-visible:bg-background"
+                  aria-label="Search products"
+                />
+              </div>
+            </form>
+          )}
+
+          {isCheckoutPage && (
+            <div className="hidden flex-1 items-center justify-center gap-2 text-sm font-medium text-muted-foreground md:flex">
+              <Lock className="size-4" />
+              Secure Checkout
             </div>
-          </form>
+          )}
 
           {/* Right: Actions */}
           <div className="flex shrink-0 items-center gap-1 lg:gap-2">
             {/* Cart Button - Hidden in catalog mode */}
-            {!isCartDisabled && (
+            {!isCartDisabled && !isCheckoutPage && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -345,7 +359,7 @@ export function StoreHeader({
             {/* Right: Cart & Profile */}
             <div className="flex items-center gap-0.5">
               {/* Cart Button - Hidden in catalog mode */}
-              {!isCartDisabled && (
+              {!isCartDisabled && !isCheckoutPage && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -356,6 +370,13 @@ export function StoreHeader({
                   <ShoppingCart className="size-5" />
                   <CartBadge initialCount={cartItemCount} />
                 </Button>
+              )}
+
+              {isCheckoutPage && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/5 rounded-full text-[10px] font-semibold text-primary/80 uppercase tracking-wider border border-primary/10">
+                  <Lock className="size-3" />
+                  Secure
+                </div>
               )}
 
               {/* Profile/Auth - Mobile */}
@@ -494,23 +515,24 @@ export function StoreHeader({
             </div>
           </div>
 
-          {/* Bottom Row: Search Bar - Always visible */}
-          <form onSubmit={handleSearch} className="relative">
-            <Search
-              className={cn(
-                "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
-                isSearching && "animate-pulse"
-              )}
-            />
-            <Input
-              type="search"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 pl-10 pr-4 focus-visible:bg-background"
-              aria-label="Search products"
-            />
-          </form>
+          {!isCheckoutPage && (
+            <form onSubmit={handleSearch} className="relative">
+              <Search
+                className={cn(
+                  "absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors pointer-events-none",
+                  isSearching && "animate-pulse"
+                )}
+              />
+              <Input
+                type="search"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 pl-10 pr-4 focus-visible:bg-background"
+                aria-label="Search products"
+              />
+            </form>
+          )}
         </div>
       </div>
     </header>

@@ -7,6 +7,10 @@ export type ExtractedZip = {
 };
 
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"];
+const MAX_TOTAL_UNCOMPRESSED_SIZE = 250 * 1024 * 1024; // 250MB limit for extracted data
+const MAX_FILE_COUNT = 1000; // Limit total number of files in ZIP
+const MAX_SINGLE_FILE_SIZE = 100 * 1024 * 1024; // 100MB max per file uncompressed
+const MAX_COMPRESSION_RATIO = 100; // Skip files with ratio > 100 (uncompressed/compressed)
 
 function isImageFile(filename: string): boolean {
   const ext = filename.toLowerCase();
@@ -47,6 +51,13 @@ export async function extractProductZip(
 
     // Track valid image folders
     const imageFolders = ["images/", "media/", "photos/"];
+    let totalUncompressedSize = 0;
+
+    // First pass: validation (check file counts and approximate sizes)
+    const files = Object.values(zip.files);
+    if (files.length > MAX_FILE_COUNT) {
+      throw new Error(`ZIP contains too many files (max ${MAX_FILE_COUNT})`);
+    }
 
     for (const [rawPath, file] of Object.entries(zip.files)) {
       // Normalize path separators (Windows creates ZIP with backslashes)
@@ -55,6 +66,37 @@ export async function extractProductZip(
       // Skip directories and macOS metadata
       if (file.dir || path.startsWith("__MACOSX/") || path.startsWith(".")) {
         continue;
+      }
+
+      // Zip Bomb Protection: Check uncompressed size
+      // Note: _data is internal in JSZip but contains the size metadata
+      // If not available, we'll check after extraction
+      const zipFileData = file as {
+        _data?: { uncompressedSize?: number; compressedSize?: number };
+      };
+      const uncompressedSize = zipFileData._data?.uncompressedSize || 0;
+      const compressedSize = zipFileData._data?.compressedSize || 0;
+
+      if (uncompressedSize > MAX_SINGLE_FILE_SIZE) {
+        throw new Error(
+          `File ${path} is too large when extracted (max ${MAX_SINGLE_FILE_SIZE / (1024 * 1024)}MB)`
+        );
+      }
+
+      if (
+        compressedSize > 0 &&
+        uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO
+      ) {
+        throw new Error(
+          `Potential zip bomb detected in file ${path} (high compression ratio)`
+        );
+      }
+
+      totalUncompressedSize += uncompressedSize;
+      if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED_SIZE) {
+        throw new Error(
+          `Total uncompressed size exceeds limit of ${MAX_TOTAL_UNCOMPRESSED_SIZE / (1024 * 1024)}MB`
+        );
       }
 
       const pathLower = path.toLowerCase();

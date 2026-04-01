@@ -100,14 +100,23 @@ export function SectionWrapper({
 
           {/* Title and summary */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <Icon
-                className={cn(
-                  "size-4 shrink-0",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}
-              />
-              <h3 className="font-medium truncate">{title}</h3>
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <Icon
+                  className={cn(
+                    "size-4 shrink-0",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
+                <h3 className="font-semibold text-sm sm:text-base truncate">
+                  {title}
+                </h3>
+              </div>
+              {isCompleted && !isExpanded && (
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-green-600 bg-green-50 px-1.5 py-0.5 rounded sm:hidden">
+                  Done
+                </span>
+              )}
             </div>
 
             {/* Summary (shown when collapsed and completed) */}
@@ -117,7 +126,7 @@ export function SectionWrapper({
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                className="mt-1 text-sm text-muted-foreground truncate"
+                className="mt-0.5 text-xs sm:text-sm text-muted-foreground truncate leading-relaxed max-w-[220px] sm:max-w-none"
               >
                 {summary}
               </motion.div>

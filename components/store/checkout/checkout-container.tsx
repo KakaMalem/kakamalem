@@ -123,17 +123,29 @@ export function CheckoutContainer({
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Link
-          href={`${basePath}/cart`}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="size-4" />
-          <span className="hidden sm:inline">Back to cart</span>
-        </Link>
-        <h1 className="text-2xl font-bold">Checkout</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <Link
+            href={`${basePath}/cart`}
+            className="flex items-center justify-center size-9 rounded-full bg-muted/50 hover:bg-muted text-muted-foreground transition-all sm:bg-transparent sm:size-auto sm:rounded-none"
+            title="Back to cart"
+          >
+            <ArrowLeft className="size-5" />
+            <span className="hidden sm:inline ml-1 text-sm font-medium">
+              Back to cart
+            </span>
+          </Link>
+          <div className="flex flex-col">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">
+              Checkout
+            </h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-bold">
+              Secure Transaction
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Mobile Order Summary */}

@@ -634,7 +634,17 @@ export async function importProducts(
                   showOnPos: row.data.show_on_pos !== "false",
                   barcode: row.data.barcode || null,
                   sku: row.data.sku || generateSku(row.data.name),
-                  displayOrder,
+                  displayOrder: row.data.display_order
+                    ? parseInt(row.data.display_order)
+                    : displayOrder,
+                  minOrderQuantity: row.data.min_order_quantity
+                    ? parseInt(row.data.min_order_quantity)
+                    : 1,
+                  maxOrderQuantity: row.data.max_order_quantity
+                    ? parseInt(row.data.max_order_quantity)
+                    : null,
+                  sourceUrl: row.data.source_url || null,
+                  sourceId: row.data.source_id || null,
                   hasVariants: willHaveVariants,
                 })
                 .returning({ id: products.id });
@@ -827,7 +837,9 @@ export async function importProducts(
                     length: row.data.length || null,
                     width: row.data.width || null,
                     height: row.data.height || null,
-                    displayOrder: variantDisplayOrder,
+                    displayOrder: row.data.display_order
+                      ? parseInt(row.data.display_order)
+                      : variantDisplayOrder,
                   })
                   .returning({ id: productVariants.id });
 

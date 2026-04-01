@@ -178,7 +178,7 @@ export function CheckoutSummary({
                     {item.product.name}
                   </p>
                   {item.variant?.displayName && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground line-clamp-1">
                       {item.variant.displayName}
                     </p>
                   )}
@@ -214,9 +214,9 @@ export function CheckoutSummary({
 
         {/* Totals */}
         <div className="space-y-2 text-sm">
-          <div className="flex items-baseline justify-between gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <span className="text-muted-foreground shrink-0">Subtotal</span>
-            <span className="text-right">
+            <span className="text-right font-medium ml-auto">
               {totalSavings > 0 ? (
                 <span className="flex items-baseline gap-1.5 justify-end flex-wrap">
                   <span className="line-through text-muted-foreground text-xs">
@@ -250,11 +250,11 @@ export function CheckoutSummary({
             </div>
           )}
 
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Shipping</span>
-            <span>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="text-muted-foreground shrink-0">Shipping</span>
+            <span className="text-right ml-auto">
               {shippingTotal === 0 ? (
-                <span className="text-muted-foreground">
+                <span className="text-muted-foreground text-xs sm:text-sm italic">
                   Calculated at next step
                 </span>
               ) : (

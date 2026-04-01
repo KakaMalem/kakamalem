@@ -131,6 +131,38 @@ export const bulkUploadRowSchema = z.object({
     .pipe(z.enum(["true", "false", ""]))
     .optional()
     .or(z.literal("")),
+  // Order quantity limits
+  min_order_quantity: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseInt(val)) && parseInt(val) >= 1),
+      "Minimum order quantity must be at least 1"
+    )
+    .optional()
+    .or(z.literal("")),
+  max_order_quantity: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseInt(val)) && parseInt(val) >= 0),
+      "Maximum order quantity must be a valid positive number"
+    )
+    .optional()
+    .or(z.literal("")),
+  display_order: z
+    .string()
+    .refine(
+      (val) => val === "" || !isNaN(parseInt(val)),
+      "Display order must be a valid number"
+    )
+    .optional()
+    .or(z.literal("")),
+  // External sourcing fields
+  source_url: z
+    .string()
+    .url("Must be a valid URL")
+    .optional()
+    .or(z.literal("")),
+  source_id: z.string().optional().or(z.literal("")),
   // Images column for ZIP uploads - semicolon-separated filenames
   images: z.string().optional().or(z.literal("")),
 });
@@ -204,6 +236,11 @@ export const EXPECTED_HEADERS = [
   "height",
   "show_on_storefront",
   "show_on_pos",
+  "min_order_quantity",
+  "max_order_quantity",
+  "display_order",
+  "source_url",
+  "source_id",
   "parent_product", // For variants: name of the parent product
   // Dynamic option columns (e.g., option_size, option_color) are handled separately
 ] as const;

@@ -1405,7 +1405,10 @@ export const onboardingChecklists = pgTable(
 export const customMigrations = pgTable("custom_migrations", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull().unique(),
-  appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" }).defaultNow(),
+  appliedAt: timestamp("applied_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
 });
 
 export type CustomMigration = typeof customMigrations.$inferSelect;
