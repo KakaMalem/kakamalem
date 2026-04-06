@@ -165,6 +165,32 @@ export const bulkUploadRowSchema = z.object({
   source_id: z.string().optional().or(z.literal("")),
   // Images column for ZIP uploads - semicolon-separated filenames
   images: z.string().optional().or(z.literal("")),
+
+  // Bulk pricing columns
+  // Format: "minQty-maxQty:price;minQty-maxQty:price;..." e.g., "10-49:1200;50:1000"
+  // maxQty can be omitted for unlimited (e.g., "50:1000" means 50+)
+  price_tiers: z.string().optional().or(z.literal("")),
+
+  // Format: "groupName:price;groupName:price:compareAtPrice;..."
+  // e.g., "Wholesale:900;VIP:1000:1500"
+  group_pricing: z.string().optional().or(z.literal("")),
+
+  // Scheduled sale columns (one sale per product row)
+  scheduled_sale_name: z
+    .string()
+    .max(255, "Sale name must be less than 255 characters")
+    .optional()
+    .or(z.literal("")),
+  scheduled_sale_price: z
+    .string()
+    .refine(
+      (val) => val === "" || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+      "Sale price must be a valid positive number"
+    )
+    .optional()
+    .or(z.literal("")),
+  scheduled_sale_start: z.string().optional().or(z.literal("")),
+  scheduled_sale_end: z.string().optional().or(z.literal("")),
 });
 
 export type BulkUploadRowInput = z.infer<typeof bulkUploadRowSchema>;
@@ -183,6 +209,23 @@ export type ValidatedRow = {
   optionValues: Record<string, string>; // e.g., { "Size": "M", "Color": "Blue" }
   // Image support for ZIP uploads
   imageFilenames: string[]; // Parsed from images column
+  // Parsed pricing data
+  parsedPriceTiers: Array<{
+    minQuantity: number;
+    maxQuantity: number | null;
+    price: string;
+  }>;
+  parsedGroupPricing: Array<{
+    groupName: string;
+    price: string;
+    compareAtPrice: string | null;
+  }>;
+  parsedScheduledSale: {
+    name: string;
+    salePrice: string;
+    startsAt: string;
+    endsAt: string;
+  } | null;
 };
 
 // Bulk upload result type
@@ -242,6 +285,13 @@ export const EXPECTED_HEADERS = [
   "source_url",
   "source_id",
   "parent_product", // For variants: name of the parent product
+  // Bulk pricing
+  "price_tiers", // Format: minQty-maxQty:price;... e.g., "10-49:1200;50:1000"
+  "group_pricing", // Format: groupName:price;... e.g., "Wholesale:900;VIP:1000:1500"
+  "scheduled_sale_name",
+  "scheduled_sale_price",
+  "scheduled_sale_start", // ISO date: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+  "scheduled_sale_end",
   // Dynamic option columns (e.g., option_size, option_color) are handled separately
 ] as const;
 

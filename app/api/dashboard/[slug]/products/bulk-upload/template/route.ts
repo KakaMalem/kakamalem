@@ -30,6 +30,12 @@ const TEMPLATE_HEADERS = [
   "source_url",
   "source_id",
   "images", // For ZIP uploads: semicolon-separated filenames from images/ folder
+  "price_tiers", // Quantity pricing: "minQty-maxQty:price;..." e.g., "10-49:1200;50:1000"
+  "group_pricing", // Group pricing: "groupName:price;..." e.g., "Wholesale:900;VIP:1000:1500"
+  "scheduled_sale_name", // Sale name e.g., "عید فروش"
+  "scheduled_sale_price", // Sale price
+  "scheduled_sale_start", // Start date: YYYY-MM-DD
+  "scheduled_sale_end", // End date: YYYY-MM-DD
   "parent_product", // For variants: name of the parent product
   "option_size", // Example option column - add more as needed
   "option_color", // Example option column
@@ -71,6 +77,12 @@ const EXAMPLE_ROWS = [
     "https://example.com/product", // source_url
     "EXT-001", // source_id
     "product1.jpg", // images - تصاویر
+    "10-49:1300;50:1100", // price_tiers - قیمت‌گذاری عمده (۱۰ تا ۴۹ عدد: ۱۳۰۰ | ۵۰ به بالا: ۱۱۰۰)
+    "عمده‌فروشی:1200;VIP:1350", // group_pricing - قیمت گروه مشتری
+    "فروش عیدی", // scheduled_sale_name - نام فروش ویژه
+    "1200", // scheduled_sale_price - قیمت فروش ویژه
+    "2026-03-20", // scheduled_sale_start - تاریخ شروع
+    "2026-04-20", // scheduled_sale_end - تاریخ پایان
     "", // parent_product - محصول والد (خالی = محصول اصلی)
     "", // option_size - سایز (خالی برای محصول بدون واریانت)
     "", // option_color - رنگ (خالی برای محصول بدون واریانت)
@@ -103,6 +115,12 @@ const EXAMPLE_ROWS = [
     "", // source_url
     "", // source_id
     "blanket-main.jpg;blanket-black.jpg;blanket-white.jpg", // images - همه تصاویر برای گالری
+    "5-9:4500;10:4000", // price_tiers - قیمت عمده پتو
+    "عمده‌فروشی:3800", // group_pricing
+    "", // scheduled_sale_name
+    "", // scheduled_sale_price
+    "", // scheduled_sale_start
+    "", // scheduled_sale_end
     "", // parent_product - خالی = محصول اصلی
     "", // option_size - خالی برای والد
     "", // option_color - خالی برای والد
@@ -135,6 +153,12 @@ const EXAMPLE_ROWS = [
     "",
     "",
     "blanket-black.jpg", // images - تصویر اختصاصی واریانت
+    "", // price_tiers - واریانت‌ها قیمت عمده ندارند (از والد ارث می‌برد)
+    "", // group_pricing
+    "", // scheduled_sale_name
+    "", // scheduled_sale_price
+    "", // scheduled_sale_start
+    "", // scheduled_sale_end
     "پتو نمونه با واریانت", // parent_product - نام محصول والد
     "بزرگ", // option_size
     "سیاه", // option_color
@@ -167,6 +191,12 @@ const EXAMPLE_ROWS = [
     "",
     "",
     "blanket-black.jpg",
+    "", // price_tiers
+    "", // group_pricing
+    "", // scheduled_sale_name
+    "", // scheduled_sale_price
+    "", // scheduled_sale_start
+    "", // scheduled_sale_end
     "پتو نمونه با واریانت",
     "کوچک",
     "سیاه",
@@ -199,6 +229,12 @@ const EXAMPLE_ROWS = [
     "",
     "",
     "blanket-white.jpg",
+    "", // price_tiers
+    "", // group_pricing
+    "", // scheduled_sale_name
+    "", // scheduled_sale_price
+    "", // scheduled_sale_start
+    "", // scheduled_sale_end
     "پتو نمونه با واریانت",
     "بزرگ",
     "سفید",
@@ -231,6 +267,12 @@ const EXAMPLE_ROWS = [
     "",
     "",
     "blanket-white.jpg",
+    "", // price_tiers
+    "", // group_pricing
+    "", // scheduled_sale_name
+    "", // scheduled_sale_price
+    "", // scheduled_sale_start
+    "", // scheduled_sale_end
     "پتو نمونه با واریانت",
     "کوچک",
     "سفید",
@@ -276,6 +318,12 @@ export async function GET(request: NextRequest) {
     { wch: 25 }, // source_url
     { wch: 15 }, // source_id
     { wch: 40 }, // images
+    { wch: 25 }, // price_tiers
+    { wch: 25 }, // group_pricing
+    { wch: 20 }, // scheduled_sale_name
+    { wch: 18 }, // scheduled_sale_price
+    { wch: 15 }, // scheduled_sale_start
+    { wch: 15 }, // scheduled_sale_end
     { wch: 25 }, // parent_product
     { wch: 12 }, // option_size
     { wch: 12 }, // option_color
@@ -324,6 +372,18 @@ images/
 - display_order: اولویت نمایش محصول در لیست (عدد بزرگتر = بالاتر)
 - source_url: لینک تامین‌کننده خارجی محصول
 - source_id: شناسه محصول در سیستم تامین‌کننده (مثلاً کد آمازون)
+
+## ستون‌های قیمت‌گذاری عمده (Bulk Pricing)
+- price_tiers: قیمت بر اساس تعداد سفارش
+  فرمت: "حداقل-حداکثر:قیمت;..." مثال: "10-49:1200;50:1000"
+  حداکثر خالی = نامحدود (مثلاً "50:1000" یعنی ۵۰ عدد به بالا)
+- group_pricing: قیمت برای گروه‌های مشتری
+  فرمت: "نام‌گروه:قیمت;..." یا "نام‌گروه:قیمت:قیمت_مقایسه;..."
+  مثال: "عمده‌فروشی:900;VIP:1000:1500"
+- scheduled_sale_name: نام فروش ویژه (مثلاً "فروش عیدی")
+- scheduled_sale_price: قیمت فروش ویژه
+- scheduled_sale_start: تاریخ شروع (YYYY-MM-DD)
+- scheduled_sale_end: تاریخ پایان (YYYY-MM-DD)
 
 ## ستون‌های اختیاری واریانت
 - option_size: سایز (مثلاً بزرگ، کوچک)

@@ -15,6 +15,10 @@ import {
   productVariantOptions,
   productVariantImages,
   optionValueImages,
+  priceTiers,
+  customerGroups,
+  customerGroupPrices,
+  scheduledSales,
 } from "@/lib/db/schema";
 import { uploadFile, type StorageOptions } from "@/lib/storage";
 import { eq, and } from "drizzle-orm";
@@ -300,6 +304,113 @@ export async function parseFileForPreview(
         }
       }
 
+      // Parse price_tiers: "minQty-maxQty:price;..." or "minQty:price;..."
+      const parsedPriceTiers: Array<{
+        minQuantity: number;
+        maxQuantity: number | null;
+        price: string;
+      }> = [];
+      const priceTiersField = rowData.price_tiers?.trim();
+      if (priceTiersField) {
+        const tierParts = priceTiersField.split(";").filter(Boolean);
+        for (const part of tierParts) {
+          // Match "minQty-maxQty:price" or "minQty:price"
+          const match = part.trim().match(/^(\d+)(?:-(\d+))?:(\d+(?:\.\d+)?)$/);
+          if (match) {
+            const minQty = parseInt(match[1]);
+            const maxQty = match[2] ? parseInt(match[2]) : null;
+            const tierPrice = match[3];
+            if (minQty > 0 && parseFloat(tierPrice) >= 0) {
+              parsedPriceTiers.push({
+                minQuantity: minQty,
+                maxQuantity: maxQty,
+                price: tierPrice,
+              });
+            } else {
+              warnings.push(
+                `Invalid price tier "${part}": min quantity must be > 0`
+              );
+            }
+          } else {
+            warnings.push(
+              `Invalid price tier format "${part}". Expected: minQty-maxQty:price or minQty:price`
+            );
+          }
+        }
+      }
+
+      // Parse group_pricing: "groupName:price;..." or "groupName:price:compareAtPrice;..."
+      const parsedGroupPricing: Array<{
+        groupName: string;
+        price: string;
+        compareAtPrice: string | null;
+      }> = [];
+      const groupPricingField = rowData.group_pricing?.trim();
+      if (groupPricingField) {
+        const gpParts = groupPricingField.split(";").filter(Boolean);
+        for (const part of gpParts) {
+          const segments = part.trim().split(":");
+          if (segments.length >= 2) {
+            const groupName = segments[0].trim();
+            const gpPrice = segments[1].trim();
+            const gpCompare = segments.length >= 3 ? segments[2].trim() : null;
+            if (groupName && !isNaN(parseFloat(gpPrice))) {
+              parsedGroupPricing.push({
+                groupName,
+                price: gpPrice,
+                compareAtPrice:
+                  gpCompare && !isNaN(parseFloat(gpCompare)) ? gpCompare : null,
+              });
+            } else {
+              warnings.push(
+                `Invalid group pricing "${part}". Expected: groupName:price or groupName:price:compareAtPrice`
+              );
+            }
+          } else {
+            warnings.push(
+              `Invalid group pricing format "${part}". Expected: groupName:price`
+            );
+          }
+        }
+      }
+
+      // Parse scheduled sale columns
+      let parsedScheduledSale: {
+        name: string;
+        salePrice: string;
+        startsAt: string;
+        endsAt: string;
+      } | null = null;
+      const salePriceField = rowData.scheduled_sale_price?.trim();
+      const saleStartField = rowData.scheduled_sale_start?.trim();
+      const saleEndField = rowData.scheduled_sale_end?.trim();
+      if (salePriceField) {
+        if (!saleStartField || !saleEndField) {
+          warnings.push(
+            "Scheduled sale requires both start and end dates (scheduled_sale_start, scheduled_sale_end)"
+          );
+        } else if (isNaN(parseFloat(salePriceField))) {
+          warnings.push("Scheduled sale price must be a valid number");
+        } else {
+          const startDate = new Date(saleStartField);
+          const endDate = new Date(saleEndField);
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            warnings.push(
+              "Scheduled sale dates must be valid (YYYY-MM-DD format)"
+            );
+          } else if (endDate <= startDate) {
+            warnings.push("Scheduled sale end date must be after start date");
+          } else {
+            parsedScheduledSale = {
+              name: rowData.scheduled_sale_name?.trim() || "",
+              salePrice: salePriceField,
+              startsAt: startDate.toISOString(),
+              endsAt: endDate.toISOString(),
+            };
+          }
+        }
+      }
+
       // A row is valid if it has no errors (warnings are acceptable)
       const isValid = errors.length === 0;
 
@@ -316,6 +427,9 @@ export async function parseFileForPreview(
           : undefined,
         optionValues,
         imageFilenames,
+        parsedPriceTiers,
+        parsedGroupPricing,
+        parsedScheduledSale,
       });
     }
 
@@ -577,6 +691,16 @@ export async function importProducts(
       }
     }
 
+    // Fetch customer groups for group pricing resolution (name -> id)
+    const tenantCustomerGroups = await db.query.customerGroups.findMany({
+      where: eq(customerGroups.tenantId, tenantId),
+      columns: { id: true, name: true },
+    });
+    const customerGroupNameToId = new Map<string, string>();
+    for (const g of tenantCustomerGroups) {
+      customerGroupNameToId.set(g.name.toLowerCase(), g.id);
+    }
+
     // Process in batches of 50 for transaction efficiency
     const BATCH_SIZE = 50;
 
@@ -684,6 +808,54 @@ export async function importProducts(
                 if (imageRecords.length > 0) {
                   await tx.insert(productImages).values(imageRecords);
                 }
+              }
+
+              // Insert price tiers
+              if (row.parsedPriceTiers.length > 0) {
+                await tx.insert(priceTiers).values(
+                  row.parsedPriceTiers.map((tier) => ({
+                    tenantId,
+                    productId: newProduct.id,
+                    minQuantity: tier.minQuantity,
+                    maxQuantity: tier.maxQuantity,
+                    price: tier.price,
+                  }))
+                );
+              }
+
+              // Insert customer group pricing
+              if (row.parsedGroupPricing.length > 0) {
+                const groupPriceValues = row.parsedGroupPricing
+                  .map((gp) => {
+                    const groupId = customerGroupNameToId.get(
+                      gp.groupName.toLowerCase()
+                    );
+                    if (!groupId) return null;
+                    return {
+                      tenantId,
+                      productId: newProduct.id,
+                      customerGroupId: groupId,
+                      price: gp.price,
+                      compareAtPrice: gp.compareAtPrice,
+                    };
+                  })
+                  .filter((v): v is NonNullable<typeof v> => v !== null);
+
+                if (groupPriceValues.length > 0) {
+                  await tx.insert(customerGroupPrices).values(groupPriceValues);
+                }
+              }
+
+              // Insert scheduled sale
+              if (row.parsedScheduledSale) {
+                await tx.insert(scheduledSales).values({
+                  tenantId,
+                  productId: newProduct.id,
+                  name: row.parsedScheduledSale.name || null,
+                  salePrice: row.parsedScheduledSale.salePrice,
+                  startsAt: row.parsedScheduledSale.startsAt,
+                  endsAt: row.parsedScheduledSale.endsAt,
+                });
               }
 
               importedCount++;

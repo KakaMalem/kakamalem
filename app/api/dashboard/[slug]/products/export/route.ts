@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { db } from "@/lib/db";
-import { products, tenants, variantOptions } from "@/lib/db/schema";
+import {
+  products,
+  tenants,
+  variantOptions,
+  priceTiers,
+  customerGroupPrices,
+  customerGroups,
+  scheduledSales,
+} from "@/lib/db/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { getUser, hasStoreAccess } from "@/lib/auth/server";
 
@@ -27,6 +35,12 @@ const BASE_HEADERS = [
   "height",
   "show_on_storefront",
   "show_on_pos",
+  "price_tiers", // Format: minQty-maxQty:price;...
+  "group_pricing", // Format: groupName:price;... or groupName:price:compareAtPrice;...
+  "scheduled_sale_name",
+  "scheduled_sale_price",
+  "scheduled_sale_start",
+  "scheduled_sale_end",
   "parent_product", // For variants: name of the parent product
 ];
 
@@ -120,6 +134,54 @@ export async function GET(
       orderBy: (products, { asc }) => [asc(products.displayOrder)],
     });
 
+    // Fetch price tiers, group pricing, and scheduled sales in parallel
+    const [
+      allPriceTiers,
+      allGroupPrices,
+      allScheduledSales,
+      allCustomerGroups,
+    ] = await Promise.all([
+      db.query.priceTiers.findMany({
+        where: eq(priceTiers.tenantId, tenant.id),
+        orderBy: (pt, { asc }) => [asc(pt.minQuantity)],
+      }),
+      db.query.customerGroupPrices.findMany({
+        where: eq(customerGroupPrices.tenantId, tenant.id),
+      }),
+      db.query.scheduledSales.findMany({
+        where: eq(scheduledSales.tenantId, tenant.id),
+        orderBy: (ss, { desc }) => [desc(ss.priority)],
+      }),
+      db.query.customerGroups.findMany({
+        where: eq(customerGroups.tenantId, tenant.id),
+        columns: { id: true, name: true },
+      }),
+    ]);
+
+    // Build lookup maps by productId
+    const priceTiersByProduct = new Map<string, typeof allPriceTiers>();
+    for (const pt of allPriceTiers) {
+      const arr = priceTiersByProduct.get(pt.productId) || [];
+      arr.push(pt);
+      priceTiersByProduct.set(pt.productId, arr);
+    }
+
+    const groupNameMap = new Map(allCustomerGroups.map((g) => [g.id, g.name]));
+
+    const groupPricesByProduct = new Map<string, typeof allGroupPrices>();
+    for (const gp of allGroupPrices) {
+      const arr = groupPricesByProduct.get(gp.productId) || [];
+      arr.push(gp);
+      groupPricesByProduct.set(gp.productId, arr);
+    }
+
+    const salesByProduct = new Map<string, typeof allScheduledSales>();
+    for (const ss of allScheduledSales) {
+      const arr = salesByProduct.get(ss.productId) || [];
+      arr.push(ss);
+      salesByProduct.set(ss.productId, arr);
+    }
+
     if (productList.length === 0) {
       return NextResponse.json(
         { error: "No products to export" },
@@ -167,6 +229,48 @@ export async function GET(
         product.height || "",
         product.showOnStorefront ? "true" : "false",
         product.showOnPos ? "true" : "false",
+        // Price tiers: "minQty-maxQty:price;..." format
+        (() => {
+          const tiers = priceTiersByProduct.get(product.id);
+          if (!tiers || tiers.length === 0) return "";
+          return tiers
+            .map((t) =>
+              t.maxQuantity
+                ? `${t.minQuantity}-${t.maxQuantity}:${t.price}`
+                : `${t.minQuantity}:${t.price}`
+            )
+            .join(";");
+        })(),
+        // Group pricing: "groupName:price;..." or "groupName:price:compareAtPrice;..."
+        (() => {
+          const gps = groupPricesByProduct.get(product.id);
+          if (!gps || gps.length === 0) return "";
+          return gps
+            .map((gp) => {
+              const name = groupNameMap.get(gp.customerGroupId) || "Unknown";
+              return gp.compareAtPrice
+                ? `${name}:${gp.price}:${gp.compareAtPrice}`
+                : `${name}:${gp.price}`;
+            })
+            .join(";");
+        })(),
+        // Scheduled sale (first/highest priority)
+        (() => {
+          const sales = salesByProduct.get(product.id);
+          return sales?.[0]?.name || "";
+        })(),
+        (() => {
+          const sales = salesByProduct.get(product.id);
+          return sales?.[0]?.salePrice || "";
+        })(),
+        (() => {
+          const sales = salesByProduct.get(product.id);
+          return sales?.[0]?.startsAt ? sales[0].startsAt.split("T")[0] : "";
+        })(),
+        (() => {
+          const sales = salesByProduct.get(product.id);
+          return sales?.[0]?.endsAt ? sales[0].endsAt.split("T")[0] : "";
+        })(),
         "", // parent_product (empty for main products)
       ];
 
@@ -219,6 +323,12 @@ export async function GET(
             variant.height || "",
             "", // show_on_storefront (inherit from parent)
             "", // show_on_pos (inherit from parent)
+            "", // price_tiers (inherit from parent)
+            "", // group_pricing (inherit from parent)
+            "", // scheduled_sale_name (inherit from parent)
+            "", // scheduled_sale_price
+            "", // scheduled_sale_start
+            "", // scheduled_sale_end
             product.name, // parent_product - reference to parent
           ];
 
@@ -261,6 +371,12 @@ export async function GET(
       { wch: 8 }, // height
       { wch: 18 }, // show_on_storefront
       { wch: 12 }, // show_on_pos
+      { wch: 25 }, // price_tiers
+      { wch: 25 }, // group_pricing
+      { wch: 20 }, // scheduled_sale_name
+      { wch: 18 }, // scheduled_sale_price
+      { wch: 15 }, // scheduled_sale_start
+      { wch: 15 }, // scheduled_sale_end
       { wch: 25 }, // parent_product
     ];
 
