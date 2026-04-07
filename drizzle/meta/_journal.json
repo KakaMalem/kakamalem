@@ -302,6 +302,13 @@
       "when": 1772898890230,
       "tag": "0042_condemned_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1775532990007,
+      "tag": "0043_faithful_pandemic",
+      "breakpoints": true
     }
   ]
 }

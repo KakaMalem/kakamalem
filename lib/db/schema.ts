@@ -7679,6 +7679,190 @@ export const exchangeRates = pgTable(
 );
 
 // ============================================================================
+// ESCROW SYSTEM
+// ============================================================================
+// Core of the platform. Buyer pays crypto → escrow holds → buyer confirms → release to seller.
+// All marketplace orders flow through escrow. Disputes freeze funds until admin resolves.
+
+export const escrowStatusEnum = pgEnum("escrow_status", [
+  "pending", // Order placed, awaiting buyer payment
+  "funded", // Crypto received and confirmed in escrow wallet
+  "in_transit", // Seller uploaded tracking, marked as shipped
+  "delivered", // Buyer confirmed receipt
+  "released", // Funds sent to seller wallet (minus platform fee)
+  "disputed", // Dispute opened, funds frozen
+  "resolved_buyer", // Admin ruled for buyer — refund sent
+  "resolved_seller", // Admin ruled for seller — funds released
+  "expired", // Auto-released to seller after timeout
+]);
+
+export const escrowCurrencyEnum = pgEnum("escrow_currency", ["usdt", "usdc"]);
+
+export const disputeStatusEnum = pgEnum("dispute_status", [
+  "open", // Dispute filed, awaiting resolution
+  "resolved_buyer", // Admin ruled in buyer's favor
+  "resolved_seller", // Admin ruled in seller's favor
+]);
+
+export const disputePartyEnum = pgEnum("dispute_party", [
+  "buyer",
+  "seller",
+  "admin",
+]);
+
+export const escrowTransactions = pgTable(
+  "escrow_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    buyerId: text("buyer_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sellerId: text("seller_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    // Payment details
+    amount: decimal("amount", { precision: 20, scale: 8 }).notNull(), // Crypto amount held
+    currency: escrowCurrencyEnum("currency").notNull(),
+    network: cryptoNetworkEnum("network").notNull(),
+    walletAddress: varchar("wallet_address", { length: 100 }).notNull(), // Platform escrow address used
+    txHash: varchar("tx_hash", { length: 100 }), // Buyer's payment tx hash
+
+    // Status
+    status: escrowStatusEnum("status").default("pending").notNull(),
+
+    // Platform fee — snapshotted at payment time so changes don't affect existing escrows
+    platformFeePercent: decimal("platform_fee_percent", {
+      precision: 5,
+      scale: 2,
+    })
+      .default("5.00")
+      .notNull(),
+    platformFee: decimal("platform_fee", { precision: 20, scale: 8 }), // Calculated on release
+    sellerPayout: decimal("seller_payout", { precision: 20, scale: 8 }), // Amount after fee
+
+    // Seller payout wallet
+    sellerWalletAddress: varchar("seller_wallet_address", { length: 100 }),
+    sellerPayoutTxHash: varchar("seller_payout_tx_hash", { length: 100 }),
+
+    // Tracking
+    trackingNumber: varchar("tracking_number", { length: 100 }),
+    trackingCarrier: varchar("tracking_carrier", { length: 50 }),
+    shippedAt: timestamp("shipped_at", { withTimezone: true, mode: "string" }),
+
+    // Auto-release — set when status moves to in_transit (default: 30 days after shipped)
+    autoReleaseAt: timestamp("auto_release_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    // Resolution audit
+    fundedAt: timestamp("funded_at", { withTimezone: true, mode: "string" }),
+    deliveredAt: timestamp("delivered_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    releasedAt: timestamp("released_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("escrow_tx_order_idx").on(table.orderId),
+    index("escrow_tx_tenant_idx").on(table.tenantId),
+    index("escrow_tx_buyer_idx").on(table.buyerId),
+    index("escrow_tx_seller_idx").on(table.sellerId),
+    index("escrow_tx_status_idx").on(table.status),
+    index("escrow_tx_auto_release_idx").on(table.autoReleaseAt),
+    index("escrow_tx_hash_idx").on(table.txHash),
+  ]
+);
+
+export const disputes = pgTable(
+  "disputes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    escrowTransactionId: uuid("escrow_transaction_id")
+      .notNull()
+      .references(() => escrowTransactions.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Who opened the dispute
+    openedBy: text("opened_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    openedByRole: disputePartyEnum("opened_by_role").notNull(),
+
+    // Dispute details
+    reason: varchar("reason", { length: 255 }).notNull(),
+    description: text("description"), // Detailed explanation
+    evidenceUrls: jsonb("evidence_urls").$type<string[]>().default([]), // Photo evidence
+
+    // Resolution
+    status: disputeStatusEnum("status").default("open").notNull(),
+    resolvedBy: text("resolved_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    resolvedAt: timestamp("resolved_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    resolutionNote: text("resolution_note"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("disputes_escrow_idx").on(table.escrowTransactionId),
+    index("disputes_tenant_idx").on(table.tenantId),
+    index("disputes_status_idx").on(table.status),
+    index("disputes_opened_by_idx").on(table.openedBy),
+  ]
+);
+
+export const disputeMessages = pgTable(
+  "dispute_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    disputeId: uuid("dispute_id")
+      .notNull()
+      .references(() => disputes.id, { onDelete: "cascade" }),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: disputePartyEnum("role").notNull(), // buyer, seller, or admin
+    body: text("body").notNull(),
+    attachmentUrls: jsonb("attachment_urls").$type<string[]>().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("dispute_messages_dispute_idx").on(table.disputeId),
+    index("dispute_messages_author_idx").on(table.authorId),
+  ]
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -9573,6 +9757,68 @@ export const storeCreditTransactionsRelations = relations(
   })
 );
 
+// Escrow relations
+export const escrowTransactionsRelations = relations(
+  escrowTransactions,
+  ({ one, many }) => ({
+    order: one(orders, {
+      fields: [escrowTransactions.orderId],
+      references: [orders.id],
+    }),
+    tenant: one(tenants, {
+      fields: [escrowTransactions.tenantId],
+      references: [tenants.id],
+    }),
+    buyer: one(user, {
+      fields: [escrowTransactions.buyerId],
+      references: [user.id],
+      relationName: "escrowBuyer",
+    }),
+    seller: one(user, {
+      fields: [escrowTransactions.sellerId],
+      references: [user.id],
+      relationName: "escrowSeller",
+    }),
+    disputes: many(disputes),
+  })
+);
+
+export const disputesRelations = relations(disputes, ({ one, many }) => ({
+  escrowTransaction: one(escrowTransactions, {
+    fields: [disputes.escrowTransactionId],
+    references: [escrowTransactions.id],
+  }),
+  tenant: one(tenants, {
+    fields: [disputes.tenantId],
+    references: [tenants.id],
+  }),
+  openedByUser: one(user, {
+    fields: [disputes.openedBy],
+    references: [user.id],
+    relationName: "disputeOpener",
+  }),
+  resolvedByUser: one(user, {
+    fields: [disputes.resolvedBy],
+    references: [user.id],
+    relationName: "disputeResolver",
+  }),
+  messages: many(disputeMessages),
+}));
+
+export const disputeMessagesRelations = relations(
+  disputeMessages,
+  ({ one }) => ({
+    dispute: one(disputes, {
+      fields: [disputeMessages.disputeId],
+      references: [disputes.id],
+    }),
+    author: one(user, {
+      fields: [disputeMessages.authorId],
+      references: [user.id],
+    }),
+  })
+);
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -10017,3 +10263,15 @@ export type NewExchangeRate = typeof exchangeRates.$inferInsert;
 // Order invoice token types
 export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;
 export type NewOrderInvoiceToken = typeof orderInvoiceTokens.$inferInsert;
+
+// Escrow types
+export type EscrowStatus = (typeof escrowStatusEnum.enumValues)[number];
+export type EscrowCurrency = (typeof escrowCurrencyEnum.enumValues)[number];
+export type DisputeStatus = (typeof disputeStatusEnum.enumValues)[number];
+export type DisputeParty = (typeof disputePartyEnum.enumValues)[number];
+export type EscrowTransaction = typeof escrowTransactions.$inferSelect;
+export type NewEscrowTransaction = typeof escrowTransactions.$inferInsert;
+export type Dispute = typeof disputes.$inferSelect;
+export type NewDispute = typeof disputes.$inferInsert;
+export type DisputeMessage = typeof disputeMessages.$inferSelect;
+export type NewDisputeMessage = typeof disputeMessages.$inferInsert;
