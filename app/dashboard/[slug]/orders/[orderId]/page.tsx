@@ -20,6 +20,10 @@ import { OrderItemsCard } from "@/components/dashboard/orders/order-items-card";
 import { AutoPrintTrigger } from "@/components/dashboard/orders/auto-print-trigger";
 import { OrderRefundsSection } from "@/components/dashboard/orders/order-refunds-section";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { EscrowSellerCard } from "@/components/dashboard/orders/escrow-seller-card";
+import { db } from "@/lib/db";
+import { escrowTransactions } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
@@ -42,6 +46,11 @@ export default async function OrderDetailPage({
   if (!order) {
     notFound();
   }
+
+  // Fetch escrow transaction for this order
+  const escrow = await db.query.escrowTransactions.findFirst({
+    where: eq(escrowTransactions.orderId, orderId),
+  });
 
   // Fetch refunds and permissions in parallel
   const [refundsData, canManage, isAdmin] = await Promise.all([
@@ -158,6 +167,24 @@ export default async function OrderDetailPage({
 
         {/* Sidebar - 1 column on lg */}
         <div className="space-y-6">
+          {/* Escrow Status (for crypto orders) */}
+          {escrow && (
+            <EscrowSellerCard
+              escrowId={escrow.id}
+              status={escrow.status}
+              amount={escrow.amount}
+              currency={escrow.currency}
+              platformFeePercent={escrow.platformFeePercent}
+              sellerPayout={escrow.sellerPayout}
+              platformFee={escrow.platformFee}
+              trackingNumber={escrow.trackingNumber}
+              trackingCarrier={escrow.trackingCarrier}
+              autoReleaseAt={escrow.autoReleaseAt}
+              fundedAt={escrow.fundedAt}
+              releasedAt={escrow.releasedAt}
+            />
+          )}
+
           {/* Payment Section */}
           <OrderPaymentSection
             orderId={order.id}

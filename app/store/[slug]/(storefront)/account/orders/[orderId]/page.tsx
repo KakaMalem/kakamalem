@@ -35,6 +35,10 @@ import {
   PAYMENT_STATUS_CONFIG,
 } from "@/lib/utils/payment-status";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { EscrowStatusCard } from "@/components/store/escrow-status-card";
+import { db } from "@/lib/db";
+import { escrowTransactions } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import type { Address } from "@/lib/db/schema";
 
 interface OrderDetailPageProps {
@@ -69,6 +73,11 @@ export default async function OrderDetailPage({
   const itemImageMap = new Map(
     itemsWithImages.map((item) => [item.id, item.productImage])
   );
+
+  // Fetch escrow transaction for this order (if any)
+  const escrow = await db.query.escrowTransactions.findFirst({
+    where: eq(escrowTransactions.orderId, orderId),
+  });
 
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = new Date(order.createdAt);
@@ -162,6 +171,20 @@ export default async function OrderDetailPage({
             </Button>
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Escrow Status */}
+      {escrow && (
+        <EscrowStatusCard
+          escrowId={escrow.id}
+          status={escrow.status}
+          amount={escrow.amount}
+          currency={escrow.currency}
+          trackingNumber={escrow.trackingNumber}
+          trackingCarrier={escrow.trackingCarrier}
+          autoReleaseAt={escrow.autoReleaseAt}
+          platformFeePercent={escrow.platformFeePercent}
+        />
       )}
 
       {/* Order Items */}

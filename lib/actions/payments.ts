@@ -21,6 +21,9 @@ import {
   paymentGatewayConfigs,
   paymentSessions,
   tenants,
+  tenantMembers,
+  escrowTransactions,
+  cryptoPayments,
 } from "@/lib/db/schema";
 import type { PaymentGateway, PaymentGatewayConfig } from "@/lib/db/schema";
 import { getUser, requireAuth } from "@/lib/auth/server";
@@ -183,6 +186,60 @@ export async function createOrderPaymentSession(
         updatedAt: new Date().toISOString(),
       })
       .where(eq(orders.id, orderId));
+
+    // For crypto payments, also create an escrow record
+    if (gateway === "crypto_usdt" && user) {
+      try {
+        // Find the store owner (seller) for this tenant
+        const ownerMember = await db.query.tenantMembers.findFirst({
+          where: and(
+            eq(tenantMembers.tenantId, order.tenantId),
+            eq(tenantMembers.role, "owner")
+          ),
+          columns: { userId: true },
+        });
+
+        if (ownerMember) {
+          // Get the crypto payment details from the session
+          const cryptoPaymentRecord = await db.query.cryptoPayments.findFirst({
+            where: eq(
+              cryptoPayments.paymentSessionId,
+              result.paymentSessionId!
+            ),
+            columns: {
+              expectedAmount: true,
+              walletAddress: true,
+              network: true,
+            },
+          });
+
+          // Determine network from options or default
+          const network =
+            (options?.network as "trc20" | "erc20" | "bep20") || "trc20";
+
+          await db.insert(escrowTransactions).values({
+            orderId: order.id,
+            tenantId: order.tenantId,
+            buyerId: user.id,
+            sellerId: ownerMember.userId,
+            amount:
+              cryptoPaymentRecord?.expectedAmount ||
+              parseFloat(order.amountDue || order.total).toString(),
+            currency: "usdt",
+            network,
+            walletAddress: cryptoPaymentRecord?.walletAddress || "",
+            platformFeePercent: "5.00",
+            status: "pending",
+          });
+        }
+      } catch (escrowError) {
+        // Don't fail the payment if escrow creation fails — log and continue
+        console.error(
+          "[createOrderPaymentSession] Escrow creation error:",
+          escrowError
+        );
+      }
+    }
 
     // For crypto payments, the paymentUrl points to an internal page.
     // Convert to a relative path so it works regardless of NEXT_PUBLIC_APP_URL
