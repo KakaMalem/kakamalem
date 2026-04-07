@@ -116,7 +116,7 @@ export function CreateStoreForm({
     headerDisplay: "name_only",
     contactEmail: userEmail,
     contactPhone: userPhone,
-    currency: "USD",
+    currency: "USDT",
     // Location defaults
     storeLocationLat: null,
     storeLocationLng: null,

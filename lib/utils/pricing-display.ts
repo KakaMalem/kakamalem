@@ -135,18 +135,28 @@ export function getDisplayPricesWithCampaign(
  */
 export function formatPriceTier(
   tier: PriceTier,
-  currency: string = "AFN"
+  currency: string = "USDT"
 ): string {
   const price = parseFloat(tier.price);
-  const formattedPrice = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: currency === "AFN" ? 0 : 2,
-    maximumFractionDigits: currency === "AFN" ? 0 : 2,
-  }).format(price);
+  const formattedPrice = formatCurrencyAmount(price, currency);
 
   if (tier.maxQuantity === null) {
     return `${tier.minQuantity}+ units: ${formattedPrice}`;
   }
   return `${tier.minQuantity}-${tier.maxQuantity} units: ${formattedPrice}`;
+}
+
+/** Format an amount with the correct currency symbol (handles non-ISO codes like USDT) */
+function formatCurrencyAmount(amount: number, currency: string): string {
+  if (currency === "USDT" || currency === "USDC") {
+    return `$${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
+  }
+  let formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: currency === "AFN" ? 0 : 2,
+    maximumFractionDigits: currency === "AFN" ? 0 : 2,
+  }).format(amount);
+  if (currency === "AFN") formatted = formatted.replace("AFN", "؋");
+  return formatted;
 }

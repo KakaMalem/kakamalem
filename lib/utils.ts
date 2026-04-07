@@ -7,23 +7,31 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Format a price with currency symbol
- * Supports AFN (Afghan Afghani) and USD
+ * Supports USDT, USD, AFN, and other ISO currencies
  */
-export function formatPrice(price: number, currency: string = "AFN"): string {
-  if (currency === "USD") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(price);
+export function formatPrice(price: number, currency: string = "USDT"): string {
+  // USDT/USDC — not ISO currencies, format manually
+  if (currency === "USDT" || currency === "USDC") {
+    return `$${new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(price)}`;
   }
 
-  // AFN - Afghan Afghani
-  // Format: AFN 1,234.00 or ؋ 1,234.00
+  if (currency === "AFN") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "AFN",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })
+      .format(price)
+      .replace("AFN", "؋");
+  }
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "AFN",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    currency,
   }).format(price);
 }
 

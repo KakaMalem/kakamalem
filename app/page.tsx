@@ -189,9 +189,9 @@ export default async function Home() {
                 {
                   step: "03",
                   icon: CheckCircle2,
-                  title: "Buyer confirms. Funds release.",
+                  title: "Our team confirms. Funds release.",
                   description:
-                    "Once the buyer confirms delivery, funds are released to the seller minus a 5% platform fee. If no response, auto-release in 30 days.",
+                    "Once our team verifies delivery, funds are released to the seller minus a 5% platform fee. If no response, auto-release in 30 days.",
                   color: "from-emerald-500 to-teal-500",
                   bgColor: "bg-emerald-50",
                 },
@@ -628,7 +628,14 @@ export default async function Home() {
                 &copy; {new Date().getFullYear()} Kaka Malem Ltd. All rights
                 reserved.
               </p>
-              <p className="text-[12px] text-zinc-600">UK Registered Company</p>
+              <a
+                href="https://find-and-update.company-information.service.gov.uk/company/17054971"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[12px] text-zinc-600 hover:text-zinc-400 transition-colors"
+              >
+                UK Registered Company
+              </a>
             </div>
           </div>
         </footer>

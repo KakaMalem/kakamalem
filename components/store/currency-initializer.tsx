@@ -35,7 +35,13 @@ export function CurrencyInitializer({
     // Always set the store's base currency
     setStoreCurrency(storeCurrency);
 
-    // Only auto-detect if user hasn't manually chosen a currency
+    // USDT/crypto stores: no multi-currency, no rate fetching needed
+    if (storeCurrency === "USDT" || storeCurrency === "USDC") {
+      setCurrency(storeCurrency as SupportedCurrency);
+      return;
+    }
+
+    // Legacy fiat stores: auto-detect customer currency and fetch rates
     if (currencySource === "auto") {
       let detectedCurrency: string | null = null;
 
@@ -64,7 +70,7 @@ export function CurrencyInitializer({
       }
     }
 
-    // Fetch exchange rates
+    // Fetch exchange rates (legacy fiat stores only)
     fetchRates();
   }, [storeCurrency]); // eslint-disable-line react-hooks/exhaustive-deps
 

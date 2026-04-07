@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const CURRENCY_SYMBOLS: Record<string, string> = { AFN: "؋" };
+
 export interface MoneyInputProps extends Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
   "onChange" | "value" | "size"
@@ -212,7 +214,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
               inputSize === "lg" ? "text-base" : "text-sm"
             )}
           >
-            {currency}
+            {CURRENCY_SYMBOLS[currency] ?? currency}
           </span>
         </div>
       </div>

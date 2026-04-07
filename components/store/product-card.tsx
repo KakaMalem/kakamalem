@@ -43,6 +43,8 @@ interface ProductCardProps {
     rating?: number;
     reviewCount?: number;
     isNew?: boolean;
+    /** Lowest price from bulk pricing tiers */
+    lowestBulkPrice?: string;
   };
   tenantId: string;
   storeSlug: string;
@@ -127,6 +129,12 @@ export function ProductCard({
     product.minVariantPrice &&
     product.maxVariantPrice &&
     product.minVariantPrice !== product.maxVariantPrice;
+
+  // Show bulk pricing hint if lowest tier price is less than the displayed price
+  const bulkPrice = product.lowestBulkPrice
+    ? parseFloat(product.lowestBulkPrice)
+    : null;
+  const showBulkPrice = bulkPrice !== null && bulkPrice < price;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -260,6 +268,14 @@ export function ProductCard({
             </span>
           )}
         </div>
+
+        {/* Bulk pricing hint */}
+        {showBulkPrice && (
+          <p className="text-[10px] leading-tight text-emerald-600">
+            As low as{" "}
+            <span className="font-semibold">{formatPrice(bulkPrice)}</span>/pc
+          </p>
+        )}
 
         {/* Product Name */}
         <h3 className="mt-1.5 line-clamp-2 text-xs font-medium leading-snug text-foreground/90 sm:text-sm">

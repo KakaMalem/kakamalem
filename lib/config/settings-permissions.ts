@@ -104,14 +104,9 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
     minRole: "owner",
     group: "operations",
   },
-  {
-    key: "payments",
-    title: "Payments",
-    description: "Configure payment methods for checkout",
-    href: "/payments",
-    minRole: "owner",
-    group: "operations",
-  },
+  // Payments settings removed — crypto escrow is the only payment method for new stores.
+  // Legacy clients keep their existing gateway configs (Stripe, HesabPay, COD) working
+  // via the database, but can no longer change them from the UI.
   {
     key: "delivery",
     title: "Delivery & Shipping",

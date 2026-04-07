@@ -8,6 +8,7 @@ import {
   productImages,
   productCategories,
   productVariants,
+  priceTiers,
   reviews,
 } from "@/lib/db/schema";
 import {
@@ -19,6 +20,7 @@ import {
   asc,
   count,
   avg,
+  min,
   sql,
   inArray,
 } from "drizzle-orm";
@@ -278,6 +280,19 @@ export async function getProducts(
           .groupBy(reviews.productId)
       : [];
 
+  // Get lowest bulk price tier for each product (for "As low as $X" display)
+  const bulkPriceTiers =
+    productIds.length > 0
+      ? await db
+          .select({
+            productId: priceTiers.productId,
+            lowestPrice: min(priceTiers.price).as("lowestPrice"),
+          })
+          .from(priceTiers)
+          .where(inArray(priceTiers.productId, productIds))
+          .groupBy(priceTiers.productId)
+      : [];
+
   // Map categories, variant stocks, price ranges, and review stats to products
   const variantStockMap = new Map(
     variantStockSums.map((vs) => [vs.productId, vs.totalStock])
@@ -296,6 +311,9 @@ export async function getProducts(
         reviewCount: rs.reviewCount,
       },
     ])
+  );
+  const bulkPriceMap = new Map(
+    bulkPriceTiers.map((bp) => [bp.productId, bp.lowestPrice])
   );
 
   // Group categories by product
@@ -340,6 +358,8 @@ export async function getProducts(
       // Review stats
       rating: productReviewStats?.rating ?? undefined,
       reviewCount: productReviewStats?.reviewCount ?? undefined,
+      // Bulk pricing (lowest tier price for "As low as $X" display)
+      lowestBulkPrice: bulkPriceMap.get(product.id) ?? undefined,
     };
   });
 

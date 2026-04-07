@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 import type { PriceTier } from "@/lib/db/schema";
 
@@ -37,7 +36,6 @@ export function PriceTiersEditor({
 }: PriceTiersEditorProps) {
   const [enabled, setEnabled] = useState(tiers.length > 0);
 
-  // Calculate discount percentage from base price
   const calculateDiscount = (tierPrice: string): number | null => {
     const base = parseFloat(basePrice);
     const tier = parseFloat(tierPrice);
@@ -56,7 +54,6 @@ export function PriceTiersEditor({
   );
 
   const addTier = useCallback(() => {
-    // Find the next logical minQuantity
     let nextMin = 10;
     if (tiers.length > 0) {
       const lastTier = tiers[tiers.length - 1];
@@ -97,7 +94,6 @@ export function PriceTiersEditor({
     [tiers, onChange]
   );
 
-  // Sort tiers by minQuantity for display
   const sortedTiers = [...tiers].sort((a, b) => a.minQuantity - b.minQuantity);
 
   return (
@@ -114,124 +110,103 @@ export function PriceTiersEditor({
             disabled={disabled}
           />
         </div>
-        <p className="text-sm text-muted-foreground">
-          Offer discounted prices for larger quantities
-        </p>
+        {enabled && (
+          <p className="text-sm text-muted-foreground">
+            Offer discounted prices for larger quantities
+          </p>
+        )}
       </CardHeader>
 
       {enabled && (
-        <CardContent className="space-y-4">
-          {/* Tier List */}
-          {sortedTiers.length > 0 && (
-            <div className="space-y-3">
-              {sortedTiers.map((tier, index) => {
-                const discount = calculateDiscount(tier.price);
-                return (
-                  <div
-                    key={tier.id || tier.tempId}
-                    className="grid grid-cols-12 gap-2 items-end"
-                  >
-                    {/* Min Quantity */}
-                    <div className="col-span-3 space-y-1">
-                      {index === 0 && (
-                        <Label className="text-xs text-muted-foreground">
-                          Min
-                        </Label>
-                      )}
-                      <Input
-                        type="number"
-                        min="1"
-                        value={tier.minQuantity}
-                        onChange={(e) =>
-                          updateTier(
-                            index,
-                            "minQuantity",
-                            parseInt(e.target.value) || 1
-                          )
-                        }
-                        onWheel={(e) => e.currentTarget.blur()}
-                        disabled={disabled}
-                        className="h-9"
-                      />
-                    </div>
-
-                    {/* Max Quantity */}
-                    <div className="col-span-3 space-y-1">
-                      {index === 0 && (
-                        <Label className="text-xs text-muted-foreground">
-                          Max
-                        </Label>
-                      )}
-                      <Input
-                        type="number"
-                        min={tier.minQuantity}
-                        value={tier.maxQuantity ?? ""}
-                        onChange={(e) =>
-                          updateTier(
-                            index,
-                            "maxQuantity",
-                            e.target.value ? parseInt(e.target.value) : null
-                          )
-                        }
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="No limit"
-                        disabled={disabled}
-                        className="h-9"
-                      />
-                    </div>
-
-                    {/* Tier Price */}
-                    <div className="col-span-4 space-y-1">
-                      {index === 0 && (
-                        <Label className="text-xs text-muted-foreground">
-                          Price ({currency})
-                        </Label>
-                      )}
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={tier.price}
-                          onChange={(e) =>
-                            updateTier(index, "price", e.target.value)
-                          }
-                          onWheel={(e) => e.currentTarget.blur()}
-                          placeholder="0.00"
-                          disabled={disabled}
-                          className="h-9 pr-16"
-                        />
-                        {discount !== null && (
-                          <Badge
-                            variant="secondary"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700"
-                          >
-                            -{discount}%
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Delete Button */}
-                    <div className="col-span-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeTier(index)}
-                        disabled={disabled}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
+        <CardContent className="space-y-3">
+          {sortedTiers.map((tier, index) => {
+            const discount = calculateDiscount(tier.price);
+            return (
+              <div
+                key={tier.id || tier.tempId}
+                className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3"
+              >
+                <div className="grid flex-1 grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      From
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={tier.minQuantity}
+                      onChange={(e) =>
+                        updateTier(
+                          index,
+                          "minQuantity",
+                          parseInt(e.target.value) || 1
+                        )
+                      }
+                      onWheel={(e) => e.currentTarget.blur()}
+                      disabled={disabled}
+                      className="h-9"
+                    />
                   </div>
-                );
-              })}
-            </div>
-          )}
 
-          {/* Add Tier Button */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">To</Label>
+                    <Input
+                      type="number"
+                      min={tier.minQuantity}
+                      value={tier.maxQuantity ?? ""}
+                      onChange={(e) =>
+                        updateTier(
+                          index,
+                          "maxQuantity",
+                          e.target.value ? parseInt(e.target.value) : null
+                        )
+                      }
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="Any"
+                      disabled={disabled}
+                      className="h-9"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Price ({currency})
+                      {discount !== null && (
+                        <span className="ml-1 text-emerald-600">
+                          -{discount}%
+                        </span>
+                      )}
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={tier.price}
+                      onChange={(e) =>
+                        updateTier(index, "price", e.target.value)
+                      }
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="0.00"
+                      disabled={disabled}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="mt-5 size-9 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeTier(index)}
+                  disabled={disabled}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            );
+          })}
+
           <Button
             type="button"
             variant="outline"
@@ -244,10 +219,9 @@ export function PriceTiersEditor({
             Add Price Tier
           </Button>
 
-          {/* Help Text */}
           {tiers.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              Leave &quot;Max&quot; empty for unlimited quantity. Tiers are
+              Leave &quot;To&quot; empty for unlimited quantity. Tiers are
               sorted by minimum quantity automatically.
             </p>
           )}

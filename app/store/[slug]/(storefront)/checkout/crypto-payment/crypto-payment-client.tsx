@@ -13,16 +13,14 @@ import {
   ArrowLeft,
   Wallet,
   CheckCircle,
-  ShoppingBag,
+  Shield,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { submitTransactionHash } from "@/lib/actions/crypto-payments";
 import {
@@ -72,22 +70,13 @@ export function CryptoPaymentClient({
   const networkInfo = NETWORK_INFO[cryptoPayment.network];
   const supportsAutoDetection = cryptoPayment.network === "trc20";
   const amount = parseFloat(cryptoPayment.expectedAmount);
-  const originalAmount = cryptoPayment.originalAmountAfn
-    ? parseFloat(cryptoPayment.originalAmountAfn)
-    : null;
-  const exchangeRate = cryptoPayment.exchangeRate
-    ? parseFloat(cryptoPayment.exchangeRate)
-    : null;
 
-  // Generate QR code from wallet address
+  // Generate QR code
   useEffect(() => {
     QRCode.toDataURL(cryptoPayment.walletAddress, {
       width: 200,
       margin: 2,
-      color: {
-        dark: "#000000",
-        light: "#ffffff",
-      },
+      color: { dark: "#18181b", light: "#ffffff" },
     })
       .then(setQrCodeUrl)
       .catch(console.error);
@@ -115,7 +104,7 @@ export function CryptoPaymentClient({
     return () => clearInterval(interval);
   }, [cryptoPayment.expiresAt, status]);
 
-  // Auto-detect incoming payments for TRC20 (polls TronGrid)
+  // Auto-detect TRC20 payments
   useEffect(() => {
     if (status !== "pending" || !supportsAutoDetection) return;
 
@@ -128,7 +117,6 @@ export function CryptoPaymentClient({
           `/api/crypto/check-payment?id=${cryptoPayment.id}`
         );
         const data = await response.json();
-
         if (!mounted) return;
 
         if (data.detected) {
@@ -136,16 +124,12 @@ export function CryptoPaymentClient({
             setStatus("verified");
             setTxHash(data.transactionHash || "");
             setDetectionMessage("Payment verified!");
-            toast.success("Payment verified!", {
-              description: "Your order is being processed.",
-            });
+            toast.success("Payment verified!");
           } else if (data.status === "submitted") {
             setStatus("submitted");
             setTxHash(data.transactionHash || "");
             setDetectionMessage("Payment detected, confirming...");
-            toast.success("Payment detected!", {
-              description: "Waiting for blockchain confirmation...",
-            });
+            toast.success("Payment detected!");
           }
         } else if (data.status === "expired") {
           setStatus("expired");
@@ -155,10 +139,7 @@ export function CryptoPaymentClient({
       }
     };
 
-    // Initial check
     checkPayment();
-
-    // Poll every 15 seconds
     const pollInterval = setInterval(checkPayment, 15000);
 
     return () => {
@@ -168,14 +149,10 @@ export function CryptoPaymentClient({
     };
   }, [status, supportsAutoDetection, cryptoPayment.id]);
 
-  // Poll for verification when submitted (for all networks)
+  // Poll for verification when submitted
   useEffect(() => {
     if (status !== "submitted") return;
-
-    const pollInterval = setInterval(() => {
-      router.refresh();
-    }, 10000); // Check every 10 seconds
-
+    const pollInterval = setInterval(() => router.refresh(), 10000);
     return () => clearInterval(pollInterval);
   }, [status, router]);
 
@@ -184,7 +161,7 @@ export function CryptoPaymentClient({
       try {
         await navigator.clipboard.writeText(text);
         setCopied(type);
-        toast.success("Copied to clipboard");
+        toast.success("Copied");
         setTimeout(() => setCopied(null), 2000);
       } catch {
         toast.error("Failed to copy");
@@ -198,27 +175,19 @@ export function CryptoPaymentClient({
       toast.error("Please enter a transaction hash");
       return;
     }
-
     setIsSubmitting(true);
-
     try {
       const result = await submitTransactionHash(
         cryptoPayment.id,
         txHash.trim()
       );
-
       if (result.success) {
         setStatus("submitted");
-        toast.success("Transaction hash submitted", {
-          description: "We will verify your payment shortly.",
-        });
+        toast.success("Transaction submitted");
       } else {
-        toast.error("Failed to submit", {
-          description: result.error || "Please try again.",
-        });
+        toast.error(result.error || "Please try again.");
       }
-    } catch (error) {
-      console.error("Submit error:", error);
+    } catch {
       toast.error("An error occurred");
     } finally {
       setIsSubmitting(false);
@@ -226,105 +195,85 @@ export function CryptoPaymentClient({
   };
 
   const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
+    const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-    }
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Expired state
+  const retryUrl = `/store/${storeSlug}/checkout/payment?order=${orderId}`;
+
+  // ── Terminal states ──────────────────────────────────────────────────────
+
   if (status === "expired") {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-destructive/10">
-            <AlertCircle className="size-8 text-destructive" />
-          </div>
-          <h1 className="mt-4 text-2xl font-bold">Payment Expired</h1>
-          <p className="mt-2 text-muted-foreground">
-            This payment session has expired. Please start a new payment.
-          </p>
-        </div>
-        <Button variant="outline" className="w-full" asChild>
-          <Link href={`/store/${storeSlug}/checkout/payment?order=${orderId}`}>
-            <ArrowLeft className="mr-2 size-4" />
-            Try Another Payment Method
-          </Link>
-        </Button>
-      </div>
+      <Shell>
+        <StatusScreen
+          icon={<Clock className="size-6 text-zinc-400" />}
+          iconBg="bg-zinc-100"
+          title="Session expired"
+          description="This payment window has closed. You can start a new one — your order is still saved."
+        >
+          <Button className="w-full" asChild>
+            <Link href={retryUrl}>Retry Payment</Link>
+          </Button>
+        </StatusScreen>
+      </Shell>
     );
   }
 
-  // Rejected state
   if (status === "rejected") {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-destructive/10">
-            <AlertCircle className="size-8 text-destructive" />
-          </div>
-          <h1 className="mt-4 text-2xl font-bold">Payment Rejected</h1>
-          <p className="mt-2 text-muted-foreground">
-            Your payment could not be verified. Please contact support or try
-            another payment method.
-          </p>
-        </div>
-        <Button variant="outline" className="w-full" asChild>
-          <Link href={`/store/${storeSlug}/checkout/payment?order=${orderId}`}>
-            <ArrowLeft className="mr-2 size-4" />
-            Try Another Payment Method
-          </Link>
-        </Button>
-      </div>
+      <Shell>
+        <StatusScreen
+          icon={<XCircle className="size-6 text-red-500" />}
+          iconBg="bg-red-50"
+          title="Payment rejected"
+          description="We couldn't verify this transaction. Please try again or contact support."
+        >
+          <Button className="w-full" asChild>
+            <Link href={retryUrl}>Try Again</Link>
+          </Button>
+        </StatusScreen>
+      </Shell>
     );
   }
 
-  // Submitted state - waiting for verification
+  if (status === "verified") {
+    return (
+      <Shell>
+        <StatusScreen
+          icon={<CheckCircle className="size-6 text-emerald-600" />}
+          iconBg="bg-emerald-50"
+          title="Payment confirmed"
+          description="Your payment has been verified. Your order is being processed."
+        >
+          <Button className="w-full" asChild>
+            <Link href={successUrl}>View Order</Link>
+          </Button>
+        </StatusScreen>
+      </Shell>
+    );
+  }
+
   if (status === "submitted") {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-amber-100">
-            <Clock className="size-8 text-amber-600" />
-          </div>
-          <h1 className="mt-4 text-2xl font-bold">Payment Submitted</h1>
-          <p className="mt-2 text-muted-foreground">
-            Your transaction is being verified. This usually takes a few
-            minutes.
-          </p>
-        </div>
-
-        <Card className="mb-6">
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Store</span>
-              <span className="font-medium">{storeName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Order</span>
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="size-4 text-primary" />
-                <span className="font-mono font-medium">{orderNumber}</span>
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Amount</span>
-              <span className="font-medium">{amount.toFixed(2)} USDT</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Network</span>
-              <Badge variant="outline">{networkInfo.name}</Badge>
-            </div>
+      <Shell>
+        <StatusScreen
+          icon={<Loader2 className="size-6 text-blue-600 animate-spin" />}
+          iconBg="bg-blue-50"
+          title="Verifying payment"
+          description="We're confirming your transaction on the blockchain. This usually takes a few minutes."
+        >
+          {/* Transaction details */}
+          <div className="w-full rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 space-y-3 text-sm">
+            <Row label="Order" value={`#${orderNumber}`} />
+            <Row label="Amount" value={`${amount.toFixed(2)} USDT`} />
+            <Row label="Network" value={networkInfo.name} />
             {txHash && (
-              <div className="border-t pt-4">
-                <span className="text-sm text-muted-foreground">
-                  Transaction Hash
-                </span>
+              <div className="border-t border-zinc-100 pt-3">
+                <span className="text-zinc-500 text-xs">Transaction Hash</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <code className="flex-1 text-xs break-all bg-muted p-2 rounded">
+                  <code className="flex-1 text-[11px] break-all text-zinc-700 bg-white rounded border border-zinc-200 px-2 py-1.5">
                     {txHash}
                   </code>
                   <a
@@ -334,279 +283,272 @@ export function CryptoPaymentClient({
                     )}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+                    className="text-zinc-400 hover:text-zinc-700 transition-colors"
                   >
                     <ExternalLink className="size-4" />
                   </a>
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Alert>
-          <Loader2 className="size-4 animate-spin" />
-          <AlertTitle>Verifying Payment</AlertTitle>
-          <AlertDescription>
-            Please wait while we verify your transaction on the blockchain. This
-            page will update automatically.
-          </AlertDescription>
-        </Alert>
-
-        <Button variant="outline" className="w-full mt-6" asChild>
-          <Link href={`/store/${storeSlug}`}>
-            <ArrowLeft className="mr-2 size-4" />
-            Continue Shopping
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
-  // Verified state
-  if (status === "verified") {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-green-100">
-            <CheckCircle className="size-8 text-green-600" />
           </div>
-          <h1 className="mt-4 text-2xl font-bold">Payment Verified</h1>
-          <p className="mt-2 text-muted-foreground">
-            Your payment has been confirmed. Thank you for your order!
+
+          <p className="text-xs text-zinc-400 text-center">
+            This page updates automatically. You can close it and check your
+            order later.
           </p>
-        </div>
-        <Button className="w-full" asChild>
-          <Link href={successUrl}>View Order Details</Link>
-        </Button>
-      </div>
+        </StatusScreen>
+      </Shell>
     );
   }
 
-  // Pending state - show payment instructions
+  // ── Pending state — payment instructions ─────────────────────────────
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/store/${storeSlug}/checkout/payment?order=${orderId}`}>
-            <ArrowLeft className="size-5" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pay with USDT</h1>
-          <p className="text-muted-foreground">
-            Complete your order payment for {storeName}
+    <Shell>
+      <div className="w-full max-w-md mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" className="-ml-2" asChild>
+            <Link href={retryUrl}>
+              <ArrowLeft className="mr-1 size-4" />
+              Back
+            </Link>
+          </Button>
+          <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+            <Shield className="size-3" />
+            Escrow protected
+          </div>
+        </div>
+
+        {/* Amount */}
+        <div className="text-center space-y-1">
+          <p className="text-sm text-zinc-500">Send exactly</p>
+          <div className="flex items-center justify-center gap-3">
+            <span className="text-4xl font-bold tracking-tight text-zinc-900">
+              {amount.toFixed(2)}
+            </span>
+            <Badge
+              variant="outline"
+              className="text-xs font-semibold tracking-wider"
+            >
+              USDT
+            </Badge>
+          </div>
+          <p className="text-xs text-zinc-400">
+            via {networkInfo.name} network
           </p>
         </div>
-      </div>
 
-      {/* Timer */}
-      {timeLeft !== null && timeLeft > 0 && (
-        <Alert
-          className="mb-6"
-          variant={timeLeft < 300 ? "destructive" : "default"}
-        >
-          <Clock className="size-4" />
-          <AlertTitle>Time Remaining</AlertTitle>
-          <AlertDescription>
-            {formatTime(timeLeft)} - Complete your payment before this expires
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-lg">
-            <div className="flex items-center gap-2">
-              <ShoppingBag className="size-5 text-primary" />
-              <span>Order #{orderNumber}</span>
-            </div>
-            <Badge variant="outline">{networkInfo.name}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Amount */}
-          <div className="rounded-lg border bg-muted/50 p-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-primary">
-                {amount.toFixed(2)} USDT
-              </div>
-              {originalAmount && exchangeRate && (
-                <div className="text-sm text-muted-foreground mt-1">
-                  = {originalAmount.toLocaleString()} AFN (Rate: 1 USDT ={" "}
-                  {exchangeRate.toFixed(2)} AFN)
-                </div>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full mt-2"
-              onClick={() => copyToClipboard(amount.toFixed(2), "amount")}
-            >
-              {copied === "amount" ? (
-                <Check className="mr-2 size-4 text-green-500" />
-              ) : (
-                <Copy className="mr-2 size-4" />
-              )}
-              Copy Amount
-            </Button>
+        {/* Timer */}
+        {timeLeft !== null && timeLeft > 0 && (
+          <div
+            className={`flex items-center justify-center gap-2 text-sm font-medium ${
+              timeLeft < 300 ? "text-red-600" : "text-zinc-500"
+            }`}
+          >
+            <Clock className="size-3.5" />
+            {formatTime(timeLeft)} remaining
           </div>
+        )}
 
-          {/* QR Code - using img for data URL from qrcode library */}
+        {/* QR + Address card */}
+        <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden">
+          {/* QR Code */}
           {qrCodeUrl && (
-            <div className="flex justify-center">
-              <div className="rounded-lg border bg-white p-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={qrCodeUrl}
-                  alt="Payment QR Code"
-                  className="size-48"
-                />
-              </div>
+            <div className="flex justify-center py-6 bg-zinc-50/50 border-b border-zinc-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrCodeUrl}
+                alt="Wallet QR"
+                className="size-44 rounded-xl"
+              />
             </div>
           )}
 
-          {/* Wallet Address */}
-          <div>
-            <Label className="text-sm text-muted-foreground">
-              Wallet Address ({networkInfo.fullName})
-            </Label>
-            <div className="mt-1 flex items-center gap-2">
-              <code className="flex-1 rounded border bg-muted px-3 py-2 text-xs break-all">
+          {/* Wallet address */}
+          <div className="p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Wallet Address
+              </span>
+              <Badge variant="outline" className="text-[10px]">
+                {networkInfo.name}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[11px] break-all text-zinc-700 bg-zinc-50 rounded-lg border border-zinc-100 px-3 py-2.5 font-mono">
                 {cryptoPayment.walletAddress}
               </code>
               <Button
                 variant="outline"
                 size="icon"
+                className="shrink-0 size-9"
                 onClick={() =>
                   copyToClipboard(cryptoPayment.walletAddress, "address")
                 }
               >
                 {copied === "address" ? (
-                  <Check className="size-4 text-green-500" />
+                  <Check className="size-3.5 text-emerald-500" />
                 ) : (
-                  <Copy className="size-4" />
+                  <Copy className="size-3.5" />
                 )}
               </Button>
             </div>
-          </div>
-
-          {/* Instructions */}
-          <Alert>
-            <AlertCircle className="size-4" />
-            <AlertTitle>Important</AlertTitle>
-            <AlertDescription className="text-sm">
-              <ul className="list-disc list-inside space-y-1 mt-2">
-                <li>
-                  Send <strong>exactly {amount.toFixed(2)} USDT</strong> on the{" "}
-                  <strong>{networkInfo.name}</strong> network
-                </li>
-                <li>Sending a different amount may delay verification</li>
-                <li>Do not send from an exchange - use a personal wallet</li>
-                {supportsAutoDetection ? (
-                  <li className="text-green-600 font-medium">
-                    Payment will be detected automatically after sending
-                  </li>
-                ) : (
-                  <li>After sending, enter your transaction hash below</li>
-                )}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-
-      {/* Auto-detection status (TRC20 only) */}
-      {supportsAutoDetection && (
-        <Card className="mb-6 border-primary/20 bg-primary/5">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
-                {isAutoDetecting ? (
-                  <Loader2 className="size-6 text-primary animate-spin" />
-                ) : (
-                  <Wallet className="size-6 text-primary" />
-                )}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold">
-                  {isAutoDetecting
-                    ? "Waiting for payment..."
-                    : "Auto-detection ready"}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {detectionMessage ||
-                    "Send the payment and it will be detected automatically"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Manual Transaction Hash Input (fallback) */}
-      <Card className="mb-6">
-        <CardHeader
-          className="cursor-pointer"
-          onClick={() => setShowManualInput(!showManualInput)}
-        >
-          <CardTitle className="flex items-center justify-between text-base">
-            <span className="text-muted-foreground">
-              {supportsAutoDetection
-                ? "Having trouble? Enter transaction hash manually"
-                : "Submit Transaction"}
-            </span>
-            <Button variant="ghost" size="sm">
-              {showManualInput ? "Hide" : "Show"}
+            {/* Copy amount button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs text-zinc-500 hover:text-zinc-700"
+              onClick={() => copyToClipboard(amount.toFixed(2), "amount")}
+            >
+              {copied === "amount" ? (
+                <Check className="mr-1.5 size-3 text-emerald-500" />
+              ) : (
+                <Copy className="mr-1.5 size-3" />
+              )}
+              Copy amount: {amount.toFixed(2)} USDT
             </Button>
-          </CardTitle>
-        </CardHeader>
-        {(showManualInput || !supportsAutoDetection) && (
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="txHash">Transaction Hash (TxID)</Label>
-              <Input
-                id="txHash"
-                placeholder="Enter your transaction hash..."
-                value={txHash}
-                onChange={(e) => setTxHash(e.target.value)}
-                className="mt-1 font-mono text-sm"
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Find this in your wallet after the transaction is confirmed
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="rounded-xl bg-amber-50/70 border border-amber-200/50 p-4">
+          <div className="flex gap-3">
+            <AlertCircle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-[13px] text-amber-900 space-y-1.5">
+              <p>
+                Send <strong>exactly {amount.toFixed(2)} USDT</strong> on the{" "}
+                <strong>{networkInfo.name}</strong> network.
+              </p>
+              <p className="text-amber-700">
+                Wrong amount or network will delay verification.
               </p>
             </div>
+          </div>
+        </div>
 
-            <Button
-              className="w-full"
-              onClick={handleSubmitTxHash}
-              disabled={isSubmitting || !txHash.trim()}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Submitting...
-                </>
+        {/* Auto-detection indicator */}
+        {supportsAutoDetection && (
+          <div className="flex items-center gap-3 rounded-xl border border-zinc-100 bg-zinc-50/50 p-4">
+            <div className="flex size-9 items-center justify-center rounded-full bg-blue-50">
+              {isAutoDetecting ? (
+                <Loader2 className="size-4 text-blue-600 animate-spin" />
               ) : (
-                <>
-                  <Check className="mr-2 size-4" />
-                  Submit Transaction Hash
-                </>
+                <Wallet className="size-4 text-blue-600" />
               )}
-            </Button>
-          </CardContent>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-zinc-700">
+                {isAutoDetecting
+                  ? "Listening for payment..."
+                  : "Auto-detection ready"}
+              </p>
+              <p className="text-xs text-zinc-500">
+                {detectionMessage ||
+                  "Your payment will be detected automatically once sent"}
+              </p>
+            </div>
+          </div>
         )}
-      </Card>
 
-      <Button variant="outline" className="w-full" asChild>
-        <Link href={`/store/${storeSlug}/checkout/payment?order=${orderId}`}>
-          <ArrowLeft className="mr-2 size-4" />
-          Choose Another Payment Method
-        </Link>
-      </Button>
+        {/* Manual tx hash input */}
+        <div className="rounded-xl border border-zinc-100 overflow-hidden">
+          <button
+            onClick={() => setShowManualInput(!showManualInput)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm text-zinc-500 hover:bg-zinc-50 transition-colors"
+          >
+            <span>
+              {supportsAutoDetection
+                ? "Submit transaction hash manually"
+                : "Submit transaction hash"}
+            </span>
+            <span className="text-xs text-zinc-400">
+              {showManualInput ? "Hide" : "Show"}
+            </span>
+          </button>
+          {(showManualInput || !supportsAutoDetection) && (
+            <div className="px-4 pb-4 space-y-3 border-t border-zinc-100 pt-3">
+              <Input
+                placeholder="Paste your transaction hash (TxID)..."
+                value={txHash}
+                onChange={(e) => setTxHash(e.target.value)}
+                className="font-mono text-xs"
+                disabled={isSubmitting}
+              />
+              <Button
+                className="w-full"
+                size="sm"
+                onClick={handleSubmitTxHash}
+                disabled={isSubmitting || !txHash.trim()}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="mr-2 size-3.5 animate-spin" />
+                ) : (
+                  <Check className="mr-2 size-3.5" />
+                )}
+                {isSubmitting ? "Submitting..." : "Submit"}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Order reference */}
+        <p className="text-center text-xs text-zinc-400">
+          Order #{orderNumber} &middot; {storeName}
+        </p>
+      </div>
+    </Shell>
+  );
+}
+
+// ── Shared layout wrapper ────────────────────────────────────────────────
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-[80vh] flex items-start justify-center px-4 py-12 sm:py-16">
+      <div className="w-full max-w-md">{children}</div>
+    </div>
+  );
+}
+
+// ── Status screen (verified, expired, rejected, submitted) ───────────────
+
+function StatusScreen({
+  icon,
+  iconBg,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center text-center space-y-6">
+      <div
+        className={`flex size-14 items-center justify-center rounded-2xl ${iconBg}`}
+      >
+        {icon}
+      </div>
+      <div className="space-y-2">
+        <h1 className="text-xl font-semibold text-zinc-900">{title}</h1>
+        <p className="text-sm text-zinc-500 max-w-xs">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Info row ──────────────────────────────────────────────────────────────
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-zinc-500">{label}</span>
+      <span className="font-medium text-zinc-900">{value}</span>
     </div>
   );
 }

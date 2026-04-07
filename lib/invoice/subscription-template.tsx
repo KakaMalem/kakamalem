@@ -294,10 +294,10 @@ export interface SubscriptionInvoiceData {
 }
 
 function formatCurrency(amount: number, currency: string): string {
-  if (currency === "USD" || currency === "USDT") {
+  if (currency === "USD" || currency === "USDT" || currency === "USDC") {
     return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
-  return `AFN ${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `؋ ${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function formatDate(dateString: string): string {

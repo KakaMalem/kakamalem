@@ -16,6 +16,50 @@ import {
 
 type ExchangeRates = Record<string, number>;
 
+/**
+ * Non-ISO currencies that Intl.NumberFormat can't handle.
+ * These are formatted manually with symbol + number.
+ */
+const NON_ISO_CURRENCIES = new Set(["USDT", "USDC"]);
+
+/**
+ * Format an amount with the correct currency symbol.
+ * Uses Intl.NumberFormat for standard ISO currencies, manual formatting for crypto.
+ */
+function formatWithCurrency(
+  amount: number,
+  currencyCode: string,
+  decimals: number
+): string {
+  if (NON_ISO_CURRENCIES.has(currencyCode)) {
+    const info = currencyInfo[currencyCode as SupportedCurrency];
+    const symbol = info?.symbol ?? currencyCode;
+    const formatted = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(amount);
+    return `${symbol}${formatted}`;
+  }
+
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(amount);
+
+  // Replace ISO code with symbol if Intl didn't use narrow symbol (e.g. "AFN" → "؋")
+  const info = currencyInfo[currencyCode as SupportedCurrency];
+  if (
+    info &&
+    info.symbol !== currencyCode &&
+    formatted.includes(currencyCode)
+  ) {
+    return formatted.replace(currencyCode, info.symbol);
+  }
+  return formatted;
+}
+
 interface CurrencyState {
   // Customer's display currency
   currency: SupportedCurrency;
@@ -52,9 +96,9 @@ interface CurrencyState {
 export const useCurrencyStore = create<CurrencyState>()(
   persist(
     (set, get) => ({
-      currency: "AFN",
+      currency: "USDT",
       currencySource: "auto",
-      storeCurrency: "AFN",
+      storeCurrency: "USDT",
       rates: {},
       ratesUpdatedAt: null,
       isLoading: false,
@@ -147,24 +191,17 @@ export const useCurrencyStore = create<CurrencyState>()(
         const info = currencyInfo[currency];
         const decimals = info?.decimals ?? 2;
 
-        // Format the converted amount
-        const formatted = new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency,
-          minimumFractionDigits: decimals,
-          maximumFractionDigits: decimals,
-        }).format(converted);
+        const formatted = formatWithCurrency(converted, currency, decimals);
 
         // Optionally show original amount in store currency
         if (showOriginal && currency !== storeCurrency) {
           const storeInfo = currencyInfo[storeCurrency as SupportedCurrency];
           const storeDecimals = storeInfo?.decimals ?? 2;
-          const originalFormatted = new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: storeCurrency,
-            minimumFractionDigits: storeDecimals,
-            maximumFractionDigits: storeDecimals,
-          }).format(amount);
+          const originalFormatted = formatWithCurrency(
+            amount,
+            storeCurrency,
+            storeDecimals
+          );
           return `${formatted} (${originalFormatted})`;
         }
 
@@ -176,12 +213,7 @@ export const useCurrencyStore = create<CurrencyState>()(
         const info = currencyInfo[curr as SupportedCurrency];
         const decimals = info?.decimals ?? 2;
 
-        return new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: curr,
-          minimumFractionDigits: decimals,
-          maximumFractionDigits: decimals,
-        }).format(amount);
+        return formatWithCurrency(amount, curr, decimals);
       },
     }),
     {

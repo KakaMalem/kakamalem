@@ -32,12 +32,16 @@ function calculateSavings(
  * Format price with currency
  */
 function formatPrice(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
+  if (currency === "USDT" || currency === "USDC") {
+    return `$${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
+  }
+  const formatted = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+  return currency === "AFN" ? formatted.replace("AFN", "؋") : formatted;
 }
 
 export function BillingIntervalSelector({

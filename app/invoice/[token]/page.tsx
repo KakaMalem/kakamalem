@@ -48,13 +48,16 @@ export default async function PublicInvoicePage({ params }: PageProps) {
   const { isPaid, isFullyRefunded, isPartiallyRefunded } = paymentInfo;
 
   function formatCurrency(amount: number): string {
+    if (order.currency === "USDT" || order.currency === "USDC") {
+      return `$${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
+    }
     if (order.currency === "USD") {
       return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
       }).format(amount);
     }
-    return `AFN ${new Intl.NumberFormat("en-US", {
+    return `؋ ${new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount)}`;

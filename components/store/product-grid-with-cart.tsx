@@ -25,6 +25,7 @@ interface Product {
   rating?: number;
   reviewCount?: number;
   isNew?: boolean;
+  lowestBulkPrice?: string;
 }
 
 interface ProductGridWithCartProps {

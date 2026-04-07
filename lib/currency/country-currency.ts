@@ -85,7 +85,8 @@ export const countryCurrencyMap: Record<string, string> = {
  * by the Afghan diaspora and international customers.
  */
 export const supportedCurrencies = [
-  "AFN", // Afghan Afghani (base currency)
+  "USDT", // Tether (platform default for escrow marketplace)
+  "AFN", // Afghan Afghani (legacy)
   "USD", // US Dollar (universal)
   "EUR", // Euro (Europe)
   "GBP", // British Pound (UK)
@@ -113,6 +114,12 @@ export const currencyInfo: Record<
     decimals: number;
   }
 > = {
+  USDT: {
+    code: "USDT",
+    symbol: "$",
+    name: "Tether USD",
+    decimals: 2,
+  },
   AFN: {
     code: "AFN",
     symbol: "؋",

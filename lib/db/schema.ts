@@ -865,7 +865,7 @@ export const tenants = pgTable(
     seo: jsonb("seo").$type<SeoMetadata>(),
 
     // Settings
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Delivery mode - how the store calculates shipping/delivery fees
     // DEPRECATED: Use enableDeliveryZones instead. Kept for backward compatibility.
@@ -2882,13 +2882,13 @@ export const orders = pgTable(
     total: decimal("total", { precision: 14, scale: 2 }).notNull(),
 
     // Currency (ISO 4217 code) - store's base currency
-    currencyCode: varchar("currency_code", { length: 3 })
-      .default("AFN")
+    currencyCode: varchar("currency_code", { length: 10 })
+      .default("USDT")
       .notNull(),
 
     // ========== MULTI-CURRENCY SUPPORT ==========
     // Customer's display/payment currency (if different from store currency)
-    customerCurrency: varchar("customer_currency", { length: 3 }),
+    customerCurrency: varchar("customer_currency", { length: 10 }),
     // Amount in customer's currency (total converted)
     customerAmount: decimal("customer_amount", { precision: 14, scale: 2 }),
     // Exchange rate at time of order (1 store currency = X customer currency)
@@ -3199,8 +3199,8 @@ export const orderTransactions = pgTable(
     // Amount (positive for payments, can be negative for adjustments)
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
     // Currency
-    currencyCode: varchar("currency_code", { length: 3 })
-      .default("AFN")
+    currencyCode: varchar("currency_code", { length: 10 })
+      .default("USDT")
       .notNull(),
 
     // ========== PAYMENT METHOD ==========
@@ -3321,8 +3321,8 @@ export const refunds = pgTable(
     // Total refund amount (subtotal + shipping + tax - restockingFee)
     totalAmount: decimal("total_amount", { precision: 14, scale: 2 }).notNull(),
     // Currency
-    currencyCode: varchar("currency_code", { length: 3 })
-      .default("AFN")
+    currencyCode: varchar("currency_code", { length: 10 })
+      .default("USDT")
       .notNull(),
 
     // ========== REFUND METHOD ==========
@@ -3864,8 +3864,8 @@ export const storeCredits = pgTable(
     // Current balance
     balance: decimal("balance", { precision: 14, scale: 2 }).notNull(),
     // Currency
-    currencyCode: varchar("currency_code", { length: 3 })
-      .default("AFN")
+    currencyCode: varchar("currency_code", { length: 10 })
+      .default("USDT")
       .notNull(),
 
     // ========== SOURCE ==========
@@ -4853,7 +4853,7 @@ export const sellerBalances = pgTable(
     payoutHoldDays: integer("payout_hold_days").default(7).notNull(), // Days before pending becomes available
 
     // Currency
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -4926,7 +4926,7 @@ export const sellerTransactions = pgTable(
     // Transaction details
     type: sellerTransactionTypeEnum("type").notNull(),
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(), // Positive or negative
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Balance snapshot after this transaction
     availableAfter: decimal("available_after", {
@@ -4993,7 +4993,7 @@ export const sellerPayouts = pgTable(
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
     fee: decimal("fee", { precision: 12, scale: 2 }).default("0").notNull(), // Transfer fee
     netAmount: decimal("net_amount", { precision: 14, scale: 2 }).notNull(), // amount - fee
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Status
     status: payoutStatusEnum("status").default("pending").notNull(),
@@ -5808,8 +5808,8 @@ export const affiliateConversions = pgTable(
 
     // Order details at time of conversion
     orderTotal: decimal("order_total", { precision: 14, scale: 2 }).notNull(),
-    orderCurrency: varchar("order_currency", { length: 3 })
-      .default("AFN")
+    orderCurrency: varchar("order_currency", { length: 10 })
+      .default("USDT")
       .notNull(),
 
     // Commission calculation
@@ -5875,7 +5875,7 @@ export const affiliatePayouts = pgTable(
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
     fee: decimal("fee", { precision: 12, scale: 2 }).default("0").notNull(),
     netAmount: decimal("net_amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // How many conversions included
     conversionCount: integer("conversion_count").notNull(),
@@ -6288,7 +6288,7 @@ export const platformAffiliateCommissions = pgTable(
       scale: 2,
     }).notNull(), // Calculated commission
     commissionMonth: integer("commission_month").notNull(), // Month 1-12 of the 12-month period
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Subscription period this commission covers
     periodStart: timestamp("period_start", {
@@ -6341,7 +6341,7 @@ export const platformAffiliatePayouts = pgTable(
     // Payout details
     payoutNumber: varchar("payout_number", { length: 20 }).notNull().unique(), // PAF-0001
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Payout method snapshot (in case affiliate changes method later)
     payoutMethod: varchar("payout_method", { length: 50 }).notNull(),
@@ -6894,7 +6894,7 @@ export const deliveryPayouts = pgTable(
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
     fee: decimal("fee", { precision: 12, scale: 2 }).default("0").notNull(),
     netAmount: decimal("net_amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // How many deliveries included
     deliveryCount: integer("delivery_count").notNull(),
@@ -7086,7 +7086,7 @@ export const billingTransactions = pgTable(
     // Transaction details
     type: billingTransactionTypeEnum("type").notNull(),
     amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Payment info (for subscription_payment type)
     paymentMethod: paymentMethodEnum("payment_method"),
@@ -7153,7 +7153,7 @@ export const invoices = pgTable(
     subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
     tax: decimal("tax", { precision: 10, scale: 2 }).default("0").notNull(),
     total: decimal("total", { precision: 10, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Billing period
     periodStart: timestamp("period_start", {
@@ -7506,7 +7506,7 @@ export const paymentSessions = pgTable(
     // Payment details
     gateway: paymentGatewayEnum("gateway").notNull(),
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 3 }).default("AFN").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
 
     // Gateway session info
     gatewaySessionId: varchar("gateway_session_id", { length: 255 }), // HesabPay session ID
@@ -7651,10 +7651,10 @@ export const exchangeRates = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
 
     // Base currency (always AFN for this platform)
-    baseCurrency: varchar("base_currency", { length: 3 }).notNull(),
+    baseCurrency: varchar("base_currency", { length: 10 }).notNull(),
 
     // Target currency (EUR, USD, GBP, AED, etc.)
-    targetCurrency: varchar("target_currency", { length: 3 }).notNull(),
+    targetCurrency: varchar("target_currency", { length: 10 }).notNull(),
 
     // Exchange rate (1 base = X target)
     // e.g., 1 AFN = 0.011 USD means rate = 0.011

@@ -98,12 +98,12 @@ export function ProductsBottomBar({
   const hasNext = pagination.page < pagination.totalPages;
 
   return (
-    <div className="fixed bottom-4 left-0 z-50 w-full px-5 sm:px-4 md:left-64 md:w-[calc(100%-16rem)]">
+    <div className="pointer-events-none fixed bottom-4 left-0 z-50 w-full px-5 sm:px-4 md:left-64 md:w-[calc(100%-16rem)]">
       <div className="mx-auto max-w-3xl">
         <motion.div
           layout
           transition={{ duration: 0.15 }}
-          className="overflow-hidden rounded-xl border bg-background shadow-lg"
+          className="pointer-events-auto overflow-hidden rounded-xl border bg-background shadow-lg"
         >
           {/* Sliding container */}
           <div className="relative overflow-hidden">

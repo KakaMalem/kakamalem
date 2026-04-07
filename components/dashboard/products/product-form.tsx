@@ -1779,38 +1779,38 @@ export function ProductForm({
                                   number
                                 </p>
                               </div>
+
+                              <Separator />
+
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                  <Label>Allow Backorders</Label>
+                                  <p className="text-sm text-muted-foreground">
+                                    Allow orders when variant is out of stock
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={allowBackorder}
+                                  onCheckedChange={setAllowBackorder}
+                                />
+                              </div>
+
+                              <Separator />
+
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                  <Label>Show Stock on Storefront</Label>
+                                  <p className="text-sm text-muted-foreground">
+                                    Display stock quantity to customers
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={showStock}
+                                  onCheckedChange={setShowStock}
+                                />
+                              </div>
                             </>
                           )}
-
-                          <Separator />
-
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label>Allow Backorders</Label>
-                              <p className="text-sm text-muted-foreground">
-                                Allow orders when variant is out of stock
-                              </p>
-                            </div>
-                            <Switch
-                              checked={allowBackorder}
-                              onCheckedChange={setAllowBackorder}
-                            />
-                          </div>
-
-                          <Separator />
-
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label>Show Stock on Storefront</Label>
-                              <p className="text-sm text-muted-foreground">
-                                Display stock quantity to customers
-                              </p>
-                            </div>
-                            <Switch
-                              checked={showStock}
-                              onCheckedChange={setShowStock}
-                            />
-                          </div>
                         </div>
                       </div>
 
@@ -1951,35 +1951,38 @@ export function ProductForm({
                         />
                       </div>
                     </div>
+
+                    <Separator />
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label>Allow Backorders</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Allow orders when out of stock
+                        </p>
+                      </div>
+                      <Switch
+                        checked={allowBackorder}
+                        onCheckedChange={setAllowBackorder}
+                      />
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label>Show Stock on Storefront</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Display stock quantity to customers
+                        </p>
+                      </div>
+                      <Switch
+                        checked={showStock}
+                        onCheckedChange={setShowStock}
+                      />
+                    </div>
                   </>
                 )}
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Allow Backorders</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Allow orders when out of stock
-                    </p>
-                  </div>
-                  <Switch
-                    checked={allowBackorder}
-                    onCheckedChange={setAllowBackorder}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Show Stock on Storefront</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Display stock quantity to customers
-                    </p>
-                  </div>
-                  <Switch checked={showStock} onCheckedChange={setShowStock} />
-                </div>
               </CardContent>
             </Card>
           )}

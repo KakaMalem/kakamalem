@@ -35,6 +35,7 @@ interface Product {
   reviewCount?: number;
   isNew?: boolean;
   categoryId?: string | null;
+  lowestBulkPrice?: string;
 }
 
 /** Campaign data for calculating discounts */

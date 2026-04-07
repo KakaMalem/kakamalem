@@ -36,6 +36,7 @@ interface ProductGridProps {
     reviewCount?: number;
     isNew?: boolean;
     categoryId?: string | null;
+    lowestBulkPrice?: string;
   }[];
   pagination: {
     page: number;

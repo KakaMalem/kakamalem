@@ -22,6 +22,8 @@ import {
   Undo,
   Redo,
   RemoveFormatting,
+  Heading2,
+  Heading3,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -213,6 +215,31 @@ function Toolbar({ editor, disabled }: ToolbarProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/30 p-1">
+      {/* Headings */}
+      <ToolbarButton
+        pressed={editor.isActive("heading", { level: 2 })}
+        onPressedChange={() =>
+          editor.chain().focus().toggleHeading({ level: 2 }).run()
+        }
+        disabled={disabled}
+        title="Heading 2"
+      >
+        <Heading2 className="size-4" />
+      </ToolbarButton>
+
+      <ToolbarButton
+        pressed={editor.isActive("heading", { level: 3 })}
+        onPressedChange={() =>
+          editor.chain().focus().toggleHeading({ level: 3 }).run()
+        }
+        disabled={disabled}
+        title="Heading 3"
+      >
+        <Heading3 className="size-4" />
+      </ToolbarButton>
+
+      <Separator orientation="vertical" className="mx-1 h-6" />
+
       {/* Text formatting */}
       <ToolbarButton
         pressed={editor.isActive("bold")}
@@ -366,8 +393,7 @@ export function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // Disable features we don't need
-        heading: false,
+        heading: { levels: [2, 3] },
         blockquote: false,
         codeBlock: false,
         code: false,
@@ -389,7 +415,7 @@ export function RichTextEditor({
       }),
       Underline,
       TextAlign.configure({
-        types: ["paragraph"],
+        types: ["paragraph", "heading"],
       }),
       ...(characterLimit
         ? [CharacterCount.configure({ limit: characterLimit })]

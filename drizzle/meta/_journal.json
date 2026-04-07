@@ -309,6 +309,13 @@
       "when": 1775532990007,
       "tag": "0043_faithful_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1775545345489,
+      "tag": "0044_perpetual_ricochet",
+      "breakpoints": true
     }
   ]
 }
