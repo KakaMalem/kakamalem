@@ -32,7 +32,7 @@ const TEMPLATE_HEADERS = [
   "images", // For ZIP uploads: semicolon-separated filenames from images/ folder
   "price_tiers", // Quantity pricing: "minQty-maxQty:price;..." e.g., "10-49:1200;50:1000"
   "group_pricing", // Group pricing: "groupName:price;..." e.g., "Wholesale:900;VIP:1000:1500"
-  "scheduled_sale_name", // Sale name e.g., "عید فروش"
+  "scheduled_sale_name", // Sale name e.g., "Summer Sale"
   "scheduled_sale_price", // Sale price
   "scheduled_sale_start", // Start date: YYYY-MM-DD
   "scheduled_sale_end", // End date: YYYY-MM-DD
@@ -42,67 +42,63 @@ const TEMPLATE_HEADERS = [
 ];
 
 // Example rows showing:
-// - Simple product (row 1) - محصول ساده
-// - Product with variants (row 2 = parent, rows 3-6 = variants) - محصول با واریانت
-// Headers: name, price, compare_at_price, cost_price, category, description, sku, barcode,
-//          weight, length, width, height, track_inventory, stock, allow_backorder,
-//          low_stock_threshold, show_stock, status, show_on_storefront, show_on_pos,
-//          images, parent_product, option_size, option_color
+// - Simple product (row 1)
+// - Product with variants (row 2 = parent, rows 3-6 = variants)
 const EXAMPLE_ROWS = [
-  // محصول ساده بدون واریانت - Simple product without variants
+  // Simple product without variants
   [
-    "محصول نمونه ساده", // name - نام محصول
-    "1500", // price - قیمت (افغانی)
-    "2000", // compare_at_price - قیمت قبلی
-    "1000", // cost_price - قیمت خرید
-    "لوازم الکترونیکی; لوازم جانبی", // category - دسته‌بندی (چند دسته با ; جدا می‌شوند)
-    "توضیحات کامل محصول - این محصول نمونه برای آموزش آپلود گروهی است.", // description - توضیحات
-    "SIMPLE-001", // sku - کد محصول
-    "1234567890123", // barcode - بارکد
-    "0.5", // weight - وزن (کیلوگرم)
-    "10", // length - طول (سانتی‌متر)
-    "5", // width - عرض (سانتی‌متر)
-    "3", // height - ارتفاع (سانتی‌متر)
-    "true", // track_inventory - پیگیری موجودی
-    "100", // stock - تعداد موجودی
-    "false", // allow_backorder - سفارش پیش‌خرید
-    "10", // low_stock_threshold - آستانه کم‌موجودی
-    "true", // show_stock - نمایش موجودی
-    "active", // status - وضعیت
-    "true", // show_on_storefront - نمایش در فروشگاه
-    "true", // show_on_pos - نمایش در صندوق
-    "1", // min_order_quantity - حداقل سفارش
-    "50", // max_order_quantity - حداکثر سفارش
-    "1", // display_order - ترتیب نمایش
+    "Wireless Bluetooth Earbuds", // name
+    "29.99", // price
+    "49.99", // compare_at_price
+    "12.50", // cost_price
+    "Electronics; Audio", // category (multiple categories separated by ;)
+    "High-quality wireless earbuds with noise cancellation, 24h battery life, and IPX5 water resistance.", // description
+    "EARBUDS-001", // sku
+    "1234567890123", // barcode
+    "0.05", // weight (kg)
+    "8", // length (cm)
+    "6", // width (cm)
+    "3", // height (cm)
+    "true", // track_inventory
+    "500", // stock
+    "false", // allow_backorder
+    "20", // low_stock_threshold
+    "true", // show_stock
+    "active", // status
+    "true", // show_on_storefront
+    "true", // show_on_pos
+    "1", // min_order_quantity
+    "100", // max_order_quantity
+    "1", // display_order
     "https://example.com/product", // source_url
     "EXT-001", // source_id
-    "product1.jpg", // images - تصاویر
-    "10-49:1300;50:1100", // price_tiers - قیمت‌گذاری عمده (۱۰ تا ۴۹ عدد: ۱۳۰۰ | ۵۰ به بالا: ۱۱۰۰)
-    "عمده‌فروشی:1200;VIP:1350", // group_pricing - قیمت گروه مشتری
-    "فروش عیدی", // scheduled_sale_name - نام فروش ویژه
-    "1200", // scheduled_sale_price - قیمت فروش ویژه
-    "2026-03-20", // scheduled_sale_start - تاریخ شروع
-    "2026-04-20", // scheduled_sale_end - تاریخ پایان
-    "", // parent_product - محصول والد (خالی = محصول اصلی)
-    "", // option_size - سایز (خالی برای محصول بدون واریانت)
-    "", // option_color - رنگ (خالی برای محصول بدون واریانت)
+    "earbuds-main.jpg", // images
+    "10-49:24.99;50:19.99", // price_tiers (10-49 units: $24.99 | 50+: $19.99)
+    "Wholesale:18.99;VIP:22.99", // group_pricing
+    "Summer Sale", // scheduled_sale_name
+    "19.99", // scheduled_sale_price
+    "2026-06-01", // scheduled_sale_start
+    "2026-06-30", // scheduled_sale_end
+    "", // parent_product (empty = main product)
+    "", // option_size (empty for non-variant product)
+    "", // option_color (empty for non-variant product)
   ],
-  // محصول والد با واریانت - Parent product with variants
+  // Parent product with variants
   [
-    "پتو نمونه با واریانت", // name
-    "5000", // price - قیمت پایه
-    "6000", // compare_at_price
-    "2500", // cost_price
-    "پتو و روتختی", // category
-    "این محصول دارای دو رنگ (سیاه و سفید) و دو سایز (بزرگ و کوچک) می‌باشد. تصاویر همه واریانت‌ها در گالری نمایش داده می‌شود.", // description
-    "BLANKET-BASE", // sku
+    "Cotton T-Shirt", // name
+    "24.99", // price (base price)
+    "34.99", // compare_at_price
+    "8.00", // cost_price
+    "Clothing; T-Shirts", // category
+    "Premium 100% cotton t-shirt available in Black and White, sizes S through L. Pre-shrunk, comfortable fit.", // description
+    "TSHIRT-BASE", // sku
     "", // barcode
-    "0.8", // weight
-    "200", // length
-    "150", // width
-    "5", // height
+    "0.2", // weight
+    "30", // length
+    "25", // width
+    "2", // height
     "true", // track_inventory
-    "", // stock - واریانت‌ها موجودی جداگانه دارند
+    "", // stock (variants have individual stock)
     "false", // allow_backorder
     "10", // low_stock_threshold
     "false", // show_stock
@@ -114,73 +110,73 @@ const EXAMPLE_ROWS = [
     "2", // display_order
     "", // source_url
     "", // source_id
-    "blanket-main.jpg;blanket-black.jpg;blanket-white.jpg", // images - همه تصاویر برای گالری
-    "5-9:4500;10:4000", // price_tiers - قیمت عمده پتو
-    "عمده‌فروشی:3800", // group_pricing
+    "tshirt-main.jpg;tshirt-black.jpg;tshirt-white.jpg", // images (all variant images for gallery)
+    "5-9:21.99;10:18.99", // price_tiers
+    "Wholesale:15.99", // group_pricing
     "", // scheduled_sale_name
     "", // scheduled_sale_price
     "", // scheduled_sale_start
     "", // scheduled_sale_end
-    "", // parent_product - خالی = محصول اصلی
-    "", // option_size - خالی برای والد
-    "", // option_color - خالی برای والد
+    "", // parent_product (empty = main product)
+    "", // option_size (empty for parent)
+    "", // option_color (empty for parent)
   ],
-  // واریانت ۱: سیاه بزرگ - Variant 1: Black Large
+  // Variant 1: Black Large
   [
-    "پتو نمونه - سیاه / بزرگ", // name
-    "5500", // price - قیمت بالاتر برای سایز بزرگ
-    "6500", // compare_at_price
-    "2700", // cost_price
-    "", // category - از والد ارث می‌برد
-    "واریانت سیاه در سایز بزرگ - مناسب برای تخت دو نفره با ابعاد ۲۱۰ در ۱۶۰ سانتی‌متر", // description - توضیحات اختصاصی
-    "BLANKET-BLK-L", // sku
+    "Cotton T-Shirt - Black / Large", // name
+    "27.99", // price (higher for large)
+    "37.99", // compare_at_price
+    "9.00", // cost_price
+    "", // category (inherits from parent)
+    "Black cotton t-shirt in large size. Fits chest 42-44 inches.", // description
+    "TSHIRT-BLK-L", // sku
     "1234567890124", // barcode
-    "0.9", // weight - وزن بیشتر
-    "210", // length
-    "160", // width
-    "6", // height
+    "0.25", // weight
+    "32", // length
+    "27", // width
+    "2", // height
     "true", // track_inventory
-    "25", // stock
+    "50", // stock
     "true", // allow_backorder
     "5", // low_stock_threshold
     "true", // show_stock
     "active", // status
     "true", // show_on_storefront
     "true", // show_on_pos
-    "", // min_order_quantity (inherits from parent usually, but could be specific)
+    "", // min_order_quantity
     "",
     "1", // display_order within variants
     "",
     "",
-    "blanket-black.jpg", // images - تصویر اختصاصی واریانت
-    "", // price_tiers - واریانت‌ها قیمت عمده ندارند (از والد ارث می‌برد)
+    "tshirt-black.jpg", // images (variant-specific image)
+    "", // price_tiers (inherits from parent)
     "", // group_pricing
     "", // scheduled_sale_name
     "", // scheduled_sale_price
     "", // scheduled_sale_start
     "", // scheduled_sale_end
-    "پتو نمونه با واریانت", // parent_product - نام محصول والد
-    "بزرگ", // option_size
-    "سیاه", // option_color
+    "Cotton T-Shirt", // parent_product (must match parent name exactly)
+    "Large", // option_size
+    "Black", // option_color
   ],
-  // واریانت ۲: سیاه کوچک - Variant 2: Black Small
+  // Variant 2: Black Small
   [
-    "پتو نمونه - سیاه / کوچک",
-    "4500", // قیمت کمتر برای سایز کوچک
-    "5500",
-    "2300",
+    "Cotton T-Shirt - Black / Small",
+    "22.99",
+    "32.99",
+    "7.50",
     "",
-    "واریانت سیاه در سایز کوچک - مناسب برای تخت یک نفره با ابعاد ۱۸۰ در ۱۴۰ سانتی‌متر",
-    "BLANKET-BLK-S",
+    "Black cotton t-shirt in small size. Fits chest 34-36 inches.",
+    "TSHIRT-BLK-S",
     "1234567890125",
-    "0.7", // وزن کمتر
-    "180",
-    "140",
-    "4",
+    "0.18",
+    "28",
+    "23",
+    "2",
     "true",
-    "30",
+    "75",
     "false",
-    "8",
+    "10",
     "true",
     "active",
     "true",
@@ -190,92 +186,92 @@ const EXAMPLE_ROWS = [
     "2", // display_order
     "",
     "",
-    "blanket-black.jpg",
+    "tshirt-black.jpg",
     "", // price_tiers
     "", // group_pricing
     "", // scheduled_sale_name
     "", // scheduled_sale_price
     "", // scheduled_sale_start
     "", // scheduled_sale_end
-    "پتو نمونه با واریانت",
-    "کوچک",
-    "سیاه",
+    "Cotton T-Shirt",
+    "Small",
+    "Black",
   ],
-  // واریانت ۳: سفید بزرگ - Variant 3: White Large
+  // Variant 3: White Large
   [
-    "پتو نمونه - سفید / بزرگ",
-    "5500",
-    "6500",
-    "2700",
+    "Cotton T-Shirt - White / Large",
+    "27.99",
+    "37.99",
+    "9.00",
     "",
-    "واریانت سفید در سایز بزرگ - رنگ روشن و شیک برای اتاق خواب مدرن",
-    "BLANKET-WHT-L",
+    "White cotton t-shirt in large size. Classic fit for everyday wear.",
+    "TSHIRT-WHT-L",
     "1234567890126",
-    "0.9",
-    "210",
-    "160",
-    "6",
+    "0.25",
+    "32",
+    "27",
+    "2",
     "true",
-    "20",
+    "40",
     "true",
     "5",
-    "false", // نمایش موجودی غیرفعال
+    "false",
     "active",
     "true",
-    "false", // فقط در فروشگاه آنلاین
+    "false", // online only
     "", // min_order_quantity
     "",
     "3", // display_order
     "",
     "",
-    "blanket-white.jpg",
+    "tshirt-white.jpg",
     "", // price_tiers
     "", // group_pricing
     "", // scheduled_sale_name
     "", // scheduled_sale_price
     "", // scheduled_sale_start
     "", // scheduled_sale_end
-    "پتو نمونه با واریانت",
-    "بزرگ",
-    "سفید",
+    "Cotton T-Shirt",
+    "Large",
+    "White",
   ],
-  // واریانت ۴: سفید کوچک - Variant 4: White Small
+  // Variant 4: White Small
   [
-    "پتو نمونه - سفید / کوچک",
-    "4500",
-    "5500",
-    "2300",
+    "Cotton T-Shirt - White / Small",
+    "22.99",
+    "32.99",
+    "7.50",
     "",
-    "واریانت سفید در سایز کوچک - سبک و راحت برای استفاده روزمره",
-    "BLANKET-WHT-S",
+    "White cotton t-shirt in small size. Lightweight and breathable.",
+    "TSHIRT-WHT-S",
     "1234567890127",
-    "0.7",
-    "180",
-    "140",
-    "4",
+    "0.18",
+    "28",
+    "23",
+    "2",
     "true",
-    "35",
+    "60",
     "false",
-    "8",
-    "false", // نمایش موجودی غیرفعال
+    "10",
+    "false",
     "active",
-    "false", // فقط در صندوق فروشگاه
+    "false", // POS only
     "true",
     "", // min_order_quantity
     "",
     "4", // display_order
     "",
     "",
-    "blanket-white.jpg",
+    "tshirt-white.jpg",
     "", // price_tiers
     "", // group_pricing
     "", // scheduled_sale_name
     "", // scheduled_sale_price
     "", // scheduled_sale_start
     "", // scheduled_sale_end
-    "پتو نمونه با واریانت",
-    "کوچک",
-    "سفید",
+    "Cotton T-Shirt",
+    "Small",
+    "White",
   ],
 ];
 
@@ -292,12 +288,12 @@ export async function GET(request: NextRequest) {
 
   // Set column widths for better readability (matching new header order)
   worksheet["!cols"] = [
-    { wch: 30 }, // name
+    { wch: 35 }, // name
     { wch: 10 }, // price
     { wch: 15 }, // compare_at_price
     { wch: 12 }, // cost_price
     { wch: 25 }, // category
-    { wch: 40 }, // description
+    { wch: 50 }, // description
     { wch: 15 }, // sku
     { wch: 15 }, // barcode
     { wch: 8 }, // weight
@@ -340,57 +336,57 @@ export async function GET(request: NextRequest) {
     const csvWithBom = "\uFEFF" + csvContent;
     zip.file("products.csv", csvWithBom);
 
-    // Add README for the images folder (Persian)
-    const readmeContent = `# راهنمای آپلود گروهی محصولات
+    // Add README for the images folder
+    const readmeContent = `# Bulk Product Import Guide
 
-## ساختار فایل ZIP
-این فایل ZIP باید شامل موارد زیر باشد:
-1. products.csv - فایل اطلاعات محصولات
-2. images/ - پوشه تصاویر محصولات
+## ZIP File Structure
+This ZIP file should contain:
+1. products.csv - Product data file
+2. images/ - Product images folder
 
-## فرمت ستون تصاویر (images)
-در فایل CSV، ستون images باید شامل نام فایل‌های تصویر باشد که با ; جدا شده‌اند:
-- برای محصول اصلی: "main.jpg;detail1.jpg;detail2.jpg"
-- برای واریانت: "variant-image.jpg"
+## Images Column Format
+In the CSV file, the images column should contain image filenames separated by ;
+- For main products: "main.jpg;detail1.jpg;detail2.jpg"
+- For variants: "variant-image.jpg"
 
-## مثال
+## Example
 images/
-├── product1.jpg
-├── blanket-main.jpg
-├── blanket-black.jpg
-└── blanket-white.jpg
+├── earbuds-main.jpg
+├── tshirt-main.jpg
+├── tshirt-black.jpg
+└── tshirt-white.jpg
 
-## نکات مهم
-- نام فایل‌های تصویر به حروف کوچک و بزرگ حساس نیست
-- فرمت‌های پشتیبانی شده: jpg, jpeg, png, webp, gif
-- حداکثر حجم فایل ZIP: 50 مگابایت
-- محصول والد باید همه تصاویر واریانت‌ها را در ستون images داشته باشد تا در گالری نمایش داده شود
+## Important Notes
+- Image filenames are case-insensitive
+- Supported formats: jpg, jpeg, png, webp, gif
+- Maximum ZIP file size: 50MB
+- Parent products should include all variant images in their images column for the gallery
 
-## ستون‌های اختصاصی
-- min_order_quantity: حداقل میزان سفارش توسط مشتری
-- max_order_quantity: حداکثر میزان سفارش توسط مشتری
-- display_order: اولویت نمایش محصول در لیست (عدد بزرگتر = بالاتر)
-- source_url: لینک تامین‌کننده خارجی محصول
-- source_id: شناسه محصول در سیستم تامین‌کننده (مثلاً کد آمازون)
+## Column Reference
+- min_order_quantity: Minimum order quantity per customer
+- max_order_quantity: Maximum order quantity per customer
+- display_order: Product display priority (higher = shown first)
+- source_url: External supplier product link
+- source_id: Product ID in supplier system
 
-## ستون‌های قیمت‌گذاری عمده (Bulk Pricing)
-- price_tiers: قیمت بر اساس تعداد سفارش
-  فرمت: "حداقل-حداکثر:قیمت;..." مثال: "10-49:1200;50:1000"
-  حداکثر خالی = نامحدود (مثلاً "50:1000" یعنی ۵۰ عدد به بالا)
-- group_pricing: قیمت برای گروه‌های مشتری
-  فرمت: "نام‌گروه:قیمت;..." یا "نام‌گروه:قیمت:قیمت_مقایسه;..."
-  مثال: "عمده‌فروشی:900;VIP:1000:1500"
-- scheduled_sale_name: نام فروش ویژه (مثلاً "فروش عیدی")
-- scheduled_sale_price: قیمت فروش ویژه
-- scheduled_sale_start: تاریخ شروع (YYYY-MM-DD)
-- scheduled_sale_end: تاریخ پایان (YYYY-MM-DD)
+## Bulk Pricing Columns
+- price_tiers: Quantity-based pricing
+  Format: "minQty-maxQty:price;..." Example: "10-49:12.00;50:10.00"
+  Omit maxQty for unlimited (e.g., "50:10.00" means 50+ units)
+- group_pricing: Customer group pricing
+  Format: "groupName:price;..." or "groupName:price:compareAtPrice;..."
+  Example: "Wholesale:9.00;VIP:10.00:15.00"
+- scheduled_sale_name: Sale event name (e.g., "Summer Sale")
+- scheduled_sale_price: Sale price
+- scheduled_sale_start: Start date (YYYY-MM-DD)
+- scheduled_sale_end: End date (YYYY-MM-DD)
 
-## ستون‌های اختیاری واریانت
-- option_size: سایز (مثلاً بزرگ، کوچک)
-- option_color: رنگ (مثلاً سیاه، سفید)
-- display_order: ترتیب نمایش واریانت‌ها نسبت به هم
-- سایر ستون‌ها مثل قیمت و کد محصول نیز برای واریانت‌ها قابل درج هستند.
-- می‌توانید ستون‌های option_ دیگری اضافه کنید (مثلاً option_material برای جنس)
+## Variant Columns
+- option_size: Size (e.g., Small, Medium, Large)
+- option_color: Color (e.g., Black, White, Red)
+- display_order: Display order of variants relative to each other
+- Other columns like price and SKU can also be set per-variant
+- You can add more option_ columns (e.g., option_material for material type)
 `;
     zip.file("README.txt", readmeContent);
 
@@ -427,7 +423,7 @@ images/
       },
     });
   } else {
-    // Generate CSV with UTF-8 BOM for proper encoding in Excel (supports Persian, Arabic, etc.)
+    // Generate CSV with UTF-8 BOM for proper encoding in Excel
     const csvContent = XLSX.utils.sheet_to_csv(worksheet);
     const csvWithBom = "\uFEFF" + csvContent;
 

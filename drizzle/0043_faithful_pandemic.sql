@@ -1,15 +1,8 @@
-CREATE TYPE "public"."checkout_address_mode" AS ENUM('gps', 'standard_form');--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."checkout_address_mode" AS ENUM('gps', 'standard_form'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 CREATE TYPE "public"."dispute_party" AS ENUM('buyer', 'seller', 'admin');--> statement-breakpoint
 CREATE TYPE "public"."dispute_status" AS ENUM('open', 'resolved_buyer', 'resolved_seller');--> statement-breakpoint
 CREATE TYPE "public"."escrow_currency" AS ENUM('usdt', 'usdc');--> statement-breakpoint
 CREATE TYPE "public"."escrow_status" AS ENUM('pending', 'funded', 'in_transit', 'delivered', 'released', 'disputed', 'resolved_buyer', 'resolved_seller', 'expired');--> statement-breakpoint
-CREATE TABLE "custom_migrations" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"name" varchar(255) NOT NULL,
-	"applied_at" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "custom_migrations_name_unique" UNIQUE("name")
-);
---> statement-breakpoint
 CREATE TABLE "dispute_messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"dispute_id" uuid NOT NULL,
@@ -65,7 +58,7 @@ CREATE TABLE "escrow_transactions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "tenants" ADD COLUMN "checkout_address_mode" "checkout_address_mode" DEFAULT 'gps' NOT NULL;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "tenants" ADD COLUMN "checkout_address_mode" "checkout_address_mode" DEFAULT 'gps' NOT NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;--> statement-breakpoint
 ALTER TABLE "dispute_messages" ADD CONSTRAINT "dispute_messages_dispute_id_disputes_id_fk" FOREIGN KEY ("dispute_id") REFERENCES "public"."disputes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dispute_messages" ADD CONSTRAINT "dispute_messages_author_id_user_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "disputes" ADD CONSTRAINT "disputes_escrow_transaction_id_escrow_transactions_id_fk" FOREIGN KEY ("escrow_transaction_id") REFERENCES "public"."escrow_transactions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
