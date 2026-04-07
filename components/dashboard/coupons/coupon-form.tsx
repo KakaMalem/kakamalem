@@ -337,6 +337,7 @@ export function CouponForm({
                       type="number"
                       value={value}
                       onChange={(e) => setValue(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder={type === "percentage" ? "20" : "100"}
                       disabled={isPending || type === "free_shipping"}
                       className={errors.value ? "border-destructive" : ""}
@@ -510,6 +511,7 @@ export function CouponForm({
                       type="number"
                       value={minimumOrderAmount}
                       onChange={(e) => setMinimumOrderAmount(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder="0"
                       disabled={isPending}
                       min="0"
@@ -543,6 +545,7 @@ export function CouponForm({
                       type="number"
                       value={maximumDiscountAmount}
                       onChange={(e) => setMaximumDiscountAmount(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder="No limit"
                       disabled={isPending}
                       min="0"
@@ -571,6 +574,7 @@ export function CouponForm({
                     type="number"
                     value={usageLimit}
                     onChange={(e) => setUsageLimit(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder="Unlimited"
                     disabled={isPending}
                     min="1"
@@ -588,6 +592,7 @@ export function CouponForm({
                     type="number"
                     value={usageLimitPerCustomer}
                     onChange={(e) => setUsageLimitPerCustomer(e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder="Unlimited"
                     disabled={isPending}
                     min="1"

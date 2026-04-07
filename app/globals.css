@@ -339,6 +339,13 @@
 }
 
 /* Heading styles */
+.rich-text-editor-wrapper .tiptap h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 1.25rem 0 0.5rem;
+  line-height: 1.2;
+}
+
 .rich-text-editor-wrapper .tiptap h2 {
   font-size: 1.25rem;
   font-weight: 700;
@@ -353,8 +360,34 @@
   line-height: 1.4;
 }
 
+.rich-text-editor-wrapper .tiptap h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem;
+  line-height: 1.4;
+}
+
+.rich-text-editor-wrapper .tiptap h5 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+  line-height: 1.5;
+}
+
+.rich-text-editor-wrapper .tiptap h6 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.rich-text-editor-wrapper .tiptap > h1:first-child,
 .rich-text-editor-wrapper .tiptap > h2:first-child,
-.rich-text-editor-wrapper .tiptap > h3:first-child {
+.rich-text-editor-wrapper .tiptap > h3:first-child,
+.rich-text-editor-wrapper .tiptap > h4:first-child,
+.rich-text-editor-wrapper .tiptap > h5:first-child,
+.rich-text-editor-wrapper .tiptap > h6:first-child {
   margin-top: 0;
 }
 
@@ -426,6 +459,14 @@
    RICH TEXT CONTENT DISPLAY STYLES (Storefront)
    ============================================================================ */
 
+.rich-text-content h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 1.25rem 0 0.5rem;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
 .rich-text-content h2 {
   font-size: 1.25rem;
   font-weight: 700;
@@ -442,8 +483,36 @@
   color: var(--foreground);
 }
 
+.rich-text-content h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.rich-text-content h5 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
+.rich-text-content h6 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.rich-text-content h1:first-child,
 .rich-text-content h2:first-child,
-.rich-text-content h3:first-child {
+.rich-text-content h3:first-child,
+.rich-text-content h4:first-child,
+.rich-text-content h5:first-child,
+.rich-text-content h6:first-child {
   margin-top: 0;
 }
 

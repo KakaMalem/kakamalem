@@ -295,7 +295,6 @@ export function SignupForm() {
 
           <div className="space-y-3">
             <OAuthButton provider="google" redirectTo="/dashboard" />
-            <OAuthButton provider="facebook" redirectTo="/dashboard" />
           </div>
         </form>
 

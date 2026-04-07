@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ import {
   addStoreNotes,
   recordBillingTransaction,
   createInvoice,
+  deleteStore,
 } from "@/lib/actions/admin";
 import {
   pauseSubscription,
@@ -58,6 +60,7 @@ import {
   Pause,
   Play,
   Calculator,
+  Trash2,
 } from "lucide-react";
 import type { PaymentMethod } from "@/lib/db/schema";
 
@@ -103,10 +106,12 @@ export function StoreActionsClient({
   billingInterval,
   lastReminderSentAt,
 }: StoreActionsClientProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [extendDays, setExtendDays] = useState(7);
   const [notes, setNotes] = useState(currentNotes || "");
   const [suspendReason, setSuspendReason] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   // Payment recording state
   const [paymentMonths, setPaymentMonths] = useState(1);
@@ -739,6 +744,7 @@ export function StoreActionsClient({
                               onChange={(e) =>
                                 setUpgradeMonths(parseInt(e.target.value) || 1)
                               }
+                              onWheel={(e) => e.currentTarget.blur()}
                             />
                           </div>
                         </div>
@@ -1244,6 +1250,7 @@ export function StoreActionsClient({
                 type="number"
                 value={invoiceAmount}
                 onChange={(e) => setInvoiceAmount(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
               />
             </div>
             <div className="space-y-2">
@@ -1322,6 +1329,7 @@ export function StoreActionsClient({
                       onChange={(e) =>
                         setInvoiceMonths(parseInt(e.target.value) || 1)
                       }
+                      onWheel={(e) => e.currentTarget.blur()}
                     />
                   </div>
                 </div>
@@ -1431,6 +1439,7 @@ export function StoreActionsClient({
                   onChange={(e) =>
                     handleMonthsChange(parseInt(e.target.value) || 1)
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                 />
                 <span className="text-[10px] font-bold text-muted-foreground/50">
                   MOS
@@ -1668,6 +1677,84 @@ export function StoreActionsClient({
               <SelectItem value="inactive">Inactive</SelectItem>
             </SelectContent>
           </Select>
+        </CardContent>
+      </Card>
+
+      {/* Danger Zone — Delete Store */}
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 className="size-4" />
+            Delete Store
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Permanently delete this store and all its data (products, orders,
+            media). This action cannot be undone.
+          </p>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" disabled={isPending}>
+                <Trash2 className="mr-2 size-4" />
+                Delete Store
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete &quot;{storeName}&quot;?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the store and all associated data
+                  including products, orders, media, and customer records. This
+                  cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2 py-2">
+                <Label className="text-sm">
+                  Type <span className="font-semibold">{storeName}</span> to
+                  confirm
+                </Label>
+                <Input
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder={storeName}
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDeleteConfirmation("")}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteConfirmation !== storeName || isPending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const result = await deleteStore(
+                        storeId,
+                        deleteConfirmation
+                      );
+                      if (result.success) {
+                        toast.success(result.message);
+                        router.push("/admin/stores");
+                      } else {
+                        toast.error(result.error);
+                      }
+                      setDeleteConfirmation("");
+                    });
+                  }}
+                >
+                  {isPending ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 size-4" />
+                  )}
+                  Delete Permanently
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
     </div>

@@ -5,6 +5,7 @@ import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getStoreBasePath } from "@/lib/utils/store-path";
 import { getOrderForCheckout } from "@/lib/db/queries/orders";
 import { getEnabledGateways } from "@/lib/payments";
+import { createOrderPaymentSession } from "@/lib/actions/payments";
 import { PaymentPageClient } from "@/components/store/checkout/payment-page-client";
 
 interface PaymentPageProps {
@@ -78,6 +79,22 @@ export default async function PaymentPage({
       g.gateway === "stripe" ||
       g.gateway === "crypto_usdt"
   );
+
+  // If crypto_usdt is the only payment method, skip selection and go straight to payment
+  if (
+    onlineGateways.length === 1 &&
+    onlineGateways[0].gateway === "crypto_usdt"
+  ) {
+    const paymentResult = await createOrderPaymentSession(
+      orderId,
+      "crypto_usdt",
+      { network: "trc20" }
+    );
+    if (paymentResult.success && paymentResult.paymentUrl) {
+      redirect(paymentResult.paymentUrl);
+    }
+    // If payment session creation failed, fall through to show the page with error
+  }
 
   const wasCancelled = cancelled === "true";
 

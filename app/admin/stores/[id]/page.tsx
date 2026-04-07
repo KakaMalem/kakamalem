@@ -351,64 +351,66 @@ export default async function AdminStoreDetailPage({
                       </p>
                     </div>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Recorded By</TableHead>
-                          <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {billingData.transactions.map((tx) => (
-                          <TableRow key={tx.id}>
-                            <TableCell className="text-sm">
-                              {new Date(tx.createdAt).toLocaleDateString(
-                                "en-US",
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                }
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant="outline"
-                                className="capitalize text-xs"
-                              >
-                                {tx.type.replace(/_/g, " ")}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {parseFloat(tx.amount).toLocaleString()}{" "}
-                              {tx.currency}
-                            </TableCell>
-                            <TableCell>
-                              <TransactionStatusBadge status={tx.status} />
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {tx.processedByName || "System"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {tx.invoiceId && (
-                                <a
-                                  href={`/api/dashboard/${store.slug}/billing/invoices/${tx.invoiceId}/download`}
-                                  title="Download Invoice"
-                                  className="inline-flex items-center text-primary hover:underline"
-                                >
-                                  <FileText className="size-4 mr-1" />
-                                  <span className="text-xs">Invoice</span>
-                                </a>
-                              )}
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Recorded By</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {billingData.transactions.map((tx) => (
+                            <TableRow key={tx.id}>
+                              <TableCell className="text-sm">
+                                {new Date(tx.createdAt).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  }
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant="outline"
+                                  className="capitalize text-xs"
+                                >
+                                  {tx.type.replace(/_/g, " ")}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {parseFloat(tx.amount).toLocaleString()}{" "}
+                                {tx.currency}
+                              </TableCell>
+                              <TableCell>
+                                <TransactionStatusBadge status={tx.status} />
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {tx.processedByName || "System"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {tx.invoiceId && (
+                                  <a
+                                    href={`/api/dashboard/${store.slug}/billing/invoices/${tx.invoiceId}/download`}
+                                    title="Download Invoice"
+                                    className="inline-flex items-center text-primary hover:underline"
+                                  >
+                                    <FileText className="size-4 mr-1" />
+                                    <span className="text-xs">Invoice</span>
+                                  </a>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -432,66 +434,68 @@ export default async function AdminStoreDetailPage({
                       <p>No invoices yet</p>
                     </div>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Number</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {invoicesData.invoices.map((inv) => (
-                          <TableRow key={inv.id}>
-                            <TableCell className="font-medium">
-                              {inv.invoiceNumber}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {new Date(inv.createdAt).toLocaleDateString(
-                                "en-US",
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                }
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {inv.dueDate
-                                ? new Date(inv.dueDate).toLocaleDateString(
-                                    "en-US",
-                                    {
-                                      month: "short",
-                                      day: "numeric",
-                                      year: "numeric",
-                                    }
-                                  )
-                                : "—"}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {parseFloat(inv.total).toLocaleString()}{" "}
-                              {inv.currency}
-                            </TableCell>
-                            <TableCell>
-                              <InvoiceStatusBadge status={inv.status} />
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <a
-                                href={`/api/dashboard/${store.slug}/billing/invoices/${inv.id}/download`}
-                                title="Download PDF"
-                                className="inline-flex items-center text-primary hover:underline"
-                              >
-                                <Download className="size-4 mr-1" />
-                                <span className="text-xs">Download</span>
-                              </a>
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Number</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Due Date</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {invoicesData.invoices.map((inv) => (
+                            <TableRow key={inv.id}>
+                              <TableCell className="font-medium">
+                                {inv.invoiceNumber}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {new Date(inv.createdAt).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  }
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {inv.dueDate
+                                  ? new Date(inv.dueDate).toLocaleDateString(
+                                      "en-US",
+                                      {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                      }
+                                    )
+                                  : "—"}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {parseFloat(inv.total).toLocaleString()}{" "}
+                                {inv.currency}
+                              </TableCell>
+                              <TableCell>
+                                <InvoiceStatusBadge status={inv.status} />
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <a
+                                  href={`/api/dashboard/${store.slug}/billing/invoices/${inv.id}/download`}
+                                  title="Download PDF"
+                                  className="inline-flex items-center text-primary hover:underline"
+                                >
+                                  <Download className="size-4 mr-1" />
+                                  <span className="text-xs">Download</span>
+                                </a>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>

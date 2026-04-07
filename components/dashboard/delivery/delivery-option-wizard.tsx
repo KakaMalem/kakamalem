@@ -960,6 +960,7 @@ function PricingStep({
               onChange={(e) =>
                 onBaseRateChange(parseFloat(e.target.value) || 0)
               }
+              onWheel={(e) => e.currentTarget.blur()}
               disabled={disabled}
               className="mt-1.5"
             />
@@ -978,6 +979,7 @@ function PricingStep({
                     e.target.value ? parseFloat(e.target.value) : undefined
                   )
                 }
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder="10"
                 disabled={disabled}
                 className="mt-1.5"
@@ -998,6 +1000,7 @@ function PricingStep({
                     e.target.value ? parseFloat(e.target.value) : undefined
                   )
                 }
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder="20"
                 disabled={disabled}
                 className="mt-1.5"
@@ -1037,6 +1040,7 @@ function PricingStep({
               onChange={(e) =>
                 onFreeShippingThresholdChange(parseFloat(e.target.value) || 0)
               }
+              onWheel={(e) => e.currentTarget.blur()}
               disabled={disabled}
               className="mt-3"
             />
@@ -1201,6 +1205,7 @@ function DetailsStep({
                     e.target.value ? parseInt(e.target.value) : undefined
                   )
                 }
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder="3"
                 disabled={disabled}
                 className="mt-1"
@@ -1217,6 +1222,7 @@ function DetailsStep({
                     e.target.value ? parseInt(e.target.value) : undefined
                   )
                 }
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder="7"
                 disabled={disabled}
                 className="mt-1"

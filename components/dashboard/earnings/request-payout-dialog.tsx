@@ -141,6 +141,7 @@ export function RequestPayoutDialog({
                 min={0}
                 max={availableBalance}
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
               />
               <Button
                 type="button"

@@ -503,7 +503,7 @@ export function StorageHealth() {
               {analytics.byTenant.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium">Storage by Tenant</h4>
-                  <div className="rounded-md border">
+                  <div className="overflow-x-auto rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>

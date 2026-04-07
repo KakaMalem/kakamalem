@@ -112,6 +112,48 @@ export async function updateStoreStatus(
 }
 
 /**
+ * Permanently delete a store and all associated data.
+ * Requires typing the store name as confirmation.
+ */
+export async function deleteStore(
+  storeId: string,
+  confirmationName: string
+): Promise<ActionResult> {
+  try {
+    const admin = await requirePlatformAdmin();
+
+    const store = await db.query.tenants.findFirst({
+      where: eq(tenants.id, storeId),
+      columns: { id: true, name: true, slug: true },
+    });
+
+    if (!store) {
+      return { success: false, error: "Store not found" };
+    }
+
+    if (confirmationName !== store.name) {
+      return { success: false, error: "Store name does not match" };
+    }
+
+    // Log before deleting (the store won't exist after)
+    await logAdminAction(admin.id, "store.delete", "tenant", storeId, {
+      storeName: store.name,
+      storeSlug: store.slug,
+    });
+
+    // Cascade delete via FK constraints
+    await db.delete(tenants).where(eq(tenants.id, storeId));
+
+    revalidatePath("/admin/stores");
+
+    return { success: true, message: `Store "${store.name}" deleted` };
+  } catch (error) {
+    console.error("Failed to delete store:", error);
+    return { success: false, error: "Failed to delete store" };
+  }
+}
+
+/**
  * Update store subscription (upgrade to pro, downgrade to free, etc.)
  */
 export async function updateStoreSubscription(

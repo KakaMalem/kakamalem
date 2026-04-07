@@ -191,12 +191,8 @@ export function StoreHeader({
             </form>
           )}
 
-          {isCheckoutPage && (
-            <div className="hidden flex-1 items-center justify-center gap-2 text-sm font-medium text-muted-foreground md:flex">
-              <Lock className="size-4" />
-              Secure Checkout
-            </div>
-          )}
+          {/* Spacer on checkout — pushes actions to the right */}
+          {isCheckoutPage && <div className="flex-1" />}
 
           {/* Right: Actions */}
           <div className="flex shrink-0 items-center gap-1 lg:gap-2">

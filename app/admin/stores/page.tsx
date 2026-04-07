@@ -230,7 +230,7 @@ export default async function AdminStoresPage({
               </div>
 
               {/* Desktop: Table Layout */}
-              <div className="hidden md:block">
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>

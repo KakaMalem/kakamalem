@@ -445,6 +445,7 @@ export function MethodEditor({
                           e.target.value ? parseInt(e.target.value) : undefined
                         )
                       }
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder="3"
                       disabled={isPending}
                     />
@@ -466,6 +467,7 @@ export function MethodEditor({
                           e.target.value ? parseInt(e.target.value) : undefined
                         )
                       }
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder="7"
                       disabled={isPending}
                     />
@@ -529,6 +531,7 @@ export function MethodEditor({
                       onChange={(e) =>
                         setBaseRate(parseFloat(e.target.value) || 0)
                       }
+                      onWheel={(e) => e.currentTarget.blur()}
                       disabled={isPending}
                     />
                   </div>
@@ -547,6 +550,7 @@ export function MethodEditor({
                         onChange={(e) =>
                           setBaseRate(parseFloat(e.target.value) || 0)
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         disabled={isPending}
                       />
                     </div>
@@ -561,6 +565,7 @@ export function MethodEditor({
                         onChange={(e) =>
                           setPerItemRate(parseFloat(e.target.value) || 0)
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         disabled={isPending}
                       />
                     </div>
@@ -580,6 +585,7 @@ export function MethodEditor({
                         onChange={(e) =>
                           setBaseRate(parseFloat(e.target.value) || 0)
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         disabled={isPending}
                       />
                     </div>
@@ -594,6 +600,7 @@ export function MethodEditor({
                         onChange={(e) =>
                           setPerKgRate(parseFloat(e.target.value) || 0)
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         disabled={isPending}
                       />
                     </div>
@@ -613,6 +620,7 @@ export function MethodEditor({
                         onChange={(e) =>
                           setBaseRate(parseFloat(e.target.value) || 0)
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         disabled={isPending}
                       />
                     </div>
@@ -629,6 +637,7 @@ export function MethodEditor({
                             parseFloat(e.target.value) || 0
                           )
                         }
+                        onWheel={(e) => e.currentTarget.blur()}
                         disabled={isPending}
                       />
                     </div>
@@ -653,6 +662,7 @@ export function MethodEditor({
                               parseFloat(e.target.value) || 0
                             )
                           }
+                          onWheel={(e) => e.currentTarget.blur()}
                           placeholder="0"
                           className="w-20"
                           disabled={isPending}
@@ -671,6 +681,7 @@ export function MethodEditor({
                               e.target.value ? parseFloat(e.target.value) : null
                             )
                           }
+                          onWheel={(e) => e.currentTarget.blur()}
                           placeholder="∞"
                           className="w-20"
                           disabled={isPending}
@@ -689,6 +700,7 @@ export function MethodEditor({
                               parseFloat(e.target.value) || 0
                             )
                           }
+                          onWheel={(e) => e.currentTarget.blur()}
                           placeholder="Rate"
                           className="w-24"
                           disabled={isPending}
@@ -733,6 +745,7 @@ export function MethodEditor({
                     onChange={(e) =>
                       setMinOrderAmount(parseFloat(e.target.value) || 0)
                     }
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder="No minimum"
                     disabled={isPending}
                   />

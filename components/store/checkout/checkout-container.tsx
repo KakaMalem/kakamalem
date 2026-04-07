@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import type { Address } from "@/lib/db/schema";
 import type { CheckoutDeliveryZone } from "@/lib/actions/unified-delivery";
 import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { useMounted } from "@/lib/hooks/use-mounted";
-import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { CheckoutAccordion } from "./accordion";
 import { CheckoutSummary } from "./checkout-summary";
 import { MobileOrderSummary } from "./mobile-order-summary";
@@ -67,8 +64,6 @@ export function CheckoutContainer({
   checkoutAddressMode = "gps",
 }: CheckoutContainerProps) {
   const mounted = useMounted();
-  const basePath = useStoreBasePath();
-
   const { shippingAddress, initCheckout, setShippingAddress } =
     useCheckoutStore();
 
@@ -127,16 +122,6 @@ export function CheckoutContainer({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
-          <Link
-            href={`${basePath}/cart`}
-            className="flex items-center justify-center size-9 rounded-full bg-muted/50 hover:bg-muted text-muted-foreground transition-all sm:bg-transparent sm:size-auto sm:rounded-none"
-            title="Back to cart"
-          >
-            <ArrowLeft className="size-5" />
-            <span className="hidden sm:inline ml-1 text-sm font-medium">
-              Back to cart
-            </span>
-          </Link>
           <div className="flex flex-col">
             <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">
               Checkout

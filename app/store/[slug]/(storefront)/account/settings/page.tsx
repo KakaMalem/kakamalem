@@ -61,8 +61,10 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         </CardContent>
       </Card>
 
-      {/* Currency Preference */}
-      <CurrencyPreferenceForm />
+      {/* Currency Preference — only for legacy fiat stores */}
+      {store.currency !== "USDT" && store.currency !== "USDC" && (
+        <CurrencyPreferenceForm />
+      )}
 
       {/* Notification Settings */}
       <CustomerNotificationSettings

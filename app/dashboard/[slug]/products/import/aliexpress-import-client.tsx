@@ -217,6 +217,7 @@ export function AliExpressImportClient({
                     value={priceOverride}
                     onChange={(e) => setPriceOverride(e.target.value)}
                     placeholder="0.00"
+                    onWheel={(e) => e.currentTarget.blur()}
                   />
                   {product.price !== null && (
                     <p className="text-xs text-muted-foreground">

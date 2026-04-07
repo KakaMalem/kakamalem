@@ -1,236 +1,306 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
 export const metadata = {
   title: "Privacy Policy | Kaka Malem",
-  description: "Privacy Policy for Kaka Malem - e-commerce platform",
+  description:
+    "Privacy Policy for Kaka Malem - crypto-native escrow marketplace for cross-border trade",
 };
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className="scroll-mt-20"
+      id={title.toLowerCase().replace(/\s+/g, "-")}
+    >
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-muted-foreground">
+        {children}
+      </div>
+    </section>
+  );
+}
 
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-blur:bg-background/60">
-        <div className="mx-auto flex max-w-4xl items-center gap-4 px-6 py-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <Link href="/" className="text-xl font-bold">
-            Kaka Malem
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-6 py-3">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            Home
           </Link>
+          <span className="text-border">/</span>
+          <span className="text-sm font-medium">Privacy Policy</span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-12">
-        <h1 className="text-3xl font-bold tracking-tight">Privacy Policy</h1>
-        <p className="mt-2 text-muted-foreground">Last updated: January 2025</p>
+      <main className="mx-auto max-w-3xl px-6 py-12">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          Privacy Policy
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Last updated: April 7, 2026
+        </p>
 
-        <div className="prose prose-gray mt-8 max-w-none">
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold">1. Introduction</h2>
-            <p className="text-muted-foreground">
-              At Kaka Malem, we take your privacy seriously. This Privacy Policy
-              explains how we collect, use, disclose, and safeguard your
-              information when you use our e-commerce platform.
+        <div className="mt-10 space-y-10">
+          <Section title="Introduction">
+            <p>
+              Kaka Malem (&quot;Platform&quot;, &quot;we&quot;, &quot;us&quot;)
+              is a crypto-native escrow marketplace. This policy explains what
+              data we collect, why we collect it, and how we protect it. By
+              using Kaka Malem, you consent to the practices described here.
             </p>
-          </section>
+          </Section>
 
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">2. Information We Collect</h2>
-            <p className="text-muted-foreground">
-              We collect information you provide directly to us:
+          <Section title="What We Collect">
+            <p>
+              <strong className="text-foreground">
+                Information you provide:
+              </strong>
             </p>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+            <ul className="list-disc space-y-1.5 pl-5">
               <li>
-                <strong>Account Information:</strong> Name, email address,
-                password, and phone number
+                Account details &mdash; name, email, password, phone number.
               </li>
               <li>
-                <strong>Store Information:</strong> Store name, description,
-                logo, and branding details
+                Seller information &mdash; store name, branding, product
+                listings, crypto wallet addresses for payout.
               </li>
               <li>
-                <strong>Product Information:</strong> Product listings, images,
-                prices, and inventory data
+                Order and shipping data &mdash; delivery addresses, tracking
+                numbers, dispute evidence.
               </li>
               <li>
-                <strong>Order Information:</strong> Customer orders, shipping
-                addresses, and transaction history
-              </li>
-              <li>
-                <strong>Payment Information:</strong> Billing details for
-                subscription payments
-              </li>
-            </ul>
-          </section>
-
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">
-              3. Information Collected Automatically
-            </h2>
-            <p className="text-muted-foreground">
-              When you use our platform, we automatically collect:
-            </p>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>Device information (browser type, operating system)</li>
-              <li>IP address and location data</li>
-              <li>Usage data and analytics</li>
-              <li>Cookies and similar tracking technologies</li>
-            </ul>
-          </section>
-
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">
-              4. How We Use Your Information
-            </h2>
-            <p className="text-muted-foreground">
-              We use the collected information to:
-            </p>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>Provide and maintain our services</li>
-              <li>Process transactions and manage your account</li>
-              <li>Send important updates and notifications</li>
-              <li>Improve our platform and develop new features</li>
-              <li>Provide customer support</li>
-              <li>Detect and prevent fraud or abuse</li>
-              <li>Comply with legal obligations</li>
-            </ul>
-          </section>
-
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">
-              5. Information Sharing and Disclosure
-            </h2>
-            <p className="text-muted-foreground">
-              We may share your information with:
-            </p>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>
-                <strong>Service Providers:</strong> Third parties that help us
-                operate our platform (hosting, analytics, etc.)
-              </li>
-              <li>
-                <strong>Store Customers:</strong> Order and shipping information
-                is shared with customers who purchase from your store
-              </li>
-              <li>
-                <strong>Legal Requirements:</strong> When required by law or to
-                protect our rights
-              </li>
-              <li>
-                <strong>Business Transfers:</strong> In connection with a
-                merger, acquisition, or sale of assets
+                Payment data &mdash; transaction hashes, wallet addresses,
+                payment amounts. We do not store private keys.
               </li>
             </ul>
-            <p className="mt-4 text-muted-foreground">
-              We do not sell your personal information to third parties.
-            </p>
-          </section>
 
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">6. Data Security</h2>
-            <p className="text-muted-foreground">
-              We implement appropriate security measures to protect your
-              information:
+            <p className="pt-2">
+              <strong className="text-foreground">
+                Information collected automatically:
+              </strong>
             </p>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>SSL encryption for all data transmission</li>
-              <li>Secure password hashing</li>
-              <li>Regular security audits and updates</li>
-              <li>Daily database backups</li>
-              <li>Access controls and authentication</li>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>Device and browser information.</li>
+              <li>IP address and approximate location.</li>
+              <li>
+                Usage data &mdash; pages viewed, actions taken, time spent.
+              </li>
+              <li>Cookies for authentication and preferences.</li>
             </ul>
-          </section>
+          </Section>
 
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">7. Data Retention</h2>
-            <p className="text-muted-foreground">
-              We retain your information for as long as your account is active
-              or as needed to provide you services. After account deletion, we
-              may retain certain information as required by law or for
-              legitimate business purposes.
-            </p>
-          </section>
-
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">8. Your Rights</h2>
-            <p className="text-muted-foreground">You have the right to:</p>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>Access your personal information</li>
-              <li>Correct inaccurate information</li>
-              <li>Delete your account and associated data</li>
-              <li>Export your data</li>
-              <li>Opt out of marketing communications</li>
+          <Section title="How We Use Your Data">
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>
+                <strong className="text-foreground">Escrow operations</strong>{" "}
+                &mdash; process payments, hold funds, release on confirmation,
+                handle disputes.
+              </li>
+              <li>
+                <strong className="text-foreground">Platform operation</strong>{" "}
+                &mdash; manage accounts, storefronts, orders, and notifications.
+              </li>
+              <li>
+                <strong className="text-foreground">Security</strong> &mdash;
+                detect fraud, prevent abuse, verify transactions.
+              </li>
+              <li>
+                <strong className="text-foreground">Improvement</strong> &mdash;
+                analyze usage patterns to improve the Platform.
+              </li>
+              <li>
+                <strong className="text-foreground">Communication</strong>{" "}
+                &mdash; send transactional emails (order updates, dispute
+                notifications) and, with consent, marketing updates.
+              </li>
+              <li>
+                <strong className="text-foreground">Legal compliance</strong>{" "}
+                &mdash; meet regulatory obligations, respond to lawful requests.
+              </li>
             </ul>
-            <p className="mt-4 text-muted-foreground">
-              To exercise these rights, please contact us or use the settings in
-              your dashboard.
-            </p>
-          </section>
+          </Section>
 
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">9. Cookies</h2>
-            <p className="text-muted-foreground">
-              We use cookies and similar technologies to:
-            </p>
-            <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-              <li>Keep you logged in to your account</li>
-              <li>Remember your preferences</li>
-              <li>Analyze platform usage and performance</li>
-              <li>Provide a personalized experience</li>
+          <Section title="Who We Share Data With">
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>
+                <strong className="text-foreground">
+                  Buyers &harr; Sellers
+                </strong>{" "}
+                &mdash; order details, shipping addresses, and tracking info are
+                shared between transaction parties.
+              </li>
+              <li>
+                <strong className="text-foreground">Service providers</strong>{" "}
+                &mdash; hosting, email delivery, and analytics services that
+                process data on our behalf under strict agreements.
+              </li>
+              <li>
+                <strong className="text-foreground">Legal authorities</strong>{" "}
+                &mdash; when required by law, court order, or to prevent harm.
+              </li>
+              <li>
+                <strong className="text-foreground">Business transfers</strong>{" "}
+                &mdash; in the event of a merger, acquisition, or asset sale.
+              </li>
             </ul>
-            <p className="mt-4 text-muted-foreground">
-              You can control cookies through your browser settings, but
-              disabling them may affect platform functionality.
+            <p className="pt-1 font-medium text-foreground">
+              We never sell your personal data.
             </p>
-          </section>
+          </Section>
 
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">
-              10. Children&apos;s Privacy
-            </h2>
-            <p className="text-muted-foreground">
-              Our services are not intended for users under the age of 18. We do
-              not knowingly collect information from children.
+          <Section title="Blockchain Data">
+            <p>
+              Cryptocurrency transactions are recorded on public blockchains.
+              Wallet addresses and transaction hashes associated with your
+              orders are inherently public and cannot be deleted from the
+              blockchain. We store this data in our database to link on-chain
+              transactions to your orders.
             </p>
-          </section>
+          </Section>
 
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">
-              11. Changes to This Policy
-            </h2>
-            <p className="text-muted-foreground">
-              We may update this Privacy Policy from time to time. We will
-              notify you of any changes by posting the new policy on this page
-              and updating the &quot;Last updated&quot; date.
+          <Section title="Data Security">
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>TLS encryption for all data in transit.</li>
+              <li>Passwords hashed with industry-standard algorithms.</li>
+              <li>
+                Escrow wallet keys stored securely with restricted access.
+              </li>
+              <li>Daily encrypted database backups.</li>
+              <li>
+                Role-based access controls &mdash; staff can only access data
+                relevant to their function.
+              </li>
+            </ul>
+            <p>
+              No system is 100% secure. We commit to promptly notifying affected
+              users if a breach occurs.
             </p>
-          </section>
+          </Section>
 
-          <section className="mt-8 space-y-4">
-            <h2 className="text-xl font-semibold">12. Contact Us</h2>
-            <p className="text-muted-foreground">
-              If you have questions about this Privacy Policy, please contact us
-              at{" "}
+          <Section title="Data Retention">
+            <p>
+              We retain your data while your account is active. After account
+              deletion:
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>Personal data is deleted or anonymized within 30 days.</li>
+              <li>
+                Transaction records are retained for 7 years for legal and
+                financial compliance.
+              </li>
+              <li>
+                Blockchain data (wallet addresses, tx hashes) remains on-chain
+                permanently.
+              </li>
+            </ul>
+          </Section>
+
+          <Section title="Your Rights">
+            <p>You can:</p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>
+                <strong className="text-foreground">Access</strong> your
+                personal data via your account settings.
+              </li>
+              <li>
+                <strong className="text-foreground">Correct</strong> inaccurate
+                information in your profile.
+              </li>
+              <li>
+                <strong className="text-foreground">Delete</strong> your account
+                and associated data (subject to retention obligations above).
+              </li>
+              <li>
+                <strong className="text-foreground">Export</strong> your data in
+                a portable format.
+              </li>
+              <li>
+                <strong className="text-foreground">Opt out</strong> of
+                marketing emails at any time.
+              </li>
+            </ul>
+            <p>
+              To exercise any of these rights, contact us at{" "}
               <a
-                href="mailto:kakamalem.team@gmail.com"
-                className="text-primary underline"
+                href="mailto:privacy@kakamalem.com"
+                className="font-medium text-foreground underline underline-offset-4"
               >
-                kakamalem.team@gmail.com
+                privacy@kakamalem.com
               </a>
             </p>
-          </section>
+          </Section>
+
+          <Section title="Cookies">
+            <p>We use essential cookies for:</p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>Authentication (keeping you logged in).</li>
+              <li>Preferences (currency, language).</li>
+              <li>Security (CSRF protection).</li>
+            </ul>
+            <p>
+              We use optional analytics cookies to understand usage patterns.
+              You can disable non-essential cookies in your browser settings.
+            </p>
+          </Section>
+
+          <Section title="Age Requirement">
+            <p>
+              Kaka Malem is not intended for users under 18. We do not knowingly
+              collect data from minors. If we learn we have collected data from
+              a minor, we will delete it promptly.
+            </p>
+          </Section>
+
+          <Section title="International Transfers">
+            <p>
+              Kaka Malem is operated from the United Kingdom with infrastructure
+              that may span multiple countries. By using the Platform, you
+              consent to your data being transferred to and processed in
+              jurisdictions outside your own.
+            </p>
+          </Section>
+
+          <Section title="Changes">
+            <p>
+              We may update this policy. Material changes will be communicated
+              via email or in-app notification at least 14 days before taking
+              effect. The &quot;Effective&quot; date at the top reflects the
+              latest version.
+            </p>
+          </Section>
+
+          <Section title="Contact">
+            <p>
+              Privacy questions? Email us at{" "}
+              <a
+                href="mailto:privacy@kakamalem.com"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                privacy@kakamalem.com
+              </a>
+            </p>
+          </Section>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t px-6 py-8">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} Kaka Malem. All rights reserved.
-          </p>
+      <footer className="border-t px-6 py-6">
+        <div className="mx-auto flex max-w-3xl items-center justify-between text-xs text-muted-foreground">
+          <span>&copy; {new Date().getFullYear()} Kaka Malem</span>
+          <Link href="/terms" className="hover:text-foreground">
+            Terms of Service
+          </Link>
         </div>
       </footer>
     </div>

@@ -225,11 +225,6 @@ export function StoreLoginForm({ store, redirectTo }: StoreLoginFormProps) {
             storeSlug={store.slug}
             redirectTo={finalRedirect}
           />
-          <StoreOAuthButton
-            provider="facebook"
-            storeSlug={store.slug}
-            redirectTo={finalRedirect}
-          />
         </div>
 
         <p className="text-center text-sm text-muted-foreground pt-2">

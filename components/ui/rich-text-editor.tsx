@@ -22,8 +22,13 @@ import {
   Undo,
   Redo,
   RemoveFormatting,
+  Heading1,
   Heading2,
   Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
+  Code2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -208,35 +213,43 @@ function LinkPopover({ editor, disabled }: LinkPopoverProps) {
 interface ToolbarProps {
   editor: Editor | null;
   disabled?: boolean;
+  isSourceMode?: boolean;
+  onToggleSource?: () => void;
 }
 
-function Toolbar({ editor, disabled }: ToolbarProps) {
+function Toolbar({
+  editor,
+  disabled,
+  isSourceMode,
+  onToggleSource,
+}: ToolbarProps) {
   if (!editor) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/30 p-1">
       {/* Headings */}
-      <ToolbarButton
-        pressed={editor.isActive("heading", { level: 2 })}
-        onPressedChange={() =>
-          editor.chain().focus().toggleHeading({ level: 2 }).run()
-        }
-        disabled={disabled}
-        title="Heading 2"
-      >
-        <Heading2 className="size-4" />
-      </ToolbarButton>
-
-      <ToolbarButton
-        pressed={editor.isActive("heading", { level: 3 })}
-        onPressedChange={() =>
-          editor.chain().focus().toggleHeading({ level: 3 }).run()
-        }
-        disabled={disabled}
-        title="Heading 3"
-      >
-        <Heading3 className="size-4" />
-      </ToolbarButton>
+      {(
+        [
+          [1, Heading1],
+          [2, Heading2],
+          [3, Heading3],
+          [4, Heading4],
+          [5, Heading5],
+          [6, Heading6],
+        ] as const
+      ).map(([level, Icon]) => (
+        <ToolbarButton
+          key={level}
+          pressed={editor.isActive("heading", { level })}
+          onPressedChange={() =>
+            editor.chain().focus().toggleHeading({ level }).run()
+          }
+          disabled={disabled}
+          title={`Heading ${level}`}
+        >
+          <Icon className="size-4" />
+        </ToolbarButton>
+      ))}
 
       <Separator orientation="vertical" className="mx-1 h-6" />
 
@@ -370,6 +383,20 @@ function Toolbar({ editor, disabled }: ToolbarProps) {
       >
         <Redo className="size-4" />
       </ToolbarButton>
+
+      <Separator orientation="vertical" className="mx-1 h-6" />
+
+      {/* HTML source toggle */}
+      {onToggleSource && (
+        <ToolbarButton
+          pressed={isSourceMode || false}
+          onPressedChange={onToggleSource}
+          disabled={disabled}
+          title="Toggle HTML source"
+        >
+          <Code2 className="size-4" />
+        </ToolbarButton>
+      )}
     </div>
   );
 }
@@ -393,7 +420,7 @@ export function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [2, 3] },
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
         blockquote: false,
         codeBlock: false,
         code: false,
@@ -462,6 +489,21 @@ export function RichTextEditor({
   }, [editor, disabled]);
 
   const characterCount = editor?.storage.characterCount?.characters() ?? 0;
+  const [isSourceMode, setIsSourceMode] = useState(false);
+  const [sourceHtml, setSourceHtml] = useState("");
+
+  const handleToggleSource = useCallback(() => {
+    if (!editor) return;
+    if (isSourceMode) {
+      // Switching back to rich text — apply the edited HTML
+      editor.commands.setContent(sourceHtml);
+      onChange?.(sourceHtml || "");
+    } else {
+      // Switching to source — grab current HTML
+      setSourceHtml(editor.getHTML());
+    }
+    setIsSourceMode(!isSourceMode);
+  }, [editor, isSourceMode, sourceHtml, onChange]);
 
   return (
     <div
@@ -473,12 +515,31 @@ export function RichTextEditor({
         className
       )}
     >
-      <Toolbar editor={editor} disabled={disabled} />
+      <Toolbar
+        editor={editor}
+        disabled={disabled}
+        isSourceMode={isSourceMode}
+        onToggleSource={handleToggleSource}
+      />
 
-      {/* Editor content with custom styles */}
-      <div className="p-3 rich-text-editor-wrapper">
-        <EditorContent editor={editor} />
-      </div>
+      {isSourceMode ? (
+        /* HTML source editor */
+        <div className="p-3">
+          <textarea
+            value={sourceHtml}
+            onChange={(e) => setSourceHtml(e.target.value)}
+            disabled={disabled}
+            className="w-full min-h-[150px] font-mono text-xs bg-zinc-50 border border-zinc-200 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+            style={{ minHeight: minHeight }}
+            spellCheck={false}
+          />
+        </div>
+      ) : (
+        /* Rich text editor */
+        <div className="p-3 rich-text-editor-wrapper">
+          <EditorContent editor={editor} />
+        </div>
+      )}
 
       {showCharacterCount && (
         <div className="flex justify-end border-t px-3 py-1.5 text-xs text-muted-foreground">

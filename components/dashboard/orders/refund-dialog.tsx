@@ -329,6 +329,7 @@ export function RefundDialog({
                             max={refundItem.maxUnitAmount}
                             step={0.01}
                             className="h-8 text-sm"
+                            onWheel={(e) => e.currentTarget.blur()}
                           />
                         </div>
                       </div>

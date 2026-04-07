@@ -102,7 +102,7 @@ export default async function AdminLayout({
         </aside>
 
         {/* Main content */}
-        <main className="min-h-screen flex-1 p-4 lg:ml-64 lg:p-8">
+        <main className="min-h-screen min-w-0 flex-1 overflow-x-hidden p-4 lg:ml-64 lg:p-8">
           {children}
         </main>
       </div>

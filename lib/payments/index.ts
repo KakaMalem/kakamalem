@@ -179,30 +179,15 @@ export async function getEnabledGateways(
     const settings = await db.query.platformSettings.findFirst();
     const walletConfig = settings?.usdtWalletConfig as UsdtWalletConfig | null;
     if (walletConfig) {
-      const networks: NonNullable<EnabledGateway["cryptoNetworks"]> = [];
+      // TRC20 only — lowest fees, fastest confirmation, auto-detection supported
       if (walletConfig.trc20?.enabled && walletConfig.trc20?.address) {
-        networks.push({
-          network: "trc20",
-          label: "TRC20 (Tron)",
-          feeHint: "~$1",
-        });
-      }
-      if (walletConfig.bep20?.enabled && walletConfig.bep20?.address) {
-        networks.push({
-          network: "bep20",
-          label: "BEP20 (BSC)",
-          feeHint: "~$0.50",
-        });
-      }
-      if (walletConfig.erc20?.enabled && walletConfig.erc20?.address) {
-        networks.push({
-          network: "erc20",
-          label: "ERC20 (Ethereum)",
-          feeHint: "~$5+",
-        });
-      }
-      if (networks.length > 0) {
-        cryptoNetworks = networks;
+        cryptoNetworks = [
+          {
+            network: "trc20",
+            label: "TRC20 (Tron)",
+            feeHint: "~$1",
+          },
+        ];
       }
     }
   }

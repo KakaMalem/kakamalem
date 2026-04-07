@@ -1371,6 +1371,7 @@ export function ShippingRatesManager({
                           : null,
                       }))
                     }
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder="2"
                     className="h-9"
                   />
@@ -1392,6 +1393,7 @@ export function ShippingRatesManager({
                           : null,
                       }))
                     }
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder="5"
                     className="h-9"
                   />

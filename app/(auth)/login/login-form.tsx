@@ -246,7 +246,6 @@ export function LoginForm() {
 
           <div className="space-y-3">
             <OAuthButton provider="google" redirectTo={redirect} />
-            <OAuthButton provider="facebook" redirectTo={redirect} />
           </div>
         </form>
 

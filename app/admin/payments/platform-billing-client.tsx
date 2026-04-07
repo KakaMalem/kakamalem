@@ -142,58 +142,63 @@ export function PlatformBillingClient({
                   <p>No invoices found</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Number</TableHead>
-                      <TableHead>Store</TableHead>
-                      <TableHead>Issued</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {invoices.map((inv) => (
-                      <TableRow key={inv.id}>
-                        <TableCell className="font-mono text-xs font-medium">
-                          {inv.invoiceNumber}
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/admin/stores/${inv.tenant.slug}`}
-                            className="font-medium hover:underline flex items-center gap-1"
-                          >
-                            <Store className="size-3 text-muted-foreground" />
-                            {inv.tenant.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {new Date(inv.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {inv.dueDate
-                            ? new Date(inv.dueDate).toLocaleDateString()
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {parseFloat(inv.total).toLocaleString()}{" "}
-                          {inv.currency}
-                        </TableCell>
-                        <TableCell>
-                          <InvoiceStatusBadge status={inv.status} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <InvoiceActions invoice={inv} />
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Number</TableHead>
+                        <TableHead>Store</TableHead>
+                        <TableHead>Issued</TableHead>
+                        <TableHead>Due Date</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {invoices.map((inv) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-mono text-xs font-medium">
+                            {inv.invoiceNumber}
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/admin/stores/${inv.tenant.slug}`}
+                              className="font-medium hover:underline flex items-center gap-1"
+                            >
+                              <Store className="size-3 text-muted-foreground" />
+                              {inv.tenant.name}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {new Date(inv.createdAt).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                              }
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {inv.dueDate
+                              ? new Date(inv.dueDate).toLocaleDateString()
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {parseFloat(inv.total).toLocaleString()}{" "}
+                            {inv.currency}
+                          </TableCell>
+                          <TableCell>
+                            <InvoiceStatusBadge status={inv.status} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <InvoiceActions invoice={inv} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
               <div className="mt-4 flex justify-end">
                 <Link href="/admin/stores">
@@ -225,68 +230,74 @@ export function PlatformBillingClient({
                   <p>No transactions found</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Date</TableHead>
-                      <TableHead>Store</TableHead>
-                      <TableHead>Event Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">
-                        <FileText className="size-4 ml-auto" />
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transactions.map((tx) => (
-                      <TableRow key={tx.id}>
-                        <TableCell className="text-sm">
-                          {new Date(tx.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/admin/stores/${tx.tenant.slug}`}
-                            className="font-medium hover:underline flex items-center gap-1"
-                          >
-                            <Store className="size-3 text-muted-foreground" />
-                            {tx.tenant.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="secondary"
-                            className="capitalize text-[10px] font-normal"
-                          >
-                            {tx.type.replace(/_/g, " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {parseFloat(tx.amount).toLocaleString()} {tx.currency}
-                        </TableCell>
-                        <TableCell>
-                          <TransactionStatusBadge status={tx.status} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {tx.invoice && (
-                            <a
-                              href={`/api/dashboard/${tx.tenant.slug}/billing/invoices/${tx.invoice.id}/download`}
-                              className="inline-flex items-center text-primary hover:underline"
-                              title="Download Invoice"
-                            >
-                              <Download className="size-4" />
-                            </a>
-                          )}
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Date</TableHead>
+                        <TableHead>Store</TableHead>
+                        <TableHead>Event Type</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">
+                          <FileText className="size-4 ml-auto" />
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {transactions.map((tx) => (
+                        <TableRow key={tx.id}>
+                          <TableCell className="text-sm">
+                            {new Date(tx.createdAt).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/admin/stores/${tx.tenant.slug}`}
+                              className="font-medium hover:underline flex items-center gap-1"
+                            >
+                              <Store className="size-3 text-muted-foreground" />
+                              {tx.tenant.name}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="secondary"
+                              className="capitalize text-[10px] font-normal"
+                            >
+                              {tx.type.replace(/_/g, " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {parseFloat(tx.amount).toLocaleString()}{" "}
+                            {tx.currency}
+                          </TableCell>
+                          <TableCell>
+                            <TransactionStatusBadge status={tx.status} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {tx.invoice && (
+                              <a
+                                href={`/api/dashboard/${tx.tenant.slug}/billing/invoices/${tx.invoice.id}/download`}
+                                className="inline-flex items-center text-primary hover:underline"
+                                title="Download Invoice"
+                              >
+                                <Download className="size-4" />
+                              </a>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -442,6 +453,7 @@ function InvoiceActions({ invoice }: { invoice: Invoice }) {
                   onChange={(e) =>
                     setEditData({ ...editData, total: e.target.value })
                   }
+                  onWheel={(e) => e.currentTarget.blur()}
                 />
               </div>
             </div>

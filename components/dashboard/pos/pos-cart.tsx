@@ -190,6 +190,7 @@ export function POSCart({
                               setEditingPriceId(null);
                             }
                           }}
+                          onWheel={(e) => e.currentTarget.blur()}
                           className="h-7 w-20 px-1 py-0 text-sm"
                         />
                       ) : (
