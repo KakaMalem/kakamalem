@@ -4,7 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Kaka Malem** is a multitenant shop builder SaaS application targeting the Afghan market. Users can create and manage their own online stores through the platform. Default currency is AFN (Afghan Afghani).
+**Kaka Malem** is a UK-based, Afghanistan-operated crypto-native escrow marketplace for cross-border trade. It connects Western buyers with white-label sellers (dropshippers sourcing from Chinese factories) via trustless crypto escrow.
+
+**Business model:** No subscriptions. No upfront fees. Sellers list for free. Kaka Malem takes a **5% fee on escrow release** — deducted automatically when funds are released to the seller. Buyers pay nothing extra.
+
+**How it works:**
+
+1. Seller creates a storefront, lists white-label products
+2. Buyer pays crypto (USDT/USDC) → funds held in Kaka Malem escrow
+3. Seller ships, uploads tracking number
+4. Buyer confirms delivery → funds released to seller minus 5% fee
+5. If no confirmation after 30 days → auto-release to seller
+6. If dispute → admin resolves, funds go to winner
+
+**Supported payment currencies:** USDT (TRC20, ERC20, BEP20), USDC (ERC20). BTC/ETH planned.
+
+**Key architecture notes:**
+
+- Platform is in transition from Afghan-market SaaS to global escrow marketplace
+- The escrow system (`lib/escrow/`) is the new core of the platform — **this is what to build**
+- Fiat payment options (COD, bank transfer, mobile money) are removed from new storefront checkout
+- POS/offline sales are deprecated for new stores
+- Subscription billing (free/pro trial model) is replaced with per-transaction fees
+
+**Legacy infrastructure — DO NOT REMOVE:**
+Stripe and HesabPay integrations remain in the codebase for one existing client on the old Afghan-market SaaS model. They must not be deleted or broken. New features are built for the escrow model only. If you are working on something related to the new escrow marketplace, do not touch `lib/stripe/`, `lib/payments/hesabpay/`, or `app/api/webhooks/stripe/` and `app/api/webhooks/hesabpay/`.
 
 ## Development Commands
 
@@ -202,7 +226,7 @@ scripts/
 - **Validation**: Zod
 - **Notifications**: Novu (in-app + push notifications)
 - **Offline/PWA**: Dexie.js (IndexedDB) + Serwist (Service Worker)
-- **Payments**: HesabPay (Afghanistan), COD, with Stripe Connect planned
+- **Payments**: USDT/USDC crypto escrow (new model) — Stripe/HesabPay retained for legacy client only
 - **Custom Domains**: Caddy with on-demand TLS
 - **Package Manager**: pnpm
 
@@ -212,10 +236,12 @@ scripts/
 
 Path-based routing following [Next.js multi-tenant guide](https://nextjs.org/docs/app/guides/multi-tenant):
 
-- **Public storefronts**: `kakamalem.com/store/[slug]`
-- **Store management**: `kakamalem.com/dashboard`
+- **Public storefronts**: `kakamalem.com/store/[slug]` (seller storefronts)
+- **Seller dashboard**: `kakamalem.com/dashboard`
 - **All tenant data isolated** via `tenant_id` foreign key + application-level checks
 - **Tenant-isolated carts**: Each shop has separate carts (no cross-shop cart)
+
+**Tenant = Seller.** Each seller gets their own storefront, product catalog, and order/escrow dashboard. Buyers shop across seller storefronts but all payments go through Kaka Malem's central escrow system.
 
 ### App Router Structure
 
@@ -272,9 +298,10 @@ app/
 
 Platform administration accessible only to `platform_admin` or `super_admin` users.
 
-- **Dashboard**: Platform stats, trial warnings, expired trials
-- **Stores**: List, search, filter, suspend/activate stores
-- **Settings**: Configure subscription pricing, trial duration, product limits
+- **Dashboard**: Platform stats, revenue from fees, active escrows
+- **Stores**: List, search, filter, suspend/activate seller stores
+- **Disputes**: Dispute queue, evidence review, resolution tools
+- **Settings**: Platform fee %, escrow auto-release timeout, wallet addresses
 
 ### Key Directories
 
@@ -475,24 +502,17 @@ These features require analytics event tracking to be implemented:
 
 When `store_mode` is `catalog` or `offline_only`, the storefront disables the cart drawer and shows appropriate CTAs (contact info or "visit in-store").
 
-### Subscription/Billing Model
+### Platform Fee Model
 
-Simple subscription model (no transaction fees):
+No subscriptions. Revenue comes from a **5% fee on every escrow release**.
 
-1. **Free Plan**: 7-day trial, 20 product limit, all features included
-2. **Pro Plan**: 1,100 AFN/month per store, unlimited products
+- Fee is deducted automatically when escrow is released to the seller
+- Fee % is configurable in admin settings (default: 5%)
+- Fee is snapshotted on the `escrow_transactions` record at payment time — changes to the fee % do not affect existing escrows
+- Buyers see the full product price — sellers account for the fee in their margin
+- No listing fees, no monthly fees, no transaction fees on disputes
 
-Settings are configurable from admin panel (`/admin`).
-
-**Subscription States:**
-
-- `trialing` - In free trial period (7 days default)
-- `active` - Paid subscription in good standing
-- `past_due` - Payment failed, in grace period
-- `cancelled` - Cancelled but access until period end
-- `expired` - Trial/subscription expired, needs upgrade
-
-**Suspension is manual** - admins review and suspend stores via the admin panel.
+> **Legacy:** The subscription billing schema (`tenants.subscriptionStatus`, `tenants.subscriptionPlan`, trial logic) remains in the database and code for the one existing client using the old Afghan-market SaaS model. Do not remove it. New stores on the escrow model bypass this entirely.
 
 ## Authorization
 
@@ -661,9 +681,80 @@ STORAGE_PATH="C:/Users/YourName/kakamalem-uploads"
 
 **Note:** `.env.local` takes precedence over `.env` in Next.js. Delete or rename `.env.local` to use production environment.
 
+## Escrow System
+
+The escrow system is the core product. All buyer payments are held in escrow until delivery is confirmed or a dispute is resolved.
+
+### Escrow Flow
+
+```
+Buyer pays crypto → Kaka Malem escrow wallet (custodial)
+  → Seller ships → uploads tracking number
+    → Buyer confirms delivery → funds released to seller (minus 5% fee)
+    → OR: 30 days after in_transit with no buyer action → auto-release to seller
+    → OR: Buyer opens dispute → funds frozen → admin resolves → release or refund
+```
+
+### Escrow Status Enum
+
+```
+pending          → Order placed, awaiting buyer payment
+funded           → Crypto received and confirmed in escrow wallet
+in_transit       → Seller uploaded tracking, marked as shipped
+delivered        → Buyer confirmed receipt
+released         → Funds sent to seller wallet (minus platform fee)
+disputed         → Dispute opened, funds frozen pending admin decision
+resolved_buyer   → Admin ruled for buyer — full refund sent to buyer
+resolved_seller  → Admin ruled for seller — funds released to seller
+expired          → Auto-released to seller after 30-day timeout
+```
+
+### Key Files (to be built)
+
+```
+lib/escrow/
+├── index.ts         # Core: hold(), release(), refund(), openDispute(), resolveDispute()
+├── wallet.ts        # Platform custodial wallet management per network
+├── auto-release.ts  # Cron: scan funded/in_transit orders past autoReleaseAt
+└── types.ts         # EscrowStatus enum, EscrowTransaction type
+
+lib/db/schema.ts     # escrowTransactions, disputes, disputeMessages tables (to add)
+app/api/escrow/      # API routes: fund confirmation, release trigger, dispute open/resolve
+```
+
+### Database Tables (to be added to schema.ts)
+
+| Table                 | Purpose                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| `escrow_transactions` | Per-order escrow record (amount, currency, network, status, fee) |
+| `disputes`            | Dispute records (reason, status, resolution, resolver)           |
+| `dispute_messages`    | Threaded evidence/messages per dispute (buyer, seller, admin)    |
+
+### Platform Fee
+
+- Default: **5%** — configurable in admin settings
+- Deducted on `release()` — seller receives `amount * (1 - feePercent)`
+- Fee % snapshotted on `escrow_transactions.platformFeePercent` at payment time
+- Platform fee sent to a configurable platform wallet address
+
+---
+
 ## Payment System
 
-Multi-gateway payment orchestration supporting HesabPay (Afghanistan), Stripe (International), COD, bank transfer, and mobile money. See [docs/STRIPE_SETUP.md](docs/STRIPE_SETUP.md) for Stripe account setup guide.
+**Crypto only for new storefront checkout. No new fiat integrations.**
+
+Supported for buyer checkout:
+
+| Currency | Networks            | Status            |
+| -------- | ------------------- | ----------------- |
+| USDT     | TRC20, ERC20, BEP20 | Live              |
+| USDC     | ERC20               | Planned (Phase 1) |
+| BTC      | Native              | Planned (Phase 5) |
+| ETH      | Native              | Planned (Phase 5) |
+
+Stablecoins (USDT, USDC) are preferred — escrow windows can be weeks, and volatile assets create settlement ambiguity.
+
+> **Legacy payment infrastructure** (Stripe, HesabPay, COD, bank transfer, mobile money) remains intact in `lib/payments/` and `lib/stripe/` for the one existing client. Do not remove or modify.
 
 ### Payment Architecture
 

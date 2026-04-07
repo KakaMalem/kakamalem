@@ -1,19 +1,51 @@
 # Kaka Malem
 
-A multitenant shop builder SaaS for the Afghan market. Users can create and manage their own online stores with full e-commerce capabilities.
+A UK-based, Afghanistan-operated crypto-native escrow marketplace for cross-border trade. Connects Western buyers with white-label sellers sourcing from Chinese factories — with trustless crypto escrow as the trust layer between them.
 
-## Features
+**No banks. No Stripe. No fiat. No single point of failure.**
 
-- **Multi-Store Management** - Create and manage multiple stores from one account
-- **Full E-commerce** - Products, categories, variants, inventory tracking
-- **POS System** - Point of sale with offline support (PWA)
-- **Order Management** - Online and offline orders with status tracking
-- **Customer Accounts** - Customer authentication, order history, wishlists
-- **Shipping Zones** - Zone-based shipping with multiple rate types
-- **Admin Panel** - Platform administration for store management
-- **Custom Domains** - Connect your own domain with automatic SSL (Caddy)
-- **SEO Optimized** - Dynamic sitemaps, robots.txt, structured data
-- **Notifications** - Real-time notifications via Novu
+## How It Works
+
+Three actors:
+
+1. **Supplier** — Chinese factory or lab produces the goods
+2. **Seller** — White-label dropshipper (e.g. foreign student in China) creates a storefront and lists products
+3. **Buyer** — Western customer pays with crypto, protected by Kaka Malem escrow
+
+**Money flow:**
+
+```
+Buyer pays crypto → Kaka Malem escrow holds funds
+  → Seller ships → uploads tracking
+    → Buyer confirms delivery → funds released to seller (minus 5% fee)
+    → OR: No response after 30 days → auto-release to seller
+    → OR: Dispute opened → admin resolves → release to winner
+```
+
+## Why It Exists
+
+| Problem                                           | Our Answer                                     |
+| ------------------------------------------------- | ---------------------------------------------- |
+| Buyers don't trust anonymous Chinese suppliers    | Escrow guarantees refund if delivery fails     |
+| Shopify bans certain product categories           | We don't answer to payment processors          |
+| Traditional escrow is bank-based, slow, KYC-heavy | Crypto settles in minutes, no banks            |
+| Alibaba Trade Assurance is clunky B2B             | Built for individual sellers and retail buyers |
+| No white-label dropship platform is crypto-native | We are                                         |
+
+## Business Model
+
+- **Free to list** — No subscription, no upfront cost for sellers
+- **5% platform fee** — Deducted automatically on escrow release, paid by seller
+- **No fee for buyers** — Clean price at checkout
+- **No fiat ever touches the platform** — Pure crypto-to-crypto
+
+## Supported Cryptocurrencies
+
+- **USDT** (TRC20, ERC20, BEP20) — primary, stablecoin
+- **USDC** (ERC20) — secondary stablecoin
+- **BTC / ETH** — planned, price locked at payment time
+
+Stablecoins are preferred because escrow windows can be weeks — no seller should receive less than the buyer paid due to volatility.
 
 ## Tech Stack
 
@@ -21,25 +53,18 @@ A multitenant shop builder SaaS for the Afghan market. Users can create and mana
 - **Database**: PostgreSQL 18 + PgBouncer + Drizzle ORM
 - **Auth**: Better Auth (email/password, Google, Facebook OAuth)
 - **Styling**: Tailwind CSS 4 + shadcn/ui
-- **State**: Zustand (cart, checkout) + React Query (data fetching)
-- **Offline**: Dexie.js (IndexedDB) + Serwist (Service Worker)
-- **Notifications**: Novu
-- **Deployment**: Docker + native PostgreSQL/Nginx/Caddy
+- **State**: Zustand + React Query
+- **Escrow**: Custodial wallet system with time-based auto-release
+- **Payments**: USDT/USDC (TRC20, ERC20, BEP20) — crypto only
+- **Deployment**: Docker + native PostgreSQL/Nginx/Caddy, hosted in Afghanistan
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Set up environment
 cp .env.example .env.local
 # Edit .env.local with your database credentials
-
-# Run migrations
 pnpm db:migrate
-
-# Start development server
 pnpm dev
 ```
 
@@ -65,40 +90,44 @@ pnpm db:studio         # Open Drizzle Studio
 ```
 app/
 ├── (auth)/           # Platform auth (login, signup)
-├── admin/            # Platform admin panel
-├── dashboard/        # Store owner dashboard
+├── admin/            # Platform admin (disputes, stores, platform fees)
+├── dashboard/        # Seller dashboard
 │   └── [slug]/       # Per-store management
-│       ├── products/ # Product management
-│       ├── orders/   # Order management
-│       ├── pos/      # Point of sale
+│       ├── products/ # Product listings
+│       ├── orders/   # Orders + escrow status
+│       ├── earnings/ # Released funds, pending escrow, fees
 │       └── settings/ # Store settings
 └── store/[slug]/     # Public storefronts
-    ├── (auth)/       # Store-branded customer auth
-    └── (storefront)/ # Shop pages (products, cart, checkout)
+    ├── (auth)/       # Buyer auth
+    └── (storefront)/ # Products, cart, checkout, escrow status tracker
 
 lib/
 ├── auth/             # Better Auth configuration
 ├── db/               # Drizzle schema and queries
 ├── actions/          # Server actions
-├── offline/          # Offline sync (Dexie)
+├── escrow/           # Escrow logic (hold, release, dispute, auto-release)
+├── payments/         # Crypto payment handling (USDT, USDC)
 └── storage/          # File upload utilities
 
 components/
 ├── ui/               # shadcn/ui components
-├── dashboard/        # Dashboard components
-└── store/            # Storefront components
+├── dashboard/        # Seller dashboard components
+└── store/            # Storefront + escrow status components
 ```
 
 ## Documentation
 
-- [CLAUDE.md](CLAUDE.md) - Development guidelines and architecture
-- [ROADMAP.md](ROADMAP.md) - Feature roadmap and progress
+- [CLAUDE.md](CLAUDE.md) - Architecture and development guidelines
+- [ROADMAP.md](ROADMAP.md) - Implementation plan and progress
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment guide
 - [docs/CUSTOM_DOMAINS.md](docs/CUSTOM_DOMAINS.md) - Custom domain setup
-- [docs/OFFLINE_SYNC_ROADMAP.md](docs/OFFLINE_SYNC_ROADMAP.md) - Offline POS architecture
 
 ## Deployment
 
-Push to `main` branch triggers automatic deployment via GitHub Actions with zero-downtime blue-green deployments.
+UK Ltd registered entity. Servers hosted in Afghanistan for operational independence. Push to `main` triggers automatic zero-downtime blue-green deployment via GitHub Actions.
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full setup instructions.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full setup.
+
+---
+
+> **Note on legacy infrastructure:** The codebase retains Stripe and HesabPay integrations for one existing client on the old Afghan-market SaaS model. Do not remove these — they run in parallel with the new escrow system. New features should be built for the escrow model only.
