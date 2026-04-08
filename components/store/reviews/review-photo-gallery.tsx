@@ -121,7 +121,7 @@ export function ReviewPhotoGallery({
               </div>
 
               {/* Reviewer name on hover */}
-              <div className="absolute bottom-1.5 right-1.5 max-w-[60%] truncate opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-1.5 right-1.5 max-w-3/5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                 <span className="text-[10px] text-white/90 font-medium">
                   {item.reviewerName}
                 </span>

@@ -65,7 +65,7 @@ export function StoreHeaderSkeletonShimmer() {
     "relative overflow-hidden",
     "before:absolute before:inset-0 before:-translate-x-full",
     "before:animate-[shimmer_2s_infinite]",
-    "before:bg-gradient-to-r before:from-transparent before:via-muted-foreground/10 before:to-transparent"
+    "before:bg-linear-to-r before:from-transparent before:via-muted-foreground/10 before:to-transparent"
   );
 
   return (

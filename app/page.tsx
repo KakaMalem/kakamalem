@@ -48,9 +48,9 @@ export default async function Home() {
       {/* Ambient Background */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <GridPattern className="absolute inset-0 text-zinc-200/60" />
-        <div className="absolute -top-40 -left-40 w-[700px] h-[700px] rounded-full bg-linear-to-br from-violet-100 via-blue-50 to-transparent blur-[120px] opacity-70" />
-        <div className="absolute -top-20 right-0 w-[500px] h-[500px] rounded-full bg-linear-to-bl from-sky-100 via-indigo-50 to-transparent blur-[100px] opacity-60" />
-        <div className="absolute top-[30vh] left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-linear-to-b from-violet-50 to-transparent blur-[140px] opacity-50" />
+        <div className="absolute -top-40 -left-40 w-175 h-175 rounded-full bg-linear-to-br from-violet-100 via-blue-50 to-transparent blur-[120px] opacity-70" />
+        <div className="absolute -top-20 right-0 w-125 h-125 rounded-full bg-linear-to-bl from-sky-100 via-indigo-50 to-transparent blur-[100px] opacity-60" />
+        <div className="absolute top-[30vh] left-1/2 -translate-x-1/2 w-200 h-100 rounded-full bg-linear-to-b from-violet-50 to-transparent blur-[140px] opacity-50" />
         <div className="absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-white to-transparent" />
       </div>
 
@@ -81,7 +81,7 @@ export default async function Home() {
             </div>
 
             {/* Headline */}
-            <h1 className="max-w-[900px] text-[2.8rem] sm:text-[3.5rem] md:text-[4.5rem] lg:text-[5.2rem] font-extrabold tracking-[-0.04em] leading-[1.05] mb-6">
+            <h1 className="max-w-225 text-[2.8rem] sm:text-[3.5rem] md:text-[4.5rem] lg:text-[5.2rem] font-extrabold tracking-[-0.04em] leading-[1.05] mb-6">
               <span className="text-zinc-950">Buy from anywhere.</span>
               <br />
               <span className="bg-linear-to-r from-violet-600 via-blue-600 to-emerald-500 bg-clip-text text-transparent">
@@ -90,7 +90,7 @@ export default async function Home() {
             </h1>
 
             {/* Subheadline */}
-            <p className="max-w-[560px] text-pretty text-base md:text-[17px] text-zinc-500 leading-[1.75] mb-10 font-[425]">
+            <p className="max-w-140 text-pretty text-base md:text-[17px] text-zinc-500 leading-[1.75] mb-10 font-[425]">
               Kaka Malem is a crypto-native escrow marketplace that protects
               buyers and sellers in cross-border trade. No banks. No
               chargebacks. Just trustless, instant settlement.
@@ -520,7 +520,7 @@ export default async function Home() {
           <div className="max-w-4xl mx-auto px-4">
             <div className="relative rounded-3xl bg-linear-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-10 md:p-16 text-center overflow-hidden">
               {/* Glow */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-linear-to-b from-violet-500/20 to-transparent blur-[100px] -translate-y-1/2" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-150 h-75 bg-linear-to-b from-violet-500/20 to-transparent blur-[100px] -translate-y-1/2" />
 
               <div className="relative">
                 <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">

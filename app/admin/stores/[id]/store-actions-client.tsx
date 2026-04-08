@@ -644,7 +644,7 @@ export function StoreActionsClient({
                   Upgrade Store to Pro
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="sm:max-w-[480px] p-0 overflow-hidden border-none shadow-2xl">
+              <AlertDialogContent className="sm:max-w-120 p-0 overflow-hidden border-none shadow-2xl">
                 <div className="bg-primary/5 px-6 py-5 border-b border-primary/10">
                   <AlertDialogHeader>
                     <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
@@ -739,7 +739,7 @@ export function StoreActionsClient({
                             <Input
                               id="upgrade-duration"
                               type="number"
-                              className="w-[70px] h-9 text-xs font-black border-dashed focus:border-solid text-center pr-0"
+                              className="w-17.5 h-9 text-xs font-black border-dashed focus:border-solid text-center pr-0"
                               value={upgradeMonths}
                               onChange={(e) =>
                                 setUpgradeMonths(parseInt(e.target.value) || 1)

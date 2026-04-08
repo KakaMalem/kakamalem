@@ -206,7 +206,7 @@ export default async function AdminPayoutsPage() {
                       {payout.status}
                     </Badge>
                     {payout.cryptoTxHash && (
-                      <p className="text-[10px] font-mono text-muted-foreground mt-1 max-w-[200px] truncate">
+                      <p className="text-[10px] font-mono text-muted-foreground mt-1 max-w-50 truncate">
                         {payout.cryptoTxHash}
                       </p>
                     )}

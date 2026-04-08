@@ -92,7 +92,7 @@ export function InventoryFilters({
       {/* Main Filter Row */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="relative flex-1 min-w-50 max-w-sm">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by name, SKU, or barcode..."
@@ -124,7 +124,7 @@ export function InventoryFilters({
           value={currentFilters.status || "all"}
           onValueChange={(value) => updateFilter("status", value)}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-40">
             <SelectValue placeholder="Stock Status" />
           </SelectTrigger>
           <SelectContent>
@@ -162,7 +162,7 @@ export function InventoryFilters({
             updateFilter("categoryId", value === "all" ? null : value)
           }
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-45">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>

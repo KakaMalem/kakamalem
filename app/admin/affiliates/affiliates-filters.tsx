@@ -85,7 +85,7 @@ export function AffiliatesFilters({
         onValueChange={(value) => updateFilters({ status: value })}
         disabled={isPending}
       >
-        <SelectTrigger className="w-full sm:w-[150px]">
+        <SelectTrigger className="w-full sm:w-37.5">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
@@ -103,7 +103,7 @@ export function AffiliatesFilters({
         onValueChange={(value) => updateFilters({ tier: value })}
         disabled={isPending}
       >
-        <SelectTrigger className="w-full sm:w-[130px]">
+        <SelectTrigger className="w-full sm:w-32.5">
           <SelectValue placeholder="Tier" />
         </SelectTrigger>
         <SelectContent>

@@ -153,8 +153,8 @@ export default async function AffiliateProgramPage() {
       {/* Ambient background */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <GridPattern className="absolute inset-0 text-zinc-200/50" />
-        <div className="absolute -top-40 -left-40 w-[700px] h-[700px] rounded-full bg-linear-to-br from-violet-100 via-blue-50 to-transparent blur-[120px] opacity-60" />
-        <div className="absolute -top-20 right-0 w-[500px] h-[500px] rounded-full bg-linear-to-bl from-amber-100 via-orange-50 to-transparent blur-[100px] opacity-50" />
+        <div className="absolute -top-40 -left-40 w-175 h-175 rounded-full bg-linear-to-br from-violet-100 via-blue-50 to-transparent blur-[120px] opacity-60" />
+        <div className="absolute -top-20 right-0 w-125 h-125 rounded-full bg-linear-to-bl from-amber-100 via-orange-50 to-transparent blur-[100px] opacity-50" />
       </div>
 
       <LandingNavbar
@@ -181,7 +181,7 @@ export default async function AffiliateProgramPage() {
               </span>
             </div>
 
-            <h1 className="max-w-[800px] text-[2.8rem] sm:text-[3.5rem] md:text-[4.5rem] font-extrabold tracking-[-0.04em] leading-[1.05] mb-6">
+            <h1 className="max-w-200 text-[2.8rem] sm:text-[3.5rem] md:text-[4.5rem] font-extrabold tracking-[-0.04em] leading-[1.05] mb-6">
               <span className="text-zinc-950">Partner with Kaka Malem.</span>
               <br />
               <span className="bg-linear-to-r from-violet-600 via-blue-600 to-cyan-500 bg-clip-text text-transparent">
@@ -189,7 +189,7 @@ export default async function AffiliateProgramPage() {
               </span>
             </h1>
 
-            <p className="max-w-[520px] text-base md:text-[17px] text-zinc-500 leading-[1.75] mb-10">
+            <p className="max-w-130 text-base md:text-[17px] text-zinc-500 leading-[1.75] mb-10">
               Help entrepreneurs launch their online stores and earn recurring
               commissions for {AFFILIATE_CONFIG.commissionDurationMonths} months
               on every successful referral.
@@ -475,7 +475,7 @@ export default async function AffiliateProgramPage() {
         <section className="relative w-full overflow-hidden py-24 md:py-36 px-4 flex flex-col items-center text-center bg-linear-to-b from-white via-violet-50/30 to-white">
           <div className="absolute inset-0 pointer-events-none">
             <GridPattern className="absolute inset-0 text-violet-200/30" />
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full bg-linear-to-b from-violet-100/60 to-transparent blur-[100px]" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-150 h-75 rounded-full bg-linear-to-b from-violet-100/60 to-transparent blur-[100px]" />
           </div>
 
           <div className="relative z-10 flex flex-col items-center">

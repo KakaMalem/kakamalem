@@ -189,8 +189,8 @@ export default function TermsPage() {
 
           <Section title="Cryptocurrency Payments">
             <p>
-              All payments are made in cryptocurrency (currently USDT and USDC).
-              You acknowledge that:
+              All payments are made in USDT on the TRC20 (Tron) network. You
+              acknowledge that:
             </p>
             <ul className="list-disc space-y-1.5 pl-5">
               <li>
@@ -202,6 +202,95 @@ export default function TermsPage() {
                 (wrong address, wrong network, insufficient gas).
               </li>
               <li>Network fees (gas) are the sender&apos;s responsibility.</li>
+              <li>
+                Kaka Malem operates a custodial wallet model. All buyer payments
+                are held in platform-controlled wallets. Seller balances are
+                tracked internally and on-chain transfers occur only when
+                sellers withdraw funds.
+              </li>
+            </ul>
+          </Section>
+
+          <Section title="Escrow Agreement">
+            <p>
+              By using the Platform, both buyers and sellers agree to the
+              following escrow terms:
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>
+                <strong>Escrow hold:</strong> Buyer funds are held in Kaka
+                Malem&apos;s escrow wallet from the moment payment is confirmed
+                until delivery is confirmed or a dispute is resolved.
+              </li>
+              <li>
+                <strong>Seller shipment:</strong> Sellers must provide a valid
+                tracking number when marking an order as shipped. The 30-day
+                auto-release timer starts from this point.
+              </li>
+              <li>
+                <strong>Buyer confirmation:</strong> Buyers should confirm
+                delivery promptly upon receiving their order. Failure to confirm
+                or dispute within 30 days results in automatic release of funds
+                to the seller.
+              </li>
+              <li>
+                <strong>Platform fee:</strong> A 5% fee is deducted from the
+                escrow amount upon release to the seller. This fee is locked at
+                the time of payment and cannot change retroactively.
+              </li>
+              <li>
+                <strong>Seller earnings hold:</strong> Released funds are held
+                in the seller&apos;s pending balance for 7 days before becoming
+                available for withdrawal. This hold period protects against
+                post-delivery disputes.
+              </li>
+              <li>
+                <strong>Withdrawal fee:</strong> A $0.50 USDT fee is deducted
+                from each seller withdrawal to cover blockchain transaction
+                costs.
+              </li>
+            </ul>
+          </Section>
+
+          <Section title="Dispute Resolution Policy">
+            <p>
+              Kaka Malem provides binding dispute resolution for all
+              escrow-protected transactions:
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>
+                <strong>Who can dispute:</strong> Both buyers and sellers may
+                open a dispute while funds are in escrow (status: funded or in
+                transit).
+              </li>
+              <li>
+                <strong>Dispute process:</strong> The disputing party provides a
+                reason and optional evidence (photos, screenshots). The other
+                party is notified and may respond with their own evidence.
+              </li>
+              <li>
+                <strong>Frozen funds:</strong> Once a dispute is opened, all
+                escrowed funds are frozen. Neither the auto-release timer nor
+                manual release can proceed until resolution.
+              </li>
+              <li>
+                <strong>Admin review:</strong> A Kaka Malem administrator
+                reviews all submitted evidence and issues a binding decision.
+              </li>
+              <li>
+                <strong>Outcomes:</strong> The admin either releases funds to
+                the seller (minus the platform fee) or refunds the full amount
+                to the buyer. Partial resolutions are not supported.
+              </li>
+              <li>
+                <strong>Finality:</strong> Dispute resolutions are final. Kaka
+                Malem&apos;s decision is binding on both parties.
+              </li>
+              <li>
+                <strong>Good faith:</strong> Abuse of the dispute system
+                (frivolous disputes, false claims) may result in account
+                suspension.
+              </li>
             </ul>
           </Section>
 

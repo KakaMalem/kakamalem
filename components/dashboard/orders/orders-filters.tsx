@@ -144,7 +144,7 @@ export function OrdersFilters({
       </div>
 
       {/* Status Select */}
-      <div className="w-[140px] sm:w-[180px] shrink-0">
+      <div className="w-35 sm:w-45 shrink-0">
         {mounted ? (
           <Select
             value={activeStatus}

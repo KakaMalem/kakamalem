@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 5. If no confirmation after 30 days → auto-release to seller
 6. If dispute → admin resolves, funds go to winner
 
-**Supported payment currencies:** USDT (TRC20, ERC20, BEP20), USDC (ERC20). BTC/ETH planned.
+**Supported payment currency:** USDT on TRC20 only. Auto-detected via TronGrid.
 
 **Key architecture notes:**
 
@@ -300,7 +300,9 @@ Platform administration accessible only to `platform_admin` or `super_admin` use
 
 - **Dashboard**: Platform stats, revenue from fees, active escrows
 - **Stores**: List, search, filter, suspend/activate seller stores
-- **Disputes**: Dispute queue, evidence review, resolution tools
+- **Payments**: Crypto payment verification, manual approval
+- **Disputes**: Dispute queue — view evidence, message parties, resolve (refund buyer or release to seller)
+- **Payouts**: Seller withdrawal requests — mark processing, complete with tx hash, or reject with reason
 - **Settings**: Platform fee %, escrow auto-release timeout, wallet addresses
 
 ### Key Directories
@@ -407,12 +409,12 @@ Location: `lib/stores/`
 
 ### Payments
 
-| Table                     | Purpose                                         |
-| ------------------------- | ----------------------------------------------- |
-| `payment_gateway_configs` | Gateway credentials per tenant (HesabPay, etc.) |
-| `payment_sessions`        | Track payment attempts and redirects            |
-| `payment_webhook_events`  | Audit log for gateway webhooks                  |
-| `order_transactions`      | Financial transaction ledger                    |
+| Table                     | Purpose                                                                    |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `payment_gateway_configs` | Gateway credentials per tenant (legacy stores only — settings page hidden) |
+| `payment_sessions`        | Track payment attempts and redirects                                       |
+| `payment_webhook_events`  | Audit log for gateway webhooks                                             |
+| `order_transactions`      | Financial transaction ledger                                               |
 
 ### Analytics (System-Managed)
 
@@ -487,6 +489,10 @@ These features require analytics event tracking to be implemented:
 - **Payment method**: `cash`, `card`, `bank_transfer`, `mobile_money`, `store_credit`
 - **Payment gateway**: `hesabpay`, `stripe`, `cod`, `bank_transfer`, `mobile_money`
 - **Payment session status**: `pending`, `processing`, `completed`, `failed`, `expired`, `cancelled`
+- **Escrow status**: `pending`, `funded`, `in_transit`, `delivered`, `released`, `disputed`, `resolved_buyer`, `resolved_seller`, `expired`
+- **Escrow currency**: `usdt`, `usdc`
+- **Dispute status**: `open`, `resolved_buyer`, `resolved_seller`
+- **Dispute party**: `buyer`, `seller`, `admin`
 - **Stock status**: `in_stock`, `low_stock`, `out_of_stock`, `on_backorder`
 - **Shipment status**: `pending`, `picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `failed`, `returned`
 - **Store mode**: `full`, `online_only`, `offline_only`, `catalog`
@@ -709,26 +715,41 @@ resolved_seller  → Admin ruled for seller — funds released to seller
 expired          → Auto-released to seller after 30-day timeout
 ```
 
-### Key Files (to be built)
+### Key Files
 
 ```
 lib/escrow/
-├── index.ts         # Core: hold(), release(), refund(), openDispute(), resolveDispute()
-├── wallet.ts        # Platform custodial wallet management per network
-├── auto-release.ts  # Cron: scan funded/in_transit orders past autoReleaseAt
-└── types.ts         # EscrowStatus enum, EscrowTransaction type
+├── index.ts         # Core: createEscrow(), fundEscrow(), markShipped(), confirmDeliveryAndRelease(),
+│                    #   openDispute(), resolveDispute(), processAutoReleases()
+└── types.ts         # EscrowStatus enum, input types, result types
 
-lib/db/schema.ts     # escrowTransactions, disputes, disputeMessages tables (to add)
-app/api/escrow/      # API routes: fund confirmation, release trigger, dispute open/resolve
+lib/actions/escrow.ts    # Server actions: createOrderEscrow, confirmEscrowPayment, sellerMarkShipped,
+                         #   buyerConfirmDelivery, openEscrowDispute, adminResolveDispute, addDisputeMessage
+
+app/api/cron/
+├── escrow-auto-release/ # Cron: auto-releases in_transit escrows past 30-day deadline
+└── mature-earnings/     # Cron: moves pending seller earnings to available after 7-day hold
+
+app/admin/disputes/      # Admin dispute queue — review, message, resolve
+app/admin/payouts/       # Admin seller payout processing — approve, complete, reject
 ```
 
-### Database Tables (to be added to schema.ts)
+### Database Tables
 
 | Table                 | Purpose                                                          |
 | --------------------- | ---------------------------------------------------------------- |
 | `escrow_transactions` | Per-order escrow record (amount, currency, network, status, fee) |
 | `disputes`            | Dispute records (reason, status, resolution, resolver)           |
 | `dispute_messages`    | Threaded evidence/messages per dispute (buyer, seller, admin)    |
+
+### Seller Earnings Integration
+
+When escrow releases (buyer confirms, admin resolves for seller, or 30-day auto-release), `creditSellerEarnings()` is called automatically. Funds go to the seller's `pending` balance, then mature to `available` after 7 days (configurable via `payoutHoldDays`). Sellers request payouts from their earnings dashboard; admins process them manually at `/admin/payouts`.
+
+- Withdrawal fee: **$0.50 USDT** (covers TRC20 gas)
+- No minimum withdrawal
+- Race condition protected via `SELECT ... FOR UPDATE` row locking
+- Database `CHECK` constraints prevent negative balances
 
 ### Platform Fee
 
@@ -741,18 +762,13 @@ app/api/escrow/      # API routes: fund confirmation, release trigger, dispute o
 
 ## Payment System
 
-**Crypto only for new storefront checkout. No new fiat integrations.**
+**USDT on TRC20 only for new storefront checkout. No new fiat integrations.**
 
-Supported for buyer checkout:
+| Currency | Network | Status |
+| -------- | ------- | ------ |
+| USDT     | TRC20   | Live   |
 
-| Currency | Networks            | Status            |
-| -------- | ------------------- | ----------------- |
-| USDT     | TRC20, ERC20, BEP20 | Live              |
-| USDC     | ERC20               | Planned (Phase 1) |
-| BTC      | Native              | Planned (Phase 5) |
-| ETH      | Native              | Planned (Phase 5) |
-
-Stablecoins (USDT, USDC) are preferred — escrow windows can be weeks, and volatile assets create settlement ambiguity.
+TRC20 was chosen for lowest fees (~$0.30), fastest confirmation (~3s), and auto-detection support via TronGrid API (free, no API key). ERC20/BEP20 were removed from checkout — only TRC20 is offered to buyers. The platform operates a custodial wallet model: all USDT sits in the platform wallet, seller balances are internal bookkeeping, and on-chain transfers only happen on buyer deposit and seller withdrawal.
 
 > **Legacy payment infrastructure** (Stripe, HesabPay, COD, bank transfer, mobile money) remains intact in `lib/payments/` and `lib/stripe/` for the one existing client. Do not remove or modify.
 

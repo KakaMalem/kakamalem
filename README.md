@@ -39,13 +39,9 @@ Buyer pays crypto → Kaka Malem escrow holds funds
 - **No fee for buyers** — Clean price at checkout
 - **No fiat ever touches the platform** — Pure crypto-to-crypto
 
-## Supported Cryptocurrencies
+## Payment
 
-- **USDT** (TRC20, ERC20, BEP20) — primary, stablecoin
-- **USDC** (ERC20) — secondary stablecoin
-- **BTC / ETH** — planned, price locked at payment time
-
-Stablecoins are preferred because escrow windows can be weeks — no seller should receive less than the buyer paid due to volatility.
+**USDT on TRC20 only.** Lowest fees (~$0.30), fastest confirmation (~3s), auto-detected via TronGrid API. Custodial wallet model — all USDT sits in the platform wallet, seller balances are internal bookkeeping, on-chain transfers only happen on buyer deposit and seller withdrawal.
 
 ## Tech Stack
 
@@ -55,7 +51,7 @@ Stablecoins are preferred because escrow windows can be weeks — no seller shou
 - **Styling**: Tailwind CSS 4 + shadcn/ui
 - **State**: Zustand + React Query
 - **Escrow**: Custodial wallet system with time-based auto-release
-- **Payments**: USDT/USDC (TRC20, ERC20, BEP20) — crypto only
+- **Payments**: USDT on TRC20 — crypto only, auto-detected
 - **Deployment**: Docker + native PostgreSQL/Nginx/Caddy, hosted in Afghanistan
 
 ## Quick Start
@@ -106,7 +102,7 @@ lib/
 ├── db/               # Drizzle schema and queries
 ├── actions/          # Server actions
 ├── escrow/           # Escrow logic (hold, release, dispute, auto-release)
-├── payments/         # Crypto payment handling (USDT, USDC)
+├── payments/         # Crypto payment handling (USDT TRC20)
 └── storage/          # File upload utilities
 
 components/

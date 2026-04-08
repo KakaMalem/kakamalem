@@ -167,7 +167,7 @@ export default function OrdersMap({
         );
 
         popupContent.innerHTML = `
-          <div class="p-4 min-w-[240px] space-y-3 font-sans">
+          <div class="p-4 min-w-60 space-y-3 font-sans">
             <div class="flex items-center justify-between border-b border-zinc-200/50 pb-2 mb-2">
               <div class="flex flex-col">
                 <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Order ID</span>
@@ -181,7 +181,7 @@ export default function OrdersMap({
             <div class="space-y-2">
               <div class="flex items-center justify-between gap-4">
                 <span class="text-zinc-400 text-[11px] font-medium uppercase tracking-tight">Customer</span>
-                <span class="font-semibold text-xs truncate max-w-[120px]">${order.customerSnapshot.name}</span>
+                <span class="font-semibold text-xs truncate max-w-30">${order.customerSnapshot.name}</span>
               </div>
               <div class="flex items-center justify-between gap-4">
                 <span class="text-zinc-400 text-[11px] font-medium uppercase tracking-tight">Total</span>
@@ -212,7 +212,7 @@ export default function OrdersMap({
       } else {
         // Multi-order popup
         popupContent.innerHTML = `
-          <div class="p-0 min-w-[280px] max-w-[320px] font-sans overflow-hidden">
+          <div class="p-0 min-w-70 max-w-80 font-sans overflow-hidden">
             <div class="p-4 bg-zinc-900 text-white flex items-center justify-between">
               <div>
                 <h3 class="text-sm font-bold tracking-tight">${group.length} Active Orders</h3>

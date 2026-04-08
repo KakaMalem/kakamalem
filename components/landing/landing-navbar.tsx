@@ -100,7 +100,7 @@ export function LandingNavbar({
             <DropdownMenuContent
               align="end"
               sideOffset={24}
-              className="w-[280px] sm:w-80 rounded-3xl border border-zinc-200/80 bg-white/90 backdrop-blur-3xl shadow-[0_24px_60px_-15px_rgba(0,0,0,0.1)] p-3 z-100 animate-in fade-in zoom-in-95 slide-in-from-top-4 overflow-hidden"
+              className="w-70 sm:w-80 rounded-3xl border border-zinc-200/80 bg-white/90 backdrop-blur-3xl shadow-[0_24px_60px_-15px_rgba(0,0,0,0.1)] p-3 z-100 animate-in fade-in zoom-in-95 slide-in-from-top-4 overflow-hidden"
             >
               <nav className="grid gap-1">
                 {navLinks.map((item) => (

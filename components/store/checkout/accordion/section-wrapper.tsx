@@ -126,7 +126,7 @@ export function SectionWrapper({
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                className="mt-0.5 text-xs sm:text-sm text-muted-foreground truncate leading-relaxed max-w-[220px] sm:max-w-none"
+                className="mt-0.5 text-xs sm:text-sm text-muted-foreground truncate leading-relaxed max-w-55 sm:max-w-none"
               >
                 {summary}
               </motion.div>

@@ -529,7 +529,7 @@ export function RichTextEditor({
             value={sourceHtml}
             onChange={(e) => setSourceHtml(e.target.value)}
             disabled={disabled}
-            className="w-full min-h-[150px] font-mono text-xs bg-zinc-50 border border-zinc-200 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+            className="w-full min-h-37.5 font-mono text-xs bg-zinc-50 border border-zinc-200 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-ring resize-y"
             style={{ minHeight: minHeight }}
             spellCheck={false}
           />

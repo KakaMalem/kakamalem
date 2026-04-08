@@ -319,7 +319,7 @@ export function ReviewInlineForm(props: ReviewInlineFormProps) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="w-full max-w-[384px] mx-auto xl:max-w-none xl:mx-0"
+      className="w-full max-w-96 mx-auto xl:max-w-none xl:mx-0"
     >
       <div className="bg-card rounded-xl border shadow-sm">
         {/* Header */}
