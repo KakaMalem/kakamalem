@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth/server";
 import { db } from "@/lib/db";
-import { notifications } from "@/lib/db/schema";
+import { notifications, tenantMembers } from "@/lib/db/schema";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 
 const OWNER_TYPES = [
@@ -53,6 +53,18 @@ export async function POST(request: NextRequest) {
   ];
 
   if (tenantId) {
+    if (context === "owner") {
+      const membership = await db.query.tenantMembers.findFirst({
+        where: and(
+          eq(tenantMembers.userId, user.id),
+          eq(tenantMembers.tenantId, tenantId)
+        ),
+        columns: { id: true },
+      });
+      if (!membership) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
     conditions.push(eq(notifications.tenantId, tenantId));
   }
 

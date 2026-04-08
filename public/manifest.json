@@ -1,7 +1,7 @@
 {
-  "name": "Kaka Malem POS",
-  "short_name": "KM POS",
-  "description": "Kaka Malem Point of Sale - Offline-capable POS for Afghan retail",
+  "name": "Kaka Malem",
+  "short_name": "Kaka Malem",
+  "description": "Kaka Malem - Crypto-native escrow marketplace for cross-border trade",
   "display": "standalone",
   "orientation": "any",
   "start_url": "/dashboard",

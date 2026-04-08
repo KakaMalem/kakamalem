@@ -533,7 +533,7 @@ export default async function AdminStoreDetailPage({
             }
             currentNotes={store.subscriptionNotes}
             settings={settings}
-            currency={store.currency || "AFN"}
+            currency={store.currency || "USDT"}
             billingInterval={store.billingInterval}
             lastReminderSentAt={store.lastReminderSentAt}
           />

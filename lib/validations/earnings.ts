@@ -68,7 +68,17 @@ export type CashMethodInput = z.infer<typeof cashMethodSchema>;
  */
 export const cryptoMethodSchema = basePayoutMethodSchema.extend({
   type: z.literal("crypto"),
-  walletAddress: z.string().min(1, "Wallet address is required").max(100),
+  walletAddress: z
+    .string()
+    .min(1, "Wallet address is required")
+    .max(100)
+    .refine((val) => {
+      // TRC20: starts with T, 34 chars, base58
+      if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(val)) return true;
+      // ERC20/BEP20: starts with 0x, 42 hex chars
+      if (/^0x[0-9a-fA-F]{40}$/.test(val)) return true;
+      return false;
+    }, "Invalid wallet address. TRC20 addresses start with T (34 chars), ERC20/BEP20 start with 0x (42 chars)"),
   network: z.enum(["trc20", "erc20", "bep20"]),
 });
 

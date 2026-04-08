@@ -10,7 +10,7 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   sellerBalances,
@@ -18,7 +18,7 @@ import {
   sellerPayouts,
   sellerTransactions,
 } from "@/lib/db/schema";
-import { requireAuth } from "@/lib/auth/server";
+import { requireAuth, isPlatformAdmin } from "@/lib/auth/server";
 import { canManageStore } from "@/lib/auth/context";
 import {
   payoutMethodSchema,
@@ -344,18 +344,6 @@ export async function requestPayout(
 
     const { amount, payoutMethodId, notes } = validated.data;
 
-    // Get seller balance
-    const balance = await getSellerBalance(tenantId);
-    const availableBalance = parseFloat(balance.available);
-
-    // Check if enough balance
-    if (amount > availableBalance) {
-      return {
-        success: false,
-        error: `Insufficient balance. Available: ${availableBalance.toFixed(2)}`,
-      };
-    }
-
     // Check payout method exists
     const payoutMethod = await getPayoutMethodById(payoutMethodId, tenantId);
     if (!payoutMethod) {
@@ -365,12 +353,41 @@ export async function requestPayout(
     // Generate payout number
     const payoutNumber = await generatePayoutNumber(tenantId);
 
-    // Calculate fee (could be configurable later)
-    const fee = 0; // No fee for now
+    // Withdrawal fee — covers TRC20 gas (~$0.30) + small platform overhead
+    const WITHDRAWAL_FEE = 0.5;
+    const fee = WITHDRAWAL_FEE;
     const netAmount = amount - fee;
 
-    // Start transaction
+    if (netAmount <= 0) {
+      return {
+        success: false,
+        error: `Amount too small after ${fee} USDT withdrawal fee`,
+      };
+    }
+
+    // Entire balance check + deduction inside a single transaction
+    // with row-level locking to prevent double-withdrawal race condition
     const result = await db.transaction(async (tx) => {
+      // Lock the balance row and read it atomically
+      const [balance] = await tx
+        .select()
+        .from(sellerBalances)
+        .where(eq(sellerBalances.tenantId, tenantId))
+        .for("update"); // PostgreSQL row-level lock
+
+      if (!balance) {
+        throw new Error("Seller balance not found");
+      }
+
+      const availableBalance = parseFloat(balance.available);
+
+      // Check if enough balance (inside the lock)
+      if (amount > availableBalance) {
+        throw new Error(
+          `Insufficient balance. Available: ${availableBalance.toFixed(2)}`
+        );
+      }
+
       // Update balance: move from available to reserved
       const newAvailable = availableBalance - amount;
       const newReserved = parseFloat(balance.reserved) + amount;
@@ -410,7 +427,7 @@ export async function requestPayout(
         pendingAfter: balance.pending,
         reservedAfter: newReserved.toString(),
         payoutId: payout.id,
-        description: `Payout request ${payoutNumber}`,
+        description: `Payout request ${payoutNumber} (fee: ${fee} USDT)`,
         notes,
       });
 
@@ -604,7 +621,7 @@ export async function creditSellerEarnings(
   orderId: string,
   orderNumber: string,
   amount: number,
-  currency: string = "AFN",
+  currency: string = "USDT",
   gateway?: string
 ): Promise<ActionResult> {
   try {
@@ -666,7 +683,7 @@ export async function debitSellerEarningsForRefund(
   orderId: string,
   orderNumber: string,
   amount: number,
-  currency: string = "AFN"
+  currency: string = "USDT"
 ): Promise<ActionResult> {
   try {
     // Get seller balance
@@ -723,6 +740,348 @@ export async function debitSellerEarningsForRefund(
       success: false,
       error:
         error instanceof Error ? error.message : "Failed to debit earnings",
+    };
+  }
+}
+
+// =============================================================================
+// ADMIN PAYOUT PROCESSING
+// =============================================================================
+
+/**
+ * Admin: Mark a payout as processing (admin has seen it and will send)
+ */
+export async function adminMarkPayoutProcessing(
+  payoutId: string
+): Promise<ActionResult> {
+  try {
+    const user = await requireAuth();
+    const isAdmin = await isPlatformAdmin();
+    if (!isAdmin) {
+      return {
+        success: false,
+        error: "Only platform admin can process payouts",
+      };
+    }
+
+    const payout = await db.query.sellerPayouts.findFirst({
+      where: eq(sellerPayouts.id, payoutId),
+    });
+
+    if (!payout) {
+      return { success: false, error: "Payout not found" };
+    }
+
+    if (payout.status !== "pending") {
+      return { success: false, error: `Payout is already ${payout.status}` };
+    }
+
+    await db
+      .update(sellerPayouts)
+      .set({
+        status: "processing",
+        processedAt: new Date().toISOString(),
+        processedById: user.id,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(sellerPayouts.id, payoutId));
+
+    revalidatePath("/admin/payouts");
+    return { success: true };
+  } catch (error) {
+    console.error("[adminMarkPayoutProcessing] Error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to process",
+    };
+  }
+}
+
+/**
+ * Admin: Mark a payout as completed — funds have been sent
+ */
+export async function adminCompletePayout(
+  payoutId: string,
+  txHash?: string
+): Promise<ActionResult> {
+  try {
+    const user = await requireAuth();
+    const isAdmin = await isPlatformAdmin();
+    if (!isAdmin) {
+      return {
+        success: false,
+        error: "Only platform admin can complete payouts",
+      };
+    }
+
+    const payout = await db.query.sellerPayouts.findFirst({
+      where: eq(sellerPayouts.id, payoutId),
+    });
+
+    if (!payout) {
+      return { success: false, error: "Payout not found" };
+    }
+
+    if (payout.status !== "pending" && payout.status !== "processing") {
+      return {
+        success: false,
+        error: `Cannot complete payout in ${payout.status} status`,
+      };
+    }
+
+    const now = new Date().toISOString();
+
+    await db.transaction(async (tx) => {
+      // Update payout status
+      await tx
+        .update(sellerPayouts)
+        .set({
+          status: "completed",
+          completedAt: now,
+          processedById: user.id,
+          ...(txHash ? { cryptoTxHash: txHash, cryptoSentAt: now } : {}),
+          updatedAt: now,
+        })
+        .where(eq(sellerPayouts.id, payoutId));
+
+      // Move from reserved to paid out
+      const [balance] = await tx
+        .select()
+        .from(sellerBalances)
+        .where(eq(sellerBalances.tenantId, payout.tenantId))
+        .for("update");
+
+      if (balance) {
+        const payoutAmount = parseFloat(payout.amount);
+        const newReserved = Math.max(
+          0,
+          parseFloat(balance.reserved) - payoutAmount
+        );
+        const newLifetimePaidOut =
+          parseFloat(balance.lifetimePaidOut) + payoutAmount;
+
+        await tx
+          .update(sellerBalances)
+          .set({
+            reserved: newReserved.toString(),
+            lifetimePaidOut: newLifetimePaidOut.toString(),
+            updatedAt: now,
+          })
+          .where(eq(sellerBalances.tenantId, payout.tenantId));
+      }
+    });
+
+    revalidatePath("/admin/payouts");
+    return { success: true };
+  } catch (error) {
+    console.error("[adminCompletePayout] Error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to complete",
+    };
+  }
+}
+
+/**
+ * Admin: Reject/fail a payout — return funds to seller's available balance
+ */
+export async function adminRejectPayout(
+  payoutId: string,
+  reason: string
+): Promise<ActionResult> {
+  try {
+    const user = await requireAuth();
+    const isAdmin = await isPlatformAdmin();
+    if (!isAdmin) {
+      return {
+        success: false,
+        error: "Only platform admin can reject payouts",
+      };
+    }
+
+    const payout = await db.query.sellerPayouts.findFirst({
+      where: eq(sellerPayouts.id, payoutId),
+    });
+
+    if (!payout) {
+      return { success: false, error: "Payout not found" };
+    }
+
+    if (payout.status !== "pending" && payout.status !== "processing") {
+      return {
+        success: false,
+        error: `Cannot reject payout in ${payout.status} status`,
+      };
+    }
+
+    const now = new Date().toISOString();
+
+    await db.transaction(async (tx) => {
+      // Update payout status
+      await tx
+        .update(sellerPayouts)
+        .set({
+          status: "failed",
+          failedAt: now,
+          failureReason: reason,
+          processedById: user.id,
+          updatedAt: now,
+        })
+        .where(eq(sellerPayouts.id, payoutId));
+
+      // Return funds: move from reserved back to available
+      const [balance] = await tx
+        .select()
+        .from(sellerBalances)
+        .where(eq(sellerBalances.tenantId, payout.tenantId))
+        .for("update");
+
+      if (balance) {
+        const payoutAmount = parseFloat(payout.amount);
+        const newAvailable = parseFloat(balance.available) + payoutAmount;
+        const newReserved = Math.max(
+          0,
+          parseFloat(balance.reserved) - payoutAmount
+        );
+
+        await tx
+          .update(sellerBalances)
+          .set({
+            available: newAvailable.toString(),
+            reserved: newReserved.toString(),
+            updatedAt: now,
+          })
+          .where(eq(sellerBalances.tenantId, payout.tenantId));
+
+        // Create reversal transaction
+        await tx.insert(sellerTransactions).values({
+          tenantId: payout.tenantId,
+          type: "payout_reversal",
+          amount: payoutAmount.toString(),
+          currency: balance.currency,
+          availableAfter: newAvailable.toString(),
+          pendingAfter: balance.pending,
+          reservedAfter: newReserved.toString(),
+          payoutId: payout.id,
+          description: `Payout ${payout.payoutNumber} rejected: ${reason}`,
+        });
+      }
+    });
+
+    revalidatePath("/admin/payouts");
+    return { success: true };
+  } catch (error) {
+    console.error("[adminRejectPayout] Error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to reject",
+    };
+  }
+}
+
+// =============================================================================
+// PENDING → AVAILABLE MATURATION
+// =============================================================================
+
+/**
+ * Move matured pending earnings to available balance.
+ *
+ * Called by a cron job. For each tenant with pending balance, finds sale
+ * transactions older than payoutHoldDays and moves that amount from
+ * pending to available. Uses metadata flag to avoid double-processing.
+ */
+export async function maturePendingEarnings(): Promise<{
+  success: boolean;
+  matured: number;
+  error?: string;
+}> {
+  try {
+    // Get all tenants with pending balance > 0
+    const balancesWithPending = await db.query.sellerBalances.findMany({
+      where: and(
+        ne(sellerBalances.pending, "0"),
+        ne(sellerBalances.pending, "0.00")
+      ),
+    });
+
+    let matured = 0;
+
+    for (const balance of balancesWithPending) {
+      const holdDays = balance.payoutHoldDays;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - holdDays);
+
+      // Find unmatured sale transactions older than the hold period
+      const matureTransactions = await db.query.sellerTransactions.findMany({
+        where: and(
+          eq(sellerTransactions.tenantId, balance.tenantId),
+          eq(sellerTransactions.type, "sale"),
+          lte(sellerTransactions.createdAt, cutoffDate.toISOString())
+        ),
+      });
+
+      // Filter to only unprocessed ones
+      const unmatured = matureTransactions.filter(
+        (tx) => !(tx.metadata as Record<string, unknown> | null)?.matured
+      );
+
+      if (unmatured.length === 0) continue;
+
+      const amountToMature = unmatured.reduce(
+        (sum, tx) => sum + Math.max(0, parseFloat(tx.amount)),
+        0
+      );
+
+      if (amountToMature <= 0) continue;
+
+      await db.transaction(async (tx) => {
+        const [currentBalance] = await tx
+          .select()
+          .from(sellerBalances)
+          .where(eq(sellerBalances.tenantId, balance.tenantId))
+          .for("update");
+
+        if (!currentBalance) return;
+
+        const currentPending = parseFloat(currentBalance.pending);
+        const currentAvailable = parseFloat(currentBalance.available);
+        const actualMove = Math.min(amountToMature, currentPending);
+        if (actualMove <= 0) return;
+
+        await tx
+          .update(sellerBalances)
+          .set({
+            pending: (currentPending - actualMove).toFixed(2),
+            available: (currentAvailable + actualMove).toFixed(2),
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(sellerBalances.tenantId, balance.tenantId));
+
+        // Mark transactions as matured
+        for (const utx of unmatured) {
+          await tx
+            .update(sellerTransactions)
+            .set({
+              metadata: {
+                ...(utx.metadata as Record<string, unknown> | null),
+                matured: true,
+                maturedAt: new Date().toISOString(),
+              },
+            })
+            .where(eq(sellerTransactions.id, utx.id));
+        }
+      });
+
+      matured++;
+    }
+
+    return { success: true, matured };
+  } catch (error) {
+    console.error("[maturePendingEarnings] Error:", error);
+    return {
+      success: false,
+      matured: 0,
+      error: error instanceof Error ? error.message : "Failed to mature",
     };
   }
 }

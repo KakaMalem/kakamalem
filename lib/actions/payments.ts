@@ -144,7 +144,7 @@ export async function createOrderPaymentSession(
       }
     } else {
       // Stripe and other gateways: charge in store's base currency
-      paymentCurrency = order.currencyCode || "AFN";
+      paymentCurrency = order.currencyCode || "USDT";
       paymentAmount = parseFloat(order.amountDue || order.total);
     }
 
@@ -383,9 +383,9 @@ async function markOrderAsPaid(
   const paymentCurrency = (
     paymentInfo.currency ||
     order.currencyCode ||
-    "AFN"
+    "USDT"
   ).toUpperCase();
-  const orderCurrency = (order.currencyCode || "AFN").toUpperCase();
+  const orderCurrency = (order.currencyCode || "USDT").toUpperCase();
   const orderTotal = parseFloat(order.total);
 
   // Convert payment amount to order's currency if they differ
@@ -993,7 +993,7 @@ export async function confirmCODPayment(
       tenantId: order.tenantId,
       type: "payment",
       amount: order.amountDue || order.total,
-      currencyCode: order.currencyCode || "AFN",
+      currencyCode: order.currencyCode || "USDT",
       paymentMethod: "cash",
       status: "completed",
       gateway: "cod",

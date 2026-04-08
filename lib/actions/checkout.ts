@@ -1185,7 +1185,7 @@ export async function createOrderAction(
       where: eq(tenants.id, tenantId),
       columns: { currency: true },
     });
-    const storeCurrency = tenantForCurrency?.currency || "AFN";
+    const storeCurrency = tenantForCurrency?.currency || "USDT";
 
     try {
       const order = await withTransaction(async (tx) => {

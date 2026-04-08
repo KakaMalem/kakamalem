@@ -205,7 +205,7 @@ export async function GET(
     const storeSettings = {
       tenantId: tenant.id,
       storeName: tenant.name,
-      currency: tenant.currency ?? "AFN",
+      currency: tenant.currency ?? "USDT",
       storePhone: tenant.contactPhone,
       receiptFooterText: tenant.receiptFooterText,
       posScannerMode: tenant.posScannerMode ?? "camera",

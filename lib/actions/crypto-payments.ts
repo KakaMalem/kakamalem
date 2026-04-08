@@ -159,7 +159,7 @@ export async function createCryptoPaymentSession(
         orderId: order.id,
         gateway: "crypto_usdt",
         amount: orderTotal.toString(),
-        currency: "AFN",
+        currency: "USDT",
         status: "pending",
         expiresAt: expiresAt.toISOString(),
         gatewaySessionId: `crypto_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
@@ -542,7 +542,7 @@ export async function verifyCryptoPayment(
           tenantId: session.tenantId,
           type: "payment",
           amount: session.amount,
-          currencyCode: "AFN",
+          currencyCode: "USDT",
           paymentMethod: "card", // Use card as crypto is digital payment
           status: "completed",
           gateway: "crypto_usdt",
@@ -586,7 +586,7 @@ export async function verifyCryptoPayment(
             order.id,
             order.orderNumber,
             orderTotal,
-            order.currencyCode || "AFN",
+            order.currencyCode || "USDT",
             "crypto_usdt"
           );
         }

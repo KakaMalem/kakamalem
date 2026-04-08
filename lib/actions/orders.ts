@@ -174,7 +174,7 @@ export async function updateOrderStatus(
             orderId: order.id,
             customerName: customerSnapshot?.name || "Customer",
             total: order.total,
-            currency: "AFN",
+            currency: "USDT",
             storeName: tenant.name,
             reason: staffNote?.trim(),
           },

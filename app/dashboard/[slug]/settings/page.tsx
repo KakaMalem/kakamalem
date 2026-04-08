@@ -45,7 +45,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         description: store.description || "",
         contactEmail: store.contactEmail || "",
         contactPhone: store.contactPhone || "",
-        currency: (store.currency as "AFN" | "USD") || "AFN",
+        currency: store.currency || "USDT",
         slug: store.slug,
       }}
     />

@@ -28,6 +28,7 @@ export type StoreInfo = {
   name: string;
   logoUrl?: string | null;
   posEnabled?: boolean;
+  currency?: string;
   userRole?: "owner" | "admin" | "staff" | null;
 };
 

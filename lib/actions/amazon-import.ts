@@ -88,7 +88,7 @@ export async function scrapeAmazonProductAction(
     if (
       product.price !== null &&
       product.currency &&
-      product.currency !== "AFN"
+      product.currency !== "USDT"
     ) {
       try {
         const rates = await getExchangeRates();

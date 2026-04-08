@@ -41,8 +41,8 @@ interface LocationPickerProps {
   showClearButton?: boolean;
 }
 
-// Default center is Kabul, Afghanistan
-const DEFAULT_CENTER = { lat: 34.5553, lng: 69.2075 };
+// Default center is London, UK (company HQ)
+const DEFAULT_CENTER = { lat: 51.5074, lng: -0.1278 };
 const DEFAULT_ZOOM = 12;
 
 export function LocationPicker({

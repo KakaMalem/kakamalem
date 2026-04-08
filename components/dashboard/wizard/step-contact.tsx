@@ -9,29 +9,13 @@ import {
   FieldError,
   FieldDescription,
 } from "@/components/ui/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  currencyOptions,
-  type CreateStoreInput,
-} from "@/lib/validations/stores";
-import {
-  currencyInfo,
-  type SupportedCurrency,
-} from "@/lib/currency/country-currency";
+import type { CreateStoreInput } from "@/lib/validations/stores";
 
 interface StepContactProps {
   contactEmail: string;
   contactPhone: string;
-  currency: string;
   onContactEmailChange: (value: string) => void;
   onContactPhoneChange: (value: string) => void;
-  onCurrencyChange: (value: string) => void;
   fieldErrors: Partial<Record<keyof CreateStoreInput, string>>;
   disabled?: boolean;
 }
@@ -39,10 +23,8 @@ interface StepContactProps {
 export function StepContact({
   contactEmail,
   contactPhone,
-  currency,
   onContactEmailChange,
   onContactPhoneChange,
-  onCurrencyChange,
   fieldErrors,
   disabled,
 }: StepContactProps) {
@@ -80,32 +62,6 @@ export function StepContact({
           aria-invalid={!!fieldErrors.contactPhone}
         />
         <FieldError>{fieldErrors.contactPhone}</FieldError>
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor="currency">Store currency</FieldLabel>
-        <Select
-          value={currency}
-          onValueChange={onCurrencyChange}
-          disabled={disabled}
-        >
-          <SelectTrigger id="currency">
-            <SelectValue placeholder="Select currency" />
-          </SelectTrigger>
-          <SelectContent>
-            {currencyOptions.map((code) => {
-              const info = currencyInfo[code as SupportedCurrency];
-              return (
-                <SelectItem key={code} value={code}>
-                  {info ? `${info.symbol} ${code} - ${info.name}` : code}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-        <FieldDescription>
-          The currency used for pricing products
-        </FieldDescription>
       </Field>
     </motion.div>
   );

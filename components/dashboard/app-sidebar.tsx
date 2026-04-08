@@ -116,9 +116,12 @@ export function AppSidebar({
     return currentStore ?? null;
   }, [storeSlug, stores, currentStore]);
 
-  // Derive posEnabled and userRole from current store
+  // Derive posEnabled, userRole, and currency from current store
   const posEnabled = currentStoreData?.posEnabled ?? true;
   const userRole = currentStoreData?.userRole ?? null;
+  const isCryptoStore =
+    currentStoreData?.currency === "USDT" ||
+    currentStoreData?.currency === "USDC";
 
   // Build store-specific URL prefix
   const baseUrl = storeSlug ? `/dashboard/${storeSlug}` : "/dashboard";
@@ -223,7 +226,7 @@ export function AppSidebar({
   // Subscription info for upgrade section
   const subscription = useSubscription();
   const isPro = subscription?.plan === "pro";
-  const showUpgrade = subscription && !isPro && storeSlug;
+  const showUpgrade = subscription && !isPro && storeSlug && !isCryptoStore;
   const productUsagePercent =
     subscription?.productLimit && subscription.productLimit > 0
       ? (subscription.productCount / subscription.productLimit) * 100
@@ -393,7 +396,7 @@ export function AppSidebar({
       )}
 
       <SidebarFooter>
-        <UserNav user={user} />
+        <UserNav user={user} hideBilling={isCryptoStore} />
       </SidebarFooter>
 
       <SidebarRail />

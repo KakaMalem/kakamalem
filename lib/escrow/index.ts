@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { escrowTransactions, disputes, orders } from "@/lib/db/schema";
 import { eq, and, lte } from "drizzle-orm";
+import { creditSellerEarnings } from "@/lib/actions/earnings";
 import {
   AUTO_RELEASE_DAYS,
   type EscrowResult,
@@ -187,13 +188,21 @@ export async function confirmDeliveryAndRelease(
       .where(eq(escrowTransactions.id, escrowId));
 
     // Update order status
-    await db
+    const [updatedOrder] = await db
       .update(orders)
       .set({ status: "delivered" })
-      .where(eq(orders.id, escrow.orderId));
+      .where(eq(orders.id, escrow.orderId))
+      .returning({ orderNumber: orders.orderNumber });
 
-    // TODO: Trigger actual crypto transfer to seller wallet
-    // For now, admin does this manually and updates sellerPayoutTxHash
+    // Credit seller earnings
+    await creditSellerEarnings(
+      escrow.tenantId,
+      escrow.orderId,
+      updatedOrder?.orderNumber || "",
+      payout,
+      escrow.currency.toUpperCase(),
+      "crypto_escrow"
+    );
 
     return { success: true, data: undefined };
   } catch (error) {
@@ -302,6 +311,8 @@ export async function resolveDispute(
     const newEscrowStatus =
       input.resolution === "buyer" ? "resolved_buyer" : "resolved_seller";
 
+    let sellerPayout = 0;
+
     await db.transaction(async (tx) => {
       // Update dispute
       await tx
@@ -320,14 +331,14 @@ export async function resolveDispute(
         const amount = parseFloat(escrow.amount);
         const feePercent = parseFloat(escrow.platformFeePercent);
         const fee = amount * (feePercent / 100);
-        const payout = amount - fee;
+        sellerPayout = amount - fee;
 
         await tx
           .update(escrowTransactions)
           .set({
             status: newEscrowStatus,
             platformFee: fee.toFixed(8),
-            sellerPayout: payout.toFixed(8),
+            sellerPayout: sellerPayout.toFixed(8),
             releasedAt: now,
             updatedAt: now,
           })
@@ -345,6 +356,22 @@ export async function resolveDispute(
           .where(eq(escrowTransactions.id, escrow.id));
       }
     });
+
+    // Credit seller earnings if resolved in seller's favor
+    if (input.resolution === "seller" && sellerPayout > 0) {
+      const order = await db.query.orders.findFirst({
+        where: eq(orders.id, escrow.orderId),
+        columns: { orderNumber: true },
+      });
+      await creditSellerEarnings(
+        escrow.tenantId,
+        escrow.orderId,
+        order?.orderNumber || "",
+        sellerPayout,
+        escrow.currency.toUpperCase(),
+        "crypto_escrow"
+      );
+    }
 
     return { success: true, data: undefined };
   } catch (error) {
@@ -391,10 +418,21 @@ export async function processAutoReleases(): Promise<
         })
         .where(eq(escrowTransactions.id, escrow.id));
 
-      await db
+      const [updatedOrder] = await db
         .update(orders)
         .set({ status: "delivered" })
-        .where(eq(orders.id, escrow.orderId));
+        .where(eq(orders.id, escrow.orderId))
+        .returning({ orderNumber: orders.orderNumber });
+
+      // Credit seller earnings
+      await creditSellerEarnings(
+        escrow.tenantId,
+        escrow.orderId,
+        updatedOrder?.orderNumber || "",
+        payout,
+        escrow.currency.toUpperCase(),
+        "crypto_escrow"
+      );
 
       released++;
     }

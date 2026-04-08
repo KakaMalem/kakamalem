@@ -86,20 +86,18 @@ export async function getGatewayConfig(
 }
 
 /**
- * Default payment gateways available to all stores (platform-level)
+ * Default payment gateways for new stores (crypto only).
+ * Legacy stores with Stripe/HesabPay/COD configs keep their own settings.
  */
 const DEFAULT_ENABLED_GATEWAYS: EnabledGateway[] = [
   {
-    gateway: "hesabpay",
-    displayName: "Pay with Card (HesabPay)",
-    description: "Secure online payment via HesabPay",
+    gateway: "crypto_usdt",
+    displayName: "Pay with Crypto (USDT)",
+    description: "Pay securely with USDT on TRC20 network",
     displayOrder: 0,
-  },
-  {
-    gateway: "cod",
-    displayName: "Cash on Delivery",
-    description: "Pay when you receive your order",
-    displayOrder: 1,
+    cryptoNetworks: [
+      { network: "trc20", label: "TRC20 (Tron)", feeHint: "~$0.30" },
+    ],
   },
 ];
 

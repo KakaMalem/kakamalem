@@ -77,6 +77,7 @@ const PAYMENT_GATEWAYS: Array<{
 
 interface PaymentSettingsFormProps {
   storeId: string;
+  storeCurrency: string;
   stripeEnabled: boolean;
   cryptoEnabled: boolean;
   initialConfigs: {
@@ -105,15 +106,21 @@ function getInitialDefault(
 
 export function PaymentSettingsForm({
   storeId,
+  storeCurrency,
   stripeEnabled,
   cryptoEnabled,
   initialConfigs,
 }: PaymentSettingsFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const isCryptoStore = storeCurrency === "USDT" || storeCurrency === "USDC";
 
   // Filter gateways based on availability
   const availableGateways = PAYMENT_GATEWAYS.filter((gw) => {
+    // Crypto stores: only show crypto_usdt
+    if (isCryptoStore && gw.gateway !== "crypto_usdt") {
+      return false;
+    }
     // Stripe is only available if configured at platform level
     if (gw.gateway === "stripe" && !stripeEnabled) {
       return false;

@@ -63,6 +63,7 @@ export default async function DashboardLayout({
     name: store.name,
     logoUrl: store.logoUrl,
     posEnabled: store.posEnabled,
+    currency: store.currency,
     userRole: store.userRole,
   }));
 

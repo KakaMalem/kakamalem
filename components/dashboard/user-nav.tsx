@@ -52,9 +52,10 @@ interface UserNavProps {
     fullName?: string;
     avatarUrl?: string;
   };
+  hideBilling?: boolean;
 }
 
-export function UserNav({ user }: UserNavProps) {
+export function UserNav({ user, hideBilling = false }: UserNavProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -184,12 +185,14 @@ export function UserNav({ user }: UserNavProps) {
                       Store Settings
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild onClick={closeSidebarOnMobile}>
-                    <Link href={`${baseUrl}/billing`}>
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Billing
-                    </Link>
-                  </DropdownMenuItem>
+                  {!hideBilling && (
+                    <DropdownMenuItem asChild onClick={closeSidebarOnMobile}>
+                      <Link href={`${baseUrl}/billing`}>
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Billing
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
             </DropdownMenuGroup>

@@ -45,6 +45,7 @@ export async function getUserStores(userId: string) {
         name: true,
         logoUrl: true,
         posEnabled: true,
+        currency: true,
         ownerId: true,
         createdAt: true,
       },

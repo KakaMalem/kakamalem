@@ -117,7 +117,7 @@ export function StoreActionsClient({
   const [paymentMonths, setPaymentMonths] = useState(1);
   const [paymentAmount, setPaymentAmount] = useState(settings.proPlanPriceAfn);
   const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethod>("mobile_money");
+    useState<PaymentMethod>("bank_transfer");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [shouldCreateInvoice, setShouldCreateInvoice] = useState(true);

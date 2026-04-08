@@ -120,7 +120,16 @@ export const useCurrencyStore = create<CurrencyState>()(
       },
 
       setStoreCurrency: (currency) => {
-        set({ storeCurrency: currency });
+        // Crypto stores: lock display currency to store currency (no conversion)
+        if (currency === "USDT" || currency === "USDC") {
+          set({
+            storeCurrency: currency,
+            currency: currency as SupportedCurrency,
+            currencySource: currency as SupportedCurrency,
+          });
+        } else {
+          set({ storeCurrency: currency });
+        }
       },
 
       setRates: (rates) => {
@@ -164,6 +173,11 @@ export const useCurrencyStore = create<CurrencyState>()(
       convert: (amount) => {
         const { currency, storeCurrency, rates } = get();
 
+        // Crypto stores: never convert
+        if (storeCurrency === "USDT" || storeCurrency === "USDC") {
+          return amount;
+        }
+
         // No conversion needed if same currency
         if (currency === storeCurrency) {
           return amount;
@@ -188,10 +202,20 @@ export const useCurrencyStore = create<CurrencyState>()(
         const { currency, storeCurrency, convert } = get();
         const converted = convert(amount);
 
-        const info = currencyInfo[currency];
+        // Crypto stores: always format in store currency
+        const displayCurrency =
+          storeCurrency === "USDT" || storeCurrency === "USDC"
+            ? storeCurrency
+            : currency;
+
+        const info = currencyInfo[displayCurrency as SupportedCurrency];
         const decimals = info?.decimals ?? 2;
 
-        const formatted = formatWithCurrency(converted, currency, decimals);
+        const formatted = formatWithCurrency(
+          converted,
+          displayCurrency,
+          decimals
+        );
 
         // Optionally show original amount in store currency
         if (showOriginal && currency !== storeCurrency) {

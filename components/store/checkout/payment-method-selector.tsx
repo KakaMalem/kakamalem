@@ -48,13 +48,16 @@ const PAYMENT_BADGES: Record<
   crypto_usdt: { text: "Crypto", variant: "info" },
 };
 
-// Fallback payment methods if none configured
+// Fallback payment method if none configured — crypto only for new stores
 const FALLBACK_METHODS: EnabledGateway[] = [
   {
-    gateway: "cod",
-    displayName: "Cash on Delivery",
-    description: "Pay when you receive your order",
+    gateway: "crypto_usdt",
+    displayName: "Pay with Crypto (USDT)",
+    description: "Pay securely with USDT on TRC20 network",
     displayOrder: 0,
+    cryptoNetworks: [
+      { network: "trc20", label: "TRC20 (Tron)", feeHint: "~$0.30" },
+    ],
   },
 ];
 

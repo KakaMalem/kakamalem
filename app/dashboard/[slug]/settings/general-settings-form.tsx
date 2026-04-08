@@ -8,13 +8,6 @@ import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -30,16 +23,11 @@ import {
 } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, AlertTriangle, Check } from "lucide-react";
+import { AlertCircle, Check } from "lucide-react";
 import {
   generalSettingsSchema,
-  currencyOptions,
   type GeneralSettingsInput,
 } from "@/lib/validations/stores";
-import {
-  currencyInfo,
-  type SupportedCurrency,
-} from "@/lib/currency/country-currency";
 import { updateGeneralSettings } from "@/lib/actions/stores";
 import { ZodError } from "zod";
 
@@ -281,66 +269,6 @@ export function GeneralSettingsForm({
             />
             <FieldError>{fieldErrors.contactPhone}</FieldError>
           </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Currency</CardTitle>
-          <CardDescription>
-            The base currency for your product prices and store admin. Customers
-            can still browse in their preferred currency — prices are
-            automatically converted at checkout.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Field>
-            <Select
-              value={formData.currency}
-              onValueChange={(value) => updateField("currency", value)}
-              disabled={isPending}
-            >
-              <SelectTrigger className="w-full max-w-xs">
-                <SelectValue placeholder="Select currency" />
-              </SelectTrigger>
-              <SelectContent>
-                {currencyOptions.map((code) => {
-                  const info = currencyInfo[code as SupportedCurrency];
-                  return (
-                    <SelectItem key={code} value={code}>
-                      {info ? `${info.symbol} ${code} - ${info.name}` : code}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-            <FieldError>{fieldErrors.currency}</FieldError>
-          </Field>
-
-          {formData.currency !== initialData.currency && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="space-y-2">
-                <p className="font-medium">
-                  Changing your store currency from {initialData.currency} to{" "}
-                  {formData.currency}
-                </p>
-                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                  <li>
-                    Product prices will <strong>not</strong> be automatically
-                    converted — you will need to update them manually
-                  </li>
-                  <li>
-                    Existing orders will remain in their original currency
-                  </li>
-                  <li>
-                    International customers will continue to see prices
-                    converted to their preferred currency automatically
-                  </li>
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
         </CardContent>
         <CardFooter className="border-t pt-6">
           <Button type="submit" disabled={isPending}>

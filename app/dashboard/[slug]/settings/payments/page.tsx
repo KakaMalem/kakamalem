@@ -54,6 +54,7 @@ export default async function PaymentSettingsPage({
   return (
     <PaymentSettingsForm
       storeId={store.id}
+      storeCurrency={store.currency}
       stripeEnabled={stripeEnabled}
       cryptoEnabled={cryptoEnabled}
       initialConfigs={{

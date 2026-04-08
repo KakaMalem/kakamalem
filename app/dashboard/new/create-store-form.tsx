@@ -14,7 +14,6 @@ import {
   StepIndicator,
   StepTitle,
   StorePreviewCard,
-  StepStoreType,
   StepBasicInfo,
   StepBranding,
   StepContact,
@@ -147,10 +146,6 @@ export function CreateStoreForm({
   }, []);
 
   // Field update handlers
-  const updateStoreMode = (mode: StoreMode) => {
-    setFormData((prev) => ({ ...prev, storeMode: mode }));
-  };
-
   const updateName = (value: string) => {
     setFormData((prev) => ({ ...prev, name: value }));
     if (fieldErrors.name) {
@@ -198,10 +193,6 @@ export function CreateStoreForm({
     if (fieldErrors.contactPhone) {
       setFieldErrors((prev) => ({ ...prev, contactPhone: undefined }));
     }
-  };
-
-  const updateCurrency = (value: string) => {
-    setFormData((prev) => ({ ...prev, currency: value }));
   };
 
   // Handle logo upload
@@ -260,7 +251,7 @@ export function CreateStoreForm({
   const validateStep = (step: number): boolean => {
     const errors: Partial<Record<keyof CreateStoreInput, string>> = {};
 
-    if (step === 1) {
+    if (step === 0) {
       if (!formData.name || formData.name.length < 2) {
         errors.name = "Store name must be at least 2 characters";
       }
@@ -276,7 +267,7 @@ export function CreateStoreForm({
       }
     }
 
-    if (step === 3) {
+    if (step === 2) {
       if (
         formData.contactEmail &&
         !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)
@@ -301,7 +292,7 @@ export function CreateStoreForm({
     e.stopPropagation();
     if (validateStep(currentStep)) {
       setDirection(1);
-      setCurrentStep((prev) => Math.min(prev + 1, 3));
+      setCurrentStep((prev) => Math.min(prev + 1, 2));
     }
   };
 
@@ -312,17 +303,17 @@ export function CreateStoreForm({
 
   const skipStep = () => {
     setDirection(1);
-    setCurrentStep((prev) => Math.min(prev + 1, 3));
+    setCurrentStep((prev) => Math.min(prev + 1, 2));
   };
 
-  // Steps 2 (Branding), and 3 (Contact) are optional
-  const isOptionalStep = currentStep >= 2 && currentStep <= 3;
+  // Steps 1 (Branding) and 2 (Contact) are optional
+  const isOptionalStep = currentStep >= 1;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    // Only allow submission on the final step (Step 3: Contact)
-    if (currentStep !== 3) return;
+    // Only allow submission on the final step (Step 2: Contact)
+    if (currentStep !== 2) return;
 
     if (!validateStep(currentStep)) return;
 
@@ -382,7 +373,7 @@ export function CreateStoreForm({
   }
 
   // Determine if we should show the preview card (steps 1-3)
-  const showPreview = currentStep >= 1;
+  const showPreview = currentStep >= 0;
 
   return (
     <div className="space-y-8">
@@ -418,17 +409,8 @@ export function CreateStoreForm({
               exit="exit"
               transition={{ duration: 0.25, ease: "easeInOut" }}
             >
-              {/* Step 0: Store Type */}
+              {/* Step 0: Basic Info */}
               {currentStep === 0 && (
-                <StepStoreType
-                  value={formData.storeMode}
-                  onChange={updateStoreMode}
-                  disabled={isPending}
-                />
-              )}
-
-              {/* Step 1: Basic Info */}
-              {currentStep === 1 && (
                 <StepBasicInfo
                   name={formData.name}
                   slug={formData.slug}
@@ -443,8 +425,8 @@ export function CreateStoreForm({
                 />
               )}
 
-              {/* Step 2: Branding */}
-              {currentStep === 2 && (
+              {/* Step 1: Branding */}
+              {currentStep === 1 && (
                 <StepBranding
                   logoUrl={logo?.url || null}
                   headerDisplay={formData.headerDisplay}
@@ -455,15 +437,13 @@ export function CreateStoreForm({
                 />
               )}
 
-              {/* Step 3: Contact */}
-              {currentStep === 3 && (
+              {/* Step 2: Contact */}
+              {currentStep === 2 && (
                 <StepContact
                   contactEmail={formData.contactEmail}
                   contactPhone={formData.contactPhone}
-                  currency={formData.currency}
                   onContactEmailChange={updateContactEmail}
                   onContactPhoneChange={updateContactPhone}
-                  onCurrencyChange={updateCurrency}
                   fieldErrors={fieldErrors}
                   disabled={isPending}
                 />
@@ -489,7 +469,7 @@ export function CreateStoreForm({
 
             <div className="flex items-center gap-2">
               {/* Skip button for optional steps (2, 3) - but not on final step */}
-              {isOptionalStep && currentStep < 3 && (
+              {isOptionalStep && currentStep < 2 && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -501,7 +481,7 @@ export function CreateStoreForm({
                 </Button>
               )}
 
-              {currentStep < 3 ? (
+              {currentStep < 2 ? (
                 <Button
                   type="button"
                   onClick={(e) => nextStep(e)}
@@ -513,7 +493,7 @@ export function CreateStoreForm({
               ) : (
                 <Button type="submit" disabled={isPending}>
                   {isPending && <Spinner className="mr-2" />}
-                  {isPending ? "Creating store..." : "Create store"}
+                  {isPending ? "Setting up..." : "Start selling"}
                 </Button>
               )}
             </div>
