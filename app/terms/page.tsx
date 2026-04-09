@@ -71,8 +71,8 @@ export default function TermsPage() {
             <ol className="list-decimal space-y-1.5 pl-5">
               <li>Seller lists products on their storefront.</li>
               <li>
-                Buyer pays in cryptocurrency (USDT/USDC) &mdash; funds are held
-                in Kaka Malem&apos;s escrow wallet.
+                Buyer pays in USDT (TRC20) &mdash; funds are held in Kaka
+                Malem&apos;s escrow wallet.
               </li>
               <li>Seller ships the order and uploads a tracking number.</li>
               <li>
