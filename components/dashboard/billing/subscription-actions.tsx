@@ -161,10 +161,6 @@ export function SubscriptionActions({
                       {subscription.daysRemainingInPeriod !== 1 ? "s" : ""}.
                     </span>
                   )}
-                <span className="block">
-                  After that, your store will be downgraded to the Free plan
-                  with a {subscription.freeProductLimit}-product limit.
-                </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

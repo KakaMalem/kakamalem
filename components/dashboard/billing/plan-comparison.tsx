@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Check, Crown, Zap } from "lucide-react";
 import {
   Card,
@@ -9,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SubscriptionOverview } from "@/lib/db/queries/billing";
 
@@ -40,30 +38,16 @@ export function PlanComparison({
   subscription,
   currency,
   tenantId: _tenantId,
-  storeSlug,
+  storeSlug: _storeSlug,
 }: PlanComparisonProps) {
-  const router = useRouter();
-
   const isPro = subscription.plan === "pro";
   const isActivePro = isPro && subscription.status === "active";
-  const showUpgrade =
-    !isActivePro &&
-    (subscription.status === "trialing" ||
-      subscription.status === "expired" ||
-      subscription.status === "active" ||
-      subscription.status === "cancelled" ||
-      subscription.status === "past_due");
-
-  const handleUpgrade = () => {
-    // Navigate to upgrade page for payment method selection
-    router.push(`/dashboard/${storeSlug}/billing/upgrade`);
-  };
 
   return (
     <Card>
       <CardHeader className="pb-4">
-        <CardTitle>Choose Your Plan</CardTitle>
-        <CardDescription>Simple pricing. Upgrade anytime.</CardDescription>
+        <CardTitle>Plan</CardTitle>
+        <CardDescription>Your current plan details.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Plan Cards - Stack on mobile, side by side on tablet+, constrained on desktop */}
@@ -117,15 +101,10 @@ export function PlanComparison({
               </li>
             </ul>
 
-            {!isPro && subscription.status !== "trialing" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4 w-full"
-                disabled
-              >
+            {!isPro && (
+              <div className="mt-4 rounded-md bg-muted/50 px-3 py-1.5 text-center text-xs font-medium text-muted-foreground">
                 Current Plan
-              </Button>
+              </div>
             )}
           </div>
 
@@ -181,21 +160,10 @@ export function PlanComparison({
               </li>
             </ul>
 
-            {showUpgrade && (
-              <Button size="sm" className="mt-4 w-full" onClick={handleUpgrade}>
-                <Crown className="mr-1.5 size-3.5" />
-                {isPro ? "Reactivate Pro" : "Upgrade to Pro"}
-              </Button>
-            )}
             {isActivePro && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4 w-full"
-                disabled
-              >
+              <div className="mt-4 rounded-md bg-muted/50 px-3 py-1.5 text-center text-xs font-medium text-muted-foreground">
                 Current Plan
-              </Button>
+              </div>
             )}
           </div>
         </div>
@@ -215,28 +183,6 @@ export function PlanComparison({
             ))}
           </div>
         </div>
-
-        {/* Upgrade CTA - Only for non-Pro users */}
-        {showUpgrade && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 p-3">
-            <p className="text-xs">
-              <span className="font-medium">Ready to upgrade?</span>{" "}
-              <span className="text-muted-foreground">
-                Click the button above or contact us for help.
-              </span>
-            </p>
-            <div className="flex gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                asChild
-              >
-                <a href="mailto:kakamalem.team@gmail.com">Need Help?</a>
-              </Button>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

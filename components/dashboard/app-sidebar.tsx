@@ -17,7 +17,6 @@ import {
   Wallet,
   Tag,
   CalendarDays,
-  Crown,
   Globe,
 } from "lucide-react";
 
@@ -38,9 +37,6 @@ import {
 } from "@/components/ui/sidebar";
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
-import { Progress } from "@/components/ui/progress";
-import { UpgradeButton } from "@/components/dashboard/billing/upgrade-button";
-import { useSubscription } from "@/lib/stores/use-subscription-store";
 
 // NavLink component that closes mobile sidebar on navigation
 // Uses forwardRef to properly work with SidebarMenuButton's asChild prop
@@ -223,18 +219,6 @@ export function AppSidebar({
   // Check if user can access settings (owner or admin only)
   const showSettings = userRole === "owner" || userRole === "admin";
 
-  // Subscription info for upgrade section
-  const subscription = useSubscription();
-  const isPro = subscription?.plan === "pro";
-  const showUpgrade = subscription && !isPro && storeSlug && !isCryptoStore;
-  const productUsagePercent =
-    subscription?.productLimit && subscription.productLimit > 0
-      ? (subscription.productCount / subscription.productLimit) * 100
-      : 0;
-  const showTrialInfo =
-    subscription?.status === "trialing" &&
-    subscription?.daysRemainingInTrial !== null;
-
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -357,43 +341,6 @@ export function AppSidebar({
           </SidebarGroup>
         )}
       </SidebarContent>
-
-      {/* Upgrade section - shows when on Free plan */}
-      {showUpgrade && (
-        <>
-          <SidebarSeparator className="mx-0" />
-          <div className="p-3 group-data-[collapsible=icon]:hidden">
-            <div className="rounded-lg border bg-card p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium">Free Plan</span>
-                {showTrialInfo && (
-                  <span className="text-xs text-muted-foreground">
-                    {subscription.daysRemainingInTrial}d left
-                  </span>
-                )}
-              </div>
-
-              {/* Product usage */}
-              {subscription.productLimit !== null && (
-                <div className="mb-3">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">Products</span>
-                    <span className="font-medium">
-                      {subscription.productCount}/{subscription.productLimit}
-                    </span>
-                  </div>
-                  <Progress value={productUsagePercent} className="h-1.5" />
-                </div>
-              )}
-
-              <UpgradeButton storeSlug={storeSlug} className="w-full" size="sm">
-                <Crown className="mr-1.5 size-3.5" />
-                Upgrade to Pro
-              </UpgradeButton>
-            </div>
-          </div>
-        </>
-      )}
 
       <SidebarFooter>
         <UserNav user={user} hideBilling={isCryptoStore} />

@@ -1,17 +1,4 @@
 import { redirect } from "next/navigation";
-import { requireAuth } from "@/lib/auth/server";
-import { canManageStore } from "@/lib/auth/context";
-import { getTenantBySlug } from "@/lib/db/queries/tenants";
-import { getSubscriptionOverview } from "@/lib/db/queries/billing";
-import { getPlatformSettings } from "@/lib/db/queries/admin";
-import { isStripeEnabled, getProPricingInfo } from "@/lib/stripe";
-import { UpgradePageClient } from "./upgrade-page-client";
-
-// =============================================================================
-// PRO UPGRADE PAGE
-// =============================================================================
-// Payment method selection for upgrading to Pro plan
-// =============================================================================
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -19,83 +6,5 @@ interface PageProps {
 
 export default async function BillingUpgradePage({ params }: PageProps) {
   const { slug } = await params;
-
-  // Auth check
-  await requireAuth();
-
-  // Get tenant
-  const tenant = await getTenantBySlug(slug);
-  if (!tenant) {
-    redirect("/dashboard");
-  }
-
-  // Permission check
-  const canManage = await canManageStore(tenant.id);
-  if (!canManage) {
-    redirect("/dashboard");
-  }
-
-  // Get subscription overview
-  const subscription = await getSubscriptionOverview(tenant.id);
-  if (!subscription) {
-    redirect(`/dashboard/${slug}/billing`);
-  }
-
-  // Already active Pro? Redirect back to billing — unless:
-  // - They're on a non-Stripe plan approaching expiry (need to renew manually)
-  // - They're paused
-  // Cancelled, past_due, and expired Pro users can always access to re-subscribe
-  const isNonStripeRenewal =
-    !subscription.hasStripeSubscription &&
-    subscription.daysRemainingInPeriod !== null &&
-    subscription.daysRemainingInPeriod <= 14;
-
-  if (
-    subscription.plan === "pro" &&
-    subscription.status === "active" &&
-    !subscription.isPaused &&
-    !isNonStripeRenewal
-  ) {
-    redirect(`/dashboard/${slug}/billing`);
-  }
-
-  // Check available payment methods
-  const stripeEnabled = isStripeEnabled();
-  const stripePricing = stripeEnabled ? await getProPricingInfo() : null;
-
-  // Get platform settings for crypto configuration
-  const platformSettings = await getPlatformSettings();
-  const cryptoWalletConfig = platformSettings.usdtWalletConfig as {
-    trc20?: { address: string; enabled: boolean };
-    erc20?: { address: string; enabled: boolean };
-    bep20?: { address: string; enabled: boolean };
-  } | null;
-  // Check if any wallet is both enabled AND has an address configured
-  const cryptoEnabled =
-    !!cryptoWalletConfig &&
-    ((cryptoWalletConfig.trc20?.enabled &&
-      !!cryptoWalletConfig.trc20?.address) ||
-      (cryptoWalletConfig.erc20?.enabled &&
-        !!cryptoWalletConfig.erc20?.address) ||
-      (cryptoWalletConfig.bep20?.enabled &&
-        !!cryptoWalletConfig.bep20?.address));
-
-  // If no payment methods are available (shouldn't happen), redirect back
-  if (!stripeEnabled && !subscription.proPlanPriceAfn && !cryptoEnabled) {
-    redirect(`/dashboard/${slug}/billing`);
-  }
-
-  return (
-    <UpgradePageClient
-      tenantId={tenant.id}
-      storeSlug={slug}
-      storeName={tenant.name}
-      subscription={subscription}
-      stripeEnabled={stripeEnabled}
-      stripePriceInfo={stripePricing?.monthly ?? null}
-      stripeYearlyPriceInfo={stripePricing?.yearly ?? null}
-      cryptoEnabled={cryptoEnabled}
-      cryptoWalletConfig={cryptoWalletConfig}
-    />
-  );
+  redirect(`/dashboard/${slug}/billing`);
 }

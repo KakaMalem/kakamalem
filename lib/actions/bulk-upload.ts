@@ -198,14 +198,11 @@ export async function parseFileForPreview(
       }
     }
 
-    // Get subscription info for product limit checking
+    // Get current product count for informational display only (no limits enforced)
     const overview = await getSubscriptionOverview(tenantId);
     const currentProductCount = overview?.productCount ?? 0;
-    const productLimit = overview?.productLimit ?? null;
-    const canImportCount =
-      productLimit !== null
-        ? Math.max(0, productLimit - currentProductCount)
-        : Infinity;
+    const productLimit = null;
+    const canImportCount = Infinity;
 
     // Parse and validate each row
     const validatedRows: ValidatedRow[] = [];
@@ -260,13 +257,7 @@ export async function parseFileForPreview(
         }
       }
 
-      // Check product limit (only for main products, not variants)
       const isVariant = !!rowData.parent_product?.trim();
-      if (!isVariant && productLimit !== null && i >= canImportCount) {
-        errors.push(
-          `Product limit exceeded. Upgrade to Pro for unlimited products.`
-        );
-      }
 
       // Extract option values for variants
       const optionValues: Record<string, string> = {};

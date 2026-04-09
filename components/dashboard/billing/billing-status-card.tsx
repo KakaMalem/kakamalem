@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   Clock,
   CheckCircle,
@@ -9,7 +8,6 @@ import {
   Crown,
   Package,
   Calendar,
-  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -19,7 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { SubscriptionOverview } from "@/lib/db/queries/billing";
 import type { SubscriptionStatus } from "@/lib/db/schema";
@@ -85,7 +82,7 @@ function formatPrice(price: string | number, currency: string): string {
 export function BillingStatusCard({
   subscription,
   currency,
-  storeSlug,
+  storeSlug: _storeSlug,
 }: BillingStatusCardProps) {
   const config = STATUS_CONFIG[subscription.status];
   const StatusIcon = config.icon;
@@ -144,8 +141,7 @@ export function BillingStatusCard({
                 </p>
                 <p className="text-sm text-muted-foreground">
                   You have full access to all features during your{" "}
-                  {subscription.trialDurationDays}-day trial. Upgrade to Pro
-                  before it ends to continue using your store.
+                  {subscription.trialDurationDays}-day trial.
                 </p>
               </>
             )}
@@ -153,8 +149,7 @@ export function BillingStatusCard({
               <>
                 <p className="font-medium">Your Pro subscription is active</p>
                 <p className="text-sm text-muted-foreground">
-                  You have unlimited products and access to all premium
-                  features.
+                  You have access to all features.
                   {subscription.daysRemainingInPeriod !== null && (
                     <span>
                       {" "}
@@ -162,28 +157,13 @@ export function BillingStatusCard({
                     </span>
                   )}
                 </p>
-                {/* Renew Now prompt for non-Stripe users approaching expiry */}
-                {!subscription.hasStripeSubscription &&
-                  storeSlug &&
-                  subscription.daysRemainingInPeriod !== null &&
-                  subscription.daysRemainingInPeriod <= 14 && (
-                    <Link
-                      href={`/dashboard/${storeSlug}/billing/upgrade`}
-                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                    >
-                      <RefreshCw className="size-3" />
-                      Renew Now
-                    </Link>
-                  )}
               </>
             )}
             {subscription.status === "active" && !isPro && (
               <>
-                <p className="font-medium">Your free plan is active</p>
+                <p className="font-medium">Your store is active</p>
                 <p className="text-sm text-muted-foreground">
-                  You&apos;re on the free plan with up to{" "}
-                  {subscription.freeProductLimit} products. Upgrade to Pro for
-                  unlimited products.
+                  You have access to all features.
                 </p>
               </>
             )}
@@ -216,8 +196,8 @@ export function BillingStatusCard({
               <>
                 <p className="font-medium">Trial expired</p>
                 <p className="text-sm text-muted-foreground">
-                  Your trial has ended. Upgrade to Pro to continue using your
-                  store and access all features.
+                  Your trial has ended. Contact support to continue using your
+                  store.
                 </p>
               </>
             )}
@@ -266,42 +246,16 @@ export function BillingStatusCard({
             </p>
           </div>
 
-          {/* Product Usage */}
+          {/* Product Count */}
           <div className="rounded-lg border p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Package className="size-4" />
               <span>Products</span>
             </div>
             <p className="mt-1 text-2xl font-bold">
-              {subscription.productLimit !== null
-                ? `${subscription.productCount}/${subscription.productLimit}`
-                : subscription.productCount}
+              {subscription.productCount}
             </p>
-            {subscription.productLimit !== null ? (
-              <>
-                <Progress
-                  value={
-                    (subscription.productCount / subscription.productLimit) *
-                    100
-                  }
-                  className={cn(
-                    "mt-2 h-1.5",
-                    subscription.productLimitReached && "[&>div]:bg-red-500",
-                    subscription.productCount / subscription.productLimit >=
-                      0.8 &&
-                      !subscription.productLimitReached &&
-                      "[&>div]:bg-amber-500"
-                  )}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {subscription.productLimitReached
-                    ? "Limit reached"
-                    : `${subscription.productLimit - subscription.productCount} remaining`}
-                </p>
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">Unlimited</p>
-            )}
+            <p className="text-xs text-muted-foreground">Unlimited</p>
           </div>
 
           {/* Next Billing / Trial End */}

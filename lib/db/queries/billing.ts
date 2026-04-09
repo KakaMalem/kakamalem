@@ -164,11 +164,9 @@ export const getSubscriptionOverview = cache(
       );
     }
 
-    // Calculate product limit based on plan
-    const productLimit =
-      tenant.subscriptionPlan === "free" ? freeProductLimit : null;
-    const productLimitReached =
-      productLimit !== null && productCount >= productLimit;
+    // No product limits — all plans get unlimited products
+    const productLimit = null;
+    const productLimitReached = false;
 
     // Extract Stripe pricing
     const stripePriceInfo = stripePricingInfo?.monthly ?? null;
@@ -265,33 +263,10 @@ export function getPlanFeatures(freeProductLimit: number): PlanFeature[] {
 }
 
 /**
- * Check if a tenant can add more products based on their plan
+ * Check if a tenant can add more products — always allowed (no limits)
  */
 export const canAddProduct = cache(
-  async (tenantId: string): Promise<{ allowed: boolean; reason?: string }> => {
-    const overview = await getSubscriptionOverview(tenantId);
-
-    if (!overview) {
-      return { allowed: false, reason: "Store not found" };
-    }
-
-    // Check subscription status
-    if (overview.status === "expired") {
-      return {
-        allowed: false,
-        reason:
-          "Your trial has expired. Please upgrade to continue adding products.",
-      };
-    }
-
-    // Check product limit for free plan
-    if (overview.productLimitReached) {
-      return {
-        allowed: false,
-        reason: `You've reached the limit of ${overview.productLimit} products on the free plan. Upgrade to Pro for unlimited products.`,
-      };
-    }
-
+  async (_tenantId: string): Promise<{ allowed: boolean; reason?: string }> => {
     return { allowed: true };
   }
 );

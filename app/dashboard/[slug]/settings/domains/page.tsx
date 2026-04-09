@@ -42,12 +42,10 @@ export default async function DomainSettingsPage({
   // Fetch domain configuration
   const domainConfig = await getDomainConfig(slug);
   const dnsInstructions = await getDnsInstructions(slug);
-  const isPro = store.subscriptionPlan === "pro";
-
   return (
     <DomainSettings
       storeSlug={store.slug}
-      isPro={isPro}
+      isPro={true}
       domainConfig={domainConfig}
       dnsInstructions={dnsInstructions}
     />

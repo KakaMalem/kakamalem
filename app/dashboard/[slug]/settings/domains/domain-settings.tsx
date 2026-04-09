@@ -13,7 +13,6 @@ import {
   Shield,
   X,
   Loader2,
-  Crown,
 } from "lucide-react";
 import {
   Card,
@@ -24,7 +23,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { UpgradeButton } from "@/components/dashboard/billing/upgrade-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -59,14 +57,13 @@ import { useStoreUrl } from "@/lib/stores/use-tenant-settings-store";
 
 interface DomainSettingsProps {
   storeSlug: string;
-  isPro: boolean;
+  isPro?: boolean;
   domainConfig: DomainConfig | null;
   dnsInstructions: DnsInstructions | null;
 }
 
 export function DomainSettings({
   storeSlug,
-  isPro,
   domainConfig: initialConfig,
   dnsInstructions: initialInstructions,
 }: DomainSettingsProps) {
@@ -368,7 +365,7 @@ export function DomainSettings({
                 </p>
               )}
             </>
-          ) : isPro ? (
+          ) : (
             <>
               {/* Connect New Domain Form */}
               <div className="space-y-4">
@@ -427,26 +424,6 @@ export function DomainSettings({
                     SSL is provisioned automatically. Your store goes live.
                   </li>
                 </ol>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Pro Upgrade Prompt */}
-              <div className="flex flex-col items-center gap-4 py-6 text-center">
-                <div className="flex size-12 items-center justify-center rounded-full bg-amber-100">
-                  <Crown className="size-6 text-amber-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium">Pro Feature</h4>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Custom domains are available on the Pro plan. Connect your
-                    own domain like mybrand.com with free SSL.
-                  </p>
-                </div>
-                <UpgradeButton storeSlug={storeSlug}>
-                  <Crown className="mr-2 size-4" />
-                  Upgrade to Pro
-                </UpgradeButton>
               </div>
             </>
           )}
