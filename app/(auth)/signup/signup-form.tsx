@@ -15,9 +15,8 @@ import {
 } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { OAuthButton } from "@/components/auth/oauth-button";
-import { AuthStatusCard } from "@/components/auth/auth-status-card";
 import Link from "next/link";
 import { signupSchema, type SignupInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
@@ -148,31 +147,26 @@ export function SignupForm() {
   }
 
   if (success) {
-    // In development, show redirect message; in production, show email verification
     const isDev = process.env.NODE_ENV === "development";
     return (
-      <AuthStatusCard
-        variant="success"
-        title={isDev ? "Account created!" : "Check your email"}
-        description={
-          isDev
-            ? "Redirecting you to your dashboard..."
-            : "We've sent you a confirmation link. Please check your email to verify your account."
-        }
-        secondaryAction={
-          isDev
-            ? undefined
-            : {
-                label: "Back to login",
-                href: "/login",
-              }
-        }
-      >
+      <div className="space-y-6 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
+          <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+        </div>
+        <div className="space-y-1.5">
+          <h1 className="text-xl font-bold">
+            {isDev ? "Account created!" : "Check your email"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {isDev
+              ? "Redirecting you to your dashboard..."
+              : "We've sent a confirmation link to your email. Verify to get started."}
+          </p>
+        </div>
         {!isDev && (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Didn&apos;t receive the email? Check your spam folder or resend
-              it.
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Didn&apos;t get it? Check spam or resend.
             </p>
             <Button
               variant="outline"
@@ -190,124 +184,130 @@ export function SignupForm() {
                 "Resend verification email"
               )}
             </Button>
+            <div>
+              <Link
+                href="/login"
+                className="text-sm text-primary font-medium hover:underline"
+              >
+                Back to login
+              </Link>
+            </div>
           </div>
         )}
-      </AuthStatusCard>
+      </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <Link href="/" className="text-xl font-bold">
-            Kaka Malem
-          </Link>
-          <h1 className="text-2xl font-bold mt-6">Create your account</h1>
-          <p className="text-muted-foreground">
-            Start building your store today
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <Field>
-            <FieldLabel htmlFor="fullName">Full name</FieldLabel>
-            <Input
-              id="fullName"
-              name="fullName"
-              type="text"
-              autoComplete="name"
-              disabled={isPending}
-              placeholder="Your name"
-              aria-invalid={!!fieldErrors.fullName}
-            />
-            <FieldError>{fieldErrors.fullName}</FieldError>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              disabled={isPending}
-              placeholder="you@example.com"
-              aria-invalid={!!fieldErrors.email}
-            />
-            <FieldError>{fieldErrors.email}</FieldError>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-            <PasswordInput
-              id="password"
-              name="password"
-              autoComplete="new-password"
-              disabled={isPending}
-              placeholder="••••••••"
-              aria-invalid={!!fieldErrors.password}
-            />
-            {fieldErrors.password ? (
-              <FieldError>{fieldErrors.password}</FieldError>
-            ) : (
-              <FieldDescription>
-                Must contain uppercase, lowercase, and number (min 8 characters)
-              </FieldDescription>
-            )}
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
-            <PasswordInput
-              id="confirmPassword"
-              name="confirmPassword"
-              autoComplete="new-password"
-              disabled={isPending}
-              placeholder="••••••••"
-              aria-invalid={!!fieldErrors.confirmPassword}
-            />
-            <FieldError>{fieldErrors.confirmPassword}</FieldError>
-          </Field>
-
-          <Button type="submit" disabled={isPending} className="w-full">
-            {isPending && <Spinner />}
-            {isPending ? "Creating account..." : "Create account"}
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                OR
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <OAuthButton provider="google" redirectTo="/dashboard" />
-          </div>
-        </form>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link
-            href="/login"
-            className="text-primary font-medium hover:underline"
-          >
-            Sign in
-          </Link>
+    <div className="space-y-6">
+      <div className="space-y-1.5">
+        <h1 className="text-2xl font-bold tracking-tight">
+          Create your account
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Start selling with crypto in minutes
         </p>
       </div>
+
+      {/* OAuth first */}
+      <div className="space-y-3">
+        <OAuthButton provider="google" redirectTo="/dashboard" />
+      </div>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            or sign up with email
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <Field>
+          <FieldLabel htmlFor="fullName">Full name</FieldLabel>
+          <Input
+            id="fullName"
+            name="fullName"
+            type="text"
+            autoComplete="name"
+            disabled={isPending}
+            placeholder="Your name"
+            aria-invalid={!!fieldErrors.fullName}
+          />
+          <FieldError>{fieldErrors.fullName}</FieldError>
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            disabled={isPending}
+            placeholder="you@example.com"
+            aria-invalid={!!fieldErrors.email}
+          />
+          <FieldError>{fieldErrors.email}</FieldError>
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <PasswordInput
+            id="password"
+            name="password"
+            autoComplete="new-password"
+            disabled={isPending}
+            placeholder="••••••••"
+            aria-invalid={!!fieldErrors.password}
+          />
+          {fieldErrors.password ? (
+            <FieldError>{fieldErrors.password}</FieldError>
+          ) : (
+            <FieldDescription>
+              Min 8 characters with uppercase, lowercase, and number
+            </FieldDescription>
+          )}
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
+          <PasswordInput
+            id="confirmPassword"
+            name="confirmPassword"
+            autoComplete="new-password"
+            disabled={isPending}
+            placeholder="••••••••"
+            aria-invalid={!!fieldErrors.confirmPassword}
+          />
+          <FieldError>{fieldErrors.confirmPassword}</FieldError>
+        </Field>
+
+        <Button type="submit" disabled={isPending} className="w-full">
+          {isPending && <Spinner />}
+          {isPending ? "Creating account..." : "Create account"}
+        </Button>
+      </form>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link
+          href="/login"
+          className="text-primary font-medium hover:underline"
+        >
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }

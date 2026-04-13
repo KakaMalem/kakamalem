@@ -17,6 +17,8 @@ import { IncomingMessage } from "http";
 import { mkdir } from "fs/promises";
 import { Readable } from "stream";
 import { fileTypeFromFile } from "file-type";
+import { readFile } from "fs/promises";
+import { isSvgContent } from "@/lib/upload/svg-sanitizer";
 
 import {
   ALLOWED_MIMES,
@@ -182,14 +184,25 @@ export async function parseUploadRequest(
  * @returns Detected MIME type
  */
 async function detectMimeType(filepath: string): Promise<string> {
-  // Use file-type package for magic byte detection
+  // Use file-type package for magic byte detection (works for binary formats)
   const result = await fileTypeFromFile(filepath);
 
   if (result) {
     return result.mime;
   }
 
-  // SVG fallback intentionally removed - SVG can contain embedded JavaScript (XSS risk)
+  // SVG detection fallback — file-type can't detect SVGs since they're XML text.
+  // Read the first 500 bytes and check for SVG markers.
+  // SVGs are sanitized via DOMPurify before storage (see svg-sanitizer.ts).
+  try {
+    const head = await readFile(filepath, { encoding: "utf-8", flag: "r" });
+    if (isSvgContent(head)) {
+      return "image/svg+xml";
+    }
+  } catch {
+    // Ignore read errors — fall through to unknown
+  }
+
   // Unknown file type
   return "application/octet-stream";
 }

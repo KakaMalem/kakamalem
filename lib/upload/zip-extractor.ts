@@ -59,18 +59,14 @@ export async function extractProductZip(
       throw new Error(`ZIP contains too many files (max ${MAX_FILE_COUNT})`);
     }
 
+    // Pre-scan: check sizes from ZIP metadata where available
     for (const [rawPath, file] of Object.entries(zip.files)) {
-      // Normalize path separators (Windows creates ZIP with backslashes)
       const path = rawPath.replace(/\\/g, "/");
-
-      // Skip directories and macOS metadata
       if (file.dir || path.startsWith("__MACOSX/") || path.startsWith(".")) {
         continue;
       }
 
-      // Zip Bomb Protection: Check uncompressed size
-      // Note: _data is internal in JSZip but contains the size metadata
-      // If not available, we'll check after extraction
+      // Check uncompressed size from ZIP metadata (when available)
       const zipFileData = file as {
         _data?: { uncompressedSize?: number; compressedSize?: number };
       };
@@ -98,31 +94,52 @@ export async function extractProductZip(
           `Total uncompressed size exceeds limit of ${MAX_TOTAL_UNCOMPRESSED_SIZE / (1024 * 1024)}MB`
         );
       }
+    }
 
-      const pathLower = path.toLowerCase();
+    // Second pass: extract files with post-extraction size enforcement
+    // This catches cases where JSZip metadata was unavailable (sizes were 0)
+    let actualExtractedSize = 0;
+
+    for (const [rawPath, file] of Object.entries(zip.files)) {
+      const path = rawPath.replace(/\\/g, "/");
+
+      if (file.dir || path.startsWith("__MACOSX/") || path.startsWith(".")) {
+        continue;
+      }
+
       const filename = path.split("/").pop() || "";
       const filenameLower = filename.toLowerCase();
+      const pathLower = path.toLowerCase();
 
-      // Skip hidden files
       if (filename.startsWith(".")) {
         continue;
       }
 
-      // Check if file is at root level (no slash or only one level)
       const isRootLevel = !path.includes("/");
 
       // Find CSV/Excel at root level
       if (isRootLevel && isDataFile(filename)) {
         if (result.csvFile) {
-          // Already found one, warn about multiple
           result.errors.push(
             `Multiple data files found: ${result.csvFile.name} and ${filename}. Using first one.`
           );
         } else {
-          result.csvFile = {
-            name: filename,
-            data: await file.async("arraybuffer"),
-          };
+          const data = await file.async("arraybuffer");
+
+          // Post-extraction size check
+          if (data.byteLength > MAX_SINGLE_FILE_SIZE) {
+            throw new Error(
+              `File ${path} exceeded size limit after extraction (${(data.byteLength / (1024 * 1024)).toFixed(1)}MB)`
+            );
+          }
+          actualExtractedSize += data.byteLength;
+          if (actualExtractedSize > MAX_TOTAL_UNCOMPRESSED_SIZE) {
+            throw new Error(
+              `Total extracted size exceeds limit of ${MAX_TOTAL_UNCOMPRESSED_SIZE / (1024 * 1024)}MB`
+            );
+          }
+
+          result.csvFile = { name: filename, data };
         }
         continue;
       }
@@ -133,8 +150,22 @@ export async function extractProductZip(
       );
 
       if (isInImageFolder && isImageFile(filename)) {
-        // Store with lowercase filename for case-insensitive matching
-        result.images.set(filenameLower, await file.async("arraybuffer"));
+        const data = await file.async("arraybuffer");
+
+        // Post-extraction size check per file
+        if (data.byteLength > MAX_SINGLE_FILE_SIZE) {
+          throw new Error(
+            `Image ${filename} exceeded size limit after extraction (${(data.byteLength / (1024 * 1024)).toFixed(1)}MB)`
+          );
+        }
+        actualExtractedSize += data.byteLength;
+        if (actualExtractedSize > MAX_TOTAL_UNCOMPRESSED_SIZE) {
+          throw new Error(
+            `Total extracted size exceeds limit of ${MAX_TOTAL_UNCOMPRESSED_SIZE / (1024 * 1024)}MB`
+          );
+        }
+
+        result.images.set(filenameLower, data);
       }
     }
 

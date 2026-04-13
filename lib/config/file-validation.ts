@@ -21,7 +21,7 @@ export const ALLOWED_IMAGE_MIMES = [
   "image/avif",
   "image/x-icon",
   "image/vnd.microsoft.icon",
-  // SVG intentionally excluded - can contain embedded JavaScript (XSS risk)
+  "image/svg+xml", // SVGs are sanitized server-side via DOMPurify before storage
 ] as const;
 
 export const ALLOWED_DOCUMENT_MIMES = ["application/pdf"] as const;
@@ -49,7 +49,7 @@ export const ALLOWED_IMAGE_EXTENSIONS = [
   ".gif",
   ".avif",
   ".ico",
-  // .svg intentionally excluded - can contain embedded JavaScript (XSS risk)
+  ".svg", // SVGs are sanitized server-side via DOMPurify before storage
 ] as const;
 
 export const ALLOWED_DOCUMENT_EXTENSIONS = [
@@ -91,7 +91,7 @@ export const UPLOAD_ERROR_MESSAGES = {
   tooManyFiles: (max: number) =>
     `Too many files selected. Maximum ${max} files allowed at once`,
   invalidType:
-    "Invalid file type. Only images are allowed (JPG, JFIF, PNG, WebP, GIF, AVIF, ICO)",
+    "Invalid file type. Only images are allowed (JPG, JFIF, PNG, WebP, GIF, AVIF, ICO, SVG)",
   networkError:
     "Connection failed. Please check your internet connection and try again",
   serverError: "Upload failed due to a server error. Please try again",
@@ -189,9 +189,9 @@ export function isAllowedExtension(
  */
 export function getAcceptString(imageOnly = true): string {
   if (imageOnly) {
-    return "image/jpeg,image/png,image/webp,image/gif,image/avif";
+    return "image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml";
   }
-  return "image/jpeg,image/png,image/webp,image/gif,image/avif,application/pdf";
+  return "image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,application/pdf";
 }
 
 /**

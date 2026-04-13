@@ -1,11 +1,10 @@
-import { AuthStatusCard } from "@/components/auth/auth-status-card";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function AuthLoading() {
   return (
-    <AuthStatusCard
-      variant="loading"
-      title="Loading..."
-      description="Please wait while we prepare your page."
-    />
+    <div className="space-y-6 text-center">
+      <Spinner size="lg" className="mx-auto" />
+      <p className="text-sm text-muted-foreground">Loading...</p>
+    </div>
   );
 }

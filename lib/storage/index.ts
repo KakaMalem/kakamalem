@@ -719,7 +719,12 @@ export async function uploadFromTempFile(
         );
       }
     } else {
-      // Non-image or SVG: copy directly to final destination
+      // Non-image or SVG: copy to final destination
+      // SVGs are sanitized via DOMPurify to strip malicious content (scripts, event handlers, etc.)
+      if (isSvg) {
+        const { sanitizeSvgFile } = await import("@/lib/upload/svg-sanitizer");
+        await sanitizeSvgFile(tempFilePath);
+      }
       await pipeline(
         createReadStream(tempFilePath),
         createWriteStream(filePath)

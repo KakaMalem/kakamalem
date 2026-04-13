@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { CheckCircle2, XCircle } from "lucide-react";
@@ -33,59 +32,51 @@ export function AuthStatusCard({
 }: AuthStatusCardProps) {
   const icons = {
     success: (
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-        <CheckCircle2 className="h-8 w-8 text-green-600" />
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
+        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
       </div>
     ),
     error: (
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-        <XCircle className="h-8 w-8 text-destructive" />
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 border border-red-100">
+        <XCircle className="h-6 w-6 text-red-600" />
       </div>
     ),
     loading: <Spinner size="lg" className="mx-auto" />,
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6">
-      <Card className="w-full max-w-sm">
-        <CardContent className="pt-6 space-y-6 text-center">
-          {icons[variant]}
+    <div className="space-y-6 text-center">
+      {icons[variant]}
 
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold">{title}</h1>
-            <p className="text-muted-foreground">{description}</p>
-          </div>
+      <div className="space-y-1.5">
+        <h1 className="text-xl font-bold">{title}</h1>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
 
-          {children}
+      {children}
 
-          {(primaryAction || secondaryAction) && (
-            <div className="flex flex-col gap-3">
-              {primaryAction && (
-                <>
-                  {primaryAction.href ? (
-                    <Button asChild className="w-full">
-                      <Link href={primaryAction.href}>
-                        {primaryAction.label}
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button onClick={primaryAction.onClick} className="w-full">
-                      {primaryAction.label}
-                    </Button>
-                  )}
-                </>
-              )}
-              {secondaryAction && (
-                <Button variant="ghost" asChild>
-                  <Link href={secondaryAction.href}>
-                    {secondaryAction.label}
-                  </Link>
+      {(primaryAction || secondaryAction) && (
+        <div className="flex flex-col gap-3">
+          {primaryAction && (
+            <>
+              {primaryAction.href ? (
+                <Button asChild className="w-full">
+                  <Link href={primaryAction.href}>{primaryAction.label}</Link>
+                </Button>
+              ) : (
+                <Button onClick={primaryAction.onClick} className="w-full">
+                  {primaryAction.label}
                 </Button>
               )}
-            </div>
+            </>
           )}
-        </CardContent>
-      </Card>
+          {secondaryAction && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={secondaryAction.href}>{secondaryAction.label}</Link>
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

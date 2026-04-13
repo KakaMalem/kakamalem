@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
     },
   },
 
+  // jsdom (used by isomorphic-dompurify for SVG sanitization) reads CSS files
+  // from disk at runtime — webpack can't bundle those, so keep it external
+  serverExternalPackages: ["isomorphic-dompurify", "jsdom"],
+
   images: {
     remotePatterns: isDevelopment
       ? [

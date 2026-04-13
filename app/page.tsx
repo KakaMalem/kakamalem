@@ -6,40 +6,53 @@ import {
   ArrowRight,
   Shield,
   Globe,
-  Package,
   Check,
-  Zap,
   Lock,
   Clock,
   AlertTriangle,
   CheckCircle2,
-  Wallet,
-  Users,
   ShieldCheck,
-  Link2,
   Store,
 } from "lucide-react";
 
-const GridPattern = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    width="100%"
-    height="100%"
-  >
-    <defs>
-      <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <path
-          d="M 32 0 L 0 0 0 32"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="0.5"
+/** USDT (Tether) logo — official green circle with ₮ mark */
+function UsdtLogo({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <circle cx="16" cy="16" r="16" fill="#26A17B" />
+      <path
+        d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658 0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061 1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658 0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118 0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116 0-1.043-3.301-1.914-7.694-2.117"
+        fill="white"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Noise texture overlay — CSS-based SVG filter.
+ * Creates a subtle film-grain effect over the gradient background.
+ */
+function NoiseOverlay() {
+  return (
+    <svg className="absolute inset-0 h-full w-full opacity-[0.35] mix-blend-soft-light pointer-events-none">
+      <filter id="noise">
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.8"
+          numOctaves="4"
+          stitchTiles="stitch"
         />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#grid)" />
-  </svg>
-);
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#noise)" />
+    </svg>
+  );
+}
 
 export default async function Home() {
   const user = await getUser();
@@ -48,11 +61,30 @@ export default async function Home() {
     <div className="min-h-screen bg-white text-zinc-900 selection:bg-teal-100 selection:text-teal-900 font-sans antialiased overflow-x-hidden">
       {/* Ambient Background */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <GridPattern className="absolute inset-0 text-zinc-200/60" />
-        <div className="absolute -top-40 -left-40 w-175 h-175 rounded-full bg-linear-to-br from-teal-100 via-blue-50 to-transparent blur-[120px] opacity-70" />
-        <div className="absolute -top-20 right-0 w-125 h-125 rounded-full bg-linear-to-bl from-sky-100 via-cyan-50 to-transparent blur-[100px] opacity-60" />
-        <div className="absolute top-[30vh] left-1/2 -translate-x-1/2 w-200 h-100 rounded-full bg-linear-to-b from-blue-50 to-transparent blur-[140px] opacity-50" />
-        <div className="absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-white to-transparent" />
+        {/* Gradient orbs */}
+        <div className="absolute -top-40 -left-40 w-200 h-200 rounded-full bg-linear-to-br from-teal-200/50 via-cyan-100/30 to-transparent blur-[100px]" />
+        <div className="absolute -top-20 right-[-10%] w-150 h-150 rounded-full bg-linear-to-bl from-blue-200/40 via-sky-100/20 to-transparent blur-[80px]" />
+        <div className="absolute top-[25vh] left-1/2 -translate-x-1/2 w-225 h-100 rounded-full bg-linear-to-b from-emerald-100/30 via-teal-50/20 to-transparent blur-[120px]" />
+
+        {/* Accent glow near hero */}
+        <div className="absolute top-[15vh] left-[15%] w-48 h-48 rounded-full bg-teal-400/10 blur-[60px]" />
+        <div className="absolute top-[20vh] right-[10%] w-36 h-36 rounded-full bg-blue-400/10 blur-[50px]" />
+
+        {/* Noise grain overlay */}
+        <NoiseOverlay />
+
+        {/* Floating USDT icons — decorative, hidden on mobile */}
+        <div className="hidden md:block">
+          <UsdtLogo className="absolute top-[12%] left-[8%] w-10 h-10 opacity-[0.07] -rotate-15" />
+          <UsdtLogo className="absolute top-[22%] right-[7%] w-14 h-14 opacity-[0.05] rotate-10" />
+          <UsdtLogo className="absolute top-[45%] left-[5%] w-8 h-8 opacity-[0.06] rotate-25" />
+          <UsdtLogo className="absolute top-[55%] right-[12%] w-12 h-12 opacity-[0.04] -rotate-20" />
+          <UsdtLogo className="absolute top-[75%] left-[15%] w-6 h-6 opacity-[0.06] rotate-35" />
+          <UsdtLogo className="absolute top-[70%] right-[20%] w-9 h-9 opacity-[0.05] rotate-[-8deg]" />
+        </div>
+
+        {/* Bottom fade to white */}
+        <div className="absolute inset-x-0 bottom-0 h-64 bg-linear-to-t from-white via-white/80 to-transparent" />
       </div>
 
       <LandingNavbar
@@ -73,28 +105,29 @@ export default async function Home() {
             {/* Badge */}
             <div className="mb-8 sm:mb-10 inline-flex items-center gap-2.5 rounded-full border border-emerald-200/80 bg-linear-to-r from-emerald-50 to-blue-50 py-1.5 pl-2 pr-4 text-[13px] font-medium text-emerald-700 shadow-sm">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-200/60 py-0.5 px-2.5 text-[11px] font-semibold text-emerald-700 uppercase tracking-wide">
-                <Shield className="h-3 w-3" />
-                Escrow
+                <UsdtLogo className="h-3.5 w-3.5" />
+                USDT
               </span>
               <span className="text-emerald-600/80">
-                Crypto-protected payments built in
+                Crypto-native commerce. No banks required.
               </span>
             </div>
 
             {/* Headline */}
             <h1 className="max-w-225 text-[2.2rem] sm:text-[3rem] md:text-[4rem] lg:text-[5.2rem] font-extrabold tracking-[-0.04em] leading-[1.08] mb-5 sm:mb-6">
-              <span className="text-zinc-950">Build your store.</span>
+              <span className="text-zinc-950">Sell anywhere.</span>
               <br />
               <span className="bg-linear-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
-                Send a link. Get paid.
+                Get paid in crypto.
               </span>
             </h1>
 
             {/* Subheadline */}
             <p className="max-w-140 text-pretty text-[15px] sm:text-base md:text-[17px] text-zinc-500 leading-[1.75] mb-8 sm:mb-10 font-[425] px-2 sm:px-0">
-              Kaka Malem lets you create a professional online store in minutes
-              and share it with customers anywhere. Payments are held in crypto
-              escrow until delivery is confirmed. No banks needed.
+              No bank account. No Stripe approval. No chargebacks. Kaka Malem
+              gives you a storefront that accepts USDT, holds funds in escrow
+              until delivery, and pays out to your wallet. Commerce without
+              gatekeepers.
             </p>
 
             {/* CTAs */}
@@ -122,24 +155,24 @@ export default async function Home() {
             {/* Trust stats */}
             <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-10 text-sm text-zinc-500">
               <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4 text-emerald-500" />
+                <UsdtLogo className="h-5 w-5" />
                 <span>
-                  <span className="font-semibold text-zinc-800">100%</span>{" "}
-                  escrow protected
+                  <span className="font-semibold text-zinc-800">USDT</span> on
+                  TRC20
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-blue-500" />
+                <Lock className="h-4 w-4 text-blue-500" />
                 <span>
-                  Pay with{" "}
-                  <span className="font-semibold text-zinc-800">USDT</span>
+                  <span className="font-semibold text-zinc-800">Escrow</span> on
+                  every order
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-amber-500" />
+                <Globe className="h-4 w-4 text-amber-500" />
                 <span>
-                  <span className="font-semibold text-zinc-800">Free</span> to
-                  start
+                  <span className="font-semibold text-zinc-800">No banks</span>{" "}
+                  needed
                 </span>
               </div>
             </div>
@@ -159,11 +192,11 @@ export default async function Home() {
                 How it works
               </span>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Three steps. Zero trust required.
+                Wallet to wallet. Escrow in between.
               </h2>
               <p className="text-zinc-500 max-w-lg mx-auto text-[15px]">
-                Create your store, share the link, and let escrow handle the
-                trust.
+                Your buyer sends USDT. Escrow holds it. You ship. Funds release
+                to your wallet. No intermediary banks, no frozen accounts.
               </p>
             </div>
 
@@ -171,26 +204,26 @@ export default async function Home() {
               {[
                 {
                   step: "01",
-                  icon: Store,
-                  title: "Create your store",
+                  icon: UsdtLogo,
+                  title: "Buyer sends USDT",
                   description:
-                    "Sign up for free and set up your store in minutes. Add products with images, variants, and pricing. Get a shareable store link instantly.",
+                    "Customer picks a product and sends USDT (TRC20) to the escrow wallet. Payment confirms in seconds. No card networks, no bank wires, no waiting days for settlement.",
                   color: "from-blue-500 to-cyan-500",
                 },
                 {
                   step: "02",
-                  icon: Link2,
-                  title: "Share with customers",
+                  icon: Lock,
+                  title: "Escrow holds the funds",
                   description:
-                    "Send your store link to customers anywhere. They browse your catalog and pay in USDT. Funds are locked in escrow until delivery.",
+                    "Funds are locked until you ship and delivery is confirmed. The buyer can see the payment is secured. You can see it's real. Neither side can pull out.",
                   color: "from-teal-500 to-emerald-500",
                 },
                 {
                   step: "03",
                   icon: CheckCircle2,
-                  title: "Deliver and get paid",
+                  title: "You ship, funds release",
                   description:
-                    "Ship the order and upload tracking. Once delivery is confirmed, funds release to you minus a 5% fee. Auto-release after 30 days.",
+                    "Upload tracking, ship the order. Once confirmed, USDT goes straight to your wallet minus a 5% fee. If no response in 30 days, auto-release.",
                   color: "from-emerald-500 to-green-500",
                 },
               ].map((item) => (
@@ -241,42 +274,42 @@ export default async function Home() {
           <div className="max-w-5xl mx-auto px-5 sm:px-6">
             <div className="text-center mb-12 sm:mb-16">
               <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600 uppercase tracking-[0.2em] mb-4">
-                Features
+                Why crypto
               </span>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Everything you need to sell online.
+                The stuff banks won&apos;t let you do.
               </h2>
               <p className="text-zinc-500 max-w-lg mx-auto text-[15px]">
-                A full-featured store builder with crypto payments and escrow
-                protection baked in. No monthly fees — pay only when you earn.
+                Payment processors freeze accounts. Banks block cross-border
+                transfers. Chargebacks drain sellers. Crypto fixes all of it.
               </p>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
               {[
                 {
-                  icon: Package,
-                  title: "Full product catalog",
-                  description:
-                    "Add unlimited products with variants, images, categories, and bulk import. Your brand, your store.",
-                },
-                {
                   icon: Shield,
-                  title: "Built-in escrow protection",
+                  title: "Zero chargebacks",
                   description:
-                    "No chargebacks, no payment reversals. Once delivery is confirmed, funds are yours. Period.",
+                    "Crypto payments are final. No disputes filed with Visa. No PayPal holds. Once escrow releases, the money is yours. Period.",
                 },
                 {
                   icon: Globe,
-                  title: "Sell to anyone, anywhere",
+                  title: "No borders, no banks",
                   description:
-                    "Share your store link with customers in any country. They pay in USDT and you receive crypto to your wallet.",
+                    "Your buyer in Dubai, your supplier in Shenzhen, you in Kabul. USDT moves between wallets in seconds. No SWIFT, no correspondent banks, no 3-day holds.",
                 },
                 {
-                  icon: Users,
-                  title: "Customer management",
+                  icon: ShieldCheck,
+                  title: "Can't be shut down",
                   description:
-                    "Track orders, manage customer groups, run promotions, and build loyalty with your buyers over time.",
+                    "No payment processor can freeze your account or block your industry. Crypto doesn't ask for permission. Neither should your business.",
+                },
+                {
+                  icon: Store,
+                  title: "Real storefront, not just a wallet",
+                  description:
+                    "Full product catalog, images, variants, custom domain, analytics. A professional store your customers can browse — not a bare payment link.",
                 },
               ].map((feature) => (
                 <div
@@ -297,28 +330,30 @@ export default async function Home() {
             </div>
 
             {/* Pricing simple */}
-            <div className="mt-10 sm:mt-12 rounded-2xl border border-zinc-200 bg-linear-to-br from-zinc-900 to-zinc-800 p-6 sm:p-8 md:p-12 text-white">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="relative mt-10 sm:mt-12 rounded-2xl border border-zinc-200 bg-linear-to-br from-zinc-900 to-zinc-800 p-6 sm:p-8 md:p-12 text-white overflow-hidden">
+              {/* Decorative USDT watermark */}
+              <UsdtLogo className="absolute -right-6 -bottom-6 w-40 h-40 opacity-[0.03]" />
+
+              <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                 <div>
                   <h3 className="text-xl sm:text-2xl font-bold mb-2">
-                    Simple pricing. No surprises.
+                    No subscriptions. No invoices. Just 5%.
                   </h3>
                   <p className="text-zinc-400 max-w-md text-[15px]">
-                    Free to sign up. Free to list. We take a flat 5% fee only
-                    when escrow releases payment to you.
+                    Free to list, free to host. We take 5% when USDT releases
+                    from escrow to your wallet. That&apos;s it. No card fees, no
+                    gateway charges, no monthly bills.
                   </p>
                 </div>
                 <div className="flex flex-col items-start md:items-end gap-1">
-                  <div className="flex items-baseline gap-1">
+                  <div className="flex items-center gap-2">
                     <span className="text-4xl sm:text-5xl font-extrabold">
                       5%
                     </span>
-                    <span className="text-zinc-400 text-base sm:text-lg">
-                      per release
-                    </span>
+                    <UsdtLogo className="h-8 w-8 sm:h-10 sm:w-10 opacity-80" />
                   </div>
                   <span className="text-sm text-zinc-500">
-                    No hidden fees. No monthly charges.
+                    per escrow release. Nothing else.
                   </span>
                 </div>
               </div>
@@ -354,15 +389,16 @@ export default async function Home() {
           <div className="max-w-5xl mx-auto px-5 sm:px-6">
             <div className="text-center mb-12 sm:mb-16">
               <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-600 uppercase tracking-[0.2em] mb-4">
-                <Lock className="h-3 w-3" />
-                Security
+                <UsdtLogo className="h-3.5 w-3.5" />
+                Escrow Security
               </span>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Your money is safe. Always.
+                Trustless doesn&apos;t mean unprotected.
               </h2>
               <p className="text-zinc-500 max-w-lg mx-auto text-[15px]">
-                Escrow means neither party can run with the money. Every
-                transaction is protected from payment to delivery.
+                Crypto is irreversible by design. That&apos;s a feature, not a
+                bug — but it means you need escrow. Neither side can rug the
+                other.
               </p>
             </div>
 
@@ -370,21 +406,21 @@ export default async function Home() {
               {[
                 {
                   icon: Lock,
-                  title: "Funds locked in escrow",
+                  title: "USDT locked until delivery",
                   description:
-                    "Crypto payments go to a platform-controlled escrow wallet. Nobody can withdraw until delivery is confirmed or a dispute is resolved.",
+                    "Funds sit in a platform-controlled escrow wallet. Not in the seller's wallet, not in the buyer's. Nobody moves them until the deal is done.",
                 },
                 {
                   icon: Clock,
                   title: "30-day auto-release",
                   description:
-                    "If the buyer doesn't respond within 30 days after shipping, funds automatically release to the seller. No infinite limbo.",
+                    "Shipped but buyer went silent? After 30 days, USDT auto-releases to the seller. No infinite limbo. No funds stuck forever.",
                 },
                 {
-                  icon: ShieldCheck,
-                  title: "Admin dispute resolution",
+                  icon: AlertTriangle,
+                  title: "Disputes resolved by humans",
                   description:
-                    "Both parties can submit evidence. A Kaka Malem admin reviews the case and releases funds to the rightful party.",
+                    "Wrong item? Never arrived? Either side opens a dispute. Funds freeze. A Kaka Malem admin reviews evidence and releases to the rightful party.",
                 },
               ].map((item) => (
                 <div
@@ -411,11 +447,11 @@ export default async function Home() {
           <div className="max-w-4xl mx-auto px-5 sm:px-6">
             <div className="text-center mb-10 sm:mb-12">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Why Kaka Malem?
+                Built for crypto. Not bolted on.
               </h2>
               <p className="text-zinc-500 text-[15px]">
-                Traditional platforms weren&apos;t built for crypto-native
-                commerce.
+                Other platforms treat crypto as an add-on. We built the entire
+                system around it.
               </p>
             </div>
 
@@ -614,13 +650,18 @@ export default async function Home() {
               {/* Glow */}
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-150 h-75 bg-linear-to-b from-teal-500/20 to-transparent blur-[100px] -translate-y-1/2" />
 
+              {/* Decorative USDT icons */}
+              <UsdtLogo className="absolute top-6 left-8 w-8 h-8 opacity-[0.06] -rotate-12" />
+              <UsdtLogo className="absolute bottom-8 right-10 w-12 h-12 opacity-[0.05] rotate-15" />
+              <UsdtLogo className="absolute top-1/2 left-4 w-6 h-6 opacity-[0.04] rotate-30 hidden md:block" />
+
               <div className="relative">
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
-                  Ready to start selling?
+                  Skip the bank. Start selling.
                 </h2>
                 <p className="text-zinc-400 max-w-md mx-auto mb-8 text-[15px]">
-                  Create your store for free, add your products, and share the
-                  link with customers. Your first sale could be today.
+                  Create a store, list your products, share the link. Accept
+                  USDT from anyone, anywhere. Withdraw to your wallet.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 px-4 sm:px-0">
                   <Button
@@ -661,8 +702,8 @@ export default async function Home() {
                   </span>
                 </Link>
                 <p className="text-[14px] leading-relaxed">
-                  UK-based. Build your store, share a link, get paid with crypto
-                  escrow.
+                  Crypto-native commerce platform. UK-registered, globally
+                  accessible. USDT escrow for cross-border trade.
                 </p>
               </div>
 

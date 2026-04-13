@@ -14,7 +14,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle, Mail } from "lucide-react";
 import { OAuthButton } from "@/components/auth/oauth-button";
-import { AuthStatusCard } from "@/components/auth/auth-status-card";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { ZodError } from "zod";
 import { handleFormErrors } from "@/lib/utils/form-errors";
@@ -148,117 +147,119 @@ export function LoginForm() {
 
   if (success) {
     return (
-      <AuthStatusCard
-        variant="success"
-        title="Welcome back!"
-        description="Redirecting you to your dashboard..."
-      />
+      <div className="space-y-6 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
+          <Mail className="h-6 w-6 text-emerald-600" />
+        </div>
+        <div className="space-y-1.5">
+          <h1 className="text-xl font-bold">Welcome back!</h1>
+          <p className="text-sm text-muted-foreground">
+            Redirecting you to your dashboard...
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <Link href="/" className="text-xl font-bold">
-            Kaka Malem
-          </Link>
-          <h1 className="text-2xl font-bold mt-6">Welcome back</h1>
-          <p className="text-muted-foreground">Sign in to your account</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <Alert variant={needsVerification ? "default" : "destructive"}>
-              {needsVerification ? (
-                <Mail className="h-4 w-4" />
-              ) : (
-                <AlertCircle className="h-4 w-4" />
-              )}
-              <AlertDescription>
-                <p>{error}</p>
-                {needsVerification && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={handleResendVerification}
-                    disabled={isResending || resendCooldown > 0}
-                  >
-                    {isResending ? (
-                      <>
-                        <Spinner /> Sending...
-                      </>
-                    ) : resendCooldown > 0 ? (
-                      `Resend in ${resendCooldown}s`
-                    ) : (
-                      "Resend verification email"
-                    )}
-                  </Button>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              disabled={isPending}
-              placeholder="you@example.com"
-              aria-invalid={!!fieldErrors.email}
-            />
-            <FieldError>{fieldErrors.email}</FieldError>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-            <PasswordInput
-              id="password"
-              name="password"
-              autoComplete="current-password"
-              disabled={isPending}
-              placeholder="••••••••"
-              aria-invalid={!!fieldErrors.password}
-            />
-            <FieldError>{fieldErrors.password}</FieldError>
-          </Field>
-
-          <Button type="submit" disabled={isPending} className="w-full">
-            {isPending && <Spinner />}
-            {isPending ? "Signing in..." : "Sign in"}
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                OR
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <OAuthButton provider="google" redirectTo={redirect} />
-          </div>
-        </form>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link
-            href="/signup"
-            className="text-primary font-medium hover:underline"
-          >
-            Sign up
-          </Link>
-        </p>
+    <div className="space-y-6">
+      <div className="space-y-1.5">
+        <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
+        <p className="text-sm text-muted-foreground">Sign in to your account</p>
       </div>
+
+      {/* OAuth first — lowest friction */}
+      <div className="space-y-3">
+        <OAuthButton provider="google" redirectTo={redirect} />
+      </div>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            or continue with email
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Alert variant={needsVerification ? "default" : "destructive"}>
+            {needsVerification ? (
+              <Mail className="h-4 w-4" />
+            ) : (
+              <AlertCircle className="h-4 w-4" />
+            )}
+            <AlertDescription>
+              <p>{error}</p>
+              {needsVerification && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={handleResendVerification}
+                  disabled={isResending || resendCooldown > 0}
+                >
+                  {isResending ? (
+                    <>
+                      <Spinner /> Sending...
+                    </>
+                  ) : resendCooldown > 0 ? (
+                    `Resend in ${resendCooldown}s`
+                  ) : (
+                    "Resend verification email"
+                  )}
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Field>
+          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            disabled={isPending}
+            placeholder="you@example.com"
+            aria-invalid={!!fieldErrors.email}
+          />
+          <FieldError>{fieldErrors.email}</FieldError>
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <PasswordInput
+            id="password"
+            name="password"
+            autoComplete="current-password"
+            disabled={isPending}
+            placeholder="••••••••"
+            aria-invalid={!!fieldErrors.password}
+          />
+          <FieldError>{fieldErrors.password}</FieldError>
+        </Field>
+
+        <Button type="submit" disabled={isPending} className="w-full">
+          {isPending && <Spinner />}
+          {isPending ? "Signing in..." : "Sign in"}
+        </Button>
+      </form>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Don&apos;t have an account?{" "}
+        <Link
+          href="/signup"
+          className="text-primary font-medium hover:underline"
+        >
+          Sign up
+        </Link>
+      </p>
     </div>
   );
 }

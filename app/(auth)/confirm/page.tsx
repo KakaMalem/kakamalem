@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { CheckCircle2 } from "lucide-react";
 
@@ -60,28 +59,26 @@ function ConfirmContent() {
       };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6">
-      <Card className="w-full max-w-sm">
-        <CardContent className="pt-6 space-y-6 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-            <CheckCircle2 className="h-8 w-8 text-green-600" />
-          </div>
+    <div className="space-y-6 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
+        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+      </div>
 
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold">{confirmInfo.title}</h1>
-            <p className="text-muted-foreground">{confirmInfo.description}</p>
-          </div>
+      <div className="space-y-1.5">
+        <h1 className="text-xl font-bold">{confirmInfo.title}</h1>
+        <p className="text-sm text-muted-foreground">
+          {confirmInfo.description}
+        </p>
+      </div>
 
-          <div className="flex flex-col gap-3">
-            <Button asChild className="w-full">
-              <Link href={confirmInfo.ctaHref}>{confirmInfo.cta}</Link>
-            </Button>
-            <Button variant="ghost" asChild>
-              <Link href="/">Go to Homepage</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-3">
+        <Button asChild className="w-full">
+          <Link href={confirmInfo.ctaHref}>{confirmInfo.cta}</Link>
+        </Button>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/">Go to Homepage</Link>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -90,7 +87,7 @@ export default function AuthConfirmPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center justify-center px-6">
+        <div className="flex items-center justify-center py-20">
           <Spinner size="lg" />
         </div>
       }

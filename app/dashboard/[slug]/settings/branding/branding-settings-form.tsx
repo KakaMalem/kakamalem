@@ -414,7 +414,7 @@ export function BrandingSettingsForm({
             <label className="flex items-center justify-center h-32 border-2 border-dashed rounded-lg bg-muted/50 cursor-pointer hover:border-muted-foreground/50 transition-colors">
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,.svg"
                 onChange={(e) => handleImageUpload("logo", e)}
                 className="sr-only"
                 disabled={isPending || isUploading}
@@ -425,7 +425,7 @@ export function BrandingSettingsForm({
                   Click to upload logo
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  PNG, JPG up to 2MB
+                  PNG, JPG, SVG up to 2MB
                 </p>
               </div>
             </label>
@@ -446,7 +446,7 @@ export function BrandingSettingsForm({
               <label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.svg"
                   onChange={(e) => handleImageUpload("logo", e)}
                   className="sr-only"
                   disabled={isPending || isUploading}
@@ -504,7 +504,7 @@ export function BrandingSettingsForm({
             <label className="flex items-center justify-center h-20 border-2 border-dashed rounded-lg bg-muted/50 cursor-pointer hover:border-muted-foreground/50 transition-colors">
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,.svg"
                 onChange={(e) => handleImageUpload("favicon", e)}
                 className="sr-only"
                 disabled={isPending || isUploading}
@@ -538,7 +538,7 @@ export function BrandingSettingsForm({
               <label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.svg"
                   onChange={(e) => handleImageUpload("favicon", e)}
                   className="sr-only"
                   disabled={isPending || isUploading}
