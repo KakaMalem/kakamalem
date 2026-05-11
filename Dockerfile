@@ -32,6 +32,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN pnpm rebuild sharp esbuild unrs-resolver
+RUN --mount=type=secret,id=BETTER_AUTH_SECRET \
+    BETTER_AUTH_SECRET=$(cat /run/secrets/BETTER_AUTH_SECRET) \
+    pnpm build
 
 # Build arguments for public environment variables (these are safe to expose)
 ARG NEXT_PUBLIC_APP_URL
