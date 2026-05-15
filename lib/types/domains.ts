@@ -2,7 +2,9 @@
  * Domain Types
  *
  * Type definitions for the custom domain system.
- * SSL provisioning is handled automatically by Caddy + Let's Encrypt.
+ * SSL provisioning is handled by Dokploy + Traefik + Let's Encrypt — the
+ * app registers verified hostnames with Dokploy via its API; Traefik
+ * issues a cert on first request.
  */
 
 import type { DomainDnsRecords } from "@/lib/db/schema";
@@ -12,28 +14,37 @@ import type { DomainDnsRecords } from "@/lib/db/schema";
 // =============================================================================
 
 /**
- * Domain configuration status
+ * Domain configuration status.
  *
- * Flow: pending → dns_verification → active
- *                      ↓
- *                    error
+ * Flow: pending → dns_verification → ssl_provisioning → active
+ *                                          ↓
+ *                                        error
+ *
+ * Keep in sync with `domainStatusEnum` in lib/db/schema.ts.
  */
 export type DomainStatus =
   | "pending" // Domain added, awaiting DNS configuration
   | "dns_verification" // Checking DNS records
-  | "active" // DNS verified, SSL handled by Caddy automatically
+  | "ssl_provisioning" // DNS verified, registering with upstream proxy
+  | "active" // Fully configured and serving
   | "error" // Configuration error (see domainError field)
   | "suspended"; // Manually suspended by admin
 
 /**
- * SSL certificate status
- * With Caddy on-demand TLS, this is mostly "active" once DNS is verified.
- * Caddy handles provisioning transparently.
+ * SSL certificate status. Mirrors `sslStatusEnum` in lib/db/schema.ts.
+ * With Dokploy/Traefik most domains transition pending → active quickly;
+ * the intermediate states are kept for observability / future providers.
  */
 export type SslStatus =
-  | "pending" // Not yet provisioned (DNS not verified)
-  | "active" // Caddy has a valid certificate
-  | "error"; // Provisioning failed (rare with Caddy)
+  | "pending"
+  | "initializing"
+  | "pending_validation"
+  | "pending_issuance"
+  | "pending_deployment"
+  | "active"
+  | "expiring_soon"
+  | "expired"
+  | "error";
 
 // =============================================================================
 // DOMAIN CONFIGURATION
@@ -166,7 +177,11 @@ export interface VerifyDomainResult {
   verification?: DnsVerificationResult;
   error?: {
     message: string;
-    code?: "dns_not_configured" | "unauthorized" | "unknown";
+    code?:
+      | "dns_not_configured"
+      | "unauthorized"
+      | "provisioning_failed"
+      | "unknown";
   };
 }
 
@@ -211,6 +226,8 @@ export interface DomainStatusDisplay {
   showDnsInstructions: boolean;
   canDisconnect: boolean;
   canRetry: boolean;
+  /** Label for the retry button — depends on which phase failed. */
+  retryLabel: string;
 }
 
 /**
@@ -232,6 +249,7 @@ export function getDomainStatusDisplay(
         showDnsInstructions: false,
         canDisconnect: true,
         canRetry: false,
+        retryLabel: "Re-check",
       };
     case "dns_verification":
       return {
@@ -244,6 +262,7 @@ export function getDomainStatusDisplay(
         showDnsInstructions: true,
         canDisconnect: true,
         canRetry: true,
+        retryLabel: "Check DNS",
       };
     case "pending":
       return {
@@ -256,6 +275,7 @@ export function getDomainStatusDisplay(
         showDnsInstructions: true,
         canDisconnect: true,
         canRetry: true,
+        retryLabel: "Check DNS",
       };
     case "error":
       return {
@@ -268,6 +288,7 @@ export function getDomainStatusDisplay(
         showDnsInstructions: true,
         canDisconnect: true,
         canRetry: true,
+        retryLabel: "Retry",
       };
     case "suspended":
       return {
@@ -280,6 +301,21 @@ export function getDomainStatusDisplay(
         showDnsInstructions: false,
         canDisconnect: true,
         canRetry: false,
+        retryLabel: "Re-check",
+      };
+    case "ssl_provisioning":
+      return {
+        status,
+        sslStatus,
+        label: "Provisioning SSL",
+        description:
+          "DNS verified — issuing a Let's Encrypt certificate. This usually takes under a minute.",
+        color: "yellow",
+        icon: "clock",
+        showDnsInstructions: false,
+        canDisconnect: true,
+        canRetry: true,
+        retryLabel: "Retry provisioning",
       };
     default:
       return {
@@ -292,6 +328,7 @@ export function getDomainStatusDisplay(
         showDnsInstructions: false,
         canDisconnect: true,
         canRetry: true,
+        retryLabel: "Re-check",
       };
   }
 }
@@ -301,8 +338,14 @@ export function getDomainStatusDisplay(
  */
 export function getSslStatusLabel(status: SslStatus): string {
   const labels: Record<SslStatus, string> = {
-    pending: "Pending (auto-provisioned on first visit)",
+    pending: "Pending",
+    initializing: "Initializing",
+    pending_validation: "Validating domain ownership",
+    pending_issuance: "Issuing certificate",
+    pending_deployment: "Deploying certificate",
     active: "Active (Let's Encrypt)",
+    expiring_soon: "Expiring soon",
+    expired: "Expired",
     error: "Error",
   };
   return labels[status] || "Unknown";

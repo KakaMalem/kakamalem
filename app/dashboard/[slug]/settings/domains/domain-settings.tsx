@@ -281,13 +281,27 @@ export function DomainSettings({
                 )}
               </div>
 
-              {/* SSL Status */}
-              {status === "active" && (
+              {/* SSL Status — only when both domain and cert are healthy */}
+              {status === "active" && sslStatus === "active" && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Shield className="size-4 text-green-600" />
                   SSL Certificate: {getSslStatusLabel(sslStatus)}
                 </div>
               )}
+
+              {/* Cert-specific banner: routing says active but the
+                  domain-health probe found the cert is broken. */}
+              {status === "active" &&
+                (sslStatus === "error" || sslStatus === "expired") && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="size-4" />
+                    <AlertTitle>SSL Certificate Problem</AlertTitle>
+                    <AlertDescription>
+                      {domainConfig.domainError ||
+                        "We couldn't verify a valid Let's Encrypt certificate for this domain. Click Retry to re-register and re-issue."}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
               {/* Error Message */}
               {domainConfig.domainError && status === "error" && (
@@ -310,7 +324,9 @@ export function DomainSettings({
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-2">
-                {statusDisplay.canRetry && (
+                {(statusDisplay.canRetry ||
+                  (status === "active" &&
+                    (sslStatus === "error" || sslStatus === "expired"))) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -322,7 +338,9 @@ export function DomainSettings({
                     ) : (
                       <RefreshCw className="mr-2 size-4" />
                     )}
-                    Check DNS
+                    {status === "active" && sslStatus !== "active"
+                      ? "Retry"
+                      : statusDisplay.retryLabel}
                   </Button>
                 )}
                 {statusDisplay.canDisconnect && (

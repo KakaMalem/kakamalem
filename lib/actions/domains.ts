@@ -14,6 +14,7 @@ import {
   generateDnsInstructions,
   verifyDomainDns,
 } from "@/lib/services/domain-verification";
+import { getDomainProvisioner, ProvisionerError } from "@/lib/domains";
 import type {
   ConnectDomainResult,
   VerifyDomainResult,
@@ -29,9 +30,10 @@ import type {
 // =============================================================================
 
 /**
- * Connect a custom domain to a store
- * Creates the verification token and DNS instructions.
- * SSL is handled automatically by Caddy on-demand TLS.
+ * Connect a custom domain to a store. Creates the verification token and
+ * DNS instructions the buyer must add at their registrar. The domain isn't
+ * registered with the upstream proxy (Dokploy/Traefik) yet — that happens
+ * in {@link verifyDomain} once the DNS records are confirmed.
  */
 export async function connectDomain(
   storeSlug: string,
@@ -164,9 +166,10 @@ export async function connectDomain(
 // =============================================================================
 
 /**
- * Manually trigger DNS verification for a domain.
- * Once DNS is verified, the domain becomes active immediately.
- * SSL is provisioned automatically by Caddy on the first request.
+ * Manually trigger DNS verification for a domain. Once DNS is verified,
+ * the domain is registered with the upstream proxy (Dokploy/Traefik) and
+ * an SSL cert is provisioned via Let's Encrypt. The domain is only
+ * marked `active` after both DNS and provisioning succeed.
  */
 export async function verifyDomain(
   storeSlug: string
@@ -238,22 +241,80 @@ export async function verifyDomain(
   };
 
   if (verification.verified) {
-    // DNS verified - domain is active!
-    // Caddy will automatically provision SSL on the first request.
-    status = "active";
-    sslStatus = "active";
-
+    // DNS is good. Move into ssl_provisioning, ask the upstream proxy
+    // (Dokploy) to register the hostname so Traefik will issue a cert,
+    // then mark active once registration succeeds. We persist the
+    // intermediate state first so a UI that re-fetches between the DNS
+    // success and the registration call sees the in-progress status.
+    status = "ssl_provisioning";
+    sslStatus = "pending_issuance";
+    const now = new Date().toISOString();
     await db
       .update(tenants)
       .set({
-        customDomainStatus: "active",
-        domainVerifiedAt: new Date().toISOString(),
-        sslStatus: "active",
-        sslProvisionedAt: new Date().toISOString(),
+        customDomainStatus: status,
+        domainVerifiedAt: now,
+        sslStatus,
         domainDnsRecords: dnsRecords,
         domainError: null,
-        domainLastCheckedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        domainLastCheckedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(tenants.id, store.id));
+
+    const provisioner = getDomainProvisioner();
+    try {
+      await provisioner.register(store.customDomain);
+    } catch (err) {
+      const message =
+        err instanceof ProvisionerError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to register domain with upstream proxy";
+      console.error(
+        `[verifyDomain] provisioner (${provisioner.name}) failed for ${store.customDomain}:`,
+        err
+      );
+
+      status = "error";
+      sslStatus = "error";
+      await db
+        .update(tenants)
+        .set({
+          customDomainStatus: status,
+          sslStatus,
+          domainError: message,
+          domainLastCheckedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(tenants.id, store.id));
+
+      revalidatePath(`/dashboard/${storeSlug}/settings/domains`);
+      return {
+        success: false,
+        status,
+        sslStatus,
+        verification,
+        error: { message, code: "provisioning_failed" },
+      };
+    }
+
+    // Registration succeeded. Traefik may take a few seconds to actually
+    // serve a valid cert — the domain-health cron probes HTTPS and
+    // downgrades sslStatus if the cert turns out to be invalid.
+    status = "active";
+    sslStatus = "active";
+    const activatedAt = new Date().toISOString();
+    await db
+      .update(tenants)
+      .set({
+        customDomainStatus: status,
+        sslStatus,
+        sslProvisionedAt: activatedAt,
+        domainError: null,
+        domainLastCheckedAt: activatedAt,
+        updatedAt: activatedAt,
       })
       .where(eq(tenants.id, store.id));
   } else {
@@ -317,6 +378,23 @@ export async function disconnectDomain(
         code: "unauthorized",
       },
     };
+  }
+
+  // Best-effort: tell the upstream proxy to forget about this domain so
+  // its cert/route are torn down. Failures here are logged but don't
+  // block the DB cleanup — leaving stale entries in our DB is worse
+  // than leaving stale entries in Dokploy (the reconcile cron catches
+  // those).
+  if (store.customDomain) {
+    const provisioner = getDomainProvisioner();
+    try {
+      await provisioner.unregister(store.customDomain);
+    } catch (err) {
+      console.error(
+        `[disconnectDomain] provisioner (${provisioner.name}) failed to unregister ${store.customDomain}:`,
+        err
+      );
+    }
   }
 
   // Clear domain configuration

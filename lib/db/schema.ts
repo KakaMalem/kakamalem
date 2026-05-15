@@ -660,24 +660,31 @@ export const transferRequestStatusEnum = pgEnum("transfer_request_status", [
   "expired", // 7 days passed without response
 ]);
 
-// Custom domain status
+// Custom domain status. Lifecycle:
+//   pending → dns_verification → ssl_provisioning → active
+//                                 ↓
+//                               error (see domainError)
 export const domainStatusEnum = pgEnum("domain_status", [
   "pending", // Domain added, awaiting DNS configuration
   "dns_verification", // Checking DNS records
-  "ssl_provisioning", // DNS verified, provisioning SSL via Cloudflare
-  "active", // Fully configured and working
+  "ssl_provisioning", // DNS verified, registered with upstream proxy
+  "active", // Fully configured and serving
   "error", // Configuration error (see domainError field)
   "suspended", // Manually suspended by admin
 ]);
 
-// SSL certificate status (via Cloudflare for SaaS)
+// SSL certificate status. Most values map cleanly to the Traefik /
+// Let's Encrypt lifecycle; the broader values exist because the schema
+// was originally shaped for Cloudflare for SaaS — they still describe
+// real intermediate states (validation, issuance, expiring soon, etc.)
+// and we keep them so observability tooling can rely on them.
 export const sslStatusEnum = pgEnum("ssl_status", [
   "pending", // Not yet provisioned
-  "initializing", // Cloudflare hostname created, starting validation
-  "pending_validation", // Waiting for DNS/HTTP validation
+  "initializing", // Upstream proxy registered the hostname
+  "pending_validation", // Waiting for ACME validation
   "pending_issuance", // Validated, certificate being issued
-  "pending_deployment", // Certificate issued, deploying to edge
-  "active", // Valid certificate deployed
+  "pending_deployment", // Certificate issued, propagating
+  "active", // Valid certificate serving
   "expiring_soon", // Certificate expires within 30 days
   "expired", // Certificate expired
   "error", // Provisioning failed

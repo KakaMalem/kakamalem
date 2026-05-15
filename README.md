@@ -52,7 +52,7 @@ Buyer pays crypto → Kaka Malem escrow holds funds
 - **State**: Zustand + React Query
 - **Escrow**: Custodial wallet system with time-based auto-release
 - **Payments**: USDT on TRC20 — crypto only, auto-detected
-- **Deployment**: Docker + native PostgreSQL/Nginx/Caddy, hosted in Afghanistan
+- **Deployment**: Dokploy on a self-hosted VPS (Docker + Traefik for routing and Let's Encrypt SSL)
 
 ## Quick Start
 

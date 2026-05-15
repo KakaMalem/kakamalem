@@ -848,6 +848,40 @@ Dynamic SEO configuration per store:
 - Components in `components/ui/` are shadcn/ui (don't modify directly unless necessary)
 - For new features, create server actions in appropriate `lib/` subdirectory
 
+### Custom Domains
+
+Tenants connect a custom domain (e.g. `shop.mybrand.com`) to their store. The system has three layers:
+
+1. **DNS verification** ([lib/services/domain-verification.ts](lib/services/domain-verification.ts)) — generates a verification token, asks the tenant to add CNAME/TXT records at their registrar, then verifies via Google DNS-over-HTTPS.
+2. **Provisioner** ([lib/domains/](lib/domains/)) — an abstraction over the upstream proxy that owns TLS termination. Implementations:
+   - `DokployProvisioner` (production) — calls Dokploy's REST API to register/unregister hostnames; Dokploy updates Traefik routing and Traefik issues Let's Encrypt certs.
+   - `NullProvisioner` (local dev) — no-ops every call so the flow can be exercised without a Dokploy instance.
+
+   Selected via `DOMAIN_PROVISIONER=dokploy|null`. Dokploy mode requires `DOKPLOY_API_URL`, `DOKPLOY_API_KEY`, and `DOKPLOY_APPLICATION_ID`.
+
+3. **Routing** ([proxy.ts](proxy.ts)) — rewrites incoming custom-domain requests to `/store/custom-domain/...` and exposes the original host via the `x-custom-domain` header. `getTenantByCustomDomain()` resolves the host to a tenant.
+
+#### Domain lifecycle
+
+```
+[connect]  → pending → dns_verification → ssl_provisioning → active
+                              ↓                  ↓
+                            error              error
+```
+
+`verifyDomain()` ([lib/actions/domains.ts](lib/actions/domains.ts)) drives the happy path: verifies DNS, persists `ssl_provisioning`, registers with the provisioner, then flips to `active`. Provisioner failures land the domain in `error` with a human-readable message in `tenants.domainError`.
+
+`disconnectDomain()` calls `provisioner.unregister(host)` (best-effort) before clearing the DB columns.
+
+#### Crons
+
+| Route                            | What it does                                                                                                                         | Recommended cadence |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| `GET /api/cron/domain-health`    | Re-checks DNS for pending domains, then probes HTTPS for active ones and downgrades `sslStatus` if the cert is invalid.              | every 5–10 min      |
+| `GET /api/cron/domain-reconcile` | Diffs `active` domains in DB vs the provisioner's list; re-registers missing ones and logs orphans. Safety net for partial failures. | daily               |
+
+Both require `Authorization: Bearer $CRON_SECRET`. **Note:** as of this writing the production cron scheduling has not been configured under Dokploy — wire these up via Dokploy's scheduled-jobs feature or an external cron hitting the URLs.
+
 ### Next.js 16 Proxy (NOT middleware.ts)
 
 **IMPORTANT:** Next.js 16 uses `proxy.ts` at the project root instead of `middleware.ts`. Do NOT create a middleware.ts file.

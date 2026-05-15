@@ -18,8 +18,8 @@ Become the trust layer for cross-border trade — a crypto-native escrow platfor
 - [x] Customer accounts (auth, order history, wishlists, addresses)
 - [x] Shipping zones and methods
 - [x] Analytics dashboard
-- [x] Custom domains with automatic SSL (Caddy)
-- [x] Docker + blue-green zero-downtime deployment pipeline
+- [x] Custom domains with automatic SSL (Traefik + Let's Encrypt via Dokploy)
+- [x] Docker + Dokploy deployment pipeline
 - [x] PostgreSQL 18 + PgBouncer + Drizzle ORM
 - [x] Rich text editor with H1-H6 headings and HTML source toggle
 
