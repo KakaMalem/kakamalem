@@ -61,7 +61,11 @@ export default async function StoreLayout({
       {/* Hydrate tenant settings store with server data */}
       <TenantSettingsHydration settings={tenantSettings} />
       {/* Hydrate user role for role-based UI (sidebar, settings nav) */}
-      <UserRoleHydration tenantId={store.id} role={userRole} />
+      <UserRoleHydration
+        tenantId={store.id}
+        role={userRole}
+        isPlatformAdminOverride={isAdminOverride}
+      />
       {/* Hydrate subscription for billing UI (user nav, upgrade prompts) */}
       {subscription && (
         <SubscriptionHydration

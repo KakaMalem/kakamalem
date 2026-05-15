@@ -15,9 +15,11 @@ export function AdminOverrideBanner({
   storeName,
   storeId,
 }: AdminOverrideBannerProps) {
+  // Negative margins break out of the parent <main>'s p-4/md:p-6 padding so
+  // the banner sits flush with the dashboard header above it.
   return (
-    <div className="sticky top-0 z-50 border-b border-amber-300 bg-amber-100 px-4 py-2 text-amber-900 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
+    <div className="-mx-4 -mt-4 mb-4 border-b border-amber-300 bg-amber-100 px-4 py-2 text-amber-900 shadow-sm md:-mx-6 md:-mt-6 md:mb-6 md:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex items-center gap-2 text-sm">
           <ShieldAlert className="size-4 shrink-0" />
           <span>

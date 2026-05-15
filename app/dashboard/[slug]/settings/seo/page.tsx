@@ -29,7 +29,7 @@ export default async function SeoSettingsPage({
 
   // Role-based access check (requires admin or owner)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "seo")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "seo")) {
     return (
       <AccessDenied
         message="You need admin or owner access to edit SEO settings."

@@ -31,7 +31,7 @@ export default async function PaymentSettingsPage({
 
   // Role-based access check (requires owner)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "payments")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "payments")) {
     return (
       <AccessDenied
         message="You need owner access to configure payment settings."

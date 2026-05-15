@@ -29,7 +29,7 @@ export default async function DeliverySettingsPage({
 
   // Role-based access check (requires admin or owner)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "delivery")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "delivery")) {
     return (
       <AccessDenied
         message="You need admin or owner access to edit delivery settings."

@@ -29,7 +29,7 @@ export default async function DomainSettingsPage({
 
   // Role-based access check (owner only)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "domains")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "domains")) {
     return (
       <AccessDenied
         message="Only the store owner can manage domain settings."

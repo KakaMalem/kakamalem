@@ -25,7 +25,7 @@ export default async function StoreModePage({ params }: StoreModePageProps) {
 
   // Role-based access check (owner only)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "store-mode")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "store-mode")) {
     return (
       <AccessDenied
         message="Only the store owner can change store mode settings."

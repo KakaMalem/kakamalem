@@ -26,7 +26,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
 
   // Role-based access check (requires admin or owner)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "general")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "general")) {
     return (
       <AccessDenied
         message="You need admin or owner access to edit general settings."

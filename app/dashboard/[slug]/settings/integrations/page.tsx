@@ -28,10 +28,7 @@ export default async function IntegrationsSettingsPage({
 
   // Role-based access check (requires admin or owner for certain parts, but integrations are often owner only)
   const userContext = await getUserStoreContext(store.id);
-  if (
-    !userContext ||
-    !canAccessSettingsPage(userContext.role, "integrations")
-  ) {
+  if (!userContext || !canAccessSettingsPage(userContext, "integrations")) {
     return (
       <AccessDenied
         message="Only store owners can manage external platform integrations."

@@ -33,7 +33,7 @@ export default async function SettingsLayout({
 
   // Check if user can access any settings
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessAnySettings(userContext.role)) {
+  if (!userContext || !canAccessAnySettings(userContext)) {
     return (
       <AccessDenied
         message="You don't have permission to access store settings. Only store owners and admins can access this area."

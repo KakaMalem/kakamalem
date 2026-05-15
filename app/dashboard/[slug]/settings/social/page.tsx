@@ -29,7 +29,7 @@ export default async function SocialLinksPage({
 
   // Role-based access check (requires admin or owner)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "social")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "social")) {
     return (
       <AccessDenied
         message="You need admin or owner access to edit social links."

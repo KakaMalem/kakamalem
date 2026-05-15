@@ -1,5 +1,14 @@
 import type { StoreRole } from "@/lib/auth/context";
 
+/**
+ * Minimal shape needed by access checks — accepts the full `UserStoreContext`
+ * or the lighter client-side role store. Platform admins always pass.
+ */
+export interface AccessCheckContext {
+  role: StoreRole;
+  isPlatformAdminOverride?: boolean;
+}
+
 // =============================================================================
 // SETTINGS PAGE PERMISSIONS
 // =============================================================================
@@ -160,12 +169,15 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
 ];
 
 /**
- * Check if a role has access to a specific settings page
+ * Check if a role has access to a specific settings page.
+ * Platform admins (via `isPlatformAdminOverride`) always pass.
  */
 export function canAccessSettingsPage(
-  role: StoreRole,
+  context: AccessCheckContext | StoreRole | null,
   pageKey: SettingsPageKey
 ): boolean {
+  const { role, isPlatformAdminOverride } = normalizeContext(context);
+  if (isPlatformAdminOverride) return true;
   if (!role) return false;
 
   const page = SETTINGS_PAGES.find((p) => p.key === pageKey);
@@ -178,11 +190,14 @@ export function canAccessSettingsPage(
 }
 
 /**
- * Get all settings pages accessible to a role
+ * Get all settings pages accessible to a role.
+ * Platform admins see everything.
  */
 export function getAccessibleSettingsPages(
-  role: StoreRole
+  context: AccessCheckContext | StoreRole | null
 ): SettingsPageConfig[] {
+  const { role, isPlatformAdminOverride } = normalizeContext(context);
+  if (isPlatformAdminOverride) return SETTINGS_PAGES;
   if (!role) return [];
 
   const userLevel = ROLE_HIERARCHY[role];
@@ -195,9 +210,9 @@ export function getAccessibleSettingsPages(
  * Get settings pages grouped by section, filtered by role
  */
 export function getGroupedSettingsPages(
-  role: StoreRole
+  context: AccessCheckContext | StoreRole | null
 ): { group: SettingsGroupConfig; pages: SettingsPageConfig[] }[] {
-  const accessible = getAccessibleSettingsPages(role);
+  const accessible = getAccessibleSettingsPages(context);
 
   return SETTINGS_GROUPS.map((group) => ({
     group,
@@ -206,11 +221,23 @@ export function getGroupedSettingsPages(
 }
 
 /**
- * Check if role can access any settings (for sidebar visibility)
- * Staff cannot access any settings pages
+ * Check if role can access any settings (for sidebar visibility).
+ * Staff cannot access any settings pages. Platform admins always can.
  */
-export function canAccessAnySettings(role: StoreRole): boolean {
+export function canAccessAnySettings(
+  context: AccessCheckContext | StoreRole | null
+): boolean {
+  const { role, isPlatformAdminOverride } = normalizeContext(context);
+  if (isPlatformAdminOverride) return true;
   return role === "owner" || role === "admin";
+}
+
+function normalizeContext(
+  input: AccessCheckContext | StoreRole | null
+): AccessCheckContext {
+  if (input === null) return { role: null };
+  if (typeof input === "string") return { role: input };
+  return input;
 }
 
 /**

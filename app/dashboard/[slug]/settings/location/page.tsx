@@ -29,7 +29,7 @@ export default async function LocationSettingsPage({
 
   // Role-based access check (requires admin or owner)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "location")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "location")) {
     return (
       <AccessDenied
         message="You need admin or owner access to edit location settings."

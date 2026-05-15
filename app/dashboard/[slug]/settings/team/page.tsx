@@ -29,7 +29,7 @@ export default async function TeamSettingsPage({
 
   // Role-based access check (owner only)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "team")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "team")) {
     return (
       <AccessDenied
         message="Only the store owner can manage team members."

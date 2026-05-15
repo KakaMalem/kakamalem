@@ -30,7 +30,7 @@ export default async function DangerSettingsPage({
 
   // Role-based access check (owner only)
   const userContext = await getUserStoreContext(store.id);
-  if (!userContext || !canAccessSettingsPage(userContext.role, "danger")) {
+  if (!userContext || !canAccessSettingsPage(userContext, "danger")) {
     return (
       <AccessDenied
         message="Only the store owner can access danger zone settings."

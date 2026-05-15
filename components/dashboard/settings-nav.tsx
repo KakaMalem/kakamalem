@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useUserRole } from "@/lib/stores/use-user-role-store";
+import {
+  useIsPlatformAdminOverride,
+  useUserRole,
+} from "@/lib/stores/use-user-role-store";
 import {
   SETTINGS_GROUPS,
   SETTINGS_PAGES,
@@ -33,8 +36,9 @@ export function SettingsNav() {
 
   // Get user role and filter settings pages
   const userRole = useUserRole();
+  const isPlatformAdminOverride = useIsPlatformAdminOverride();
   const accessiblePages = SETTINGS_PAGES.filter((page) =>
-    canAccessSettingsPage(userRole, page.key)
+    canAccessSettingsPage({ role: userRole, isPlatformAdminOverride }, page.key)
   );
 
   const isActive = (href: string) => {
@@ -106,8 +110,9 @@ export function SettingsNavTabs() {
 
   // Get user role and filter settings pages
   const userRole = useUserRole();
+  const isPlatformAdminOverride = useIsPlatformAdminOverride();
   const accessiblePages = SETTINGS_PAGES.filter((page) =>
-    canAccessSettingsPage(userRole, page.key)
+    canAccessSettingsPage({ role: userRole, isPlatformAdminOverride }, page.key)
   );
 
   const isActive = (href: string) => {

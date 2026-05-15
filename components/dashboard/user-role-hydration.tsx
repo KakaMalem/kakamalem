@@ -7,6 +7,7 @@ import type { StoreRole } from "@/lib/auth/context";
 interface UserRoleHydrationProps {
   tenantId: string;
   role: StoreRole;
+  isPlatformAdminOverride?: boolean;
 }
 
 /**
@@ -36,20 +37,31 @@ interface UserRoleHydrationProps {
  * );
  * ```
  */
-export function UserRoleHydration({ tenantId, role }: UserRoleHydrationProps) {
+export function UserRoleHydration({
+  tenantId,
+  role,
+  isPlatformAdminOverride = false,
+}: UserRoleHydrationProps) {
   const lastTenantIdRef = useRef<string | null>(null);
   const lastRoleRef = useRef<StoreRole>(null);
+  const lastOverrideRef = useRef<boolean>(false);
 
   // useLayoutEffect runs synchronously after DOM mutations but before paint
   // This prevents jitter while avoiding React's setState-during-render warning
   useLayoutEffect(() => {
-    // Only hydrate if tenant or role changed
-    if (lastTenantIdRef.current !== tenantId || lastRoleRef.current !== role) {
-      useUserRoleStore.getState().hydrate(tenantId, role);
+    if (
+      lastTenantIdRef.current !== tenantId ||
+      lastRoleRef.current !== role ||
+      lastOverrideRef.current !== isPlatformAdminOverride
+    ) {
+      useUserRoleStore
+        .getState()
+        .hydrate(tenantId, role, isPlatformAdminOverride);
       lastTenantIdRef.current = tenantId;
       lastRoleRef.current = role;
+      lastOverrideRef.current = isPlatformAdminOverride;
     }
-  }, [tenantId, role]);
+  }, [tenantId, role, isPlatformAdminOverride]);
 
   // This component doesn't render anything
   return null;

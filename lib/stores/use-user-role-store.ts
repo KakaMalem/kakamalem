@@ -16,9 +16,14 @@ type UserRoleState = {
   role: StoreRole;
   tenantId: string | null;
   isHydrated: boolean;
+  isPlatformAdminOverride: boolean;
 
   // Actions
-  hydrate: (tenantId: string, role: StoreRole) => void;
+  hydrate: (
+    tenantId: string,
+    role: StoreRole,
+    isPlatformAdminOverride: boolean
+  ) => void;
   reset: () => void;
 };
 
@@ -27,12 +32,14 @@ export const useUserRoleStore = create<UserRoleState>()((set) => ({
   role: null,
   tenantId: null,
   isHydrated: false,
+  isPlatformAdminOverride: false,
 
   // Hydrate from server data
-  hydrate: (tenantId, role) => {
+  hydrate: (tenantId, role, isPlatformAdminOverride) => {
     set({
       tenantId,
       role,
+      isPlatformAdminOverride,
       isHydrated: true,
     });
   },
@@ -43,6 +50,7 @@ export const useUserRoleStore = create<UserRoleState>()((set) => ({
       role: null,
       tenantId: null,
       isHydrated: false,
+      isPlatformAdminOverride: false,
     });
   },
 }));
@@ -53,6 +61,14 @@ export const useUserRoleStore = create<UserRoleState>()((set) => ({
 
 export function useUserRole() {
   return useUserRoleStore((state) => state.role);
+}
+
+/**
+ * Returns true when the current user is a platform admin acting on a store
+ * they don't own/staff. Use for UI that should expand access beyond `role`.
+ */
+export function useIsPlatformAdminOverride() {
+  return useUserRoleStore((state) => state.isPlatformAdminOverride);
 }
 
 export function useIsOwner() {
@@ -85,7 +101,13 @@ export function useCurrentTenantId() {
 // =============================================================================
 
 export const userRoleActions = {
-  hydrate: (tenantId: string, role: StoreRole) =>
-    useUserRoleStore.getState().hydrate(tenantId, role),
+  hydrate: (
+    tenantId: string,
+    role: StoreRole,
+    isPlatformAdminOverride: boolean
+  ) =>
+    useUserRoleStore
+      .getState()
+      .hydrate(tenantId, role, isPlatformAdminOverride),
   reset: () => useUserRoleStore.getState().reset(),
 };
