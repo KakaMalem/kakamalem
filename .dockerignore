@@ -45,7 +45,6 @@ Thumbs.db
 *.md
 !README.md
 docs/
-playground.md
 
 # Test files
 __tests__
@@ -58,12 +57,6 @@ coverage
 
 # TypeScript build info
 *.tsbuildinfo
-
-# Server setup (not needed in app container)
-server-setup/
-
-# Database configs (PostgreSQL runs native, not in this container)
-database/
 
 # Drizzle migrations (run separately)
 drizzle/
@@ -78,9 +71,6 @@ scripts/
 
 # Uploads (mounted as volume, not baked into image)
 uploads/
-
-# Supabase (legacy, not used)
-supabase/
 
 # Temporary files
 tmp/

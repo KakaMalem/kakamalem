@@ -115,14 +115,10 @@ components/
 
 - [CLAUDE.md](CLAUDE.md) - Architecture and development guidelines
 - [ROADMAP.md](ROADMAP.md) - Implementation plan and progress
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment guide
-- [docs/CUSTOM_DOMAINS.md](docs/CUSTOM_DOMAINS.md) - Custom domain setup
 
 ## Deployment
 
-UK Ltd registered entity. Servers hosted in Afghanistan for operational independence. Push to `main` triggers automatic zero-downtime blue-green deployment via GitHub Actions.
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full setup.
+UK Ltd registered entity. Servers hosted in Afghanistan for operational independence. Deploys via **Dokploy** — pushing to `main` triggers a webhook that clones the repo on the VPS and builds the Dockerfile. Environment variables and custom domain SSL are managed in the Dokploy UI.
 
 ---
 

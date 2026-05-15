@@ -93,109 +93,35 @@ pnpm dlx shadcn-ui@latest add [component-name]
 
 ## Deployment
 
-Automated deployment via GitHub Actions with **zero-downtime blue-green deployments**. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full setup.
+Deployment is managed by **Dokploy** on the production VPS. Dokploy is configured with a Git source pointed at this repo; pushing to `main` triggers a webhook that clones the repo on the VPS and runs `docker build` against the [Dockerfile](Dockerfile).
 
-**Quick deploy**: Push to `main` branch
+**To deploy**: `git push origin main` — Dokploy handles the rest.
 
-```bash
-git push origin main
-```
+**Environment variables**: managed in the Dokploy UI per application (not in `.env*` files in the repo).
 
-**Manual deployment on VPS**:
+**Routing & SSL**: Dokploy provisions Traefik for HTTPS termination and custom domain SSL via Let's Encrypt. The main domain and per-tenant custom domains (e.g., `shop.mybrand.com`) are configured in the Dokploy "Domains" tab for the application.
 
-```bash
-cd /var/www/kakamalem
-./scripts/docker-deploy.sh          # Pull and deploy (zero-downtime)
-./scripts/docker-deploy.sh --build  # Build locally and deploy
-./scripts/docker-deploy.sh --status # Check deployment status
-```
-
-**Rollback**:
-
-```bash
-./scripts/docker-deploy.sh --rollback
-```
-
-### Blue-Green Deployment
-
-The deployment uses blue-green strategy for zero downtime:
-
-- Two containers: `kakamalem-blue` (port 3000) and `kakamalem-green` (port 3001)
-- Nginx upstream switches between them during deployment
-- New container starts and passes health check before traffic switches
-- Old container stops only after traffic has moved
-
-## Infrastructure (Docker + Native Hybrid)
-
-The production setup uses a hybrid approach for optimal performance:
-
-| Component     | Where      | Why                                               |
-| ------------- | ---------- | ------------------------------------------------- |
-| Next.js App   | Docker     | Portable, reproducible, easy rollback             |
-| PostgreSQL 18 | Native     | Performance, tuned configs in `database/`         |
-| PgBouncer     | Native     | Minimal overhead, connection pooling              |
-| Nginx         | Native     | SSL termination, static files faster              |
-| Caddy         | Native     | Custom domains with on-demand TLS (automatic SSL) |
-| File Storage  | Bind mount | Docker accesses native filesystem                 |
-
-### Custom Domains
-
-Stores can connect custom domains (e.g., `shop.mybrand.com`) via Caddy's on-demand TLS:
-
-- Automatic SSL certificate provisioning via Let's Encrypt
-- Domain verification via DNS TXT record
-- Configured in store settings (`/dashboard/[slug]/settings/domain`)
-- See [docs/CUSTOM_DOMAINS.md](docs/CUSTOM_DOMAINS.md) for setup details
-
-### Docker Deployment
-
-```bash
-# Pull and deploy latest image
-cd /var/www/kakamalem
-docker compose pull
-docker compose up -d
-
-# View logs
-docker compose logs -f app
-
-# Rollback to previous version
-./scripts/docker-deploy.sh --rollback
-```
-
-### Server Setup (Fresh Ubuntu)
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete setup guide.
+**Migrations**: run via the Dokploy UI's terminal inside the container (`pnpm db:migrate`, `pnpm db:migrate:custom`), or locally with `DATABASE_URL_UNPOOLED` pointed at the production database.
 
 ### Key Infrastructure Files
 
 ```
-Dockerfile              # Multi-stage build for Next.js
-docker-compose.yml      # App orchestration (DB runs native)
+Dockerfile              # Multi-stage build for Next.js (Dokploy builds this)
 .dockerignore           # Exclude files from Docker context
-docs/DEPLOYMENT.md      # Complete deployment guide
 
 scripts/
-├── docker-deploy.sh    # Docker deployment with rollback
-├── backup-database.sh  # PostgreSQL backup with rotation
-└── health-check.sh     # System health verification
+├── backup-database.sh        # Postgres backup (run manually or via cron on the DB host)
+├── cleanup-temp-uploads.ts   # Periodic cleanup of stale upload temp files
+├── generate-icons.mjs        # Generate PWA icons from a source image
+└── migrate-custom.ts         # Apply custom SQL migrations from drizzle/custom/
 
 .github/workflows/
-├── ci.yml              # Lint, type check, build
-└── docker.yml          # Build & push Docker image to GHCR
+└── ci.yml                    # Lint, type check, build (independent of deploy)
 ```
 
 ### Database Backups
 
-```bash
-# Manual backup
-./scripts/backup-database.sh
-
-# Backup with cleanup (removes backups older than 14 days)
-./scripts/backup-database.sh --cleanup
-
-# Cron (daily at 3 AM)
-0 3 * * * /var/www/kakamalem/scripts/backup-database.sh --cleanup
-```
+The [scripts/backup-database.sh](scripts/backup-database.sh) script handles `pg_dump`-based backups with rotation. Run manually or wire it up via cron on whichever host runs Postgres (Dokploy-managed container, separate VPS, or managed service — depends on your setup).
 
 ### Health Check Endpoint
 
@@ -227,8 +153,9 @@ scripts/
 - **Notifications**: Novu (in-app + push notifications)
 - **Offline/PWA**: Dexie.js (IndexedDB) + Serwist (Service Worker)
 - **Payments**: USDT/USDC crypto escrow (new model) — Stripe/HesabPay retained for legacy client only
-- **Custom Domains**: Caddy with on-demand TLS
+- **Custom Domains**: Traefik via Dokploy (automatic SSL via Let's Encrypt)
 - **Package Manager**: pnpm
+- **Deployment**: Dokploy (Git auto-deploy, builds Dockerfile on VPS)
 
 ## Architecture
 
