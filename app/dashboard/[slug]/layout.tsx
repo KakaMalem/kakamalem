@@ -34,9 +34,10 @@ export default async function StoreLayout({
     notFound();
   }
 
-  // Fetch user context + subscription in parallel
-  // userContext exposes isPlatformAdminOverride for admins acting on stores
-  // they don't own/staff (used to fix client config remotely).
+  // Fetch user context + subscription in parallel.
+  // `isPlatformAdminOverride` grants management access regardless of
+  // membership — including when the admin is also a low-privilege staff
+  // member at the store.
   const [userStores, userContext, subscription] = await Promise.all([
     getUserStores(user.id),
     getUserStoreContext(store.id),
@@ -45,6 +46,9 @@ export default async function StoreLayout({
 
   const isMember = userStores.some((s) => s.id === store.id);
   const isAdminOverride = userContext?.isPlatformAdminOverride ?? false;
+  // Banner only when the admin has no membership — otherwise they're just
+  // using their normal account at their own store.
+  const showImpersonationBanner = isAdminOverride && !isMember;
 
   if (!isMember && !isAdminOverride) {
     notFound();
@@ -73,7 +77,7 @@ export default async function StoreLayout({
           subscription={subscription}
         />
       )}
-      {isAdminOverride && (
+      {showImpersonationBanner && (
         <AdminOverrideBanner storeName={store.name} storeId={store.id} />
       )}
       {children}

@@ -31,10 +31,11 @@ export interface UserStoreContext {
   /** Has this user placed orders at this store? */
   isCustomer: boolean;
   /**
-   * Platform admin override — true when the user is a platform admin acting on
-   * a store they don't own/staff. Grants management permissions without
-   * mutating membership. UI should surface this so it's clear they're
-   * impersonating.
+   * Platform admin override — true whenever the user is a platform admin,
+   * regardless of their tenant membership. Grants management permissions
+   * over the actual `role` (so a platform admin who is also tenant `staff`
+   * still gets full access). Use `isPlatformAdminOverride && !isMember` to
+   * detect impersonation for UI (banners, audit hints).
    */
   isPlatformAdminOverride: boolean;
   /** Store-specific customer metadata (if exists) */
@@ -116,7 +117,7 @@ export const getUserStoreContext = cache(
       isMember,
       role,
       isCustomer: hasOrders,
-      isPlatformAdminOverride: !isMember && platformAdmin,
+      isPlatformAdminOverride: platformAdmin,
       storeCustomer: customerRecord
         ? {
             id: customerRecord.id,
