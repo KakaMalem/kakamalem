@@ -6,6 +6,7 @@ import { getUserStoreContext } from "@/lib/auth/context";
 import { TenantSettingsHydration } from "@/components/dashboard/tenant-settings-hydration";
 import { UserRoleHydration } from "@/components/dashboard/user-role-hydration";
 import { SubscriptionHydration } from "@/components/dashboard/subscription-hydration";
+import { AdminOverrideBanner } from "@/components/dashboard/admin-override-banner";
 import { transformTenantToSettings } from "@/lib/utils/tenant-settings";
 
 interface StoreLayoutProps {
@@ -33,20 +34,21 @@ export default async function StoreLayout({
     notFound();
   }
 
-  // Fetch all user's stores to check access
-  const userStores = await getUserStores(user.id);
-
-  // Check if user has access to this store
-  const hasAccess = userStores.some((s) => s.id === store.id);
-  if (!hasAccess) {
-    notFound();
-  }
-
-  // Fetch store data in parallel
-  const [userContext, subscription] = await Promise.all([
+  // Fetch user context + subscription in parallel
+  // userContext exposes isPlatformAdminOverride for admins acting on stores
+  // they don't own/staff (used to fix client config remotely).
+  const [userStores, userContext, subscription] = await Promise.all([
+    getUserStores(user.id),
     getUserStoreContext(store.id),
     getSubscriptionOverview(store.id),
   ]);
+
+  const isMember = userStores.some((s) => s.id === store.id);
+  const isAdminOverride = userContext?.isPlatformAdminOverride ?? false;
+
+  if (!isMember && !isAdminOverride) {
+    notFound();
+  }
 
   // Transform store data for client-side hydration
   const tenantSettings = transformTenantToSettings(store);
@@ -66,6 +68,9 @@ export default async function StoreLayout({
           tenantId={store.id}
           subscription={subscription}
         />
+      )}
+      {isAdminOverride && (
+        <AdminOverrideBanner storeName={store.name} storeId={store.id} />
       )}
       {children}
     </>

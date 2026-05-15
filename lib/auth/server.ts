@@ -9,7 +9,7 @@ import {
   deliveryProviders,
   account,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { cache } from "react";
 
 // =============================================================================
@@ -163,7 +163,7 @@ export async function isStoreOwner(tenantId: string): Promise<boolean> {
 
 /**
  * Check if the current user has access to a specific store
- * (either as owner or staff)
+ * (either as owner, staff, or platform admin)
  */
 export async function hasStoreAccess(
   tenantId: string
@@ -183,12 +183,20 @@ export async function hasStoreAccess(
 
   // Check if staff
   const membership = await db.query.tenantMembers.findFirst({
-    where: eq(tenantMembers.tenantId, tenantId),
+    where: and(
+      eq(tenantMembers.tenantId, tenantId),
+      eq(tenantMembers.userId, user.id)
+    ),
     columns: { role: true },
   });
 
   if (membership) {
     return { hasAccess: true, role: membership.role };
+  }
+
+  // Platform admins can access any store (override role exposed for audit/UI)
+  if (await isPlatformAdmin()) {
+    return { hasAccess: true, role: "platform_admin" };
   }
 
   return { hasAccess: false, role: null };

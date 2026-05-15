@@ -8,7 +8,7 @@ import {
   userAddresses,
 } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getUser } from "./server";
+import { getUser, isPlatformAdmin } from "./server";
 
 // =============================================================================
 // STORE CONTEXT HELPERS
@@ -30,6 +30,13 @@ export interface UserStoreContext {
   role: StoreRole;
   /** Has this user placed orders at this store? */
   isCustomer: boolean;
+  /**
+   * Platform admin override — true when the user is a platform admin acting on
+   * a store they don't own/staff. Grants management permissions without
+   * mutating membership. UI should surface this so it's clear they're
+   * impersonating.
+   */
+  isPlatformAdminOverride: boolean;
   /** Store-specific customer metadata (if exists) */
   storeCustomer: {
     id: string;
@@ -49,44 +56,49 @@ export const getUserStoreContext = cache(
     if (!user) return null;
 
     // Fetch all relevant data in parallel
-    const [tenant, membership, customerRecord, orderCount] = await Promise.all([
-      // Check if user owns this store
-      db.query.tenants.findFirst({
-        where: eq(tenants.id, tenantId),
-        columns: { ownerId: true },
-      }),
-      // Check if user is staff at this store
-      db.query.tenantMembers.findFirst({
-        where: and(
-          eq(tenantMembers.tenantId, tenantId),
-          eq(tenantMembers.userId, user.id)
-        ),
-        columns: { role: true },
-      }),
-      // Get store-specific customer record (if exists)
-      db.query.storeCustomers.findFirst({
-        where: and(
-          eq(storeCustomers.tenantId, tenantId),
-          eq(storeCustomers.userId, user.id)
-        ),
-        columns: {
-          id: true,
-          marketingConsent: true,
-          totalOrders: true,
-          totalSpent: true,
-        },
-      }),
-      // Check if user has placed orders (even without storeCustomer record)
-      db
-        .select({ count: orders.id })
-        .from(orders)
-        .where(and(eq(orders.tenantId, tenantId), eq(orders.userId, user.id)))
-        .limit(1),
-    ]);
+    const [tenant, membership, customerRecord, orderCount, platformAdmin] =
+      await Promise.all([
+        // Check if user owns this store
+        db.query.tenants.findFirst({
+          where: eq(tenants.id, tenantId),
+          columns: { ownerId: true },
+        }),
+        // Check if user is staff at this store
+        db.query.tenantMembers.findFirst({
+          where: and(
+            eq(tenantMembers.tenantId, tenantId),
+            eq(tenantMembers.userId, user.id)
+          ),
+          columns: { role: true },
+        }),
+        // Get store-specific customer record (if exists)
+        db.query.storeCustomers.findFirst({
+          where: and(
+            eq(storeCustomers.tenantId, tenantId),
+            eq(storeCustomers.userId, user.id)
+          ),
+          columns: {
+            id: true,
+            marketingConsent: true,
+            totalOrders: true,
+            totalSpent: true,
+          },
+        }),
+        // Check if user has placed orders (even without storeCustomer record)
+        db
+          .select({ count: orders.id })
+          .from(orders)
+          .where(and(eq(orders.tenantId, tenantId), eq(orders.userId, user.id)))
+          .limit(1),
+        // Platform admins get an override that lets them manage any store
+        // (e.g. to fix custom-domain configs for clients who don't add them as staff)
+        isPlatformAdmin(),
+      ]);
 
     const isOwner = tenant?.ownerId === user.id;
     const staffRole = membership?.role ?? null;
     const isStaff = staffRole !== null;
+    const isMember = isOwner || isStaff;
     const hasOrders =
       orderCount.length > 0 || (customerRecord?.totalOrders ?? 0) > 0;
 
@@ -101,9 +113,10 @@ export const getUserStoreContext = cache(
     return {
       isOwner,
       isStaff,
-      isMember: isOwner || isStaff,
+      isMember,
       role,
       isCustomer: hasOrders,
+      isPlatformAdminOverride: !isMember && platformAdmin,
       storeCustomer: customerRecord
         ? {
             id: customerRecord.id,
@@ -117,16 +130,19 @@ export const getUserStoreContext = cache(
 );
 
 /**
- * Check if the current user can manage a store (owner, admin, or staff)
+ * Check if the current user can manage a store (owner, admin, or staff).
+ * Platform admins always pass via override.
  */
 export async function canManageStore(tenantId: string): Promise<boolean> {
   const context = await getUserStoreContext(tenantId);
-  return context?.isMember ?? false;
+  if (!context) return false;
+  return context.isMember || context.isPlatformAdminOverride;
 }
 
 /**
  * Check if the current user has a specific minimum role at a store
  * Role hierarchy: owner > admin > staff
+ * Platform admins always pass via override (acts as owner-equivalent).
  */
 export async function hasMinimumRole(
   tenantId: string,
@@ -134,6 +150,7 @@ export async function hasMinimumRole(
 ): Promise<boolean> {
   const context = await getUserStoreContext(tenantId);
   if (!context) return false;
+  if (context.isPlatformAdminOverride) return true;
 
   const roleHierarchy = { owner: 3, admin: 2, staff: 1 };
   const userRoleLevel = context.role ? roleHierarchy[context.role] : 0;

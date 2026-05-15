@@ -38,6 +38,7 @@ import {
   MinusCircle,
   FileText,
   Download,
+  Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { StoreActionsClient } from "./store-actions-client";
@@ -102,6 +103,18 @@ export default async function AdminStoreDetailPage({
           <p className="text-muted-foreground">/{store.slug}</p>
         </div>
         <div className="flex gap-2">
+          <Link href={`/dashboard/${store.slug}/settings/domains`}>
+            <Button variant="outline">
+              <Settings className="mr-2 size-4" />
+              Manage Domain
+            </Button>
+          </Link>
+          <Link href={`/dashboard/${store.slug}`}>
+            <Button variant="outline">
+              <Settings className="mr-2 size-4" />
+              Manage as Admin
+            </Button>
+          </Link>
           <a
             href={
               store.customDomain && store.customDomainStatus === "active"
