@@ -117,10 +117,15 @@ export async function GET(request: Request) {
     }
 
     // Direction 2: in upstream, not in DB → orphan. Log only.
+    // The platform's own domain (NEXT_PUBLIC_APP_URL) is also registered
+    // with Dokploy but isn't a tenant custom domain — exclude it so it
+    // doesn't get flagged as an orphan on every run.
+    const platformHosts = getPlatformHosts();
     for (const host of upstreamHosts) {
-      if (!dbSet.has(host.toLowerCase())) {
-        summary.orphansInUpstream.push(host);
-      }
+      const lower = host.toLowerCase();
+      if (dbSet.has(lower)) continue;
+      if (platformHosts.has(lower)) continue;
+      summary.orphansInUpstream.push(host);
     }
 
     console.log(
@@ -144,4 +149,28 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Returns the set of platform-owned hostnames that we expect to see in
+ * the upstream but never in the tenants table — derived from
+ * `NEXT_PUBLIC_APP_URL`. Also includes the `www.` variant so canonical
+ * redirects don't show up as orphans.
+ */
+function getPlatformHosts(): Set<string> {
+  const hosts = new Set<string>();
+  const url = process.env.NEXT_PUBLIC_APP_URL;
+  if (!url) return hosts;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    hosts.add(host);
+    if (host.startsWith("www.")) {
+      hosts.add(host.slice(4));
+    } else {
+      hosts.add(`www.${host}`);
+    }
+  } catch {
+    // Malformed NEXT_PUBLIC_APP_URL — fall through with empty set
+  }
+  return hosts;
 }

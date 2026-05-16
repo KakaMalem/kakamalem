@@ -859,6 +859,8 @@ Tenants connect a custom domain (e.g. `shop.mybrand.com`) to their store. The sy
 
    Selected via `DOMAIN_PROVISIONER=dokploy|null`. Dokploy mode requires `DOKPLOY_API_URL`, `DOKPLOY_API_KEY`, and `DOKPLOY_APPLICATION_ID`.
 
+   **`DOKPLOY_API_URL` must be the Docker-internal address** (e.g. `http://dokploy:3000`), not the public hostname. Public hostnames resolve to the VPS's public IP, which the container can't loop back to (hairpin NAT) — fetch fails silently with no response.
+
 3. **Routing** ([proxy.ts](proxy.ts)) — rewrites incoming custom-domain requests to `/store/custom-domain/...` and exposes the original host via the `x-custom-domain` header. `getTenantByCustomDomain()` resolves the host to a tenant.
 
 #### Domain lifecycle
