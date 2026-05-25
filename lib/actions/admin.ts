@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import {
   tenants,
+  tenantMembers,
+  user,
   platformSettings,
   adminAuditLog,
   billingTransactions,
@@ -13,11 +15,13 @@ import {
   type BillingTransactionType,
   type PaymentMethod,
 } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { generateInvoiceNumber } from "@/lib/db/queries/billing";
+import { sendEmail } from "@/lib/email";
+import { getStoreSuspendedEmailHtml } from "@/lib/email/templates/store-suspended";
 
 // =============================================================================
 // ADMIN SERVER ACTIONS
@@ -101,6 +105,23 @@ export async function updateStoreStatus(
       reason,
     });
 
+    // Notify owners/admins when a store is newly suspended.
+    // Fire-and-forget: email failures shouldn't roll back the suspension.
+    if (status === "suspended" && previousStatus !== "suspended") {
+      try {
+        await sendStoreSuspendedEmail({
+          storeId,
+          storeName: store.name,
+          reason,
+        });
+      } catch (emailError) {
+        console.error(
+          "Failed to send store suspension email:",
+          emailError
+        );
+      }
+    }
+
     revalidatePath("/admin/stores");
     revalidatePath(`/admin/stores/${storeId}`);
 
@@ -109,6 +130,61 @@ export async function updateStoreStatus(
     console.error("Failed to update store status:", error);
     return { success: false, error: "Failed to update store status" };
   }
+}
+
+async function sendStoreSuspendedEmail({
+  storeId,
+  storeName,
+  reason,
+}: {
+  storeId: string;
+  storeName: string;
+  reason?: string;
+}) {
+  const members = await db.query.tenantMembers.findMany({
+    where: and(
+      eq(tenantMembers.tenantId, storeId),
+      inArray(tenantMembers.role, ["owner", "admin"])
+    ),
+    columns: { userId: true },
+  });
+
+  const userIds = members.map((m) => m.userId);
+  if (userIds.length === 0) return;
+
+  const recipients = await db.query.user.findMany({
+    where: inArray(user.id, userIds),
+    columns: { email: true, name: true },
+  });
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
+  const supportEmail =
+    process.env.SUPPORT_EMAIL ||
+    process.env.SMTP_FROM_EMAIL ||
+    "kakamalem.team@gmail.com";
+
+  await Promise.all(
+    recipients
+      .filter((r) => !!r.email)
+      .map((r) =>
+        sendEmail({
+          to: r.email,
+          subject: `Your store ${storeName} has been suspended`,
+          html: getStoreSuspendedEmailHtml({
+            ownerName: r.name || "Store Owner",
+            storeName,
+            reason,
+            supportEmail,
+            baseUrl,
+          }),
+        }).catch((err) => {
+          console.error(
+            `Failed to send suspension email to ${r.email}:`,
+            err
+          );
+        })
+      )
+  );
 }
 
 /**
