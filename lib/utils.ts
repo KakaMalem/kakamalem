@@ -6,18 +6,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format a price with currency symbol
- * Supports USDT, USD, AFN, and other ISO currencies
+ * Format a price with currency symbol.
+ * Defaults to AFN; supports any ISO currency code.
  */
-export function formatPrice(price: number, currency: string = "USDT"): string {
-  // USDT/USDC — not ISO currencies, format manually
-  if (currency === "USDT" || currency === "USDC") {
-    return `$${new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(price)}`;
-  }
-
+export function formatPrice(price: number, currency: string = "AFN"): string {
   if (currency === "AFN") {
     return new Intl.NumberFormat("en-US", {
       style: "currency",

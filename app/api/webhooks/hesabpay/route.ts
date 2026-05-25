@@ -22,7 +22,6 @@ import {
   billingTransactions,
 } from "@/lib/db/schema";
 import { verifyWebhook, getPaymentSessionByGatewayId } from "@/lib/payments";
-import { creditSellerEarnings } from "@/lib/actions/earnings";
 import type { HesabPayWebhookPayload } from "@/lib/payments/hesabpay/types";
 
 // Disable body parsing - we need the raw body for signature verification
@@ -277,19 +276,6 @@ async function handlePaymentSuccess(
           updatedAt: new Date().toISOString(),
         })
         .where(eq(orders.id, session.orderId));
-
-      // Credit seller earnings when order is fully paid
-      // Credit in the order's base currency (store currency), not the payment gateway currency
-      if (isFullyPaid) {
-        await creditSellerEarnings(
-          session.tenantId,
-          session.orderId,
-          order.orderNumber,
-          orderTotal,
-          order.currencyCode || "AFN",
-          "HesabPay"
-        );
-      }
 
       console.log(
         `[HesabPay Webhook] Order ${order.orderNumber} marked as ${isFullyPaid ? "paid" : "partially paid"}`

@@ -16,11 +16,6 @@ import {
   type BillingTransactionStatus,
   type InvoiceStatus,
 } from "@/lib/db/schema";
-import {
-  isStripeEnabled,
-  getProPricingInfo,
-  type ProPriceInfo,
-} from "@/lib/stripe";
 
 // =============================================================================
 // SUBSCRIPTION TYPES
@@ -51,22 +46,16 @@ export type SubscriptionOverview = {
   productLimit: number | null; // null = unlimited
   productLimitReached: boolean;
 
-  // Platform settings (for display) - Monthly pricing
+  // Pricing from platform settings (AFN)
   proPlanPriceAfn: string;
-  // Platform settings - Yearly pricing
   proPlanYearlyPriceAfn: string;
   freeProductLimit: number;
   trialDurationDays: number;
 
-  // Stripe pricing (source of truth when configured)
-  stripeEnabled: boolean;
-  stripePriceInfo: ProPriceInfo | null;
-  // Yearly Stripe pricing
-  stripeYearlyPriceInfo: ProPriceInfo | null;
+  // Whether yearly pricing is available
   hasYearlyOption: boolean;
 
   // Subscription management
-  hasStripeSubscription: boolean;
   isPaused: boolean;
 };
 
@@ -83,45 +72,35 @@ export type PlanFeature = {
 /**
  * Get subscription overview for a tenant
  *
- * Pricing source of truth:
- * - Stripe: When STRIPE_PRO_PRICE_ID is configured, price comes from Stripe API
- * - Fallback: proPlanPriceAfn from platform settings (for HesabPay payments)
+ * Pricing comes from platform settings (AFN). Buyers pay via HesabPay's
+ * hosted checkout.
  */
 export const getSubscriptionOverview = cache(
   async (tenantId: string): Promise<SubscriptionOverview | null> => {
-    // Check if Stripe is enabled
-    const stripeEnabled = isStripeEnabled();
-
-    // Fetch tenant, platform settings, product count, and Stripe pricing in parallel
-    const [tenant, settings, productCountResult, stripePricingInfo] =
-      await Promise.all([
-        db.query.tenants.findFirst({
-          where: eq(tenants.id, tenantId),
-          columns: {
-            subscriptionPlan: true,
-            subscriptionStatus: true,
-            trialStartedAt: true,
-            trialEndsAt: true,
-            subscriptionStartedAt: true,
-            subscriptionEndsAt: true,
-            subscriptionNotes: true,
-            billingInterval: true,
-            stripeSubscriptionId: true,
-            pausedAt: true,
-          },
-        }),
-        db.query.platformSettings.findFirst(),
-        db
-          .select({ count: drizzleCount() })
-          .from(products)
-          .where(eq(products.tenantId, tenantId)),
-        // Fetch both monthly and yearly Stripe prices if enabled
-        stripeEnabled ? getProPricingInfo() : Promise.resolve(null),
-      ]);
+    const [tenant, settings, productCountResult] = await Promise.all([
+      db.query.tenants.findFirst({
+        where: eq(tenants.id, tenantId),
+        columns: {
+          subscriptionPlan: true,
+          subscriptionStatus: true,
+          trialStartedAt: true,
+          trialEndsAt: true,
+          subscriptionStartedAt: true,
+          subscriptionEndsAt: true,
+          subscriptionNotes: true,
+          billingInterval: true,
+          pausedAt: true,
+        },
+      }),
+      db.query.platformSettings.findFirst(),
+      db
+        .select({ count: drizzleCount() })
+        .from(products)
+        .where(eq(products.tenantId, tenantId)),
+    ]);
 
     if (!tenant) return null;
 
-    // Default platform settings (fallback for HesabPay payments)
     const platformDefaults = {
       proPlanPriceAfn: "1100",
       proPlanYearlyPriceAfn: "12000",
@@ -141,7 +120,6 @@ export const getSubscriptionOverview = cache(
     const productCount = productCountResult[0]?.count ?? 0;
     const now = new Date();
 
-    // Calculate trial days remaining
     let daysRemainingInTrial: number | null = null;
     let isTrialExpired = false;
 
@@ -153,7 +131,6 @@ export const getSubscriptionOverview = cache(
       daysRemainingInTrial = Math.max(0, daysRemainingInTrial);
     }
 
-    // Calculate subscription period days remaining
     let daysRemainingInPeriod: number | null = null;
     if (tenant.subscriptionEndsAt) {
       const periodEnd = new Date(tenant.subscriptionEndsAt);
@@ -164,17 +141,10 @@ export const getSubscriptionOverview = cache(
       );
     }
 
-    // No product limits — all plans get unlimited products
     const productLimit = null;
     const productLimitReached = false;
 
-    // Extract Stripe pricing
-    const stripePriceInfo = stripePricingInfo?.monthly ?? null;
-    const stripeYearlyPriceInfo = stripePricingInfo?.yearly ?? null;
-
-    // Check if yearly option is available (either Stripe or AFN)
-    const hasYearlyOption =
-      !!stripeYearlyPriceInfo || parseFloat(proPlanYearlyPriceAfn) > 0;
+    const hasYearlyOption = parseFloat(proPlanYearlyPriceAfn) > 0;
 
     return {
       plan: tenant.subscriptionPlan,
@@ -196,14 +166,7 @@ export const getSubscriptionOverview = cache(
       proPlanYearlyPriceAfn,
       freeProductLimit,
       trialDurationDays,
-      // Stripe pricing info (source of truth when configured)
-      stripeEnabled,
-      stripePriceInfo,
-      stripeYearlyPriceInfo,
       hasYearlyOption,
-
-      // Subscription management
-      hasStripeSubscription: !!tenant.stripeSubscriptionId,
       isPaused: !!tenant.pausedAt,
     };
   }

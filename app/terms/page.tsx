@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 export const metadata = {
   title: "Terms of Service | Kaka Malem",
   description:
-    "Terms of Service for Kaka Malem - crypto-native escrow marketplace for cross-border trade",
+    "Terms of Service for Kaka Malem — a storefront builder for Afghan businesses.",
 };
 
 function Section({
@@ -49,43 +49,40 @@ export default function TermsPage() {
           Terms of Service
         </h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Last updated: April 7, 2026
+          Last updated: May 16, 2026
         </p>
 
         <div className="mt-10 space-y-10">
           <Section title="Overview">
             <p>
               Kaka Malem (&quot;Platform&quot;, &quot;we&quot;, &quot;us&quot;)
-              is a crypto-native escrow marketplace that connects buyers with
-              white-label sellers for cross-border trade. By using Kaka Malem,
-              you agree to these terms. If you do not agree, do not use the
-              Platform.
+              is a multi-tenant storefront builder. Sellers create their own
+              online store, list products, and accept payments via HesabPay or
+              cash on delivery. By using Kaka Malem, you agree to these terms.
+              If you do not agree, do not use the Platform.
             </p>
           </Section>
 
           <Section title="How the Platform Works">
             <p>
-              Kaka Malem acts as a neutral escrow intermediary. We do not sell
-              products directly. The transaction flow is:
+              Kaka Malem provides software for sellers to run their own
+              storefronts. We do not sell products directly. The transaction
+              flow is:
             </p>
             <ol className="list-decimal space-y-1.5 pl-5">
-              <li>Seller lists products on their storefront.</li>
+              <li>Seller signs up, picks a plan, and creates a storefront.</li>
               <li>
-                Buyer pays in USDT (TRC20) &mdash; funds are held in Kaka
-                Malem&apos;s escrow wallet.
-              </li>
-              <li>Seller ships the order and uploads a tracking number.</li>
-              <li>
-                Buyer confirms delivery &mdash; funds are released to the
-                seller, minus a 5% platform fee.
+                Seller lists products and configures which payment methods to
+                accept (HesabPay card payments, cash on delivery).
               </li>
               <li>
-                If the buyer does not act within 30 days of shipment, funds
-                auto-release to the seller.
+                Customers shop on the storefront and check out. Card payments
+                are processed by HesabPay&apos;s hosted checkout; COD orders are
+                paid to the courier on delivery.
               </li>
               <li>
-                Either party may open a dispute. Disputed funds are frozen until
-                an admin resolves the case.
+                Seller fulfills the order and updates its status. The Platform
+                tracks orders, inventory, and analytics.
               </li>
             </ol>
           </Section>
@@ -106,68 +103,79 @@ export default function TermsPage() {
             <p>As a seller on Kaka Malem, you agree to:</p>
             <ul className="list-disc space-y-1.5 pl-5">
               <li>List only legal, accurately described products.</li>
-              <li>Ship orders promptly and provide valid tracking.</li>
-              <li>Respond to buyer inquiries and disputes in good faith.</li>
+              <li>Fulfill orders promptly and honor your stated policies.</li>
               <li>
-                Comply with all applicable laws in your jurisdiction, including
-                export regulations.
+                Respond to customer inquiries and complaints in good faith.
               </li>
               <li>
-                Accept that Kaka Malem deducts a 5% fee from escrow releases as
-                the sole platform charge.
+                Comply with all applicable laws in your jurisdiction, including
+                tax, consumer protection, and import/export regulations.
+              </li>
+              <li>
+                Pay your Pro subscription fee on time if you have upgraded from
+                the Free plan.
+              </li>
+              <li>
+                Handle refunds and disputes with your customers directly. The
+                Platform provides tooling but does not act as an intermediary.
               </li>
             </ul>
           </Section>
 
           <Section title="Buyer Obligations">
-            <p>As a buyer, you agree to:</p>
+            <p>As a customer of a seller&apos;s storefront, you agree to:</p>
             <ul className="list-disc space-y-1.5 pl-5">
               <li>
-                Send the correct payment amount to the escrow wallet address
-                provided at checkout.
+                Provide accurate shipping and contact information at checkout.
               </li>
               <li>
-                Confirm delivery honestly and promptly when goods are received.
+                Pay for items via the seller&apos;s configured payment method
+                (HesabPay or COD).
               </li>
               <li>
-                Open disputes only for legitimate reasons (non-delivery, wrong
-                item, damaged goods).
-              </li>
-              <li>
-                Understand that unconfirmed orders auto-release to the seller
-                after 30 days.
+                Address any order issues (delivery problems, refunds, returns)
+                directly with the seller. Kaka Malem is not a party to the
+                buyer/seller transaction.
               </li>
             </ul>
           </Section>
 
           <Section title="Fees">
+            <p>Kaka Malem operates on a subscription model:</p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>
+                <strong>Free plan:</strong> Limited product count, full feature
+                set otherwise.
+              </li>
+              <li>
+                <strong>Pro plan:</strong> Unlimited products. Billed monthly or
+                yearly via HesabPay invoices.
+              </li>
+              <li>
+                <strong>No per-transaction fee:</strong> Sellers keep 100% of
+                order revenue. HesabPay&apos;s payment processing fees apply
+                separately and are between the seller and HesabPay.
+              </li>
+            </ul>
             <p>
-              There are no listing fees, subscription fees, or upfront charges.
-              Kaka Malem charges a <strong>5% fee</strong> deducted
-              automatically when escrow funds are released to the seller. The
-              fee percentage is locked at the time of payment and is not
-              affected by future changes to the rate. Buyers pay no platform
-              fees.
+              Current pricing is shown on the billing page in your dashboard. We
+              may change pricing with at least 30 days&apos; notice; existing
+              subscribers retain their current rate until renewal.
             </p>
           </Section>
 
-          <Section title="Disputes">
+          <Section title="Payments">
             <p>
-              Either party may open a dispute while funds are in escrow. Once a
-              dispute is opened:
+              Online card payments are processed by HesabPay through their
+              hosted checkout. Kaka Malem does not see, store, or process card
+              numbers. HesabPay&apos;s terms apply to card transactions on top
+              of these terms.
             </p>
-            <ul className="list-disc space-y-1.5 pl-5">
-              <li>Funds are frozen until the dispute is resolved.</li>
-              <li>
-                Both parties may submit evidence (messages, photos, tracking
-                info).
-              </li>
-              <li>
-                A Kaka Malem admin reviews the case and issues a final, binding
-                decision &mdash; either releasing funds to the seller or
-                refunding the buyer.
-              </li>
-            </ul>
+            <p>
+              Cash on Delivery is handled directly between the seller, the
+              courier, and the buyer. The Platform records the order but is not
+              involved in collecting payment.
+            </p>
           </Section>
 
           <Section title="Prohibited Activities">
@@ -175,123 +183,22 @@ export default function TermsPage() {
             <ul className="list-disc space-y-1.5 pl-5">
               <li>Sell illegal, counterfeit, or sanctioned goods.</li>
               <li>
-                Engage in fraud, money laundering, or terrorist financing.
+                Engage in fraud, money laundering, or other financial crimes.
               </li>
-              <li>Manipulate escrow or dispute processes.</li>
-              <li>Circumvent platform fees by transacting off-platform.</li>
+              <li>
+                Misrepresent products, hide fees, or otherwise deceive
+                customers.
+              </li>
               <li>Harass other users or abuse the support system.</li>
-            </ul>
-            <p>
-              Violation may result in immediate account suspension and
-              forfeiture of escrowed funds.
-            </p>
-          </Section>
-
-          <Section title="Cryptocurrency Payments">
-            <p>
-              All payments are made in USDT on the TRC20 (Tron) network. You
-              acknowledge that:
-            </p>
-            <ul className="list-disc space-y-1.5 pl-5">
               <li>
-                Blockchain transactions are irreversible. Sending funds to the
-                wrong address or on the wrong network cannot be undone.
-              </li>
-              <li>
-                Kaka Malem is not responsible for losses due to user error
-                (wrong address, wrong network, insufficient gas).
-              </li>
-              <li>Network fees (gas) are the sender&apos;s responsibility.</li>
-              <li>
-                Kaka Malem operates a custodial wallet model. All buyer payments
-                are held in platform-controlled wallets. Seller balances are
-                tracked internally and on-chain transfers occur only when
-                sellers withdraw funds.
+                Attempt to disrupt the Platform&apos;s operation or bypass usage
+                limits.
               </li>
             </ul>
-          </Section>
-
-          <Section title="Escrow Agreement">
             <p>
-              By using the Platform, both buyers and sellers agree to the
-              following escrow terms:
+              Violation may result in immediate account suspension and removal
+              of your storefront.
             </p>
-            <ul className="list-disc space-y-1.5 pl-5">
-              <li>
-                <strong>Escrow hold:</strong> Buyer funds are held in Kaka
-                Malem&apos;s escrow wallet from the moment payment is confirmed
-                until delivery is confirmed or a dispute is resolved.
-              </li>
-              <li>
-                <strong>Seller shipment:</strong> Sellers must provide a valid
-                tracking number when marking an order as shipped. The 30-day
-                auto-release timer starts from this point.
-              </li>
-              <li>
-                <strong>Buyer confirmation:</strong> Buyers should confirm
-                delivery promptly upon receiving their order. Failure to confirm
-                or dispute within 30 days results in automatic release of funds
-                to the seller.
-              </li>
-              <li>
-                <strong>Platform fee:</strong> A 5% fee is deducted from the
-                escrow amount upon release to the seller. This fee is locked at
-                the time of payment and cannot change retroactively.
-              </li>
-              <li>
-                <strong>Seller earnings hold:</strong> Released funds are held
-                in the seller&apos;s pending balance for 7 days before becoming
-                available for withdrawal. This hold period protects against
-                post-delivery disputes.
-              </li>
-              <li>
-                <strong>Withdrawal fee:</strong> A $0.50 USDT fee is deducted
-                from each seller withdrawal to cover blockchain transaction
-                costs.
-              </li>
-            </ul>
-          </Section>
-
-          <Section title="Dispute Resolution Policy">
-            <p>
-              Kaka Malem provides binding dispute resolution for all
-              escrow-protected transactions:
-            </p>
-            <ul className="list-disc space-y-1.5 pl-5">
-              <li>
-                <strong>Who can dispute:</strong> Both buyers and sellers may
-                open a dispute while funds are in escrow (status: funded or in
-                transit).
-              </li>
-              <li>
-                <strong>Dispute process:</strong> The disputing party provides a
-                reason and optional evidence (photos, screenshots). The other
-                party is notified and may respond with their own evidence.
-              </li>
-              <li>
-                <strong>Frozen funds:</strong> Once a dispute is opened, all
-                escrowed funds are frozen. Neither the auto-release timer nor
-                manual release can proceed until resolution.
-              </li>
-              <li>
-                <strong>Admin review:</strong> A Kaka Malem administrator
-                reviews all submitted evidence and issues a binding decision.
-              </li>
-              <li>
-                <strong>Outcomes:</strong> The admin either releases funds to
-                the seller (minus the platform fee) or refunds the full amount
-                to the buyer. Partial resolutions are not supported.
-              </li>
-              <li>
-                <strong>Finality:</strong> Dispute resolutions are final. Kaka
-                Malem&apos;s decision is binding on both parties.
-              </li>
-              <li>
-                <strong>Good faith:</strong> Abuse of the dispute system
-                (frivolous disputes, false claims) may result in account
-                suspension.
-              </li>
-            </ul>
           </Section>
 
           <Section title="Intellectual Property">
@@ -307,19 +214,19 @@ export default function TermsPage() {
             <p>
               Kaka Malem is provided &quot;as is.&quot; To the maximum extent
               permitted by law, we are not liable for: losses due to
-              cryptocurrency volatility, blockchain network failures, seller
-              non-delivery, product quality, or any indirect or consequential
-              damages. Our total liability is limited to the platform fees
-              collected on the specific transaction in question.
+              seller/buyer disputes, product quality issues, courier delays,
+              payment processor failures, or any indirect or consequential
+              damages. Our total liability is limited to the subscription fees
+              you paid us in the 12 months preceding the claim.
             </p>
           </Section>
 
           <Section title="Termination">
             <p>
               We may suspend or terminate accounts that violate these terms. You
-              may close your account at any time. Upon termination, any pending
-              escrow transactions will be resolved according to their current
-              status before the account is fully closed.
+              may close your account at any time from your dashboard. Upon
+              termination, your storefront is taken offline and your data is
+              retained per our Privacy Policy.
             </p>
           </Section>
 

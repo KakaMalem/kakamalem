@@ -327,17 +327,7 @@ export interface InvoiceData {
   };
 }
 
-function formatCurrency(amount: number, currency: string): string {
-  if (currency === "USDT" || currency === "USDC") {
-    return `$${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
-  }
-  if (currency === "USD") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
-  }
-  // AFN - Afghan Afghani (legacy)
+function formatCurrency(amount: number, _currency: string): string {
   return `؋ ${new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,

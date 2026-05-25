@@ -1,7 +1,7 @@
 {
   "name": "Kaka Malem",
   "short_name": "Kaka Malem",
-  "description": "Kaka Malem - Crypto-native escrow marketplace for cross-border trade",
+  "description": "Kaka Malem — Storefront builder for Afghan businesses",
   "display": "standalone",
   "orientation": "any",
   "start_url": "/dashboard",

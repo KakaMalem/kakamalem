@@ -89,11 +89,9 @@ export type StandardShippingAddressInput = z.infer<
  */
 export const paymentGatewaySchema = z.enum([
   "hesabpay",
-  "stripe",
   "cod",
   "bank_transfer",
   "mobile_money",
-  "crypto_usdt",
 ]);
 
 export type PaymentGateway = z.infer<typeof paymentGatewaySchema>;

@@ -83,7 +83,7 @@ async function checkAndNotifyBackInStock(
         productName: product.name,
         productSlug: product.slug,
         price: product.price,
-        currency: "USDT",
+        currency: "AFN",
         storeName: tenant.name,
       }).catch(console.error);
     }

@@ -425,7 +425,7 @@ export function getDisplayPrices(
  */
 export function formatPriceTier(
   tier: PriceTier,
-  currency: string = "USDT"
+  currency: string = "AFN"
 ): string {
   const price = parseFloat(tier.price);
   const formattedPrice = formatCurrencyAmount(price, currency);
@@ -436,11 +436,8 @@ export function formatPriceTier(
   return `${tier.minQuantity}-${tier.maxQuantity} units: ${formattedPrice}`;
 }
 
-/** Format an amount with the correct currency symbol (handles non-ISO codes like USDT) */
+/** Format an amount with the correct currency symbol */
 function formatCurrencyAmount(amount: number, currency: string): string {
-  if (currency === "USDT" || currency === "USDC") {
-    return `$${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
-  }
   let formatted = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,

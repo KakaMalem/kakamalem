@@ -5,8 +5,6 @@ import { getUserStoreContext } from "@/lib/auth/context";
 import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { getAllPaymentGatewayConfigs } from "@/lib/actions/payments";
-import { isStripeEnabled } from "@/lib/stripe";
-import { isCryptoEnabled } from "@/lib/payments/crypto";
 import { PaymentSettingsForm } from "./payment-settings-form";
 
 interface PaymentSettingsPageProps {
@@ -29,7 +27,6 @@ export default async function PaymentSettingsPage({
     notFound();
   }
 
-  // Role-based access check (requires owner)
   const userContext = await getUserStoreContext(store.id);
   if (!userContext || !canAccessSettingsPage(userContext, "payments")) {
     return (
@@ -41,27 +38,16 @@ export default async function PaymentSettingsPage({
     );
   }
 
-  // Check if Stripe and Crypto are configured at platform level
-  const [stripeEnabled, cryptoEnabled, gatewayConfigs] = await Promise.all([
-    Promise.resolve(isStripeEnabled()),
-    isCryptoEnabled(),
-    getAllPaymentGatewayConfigs(store.id),
-  ]);
-
-  // Transform to a map for easy lookup
+  const gatewayConfigs = await getAllPaymentGatewayConfigs(store.id);
   const configMap = new Map(gatewayConfigs.map((c) => [c.gateway, c]));
 
   return (
     <PaymentSettingsForm
       storeId={store.id}
       storeCurrency={store.currency}
-      stripeEnabled={stripeEnabled}
-      cryptoEnabled={cryptoEnabled}
       initialConfigs={{
         hesabpay: configMap.get("hesabpay") || null,
-        stripe: configMap.get("stripe") || null,
         cod: configMap.get("cod") || null,
-        crypto_usdt: configMap.get("crypto_usdt") || null,
       }}
     />
   );

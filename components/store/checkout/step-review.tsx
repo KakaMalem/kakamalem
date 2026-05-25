@@ -79,12 +79,6 @@ export function StepReview({
   const [cartErrors, setCartErrors] = useState<
     Array<{ itemId: string; productName: string; error: string }>
   >([]);
-  const [selectedNetwork, setSelectedNetwork] = useState<string>(() => {
-    const cryptoGateway = enabledPaymentMethods.find(
-      (g) => g.gateway === "crypto_usdt"
-    );
-    return cryptoGateway?.cryptoNetworks?.[0]?.network || "trc20";
-  });
 
   // Calculate total bulk savings from tier pricing
   const totalBulkSavings = useMemo(() => {
@@ -234,16 +228,11 @@ export function StepReview({
       // Handle payment based on selected method
       const gateway = selectedPaymentMethod.gateway;
 
-      if (
-        gateway === "hesabpay" ||
-        gateway === "stripe" ||
-        gateway === "crypto_usdt"
-      ) {
+      if (gateway === "hesabpay") {
         // For online payment, create payment session and redirect
         const paymentResult = await createOrderPaymentSession(
           orderId!,
-          gateway,
-          gateway === "crypto_usdt" ? { network: selectedNetwork } : undefined
+          gateway
         );
 
         if (!paymentResult.success) {
@@ -258,12 +247,7 @@ export function StepReview({
           return;
         }
 
-        // Redirect to payment page
-        toast.success(
-          gateway === "crypto_usdt"
-            ? "Redirecting to crypto payment..."
-            : "Redirecting to payment..."
-        );
+        toast.success("Redirecting to payment...");
         window.location.href = paymentResult.paymentUrl!;
       } else {
         // For COD or other methods, go directly to success page
@@ -541,8 +525,6 @@ export function StepReview({
             disabled={isSubmitting}
             currency={currency}
             enabledMethods={enabledPaymentMethods}
-            selectedNetwork={selectedNetwork}
-            onNetworkSelect={setSelectedNetwork}
           />
         </CardContent>
       </Card>

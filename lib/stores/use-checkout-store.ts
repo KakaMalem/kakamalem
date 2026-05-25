@@ -31,13 +31,7 @@ export type ShippingMethod = {
 };
 
 export type PaymentMethod = {
-  gateway:
-    | "hesabpay"
-    | "stripe"
-    | "cod"
-    | "bank_transfer"
-    | "mobile_money"
-    | "crypto_usdt";
+  gateway: "hesabpay" | "cod" | "bank_transfer" | "mobile_money";
   displayName: string;
   description?: string;
 };

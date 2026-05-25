@@ -79,12 +79,6 @@ export function SectionPayment({
   const [cartErrors, setCartErrors] = useState<
     Array<{ itemId: string; productName: string; error: string }>
   >([]);
-  const [selectedNetwork, setSelectedNetwork] = useState<string>(() => {
-    const cryptoGateway = enabledPaymentMethods.find(
-      (g) => g.gateway === "crypto_usdt"
-    );
-    return cryptoGateway?.cryptoNetworks?.[0]?.network || "trc20";
-  });
 
   // Calculate total bulk savings from tier pricing
   const totalBulkSavings = useMemo(() => {
@@ -231,15 +225,10 @@ export function SectionPayment({
       const gateway = selectedPaymentMethod.gateway;
 
       // Online payment gateways that require redirect
-      if (
-        gateway === "hesabpay" ||
-        gateway === "stripe" ||
-        gateway === "crypto_usdt"
-      ) {
+      if (gateway === "hesabpay") {
         const paymentResult = await createOrderPaymentSession(
           orderId!,
-          gateway,
-          gateway === "crypto_usdt" ? { network: selectedNetwork } : undefined
+          gateway
         );
 
         if (!paymentResult.success) {
@@ -256,11 +245,7 @@ export function SectionPayment({
           return;
         }
 
-        toast.success(
-          gateway === "crypto_usdt"
-            ? "Redirecting to crypto payment..."
-            : "Redirecting to payment..."
-        );
+        toast.success("Redirecting to payment...");
         window.location.href = paymentResult.paymentUrl!;
       } else {
         // COD, bank transfer, etc. - no online payment needed
@@ -356,8 +341,6 @@ export function SectionPayment({
               disabled={isSubmitting}
               currency={currency}
               enabledMethods={enabledPaymentMethods}
-              selectedNetwork={selectedNetwork}
-              onNetworkSelect={setSelectedNetwork}
             />
           </div>
 
@@ -482,15 +465,11 @@ export function SectionPayment({
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                {selectedPaymentMethod?.gateway === "hesabpay" ||
-                selectedPaymentMethod?.gateway === "stripe" ||
-                selectedPaymentMethod?.gateway === "crypto_usdt"
+                {selectedPaymentMethod?.gateway === "hesabpay"
                   ? "Processing..."
                   : "Placing Order..."}
               </>
-            ) : selectedPaymentMethod?.gateway === "hesabpay" ||
-              selectedPaymentMethod?.gateway === "stripe" ||
-              selectedPaymentMethod?.gateway === "crypto_usdt" ? (
+            ) : selectedPaymentMethod?.gateway === "hesabpay" ? (
               <>
                 <Lock className="mr-2 size-4" />
                 Pay {formatPrice(total)}

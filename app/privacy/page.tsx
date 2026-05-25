@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 export const metadata = {
   title: "Privacy Policy | Kaka Malem",
   description:
-    "Privacy Policy for Kaka Malem - crypto-native escrow marketplace for cross-border trade",
+    "Privacy Policy for Kaka Malem — a storefront builder for Afghan businesses.",
 };
 
 function Section({
@@ -56,9 +56,10 @@ export default function PrivacyPage() {
           <Section title="Introduction">
             <p>
               Kaka Malem (&quot;Platform&quot;, &quot;we&quot;, &quot;us&quot;)
-              is a crypto-native escrow marketplace. This policy explains what
-              data we collect, why we collect it, and how we protect it. By
-              using Kaka Malem, you consent to the practices described here.
+              is a multi-tenant storefront builder for Afghan businesses. This
+              policy explains what data we collect, why we collect it, and how
+              we protect it. By using Kaka Malem, you consent to the practices
+              described here.
             </p>
           </Section>
 
@@ -74,15 +75,16 @@ export default function PrivacyPage() {
               </li>
               <li>
                 Seller information &mdash; store name, branding, product
-                listings, crypto wallet addresses for payout.
+                listings, contact details for receiving HesabPay settlements.
               </li>
               <li>
                 Order and shipping data &mdash; delivery addresses, tracking
-                numbers, dispute evidence.
+                numbers, customer notes.
               </li>
               <li>
-                Payment data &mdash; transaction hashes, wallet addresses,
-                payment amounts. We do not store private keys.
+                Payment data &mdash; transaction references and amounts. Card
+                details are handled by HesabPay&apos;s hosted checkout and are
+                never seen or stored by the Platform.
               </li>
             </ul>
 
@@ -104,9 +106,9 @@ export default function PrivacyPage() {
           <Section title="How We Use Your Data">
             <ul className="list-disc space-y-1.5 pl-5">
               <li>
-                <strong className="text-foreground">Escrow operations</strong>{" "}
-                &mdash; process payments, hold funds, release on confirmation,
-                handle disputes.
+                <strong className="text-foreground">Order processing</strong>{" "}
+                &mdash; route payments to HesabPay, confirm orders, manage
+                refunds, send updates to buyers and sellers.
               </li>
               <li>
                 <strong className="text-foreground">Platform operation</strong>{" "}
@@ -160,27 +162,18 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section title="Blockchain Data">
-            <p>
-              Cryptocurrency transactions are recorded on public blockchains.
-              Wallet addresses and transaction hashes associated with your
-              orders are inherently public and cannot be deleted from the
-              blockchain. We store this data in our database to link on-chain
-              transactions to your orders.
-            </p>
-          </Section>
-
           <Section title="Data Security">
             <ul className="list-disc space-y-1.5 pl-5">
               <li>TLS encryption for all data in transit.</li>
               <li>Passwords hashed with industry-standard algorithms.</li>
-              <li>
-                Escrow wallet keys stored securely with restricted access.
-              </li>
               <li>Daily encrypted database backups.</li>
               <li>
                 Role-based access controls &mdash; staff can only access data
                 relevant to their function.
+              </li>
+              <li>
+                Card data is handled by HesabPay&apos;s hosted checkout; we
+                never see or store payment card numbers.
               </li>
             </ul>
             <p>
@@ -199,10 +192,6 @@ export default function PrivacyPage() {
               <li>
                 Transaction records are retained for 7 years for legal and
                 financial compliance.
-              </li>
-              <li>
-                Blockchain data (wallet addresses, tx hashes) remains on-chain
-                permanently.
               </li>
             </ul>
           </Section>

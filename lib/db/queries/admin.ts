@@ -273,7 +273,6 @@ export const getPlatformSettings = cache(async () => {
       trialDurationDays: 7,
       transactionFeePercent: "0",
       trialWarningDays: 3,
-      usdtWalletConfig: null,
       updatedAt: null,
       updatedBy: null,
     };

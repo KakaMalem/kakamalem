@@ -217,7 +217,7 @@ export async function createStore(
     contactEmail: (formData.get("contactEmail") as string) || undefined,
     contactPhone: (formData.get("contactPhone") as string) || undefined,
     currency: ((formData.get("currency") as string) ||
-      "USDT") as CreateStoreInput["currency"],
+      "AFN") as CreateStoreInput["currency"],
   };
 
   // Server-side validation
@@ -432,7 +432,7 @@ export async function updateGeneralSettings(
     description: (formData.get("description") as string) || "",
     contactEmail: (formData.get("contactEmail") as string) || "",
     contactPhone: (formData.get("contactPhone") as string) || "",
-    currency: (formData.get("currency") as string) || "USDT",
+    currency: (formData.get("currency") as string) || "AFN",
   };
 
   try {

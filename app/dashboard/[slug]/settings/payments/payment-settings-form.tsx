@@ -3,15 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  CreditCard,
-  Banknote,
-  Check,
-  Info,
-  Star,
-  Globe,
-  Wallet,
-} from "lucide-react";
+import { CreditCard, Banknote, Check, Info, Star } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -25,10 +17,8 @@ import { cn } from "@/lib/utils";
 import { savePaymentGatewayConfig } from "@/lib/actions/payments";
 import type { PaymentGatewayConfig } from "@/lib/db/schema";
 
-// Gateway type for stricter typing
-type GatewayType = "hesabpay" | "stripe" | "cod" | "crypto_usdt";
+type GatewayType = "hesabpay" | "cod";
 
-// Available payment gateways with their display info
 const PAYMENT_GATEWAYS: Array<{
   gateway: GatewayType;
   displayName: string;
@@ -40,29 +30,10 @@ const PAYMENT_GATEWAYS: Array<{
   {
     gateway: "hesabpay",
     displayName: "Pay with Card (HesabPay)",
-    description:
-      "Accept card payments via HesabPay. Supports local card payments.",
+    description: "Accept card payments via HesabPay's secure hosted checkout.",
     icon: CreditCard,
     recommended: true,
-    badge: "Local",
-  },
-  {
-    gateway: "stripe",
-    displayName: "Pay with Card (International)",
-    description:
-      "Accept Visa, Mastercard, and more from international customers via Stripe.",
-    icon: Globe,
-    recommended: false,
-    badge: "International",
-  },
-  {
-    gateway: "crypto_usdt",
-    displayName: "Pay with USDT",
-    description:
-      "Accept USDT cryptocurrency payments. Supports TRC20, ERC20, and BEP20 networks.",
-    icon: Wallet,
-    recommended: false,
-    badge: "Crypto",
+    badge: "Online",
   },
   {
     gateway: "cod",
@@ -78,138 +49,80 @@ const PAYMENT_GATEWAYS: Array<{
 interface PaymentSettingsFormProps {
   storeId: string;
   storeCurrency: string;
-  stripeEnabled: boolean;
-  cryptoEnabled: boolean;
   initialConfigs: {
     hesabpay: PaymentGatewayConfig | null;
-    stripe: PaymentGatewayConfig | null;
     cod: PaymentGatewayConfig | null;
-    crypto_usdt: PaymentGatewayConfig | null;
   };
 }
 
-// Get initial default gateway from displayOrder (lowest = default)
 function getInitialDefault(
   configs: PaymentSettingsFormProps["initialConfigs"]
 ): GatewayType {
-  const orders: Array<{ gateway: GatewayType; order: number }> = [
-    { gateway: "hesabpay", order: configs.hesabpay?.displayOrder ?? 0 },
-    { gateway: "stripe", order: configs.stripe?.displayOrder ?? 2 },
-    { gateway: "cod", order: configs.cod?.displayOrder ?? 1 },
-    { gateway: "crypto_usdt", order: configs.crypto_usdt?.displayOrder ?? 3 },
-  ];
-
-  // Sort by display order and return the first enabled one
-  const sorted = orders.sort((a, b) => a.order - b.order);
-  return sorted[0].gateway;
+  const hesabPayOrder = configs.hesabpay?.displayOrder ?? 0;
+  const codOrder = configs.cod?.displayOrder ?? 1;
+  return hesabPayOrder <= codOrder ? "hesabpay" : "cod";
 }
 
 export function PaymentSettingsForm({
   storeId,
-  storeCurrency,
-  stripeEnabled,
-  cryptoEnabled,
+  storeCurrency: _storeCurrency,
   initialConfigs,
 }: PaymentSettingsFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const isCryptoStore = storeCurrency === "USDT" || storeCurrency === "USDC";
 
-  // Filter gateways based on availability
-  const availableGateways = PAYMENT_GATEWAYS.filter((gw) => {
-    // Crypto stores: only show crypto_usdt
-    if (isCryptoStore && gw.gateway !== "crypto_usdt") {
-      return false;
-    }
-    // Stripe is only available if configured at platform level
-    if (gw.gateway === "stripe" && !stripeEnabled) {
-      return false;
-    }
-    // Crypto USDT is only available if configured at platform level
-    if (gw.gateway === "crypto_usdt" && !cryptoEnabled) {
-      return false;
-    }
-    return true;
-  });
-
-  // Track enabled state for each gateway
   const [enabledGateways, setEnabledGateways] = useState<
-    Record<string, boolean>
+    Record<GatewayType, boolean>
   >({
-    hesabpay: initialConfigs.hesabpay?.isEnabled ?? true, // Default HesabPay to enabled
-    stripe: initialConfigs.stripe?.isEnabled ?? false, // Default Stripe to disabled
-    cod: initialConfigs.cod?.isEnabled ?? true, // Default COD to enabled
-    crypto_usdt: initialConfigs.crypto_usdt?.isEnabled ?? false, // Default crypto to disabled
+    hesabpay: initialConfigs.hesabpay?.isEnabled ?? true,
+    cod: initialConfigs.cod?.isEnabled ?? true,
   });
 
-  // Track default payment method (shown first at checkout)
   const [defaultGateway, setDefaultGateway] = useState<GatewayType>(
     getInitialDefault(initialConfigs)
   );
 
-  // Track previous props for sync
   const [prevConfigs, setPrevConfigs] = useState(initialConfigs);
   if (
     prevConfigs.hesabpay?.isEnabled !== initialConfigs.hesabpay?.isEnabled ||
-    prevConfigs.stripe?.isEnabled !== initialConfigs.stripe?.isEnabled ||
     prevConfigs.cod?.isEnabled !== initialConfigs.cod?.isEnabled ||
-    prevConfigs.crypto_usdt?.isEnabled !==
-      initialConfigs.crypto_usdt?.isEnabled ||
     prevConfigs.hesabpay?.displayOrder !==
       initialConfigs.hesabpay?.displayOrder ||
-    prevConfigs.stripe?.displayOrder !== initialConfigs.stripe?.displayOrder ||
-    prevConfigs.cod?.displayOrder !== initialConfigs.cod?.displayOrder ||
-    prevConfigs.crypto_usdt?.displayOrder !==
-      initialConfigs.crypto_usdt?.displayOrder
+    prevConfigs.cod?.displayOrder !== initialConfigs.cod?.displayOrder
   ) {
     setPrevConfigs(initialConfigs);
     setEnabledGateways({
       hesabpay: initialConfigs.hesabpay?.isEnabled ?? true,
-      stripe: initialConfigs.stripe?.isEnabled ?? false,
       cod: initialConfigs.cod?.isEnabled ?? true,
-      crypto_usdt: initialConfigs.crypto_usdt?.isEnabled ?? false,
     });
     setDefaultGateway(getInitialDefault(initialConfigs));
   }
 
-  // Check if any gateway is enabled
   const hasAnyEnabled = Object.values(enabledGateways).some(Boolean);
 
-  // Check if configs exist in DB (need initial save)
   const needsInitialSave =
     initialConfigs.hesabpay === null || initialConfigs.cod === null;
 
-  // Get initial default for comparison
   const initialDefault = getInitialDefault(initialConfigs);
 
-  // Track if form has changes
   const hasChanges =
     needsInitialSave ||
     (initialConfigs.hesabpay?.isEnabled ?? true) !== enabledGateways.hesabpay ||
-    (initialConfigs.stripe?.isEnabled ?? false) !== enabledGateways.stripe ||
     (initialConfigs.cod?.isEnabled ?? true) !== enabledGateways.cod ||
-    (initialConfigs.crypto_usdt?.isEnabled ?? false) !==
-      enabledGateways.crypto_usdt ||
     initialDefault !== defaultGateway;
 
-  // Handle toggle
-  const handleToggle = (gateway: string, enabled: boolean) => {
+  const handleToggle = (gateway: GatewayType, enabled: boolean) => {
     setEnabledGateways((prev) => ({
       ...prev,
       [gateway]: enabled,
     }));
   };
 
-  // Handle save
   const handleSave = () => {
     startTransition(async () => {
       try {
-        // Save each gateway config with display order based on default selection
-        const gatewaysToSave = availableGateways;
-
         const results = await Promise.all(
-          gatewaysToSave.map(async (gw, index) => {
-            // Default gateway gets displayOrder 0, others get higher values
+          PAYMENT_GATEWAYS.map(async (gw, index) => {
             const displayOrder = gw.gateway === defaultGateway ? 0 : index + 1;
 
             const result = await savePaymentGatewayConfig(storeId, gw.gateway, {
@@ -236,14 +149,12 @@ export function PaymentSettingsForm({
     });
   };
 
-  // Get enabled gateways for default selection
-  const enabledGatewayList = availableGateways.filter(
+  const enabledGatewayList = PAYMENT_GATEWAYS.filter(
     (gw) => enabledGateways[gw.gateway]
   );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h2 className="text-lg font-semibold">Payment Methods</h2>
         <p className="text-sm text-muted-foreground">
@@ -252,7 +163,6 @@ export function PaymentSettingsForm({
         </p>
       </div>
 
-      {/* Warning if no gateway enabled */}
       {!hasAnyEnabled && (
         <Alert variant="destructive">
           <Info className="size-4" />
@@ -263,23 +173,12 @@ export function PaymentSettingsForm({
         </Alert>
       )}
 
-      {/* Platform Info */}
-      <Alert>
-        <Info className="size-4" />
-        <AlertDescription>
-          All card payments are processed through the platform&apos;s secure
-          payment system. Funds are held until order fulfillment and then
-          released to your earnings.
-        </AlertDescription>
-      </Alert>
-
-      {/* Payment Methods */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Available Payment Methods</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {availableGateways.map((gw) => {
+          {PAYMENT_GATEWAYS.map((gw) => {
             const Icon = gw.icon;
             const isEnabled = enabledGateways[gw.gateway];
 
@@ -337,7 +236,6 @@ export function PaymentSettingsForm({
         </CardContent>
       </Card>
 
-      {/* Default Payment Method */}
       {hasAnyEnabled && enabledGatewayList.length > 0 && (
         <Card>
           <CardHeader>
@@ -392,7 +290,6 @@ export function PaymentSettingsForm({
         </Card>
       )}
 
-      {/* What This Means */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">How it works</CardTitle>
@@ -402,29 +299,10 @@ export function PaymentSettingsForm({
             <li className="flex items-start gap-2">
               <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
               <span>
-                <strong>HesabPay:</strong> Customers pay securely online with
-                local card payment methods.
+                <strong>HesabPay:</strong> Customers are redirected to
+                HesabPay&apos;s secure hosted checkout to complete payment.
               </span>
             </li>
-            {stripeEnabled && (
-              <li className="flex items-start gap-2">
-                <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
-                <span>
-                  <strong>Stripe (International):</strong> Accept payments from
-                  anywhere in the world. Supports Visa, Mastercard, and more.
-                </span>
-              </li>
-            )}
-            {cryptoEnabled && (
-              <li className="flex items-start gap-2">
-                <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
-                <span>
-                  <strong>USDT (Crypto):</strong> Accept USDT stablecoin
-                  payments. Supports TRC20, ERC20, and BEP20 networks. Payments
-                  are verified manually by the platform.
-                </span>
-              </li>
-            )}
             <li className="flex items-start gap-2">
               <Check className="size-4 text-green-600 mt-0.5 shrink-0" />
               <span>
@@ -436,7 +314,6 @@ export function PaymentSettingsForm({
         </CardContent>
       </Card>
 
-      {/* Save Button */}
       <div className="flex justify-end">
         <Button
           onClick={handleSave}

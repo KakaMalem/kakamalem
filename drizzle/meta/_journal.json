@@ -316,6 +316,27 @@
       "when": 1775545345489,
       "tag": "0044_perpetual_ricochet",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1779646174637,
+      "tag": "0045_groovy_iron_fist",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1779679826521,
+      "tag": "0046_romantic_diamondback",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1779680019264,
+      "tag": "0047_charming_bug",
+      "breakpoints": true
     }
   ]
 }

@@ -293,10 +293,7 @@ export interface SubscriptionInvoiceData {
   paidAt?: string;
 }
 
-function formatCurrency(amount: number, currency: string): string {
-  if (currency === "USD" || currency === "USDT" || currency === "USDC") {
-    return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
+function formatCurrency(amount: number, _currency: string): string {
   return `؋ ${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 

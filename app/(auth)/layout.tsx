@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Lock, Shield, Wallet } from "lucide-react";
+import { CreditCard, Truck, Globe } from "lucide-react";
 
 export default function AuthLayout({
   children,
@@ -11,13 +11,12 @@ export default function AuthLayout({
     <div className="flex min-h-screen">
       {/* Left panel — branding (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-zinc-950">
-        {/* Gradient blobs */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-teal-500/15 blur-[100px]" />
-        <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-blue-500/10 blur-[80px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-120 h-64 rounded-full bg-emerald-500/8 blur-[100px]" />
+        {/* Subtle ambient glow */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/4 blur-[100px]" />
+        <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-white/3 blur-[80px]" />
 
         {/* Grid pattern */}
-        <svg className="absolute inset-0 w-full h-full text-white/[0.03]">
+        <svg className="absolute inset-0 w-full h-full text-white/3">
           <defs>
             <pattern
               id="auth-grid"
@@ -56,36 +55,36 @@ export default function AuthLayout({
           <div className="space-y-10">
             <div>
               <h2 className="text-3xl xl:text-4xl font-bold text-white tracking-tight leading-tight mb-3">
-                Commerce without
+                Your store, online,
                 <br />
-                <span className="bg-linear-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent">
-                  gatekeepers.
+                <span className="bg-linear-to-r from-teal-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+                  in a single afternoon.
                 </span>
               </h2>
               <p className="text-zinc-400 text-[15px] leading-relaxed max-w-sm">
-                Build your store, accept USDT, and get paid directly to your
-                wallet. No banks, no payment processors, no permission needed.
+                Build your storefront, accept payments via HesabPay or cash on
+                delivery, and manage orders from a single dashboard.
               </p>
             </div>
 
             <div className="space-y-4">
               {[
                 {
-                  icon: Wallet,
-                  text: "Accept USDT on TRC20",
+                  icon: CreditCard,
+                  text: "HesabPay hosted checkout",
                 },
                 {
-                  icon: Lock,
-                  text: "Escrow on every transaction",
+                  icon: Truck,
+                  text: "Cash on Delivery built in",
                 },
                 {
-                  icon: Shield,
-                  text: "Zero chargebacks, zero reversals",
+                  icon: Globe,
+                  text: "Custom domain with free SSL",
                 },
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] border border-white/[0.08]">
-                    <item.icon className="h-4 w-4 text-teal-400" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/6 border border-white/8">
+                    <item.icon className="h-4 w-4 text-zinc-300" />
                   </div>
                   <span className="text-sm text-zinc-300">{item.text}</span>
                 </div>

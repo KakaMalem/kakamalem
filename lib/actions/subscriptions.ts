@@ -7,8 +7,6 @@ import {
   tenantMembers,
   invoices,
   billingTransactions,
-  paymentSessions,
-  cryptoPayments,
   type BillingInterval,
 } from "@/lib/db/schema";
 import { getUser } from "@/lib/auth/server";
@@ -16,10 +14,6 @@ import { canManageStore } from "@/lib/auth/context";
 import { generateInvoiceNumber } from "@/lib/db/queries/billing";
 import { createInvoicePaymentSession } from "@/lib/actions/payments";
 import { revalidatePath } from "next/cache";
-import { isStripeEnabled } from "@/lib/stripe";
-import { createProSubscriptionCheckout } from "@/lib/stripe/subscriptions";
-import { getExchangeRates } from "@/lib/currency";
-import { generateUniqueAmount } from "@/lib/payments/crypto/trongrid";
 
 // =============================================================================
 // TYPES
@@ -34,12 +28,6 @@ export type InitiateUpgradeResult = {
   reactivated?: boolean;
 };
 
-export type InitiateCryptoUpgradeResult = {
-  success: boolean;
-  error?: string;
-  cryptoPaymentId?: string;
-};
-
 // =============================================================================
 // PRO UPGRADE
 // =============================================================================
@@ -47,16 +35,13 @@ export type InitiateCryptoUpgradeResult = {
 /**
  * Initiate a Pro subscription upgrade for a tenant
  *
- * Uses Stripe Checkout for subscription payments (recommended).
- * Falls back to HesabPay invoice-based payment if Stripe is not configured.
- *
- * Stripe is the source of truth for Pro subscription pricing.
+ * Creates a HesabPay invoice-based payment for the Pro plan
+ * (monthly or yearly). The seller is redirected to HesabPay's
+ * hosted checkout, then the webhook activates the subscription.
  */
 export async function initiateProUpgrade(
   tenantId: string,
   options?: {
-    /** Force use of HesabPay even if Stripe is available */
-    useHesabPay?: boolean;
     /** Billing interval: monthly or yearly (default: monthly) */
     billingInterval?: BillingInterval;
   }
@@ -85,7 +70,6 @@ export async function initiateProUpgrade(
       return { success: false, error: "Store not found" };
     }
 
-    // Check if already has active Pro subscription
     if (
       tenant.subscriptionPlan === "pro" &&
       tenant.subscriptionStatus === "active"
@@ -119,45 +103,7 @@ export async function initiateProUpgrade(
       };
     }
 
-    // 4. Use Stripe Checkout (preferred) if configured
-    const useStripe = isStripeEnabled() && !options?.useHesabPay;
-
-    if (useStripe) {
-      // Build URLs
-      const baseUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com";
-      const billingInterval = options?.billingInterval || "monthly";
-      const successUrl = `${baseUrl}/dashboard/${tenant.slug}/billing?upgrade=success&interval=${billingInterval}`;
-      const cancelUrl = `${baseUrl}/dashboard/${tenant.slug}/billing?upgrade=cancelled`;
-
-      // Create Stripe Checkout session
-      const stripeResult = await createProSubscriptionCheckout(
-        tenantId,
-        user.id,
-        user.email,
-        successUrl,
-        cancelUrl,
-        billingInterval
-      );
-
-      if (!stripeResult.success) {
-        return {
-          success: false,
-          error: stripeResult.error || "Failed to create Stripe checkout",
-        };
-      }
-
-      // Revalidate billing page
-      revalidatePath(`/dashboard/${tenant.slug}/billing`);
-
-      return {
-        success: true,
-        paymentUrl: stripeResult.checkoutUrl,
-      };
-    }
-
-    // 5. Fallback to HesabPay invoice-based payment
-    // Get platform settings for price (AFN for local payments)
+    // 4. Create HesabPay invoice
     const settings = await db.query.platformSettings.findFirst();
     const billingInterval = options?.billingInterval || "monthly";
     const proPlanPrice =
@@ -313,229 +259,17 @@ export async function initiateProUpgrade(
 }
 
 // =============================================================================
-// PRO UPGRADE WITH CRYPTO (USDT)
+// SUBSCRIPTION CANCEL
 // =============================================================================
 
 /**
- * Initiate a Pro subscription upgrade using USDT crypto payment
+ * Cancel a Pro subscription at period end.
  *
- * Creates a crypto payment session with the platform's USDT wallet.
- * The user will be shown the wallet address and expected USDT amount.
- * After payment, admin verifies the transaction and activates the subscription.
+ * HesabPay invoices are one-time payments, so there's no recurring charge to
+ * stop. This marks the subscription as cancelled so it won't be renewed, and
+ * the store keeps Pro access until subscriptionEndsAt.
  */
-export async function initiateProUpgradeWithCrypto(
-  tenantId: string,
-  options: {
-    network: "trc20" | "erc20" | "bep20";
-    billingInterval: BillingInterval;
-  }
-): Promise<InitiateCryptoUpgradeResult> {
-  try {
-    // 1. Auth check
-    const user = await getUser();
-    if (!user) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    // 2. Permission check
-    const canManage = await canManageStore(tenantId);
-    if (!canManage) {
-      return { success: false, error: "Permission denied" };
-    }
-
-    // 3. Get tenant and verify eligibility
-    const [tenant] = await db
-      .select()
-      .from(tenants)
-      .where(eq(tenants.id, tenantId))
-      .limit(1);
-
-    if (!tenant) {
-      return { success: false, error: "Store not found" };
-    }
-
-    // Check if already has active Pro subscription
-    if (
-      tenant.subscriptionPlan === "pro" &&
-      tenant.subscriptionStatus === "active"
-    ) {
-      return {
-        success: false,
-        error: "Store already has an active Pro subscription",
-      };
-    }
-
-    // If cancelled but still has remaining time, just reactivate (no payment needed)
-    if (
-      tenant.subscriptionPlan === "pro" &&
-      tenant.subscriptionStatus === "cancelled" &&
-      tenant.subscriptionEndsAt &&
-      new Date(tenant.subscriptionEndsAt) > new Date()
-    ) {
-      await db
-        .update(tenants)
-        .set({
-          subscriptionStatus: "active",
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(tenants.id, tenantId));
-
-      return {
-        success: false,
-        error:
-          "Your subscription has been reactivated. You still have time remaining on your current plan.",
-      };
-    }
-
-    // 4. Get platform settings for USDT wallet and pricing
-    const settings = await db.query.platformSettings.findFirst();
-    if (!settings) {
-      return { success: false, error: "Platform settings not configured" };
-    }
-
-    const walletConfig = settings.usdtWalletConfig;
-
-    if (!walletConfig) {
-      return { success: false, error: "USDT payments not configured" };
-    }
-
-    // Get wallet for selected network - walletConfig structure is { trc20: { address, enabled }, ... }
-    const networkWallet = walletConfig[options.network];
-    if (!networkWallet?.enabled || !networkWallet.address) {
-      return {
-        success: false,
-        error: `No wallet configured for ${options.network.toUpperCase()} network`,
-      };
-    }
-
-    const walletAddress = networkWallet.address;
-
-    // 5. Calculate price in AFN and USDT
-    const proPlanPriceAfn =
-      options.billingInterval === "yearly"
-        ? parseFloat(settings.proPlanYearlyPriceAfn || "12000")
-        : parseFloat(settings.proPlanPriceAfn || "1100");
-
-    // Fixed USDT prices (matching Stripe USD pricing)
-    const USDT_MONTHLY = 20;
-    const USDT_YEARLY = 200;
-    const baseUsdtAmount =
-      options.billingInterval === "yearly" ? USDT_YEARLY : USDT_MONTHLY;
-
-    // Get exchange rate for record-keeping
-    const rates = await getExchangeRates();
-    const usdRate = rates["USD"] || 0.0141; // Fallback rate ~1/71
-
-    // Add unique cents to avoid payment collision (for auto-detection)
-    // Only for TRC20 which supports auto-detection via TronGrid
-    const usdtAmount =
-      options.network === "trc20"
-        ? generateUniqueAmount(baseUsdtAmount)
-        : baseUsdtAmount;
-
-    // 6. Create an invoice for tracking
-    const now = new Date();
-    const hasRemainingTime =
-      tenant.subscriptionEndsAt && new Date(tenant.subscriptionEndsAt) > now;
-    const periodStart = hasRemainingTime
-      ? new Date(tenant.subscriptionEndsAt!)
-      : now;
-    const periodEnd = new Date(periodStart);
-    if (options.billingInterval === "yearly") {
-      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-    } else {
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
-    }
-
-    const invoiceNumber = await generateInvoiceNumber(tenantId);
-    const [invoice] = await db
-      .insert(invoices)
-      .values({
-        tenantId,
-        invoiceNumber,
-        status: "unpaid",
-        currency: "AFN",
-        subtotal: proPlanPriceAfn.toString(),
-        total: proPlanPriceAfn.toString(),
-        periodStart: periodStart.toISOString(),
-        periodEnd: periodEnd.toISOString(),
-        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-        notes: `Subscription: ${options.billingInterval}`, // Store billing interval in notes
-        items: [
-          {
-            description: `Kaka Malem Pro (${options.billingInterval})`,
-            quantity: 1,
-            unitPrice: proPlanPriceAfn,
-            total: proPlanPriceAfn,
-          },
-        ],
-      })
-      .returning();
-
-    // 7. Create payment session
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    const [paymentSession] = await db
-      .insert(paymentSessions)
-      .values({
-        tenantId,
-        invoiceId: invoice.id,
-        gateway: "crypto_usdt",
-        amount: proPlanPriceAfn.toString(),
-        currency: "AFN",
-        status: "pending",
-        expiresAt: expiresAt.toISOString(),
-      })
-      .returning();
-
-    // 8. Create crypto payment record
-    const [cryptoPayment] = await db
-      .insert(cryptoPayments)
-      .values({
-        paymentSessionId: paymentSession.id,
-        purpose: "subscription",
-        tenantId,
-        network: options.network,
-        walletAddress,
-        expectedAmount: usdtAmount.toFixed(2),
-        currency: "USDT",
-        exchangeRate: usdRate.toString(),
-        originalAmountAfn: proPlanPriceAfn.toString(),
-        status: "pending",
-        expiresAt: expiresAt.toISOString(),
-      })
-      .returning();
-
-    // Revalidate billing page
-    revalidatePath(`/dashboard/${tenant.slug}/billing`);
-
-    return {
-      success: true,
-      cryptoPaymentId: cryptoPayment.id,
-    };
-  } catch (error) {
-    console.error("[initiateProUpgradeWithCrypto] Error:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to initiate crypto payment",
-    };
-  }
-}
-
-// =============================================================================
-// SUBSCRIPTION CANCEL (NON-STRIPE)
-// =============================================================================
-
-/**
- * Cancel a non-Stripe Pro subscription at period end.
- *
- * For HesabPay/Crypto subscriptions, there's no recurring billing to stop.
- * This simply marks the subscription as cancelled so it won't be renewed,
- * and the store keeps Pro access until subscriptionEndsAt.
- */
-export async function cancelNonStripeSubscription(
+export async function cancelSubscription(
   tenantId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -570,14 +304,6 @@ export async function cancelNonStripeSubscription(
       return { success: false, error: "Subscription is not active" };
     }
 
-    // Stripe subscriptions should use the Stripe cancel flow
-    if (tenant.stripeSubscriptionId) {
-      return {
-        success: false,
-        error: "Use Stripe portal to cancel Stripe subscriptions",
-      };
-    }
-
     const now = new Date().toISOString();
     await db
       .update(tenants)
@@ -587,7 +313,6 @@ export async function cancelNonStripeSubscription(
       })
       .where(eq(tenants.id, tenantId));
 
-    // Log the cancellation
     await db.insert(billingTransactions).values({
       id: crypto.randomUUID(),
       tenantId,
@@ -608,7 +333,7 @@ export async function cancelNonStripeSubscription(
 
     return { success: true };
   } catch (error) {
-    console.error("[cancelNonStripeSubscription] Error:", error);
+    console.error("[cancelSubscription] Error:", error);
     return {
       success: false,
       error:
@@ -1140,8 +865,8 @@ export async function approveSubscriptionRefund(
 /**
  * Process a subscription refund (Admin only)
  *
- * This marks the refund as completed. For Stripe payments,
- * this would trigger the actual Stripe refund.
+ * Marks the refund as completed. Triggering the actual gateway
+ * refund (HesabPay) is currently manual.
  */
 export async function processSubscriptionRefund(
   refundId: string,

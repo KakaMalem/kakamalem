@@ -23,7 +23,6 @@ import type { RefundType, RefundReason, NewRefundItem } from "@/lib/db/schema";
 import { getUser } from "@/lib/auth/server";
 import { canManageStore, hasMinimumRole } from "@/lib/auth/context";
 import { generateRefundNumber, getRefundById } from "@/lib/db/queries/refunds";
-import { debitSellerEarningsForRefund } from "./earnings";
 
 // =============================================================================
 // TYPES
@@ -365,7 +364,7 @@ export async function rejectRefund(
 /**
  * Process an approved refund (execute the actual refund)
  *
- * For gateway refunds (Stripe), this calls the gateway API.
+ * For gateway refunds, this calls the gateway API (HesabPay).
  * For other methods (cash, store credit), this just marks as completed.
  */
 export async function processRefund(refundId: string): Promise<RefundResult> {
@@ -490,17 +489,6 @@ export async function processRefund(refundId: string): Promise<RefundResult> {
           notes: `Refund #${refund.refundNumber}`,
         });
       });
-
-      // Debit seller earnings
-      if (refund.order) {
-        await debitSellerEarningsForRefund(
-          refund.tenantId,
-          refund.orderId,
-          refund.order.orderNumber,
-          totalAmount,
-          refund.currencyCode
-        );
-      }
 
       revalidatePath(`/dashboard/[slug]/orders`);
       revalidatePath(`/dashboard/[slug]/orders/${refund.orderId}`);

@@ -1,0 +1,1 @@
+ALTER TABLE "payment_gateway_configs" DROP COLUMN "stripe_account_id";

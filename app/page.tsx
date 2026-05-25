@@ -1,41 +1,28 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getUser } from "@/lib/auth/server";
 import { Button } from "@/components/ui/button";
 import { LandingNavbar } from "@/components/landing/landing-navbar";
 import {
   ArrowRight,
-  Shield,
-  Globe,
   Check,
-  Lock,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  ShieldCheck,
   Store,
+  Package,
+  ShoppingBag,
+  BarChart3,
+  CreditCard,
+  Truck,
+  Smartphone,
+  Tag,
+  Users,
+  Layers,
+  MessageSquareQuote,
+  Mail,
+  Building2,
 } from "lucide-react";
 
-/** USDT (Tether) logo — official green circle with ₮ mark */
-function UsdtLogo({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
-      <circle cx="16" cy="16" r="16" fill="#26A17B" />
-      <path
-        d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658 0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061 1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658 0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118 0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116 0-1.043-3.301-1.914-7.694-2.117"
-        fill="white"
-      />
-    </svg>
-  );
-}
-
 /**
- * Noise texture overlay — CSS-based SVG filter.
- * Creates a subtle film-grain effect over the gradient background.
+ * Subtle film-grain texture over the ambient gradients.
  */
 function NoiseOverlay() {
   return (
@@ -66,22 +53,12 @@ export default async function Home() {
         <div className="absolute -top-20 right-[-10%] w-150 h-150 rounded-full bg-linear-to-bl from-blue-200/40 via-sky-100/20 to-transparent blur-[80px]" />
         <div className="absolute top-[25vh] left-1/2 -translate-x-1/2 w-225 h-100 rounded-full bg-linear-to-b from-emerald-100/30 via-teal-50/20 to-transparent blur-[120px]" />
 
-        {/* Accent glow near hero */}
+        {/* Accent glows near hero */}
         <div className="absolute top-[15vh] left-[15%] w-48 h-48 rounded-full bg-teal-400/10 blur-[60px]" />
         <div className="absolute top-[20vh] right-[10%] w-36 h-36 rounded-full bg-blue-400/10 blur-[50px]" />
 
         {/* Noise grain overlay */}
         <NoiseOverlay />
-
-        {/* Floating USDT icons — decorative, hidden on mobile */}
-        <div className="hidden md:block">
-          <UsdtLogo className="absolute top-[12%] left-[8%] w-10 h-10 opacity-[0.07] -rotate-15" />
-          <UsdtLogo className="absolute top-[22%] right-[7%] w-14 h-14 opacity-[0.05] rotate-10" />
-          <UsdtLogo className="absolute top-[45%] left-[5%] w-8 h-8 opacity-[0.06] rotate-25" />
-          <UsdtLogo className="absolute top-[55%] right-[12%] w-12 h-12 opacity-[0.04] -rotate-20" />
-          <UsdtLogo className="absolute top-[75%] left-[15%] w-6 h-6 opacity-[0.06] rotate-35" />
-          <UsdtLogo className="absolute top-[70%] right-[20%] w-9 h-9 opacity-[0.05] rotate-[-8deg]" />
-        </div>
 
         {/* Bottom fade to white */}
         <div className="absolute inset-x-0 bottom-0 h-64 bg-linear-to-t from-white via-white/80 to-transparent" />
@@ -92,53 +69,47 @@ export default async function Home() {
         links={[
           { label: "How it works", href: "/#how-it-works" },
           { label: "Features", href: "/#features" },
-          { label: "Security", href: "/#security" },
+          { label: "Pricing", href: "/#pricing" },
         ]}
       />
 
       <main className="flex flex-col items-center">
         {/* ============================================================
-            1. HERO
+            HERO
         ============================================================ */}
-        <section className="relative w-full px-5 sm:px-6 pt-28 pb-16 sm:pt-32 sm:pb-20 md:pt-44 md:pb-28 flex flex-col items-center text-center">
-          <div className="relative max-w-5xl mx-auto flex flex-col items-center">
-            {/* Badge */}
+        <section className="relative w-full px-5 sm:px-6 pt-28 pb-20 sm:pt-32 sm:pb-24 md:pt-40 md:pb-28">
+          <div className="mx-auto max-w-6xl flex flex-col items-center text-center">
             <div className="mb-8 sm:mb-10 inline-flex items-center gap-2.5 rounded-full border border-emerald-200/80 bg-linear-to-r from-emerald-50 to-blue-50 py-1.5 pl-2 pr-4 text-[13px] font-medium text-emerald-700 shadow-sm">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-200/60 py-0.5 px-2.5 text-[11px] font-semibold text-emerald-700 uppercase tracking-wide">
-                <UsdtLogo className="h-3.5 w-3.5" />
-                USDT
+                AFN
               </span>
               <span className="text-emerald-600/80">
-                Crypto-native commerce. No banks required.
+                Built for Afghan businesses
               </span>
             </div>
 
-            {/* Headline */}
-            <h1 className="max-w-225 text-[2.2rem] sm:text-[3rem] md:text-[4rem] lg:text-[5.2rem] font-extrabold tracking-[-0.04em] leading-[1.08] mb-5 sm:mb-6">
-              <span className="text-zinc-950">Sell anywhere.</span>
+            <h1 className="max-w-4xl text-[2.2rem] sm:text-[3rem] md:text-[3.75rem] lg:text-[4.5rem] font-bold tracking-[-0.035em] leading-[1.05] mb-6">
+              Your store, online,
               <br />
               <span className="bg-linear-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
-                Get paid in crypto.
+                in a single afternoon.
               </span>
             </h1>
 
-            {/* Subheadline */}
-            <p className="max-w-140 text-pretty text-[15px] sm:text-base md:text-[17px] text-zinc-500 leading-[1.75] mb-8 sm:mb-10 font-[425] px-2 sm:px-0">
-              No bank account. No Stripe approval. No chargebacks. Kaka Malem
-              gives you a storefront that accepts USDT, holds funds in escrow
-              until delivery, and pays out to your wallet. Commerce without
-              gatekeepers.
+            <p className="max-w-2xl text-base sm:text-lg text-zinc-600 leading-relaxed mb-10">
+              Kaka Malem gives you a clean storefront, product catalog, online
+              checkout, and order dashboard out of the box. Start with the free
+              plan. Upgrade when you outgrow it.
             </p>
 
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 mb-10 sm:mb-12 w-full sm:w-auto px-4 sm:px-0">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto px-4 sm:px-0">
               <Button
                 size="lg"
                 className="group/btn rounded-full px-8 h-12 w-full sm:w-auto font-semibold text-[14px] tracking-[-0.01em] gap-2 bg-linear-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 border-0 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:shadow-xl transition-all duration-200"
                 asChild
               >
                 <Link href={user ? "/dashboard" : "/signup"}>
-                  {user ? "Go to Dashboard" : "Create your store"}
+                  {user ? "Go to dashboard" : "Create your store"}
                   <ArrowRight className="h-3.5 w-3.5 group-hover/btn:translate-x-0.5 transition-transform duration-200" />
                 </Link>
               </Button>
@@ -148,631 +119,568 @@ export default async function Home() {
                 className="rounded-full px-8 h-12 w-full sm:w-auto font-medium text-[14px] tracking-[-0.01em] border-zinc-200 bg-white/80 backdrop-blur-sm text-zinc-600 hover:text-zinc-900 hover:bg-white hover:border-zinc-300 shadow-sm hover:shadow-md transition-all duration-200"
                 asChild
               >
-                <Link href="#how-it-works">How it works</Link>
+                <Link href="/#how-it-works">See how it works</Link>
               </Button>
             </div>
 
-            {/* Trust stats */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-10 text-sm text-zinc-500">
-              <div className="flex items-center gap-2">
-                <UsdtLogo className="h-5 w-5" />
-                <span>
-                  <span className="font-semibold text-zinc-800">USDT</span> on
-                  TRC20
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4 text-blue-500" />
-                <span>
-                  <span className="font-semibold text-zinc-800">Escrow</span> on
-                  every order
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-amber-500" />
-                <span>
-                  <span className="font-semibold text-zinc-800">No banks</span>{" "}
-                  needed
-                </span>
-              </div>
-            </div>
+            <p className="mt-6 text-xs text-zinc-500">
+              No credit card. 7-day free trial.
+            </p>
           </div>
         </section>
 
         {/* ============================================================
-            2. HOW IT WORKS
+            HOW IT WORKS
         ============================================================ */}
         <section
           id="how-it-works"
-          className="w-full border-y border-zinc-100 bg-linear-to-b from-zinc-50 to-white py-16 sm:py-20 md:py-28"
+          className="w-full px-5 sm:px-6 py-20 sm:py-24 md:py-28 border-t border-zinc-100/70"
         >
-          <div className="max-w-5xl mx-auto px-5 sm:px-6">
-            <div className="text-center mb-12 sm:mb-16">
-              <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-600 uppercase tracking-[0.2em] mb-4">
+          <div className="mx-auto max-w-5xl">
+            <div className="text-center mb-14">
+              <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
                 How it works
-              </span>
+              </p>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Wallet to wallet. Escrow in between.
+                Three steps from sign-up to first sale
               </h2>
-              <p className="text-zinc-500 max-w-lg mx-auto text-[15px]">
-                Your buyer sends USDT. Escrow holds it. You ship. Funds release
-                to your wallet. No intermediary banks, no frozen accounts.
+              <p className="max-w-150 mx-auto text-zinc-600">
+                The boring parts are already wired up. Pick a name, list a few
+                products, and share the link.
               </p>
             </div>
 
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
+            <ol className="grid gap-6 sm:grid-cols-3">
               {[
                 {
                   step: "01",
-                  icon: UsdtLogo,
-                  title: "Buyer sends USDT",
-                  description:
-                    "Customer picks a product and sends USDT (TRC20) to the escrow wallet. Payment confirms in seconds. No card networks, no bank wires, no waiting days for settlement.",
-                  color: "from-blue-500 to-cyan-500",
+                  title: "Create your store",
+                  body: "Pick a name, upload a logo, choose a theme color. Your storefront is live at kakamalem.com/store/your-name in under a minute.",
+                  icon: Store,
                 },
                 {
                   step: "02",
-                  icon: Lock,
-                  title: "Escrow holds the funds",
-                  description:
-                    "Funds are locked until you ship and delivery is confirmed. The buyer can see the payment is secured. You can see it's real. Neither side can pull out.",
-                  color: "from-teal-500 to-emerald-500",
+                  title: "Add your products",
+                  body: "Add products one at a time, or bulk-upload from a spreadsheet. Variants, photos, inventory, pricing — all in one place.",
+                  icon: Package,
                 },
                 {
                   step: "03",
-                  icon: CheckCircle2,
-                  title: "You ship, funds release",
-                  description:
-                    "Upload tracking, ship the order. Once confirmed, USDT goes straight to your wallet minus a 5% fee. If no response in 30 days, auto-release.",
-                  color: "from-emerald-500 to-green-500",
+                  title: "Start selling",
+                  body: "Accept card payments via HesabPay and cash on delivery. Track orders, manage stock, and watch the analytics roll in.",
+                  icon: ShoppingBag,
                 },
               ].map((item) => (
-                <div
+                <li
                   key={item.step}
-                  className="relative rounded-2xl border border-zinc-100 bg-white p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow"
+                  className="relative rounded-2xl border border-zinc-200/70 bg-white/80 backdrop-blur-sm p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
                 >
-                  <div
-                    className={`mb-5 sm:mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br ${item.color} text-white shadow-lg`}
-                  >
-                    <item.icon className="h-6 w-6" />
-                  </div>
-                  <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
-                    Step {item.step}
-                  </div>
-                  <h3 className="text-lg font-semibold mb-3">{item.title}</h3>
-                  <p className="text-[15px] text-zinc-500 leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Dispute callout */}
-            <div className="mt-10 sm:mt-12 rounded-2xl border border-amber-200/60 bg-amber-50/50 p-5 sm:p-6 md:p-8 flex flex-col sm:flex-row items-start gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <h4 className="font-semibold mb-1">
-                  Something wrong? Open a dispute.
-                </h4>
-                <p className="text-[15px] text-zinc-600 leading-relaxed">
-                  If the product doesn&apos;t match, is damaged, or never
-                  arrives — open a dispute. Funds are frozen immediately and a
-                  Kaka Malem admin reviews the evidence from both sides. The
-                  winner gets the funds.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============================================================
-            3. FEATURES
-        ============================================================ */}
-        <section id="features" className="w-full py-16 sm:py-20 md:py-28">
-          <div className="max-w-5xl mx-auto px-5 sm:px-6">
-            <div className="text-center mb-12 sm:mb-16">
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-600 uppercase tracking-[0.2em] mb-4">
-                Why crypto
-              </span>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                The stuff banks won&apos;t let you do.
-              </h2>
-              <p className="text-zinc-500 max-w-lg mx-auto text-[15px]">
-                Payment processors freeze accounts. Banks block cross-border
-                transfers. Chargebacks drain sellers. Crypto fixes all of it.
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
-              {[
-                {
-                  icon: Shield,
-                  title: "Zero chargebacks",
-                  description:
-                    "Crypto payments are final. No disputes filed with Visa. No PayPal holds. Once escrow releases, the money is yours. Period.",
-                },
-                {
-                  icon: Globe,
-                  title: "No borders, no banks",
-                  description:
-                    "Your buyer in Dubai, your supplier in Shenzhen, you in Kabul. USDT moves between wallets in seconds. No SWIFT, no correspondent banks, no 3-day holds.",
-                },
-                {
-                  icon: ShieldCheck,
-                  title: "Can't be shut down",
-                  description:
-                    "No payment processor can freeze your account or block your industry. Crypto doesn't ask for permission. Neither should your business.",
-                },
-                {
-                  icon: Store,
-                  title: "Real storefront, not just a wallet",
-                  description:
-                    "Full product catalog, images, variants, custom domain, analytics. A professional store your customers can browse — not a bare payment link.",
-                },
-              ].map((feature) => (
-                <div
-                  key={feature.title}
-                  className="rounded-2xl border border-zinc-100 bg-white p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100">
-                    <feature.icon className="h-5 w-5 text-zinc-700" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">
-                    {feature.title}
-                  </h3>
-                  <p className="text-[15px] text-zinc-500 leading-relaxed">
-                    {feature.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Pricing simple */}
-            <div className="relative mt-10 sm:mt-12 rounded-2xl border border-zinc-200 bg-linear-to-br from-zinc-900 to-zinc-800 p-6 sm:p-8 md:p-12 text-white overflow-hidden">
-              {/* Decorative USDT watermark */}
-              <UsdtLogo className="absolute -right-6 -bottom-6 w-40 h-40 opacity-[0.03]" />
-
-              <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold mb-2">
-                    No subscriptions. No invoices. Just 5%.
-                  </h3>
-                  <p className="text-zinc-400 max-w-md text-[15px]">
-                    Free to list, free to host. We take 5% when USDT releases
-                    from escrow to your wallet. That&apos;s it. No card fees, no
-                    gateway charges, no monthly bills.
-                  </p>
-                </div>
-                <div className="flex flex-col items-start md:items-end gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-4xl sm:text-5xl font-extrabold">
-                      5%
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-xs font-bold tracking-widest text-teal-600/80">
+                      {item.step}
                     </span>
-                    <UsdtLogo className="h-8 w-8 sm:h-10 sm:w-10 opacity-80" />
-                  </div>
-                  <span className="text-sm text-zinc-500">
-                    per escrow release. Nothing else.
-                  </span>
-                </div>
-              </div>
-              <div className="mt-6 sm:mt-8 grid grid-cols-2 sm:flex sm:flex-wrap gap-x-6 gap-y-3 sm:gap-6">
-                {[
-                  "Free to list products",
-                  "Free storefront",
-                  "Unlimited products",
-                  "Custom domain support",
-                  "Bulk import/export",
-                  "Analytics dashboard",
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="flex items-center gap-2 text-[13px] sm:text-[14px] text-zinc-300"
-                  >
-                    <Check className="h-4 w-4 text-emerald-400 shrink-0" />
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============================================================
-            4. SECURITY / TRUST
-        ============================================================ */}
-        <section
-          id="security"
-          className="w-full border-y border-zinc-100 bg-linear-to-b from-zinc-50 to-white py-16 sm:py-20 md:py-28"
-        >
-          <div className="max-w-5xl mx-auto px-5 sm:px-6">
-            <div className="text-center mb-12 sm:mb-16">
-              <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-600 uppercase tracking-[0.2em] mb-4">
-                <UsdtLogo className="h-3.5 w-3.5" />
-                Escrow Security
-              </span>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Trustless doesn&apos;t mean unprotected.
-              </h2>
-              <p className="text-zinc-500 max-w-lg mx-auto text-[15px]">
-                Crypto is irreversible by design. That&apos;s a feature, not a
-                bug — but it means you need escrow. Neither side can rug the
-                other.
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6">
-              {[
-                {
-                  icon: Lock,
-                  title: "USDT locked until delivery",
-                  description:
-                    "Funds sit in a platform-controlled escrow wallet. Not in the seller's wallet, not in the buyer's. Nobody moves them until the deal is done.",
-                },
-                {
-                  icon: Clock,
-                  title: "30-day auto-release",
-                  description:
-                    "Shipped but buyer went silent? After 30 days, USDT auto-releases to the seller. No infinite limbo. No funds stuck forever.",
-                },
-                {
-                  icon: AlertTriangle,
-                  title: "Disputes resolved by humans",
-                  description:
-                    "Wrong item? Never arrived? Either side opens a dispute. Funds freeze. A Kaka Malem admin reviews evidence and releases to the rightful party.",
-                },
-              ].map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-zinc-100 bg-white p-6 sm:p-8 shadow-sm"
-                >
-                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-                    <item.icon className="h-5 w-5 text-blue-600" />
+                    <span className="h-px flex-1 bg-linear-to-r from-teal-200 to-zinc-200" />
+                    <item.icon className="size-4 text-teal-600" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-                  <p className="text-[15px] text-zinc-500 leading-relaxed">
-                    {item.description}
+                  <p className="text-sm text-zinc-600 leading-relaxed">
+                    {item.body}
                   </p>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
         </section>
 
         {/* ============================================================
-            5. WHY US / COMPARISON
+            FEATURES
         ============================================================ */}
-        <section className="w-full py-16 sm:py-20 md:py-28">
-          <div className="max-w-4xl mx-auto px-5 sm:px-6">
-            <div className="text-center mb-10 sm:mb-12">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                Built for crypto. Not bolted on.
+        <section
+          id="features"
+          className="w-full px-5 sm:px-6 py-20 sm:py-24 md:py-28 border-t border-zinc-100/70"
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-14 max-w-3xl">
+              <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
+                Features
+              </p>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-[-0.03em] leading-[1.1] mb-5">
+                Everything you need
+                <br />
+                <span className="bg-linear-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
+                  to run a store.
+                </span>
               </h2>
-              <p className="text-zinc-500 text-[15px]">
-                Other platforms treat crypto as an add-on. We built the entire
-                system around it.
+              <p className="text-zinc-600 text-base sm:text-lg max-w-150">
+                Built for the way Afghan businesses actually sell — online
+                payments where they work, cash on delivery where they
+                don&apos;t.
               </p>
             </div>
 
-            {/* Mobile: card-based comparison */}
-            <div className="block sm:hidden space-y-3">
+            {/* Two hero cards — payments + storefront */}
+            <div className="grid gap-4 sm:gap-5 md:grid-cols-2 mb-4 sm:mb-5">
+              {/* Payments hero */}
+              <div className="relative rounded-2xl border border-zinc-200/70 bg-white/80 backdrop-blur-sm p-7 sm:p-8 overflow-hidden">
+                <div className="absolute -top-10 -right-10 size-40 bg-emerald-100/60 rounded-full blur-3xl" />
+                <div className="absolute -bottom-8 left-1/3 size-32 bg-teal-100/40 rounded-full blur-3xl" />
+                <div className="relative">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-5">
+                    Payments
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight mb-3">
+                    Get paid two ways
+                  </h3>
+                  <p className="text-sm text-zinc-600 leading-relaxed mb-6">
+                    Customers check out with HesabPay&apos;s hosted card flow,
+                    or pick cash on delivery and pay the courier. Both are
+                    tracked in the same orders dashboard.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-emerald-100/70 bg-emerald-50/30 p-3">
+                      <CreditCard className="size-4 text-emerald-700 mb-2" />
+                      <p className="text-xs font-semibold mb-0.5">HesabPay</p>
+                      <p className="text-[11px] text-zinc-500 leading-tight">
+                        Cards, mobile money
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-teal-100/70 bg-teal-50/30 p-3">
+                      <Truck className="size-4 text-teal-700 mb-2" />
+                      <p className="text-xs font-semibold mb-0.5">
+                        Cash on Delivery
+                      </p>
+                      <p className="text-[11px] text-zinc-500 leading-tight">
+                        Courier collects
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Storefront hero */}
+              <div className="relative rounded-2xl border border-zinc-200/70 bg-white/80 backdrop-blur-sm p-7 sm:p-8 overflow-hidden">
+                <div className="absolute -bottom-10 -left-10 size-40 bg-cyan-100/50 rounded-full blur-3xl" />
+                <div className="absolute -top-6 -right-6 size-32 bg-teal-100/40 rounded-full blur-3xl" />
+                <div className="relative">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/70 bg-cyan-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-700 mb-5">
+                    Storefront
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight mb-3">
+                    Looks good. Loads fast.
+                  </h3>
+                  <p className="text-sm text-zinc-600 leading-relaxed mb-6">
+                    Each store is a real storefront — your domain, your brand,
+                    full product pages, cart, customer accounts. Mobile-first by
+                    default, ranks on Google out of the box.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Custom domain",
+                      "Free SSL",
+                      "Mobile-first",
+                      "SEO-ready",
+                      "Multi-store",
+                    ].map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-zinc-700"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Three-column row */}
+            <div className="grid gap-4 sm:gap-5 sm:grid-cols-3 mb-4 sm:mb-5">
               {[
                 {
-                  feature: "Crypto payments",
-                  us: true,
-                  shopify: false,
-                  alibaba: false,
+                  icon: Package,
+                  title: "Products & inventory",
+                  body: "Multi-variant products (size, color), stock tracking, bulk CSV import/export, low-stock alerts.",
                 },
                 {
-                  feature: "Built-in escrow",
-                  us: true,
-                  shopify: false,
-                  alibaba: true,
+                  icon: BarChart3,
+                  title: "Analytics that matter",
+                  body: "Revenue, top products, customer split, sales heatmaps by hour and weekday — without setup.",
                 },
                 {
-                  feature: "No bank account needed",
-                  us: true,
-                  shopify: false,
-                  alibaba: false,
+                  icon: Smartphone,
+                  title: "Offline POS",
+                  body: "In-store sales drawn against the same inventory. Works without internet, syncs when back online.",
                 },
-                {
-                  feature: "No monthly fees",
-                  us: true,
-                  shopify: false,
-                  alibaba: true,
-                },
-                {
-                  feature: "Censorship resistant",
-                  us: true,
-                  shopify: false,
-                  alibaba: false,
-                },
-                {
-                  feature: "Retail buyer friendly",
-                  us: true,
-                  shopify: true,
-                  alibaba: false,
-                },
-                {
-                  feature: "Dispute resolution",
-                  us: true,
-                  shopify: false,
-                  alibaba: true,
-                },
-              ].map((row) => (
+              ].map((f) => (
                 <div
-                  key={row.feature}
-                  className="rounded-xl border border-zinc-100 bg-white p-4 shadow-sm"
+                  key={f.title}
+                  className="rounded-2xl border border-zinc-200/70 bg-white/80 backdrop-blur-sm p-6 hover:border-teal-200 transition-colors"
                 >
-                  <p className="font-medium text-zinc-800 mb-3 text-[15px]">
-                    {row.feature}
+                  <f.icon className="size-5 text-teal-700 mb-4" />
+                  <h3 className="text-base font-semibold mb-2 tracking-tight">
+                    {f.title}
+                  </h3>
+                  <p className="text-sm text-zinc-600 leading-relaxed">
+                    {f.body}
                   </p>
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="rounded-lg bg-teal-50 border border-teal-100 py-2">
-                      <p className="font-semibold text-teal-700 mb-0.5">
-                        Kaka Malem
-                      </p>
-                      {row.us ? (
-                        <Check className="h-4 w-4 text-emerald-500 mx-auto" />
-                      ) : (
-                        <span className="text-zinc-300">-</span>
-                      )}
-                    </div>
-                    <div className="rounded-lg bg-zinc-50 py-2">
-                      <p className="font-medium text-zinc-500 mb-0.5">
-                        Shopify
-                      </p>
-                      {row.shopify ? (
-                        <Check className="h-4 w-4 text-emerald-500 mx-auto" />
-                      ) : (
-                        <span className="text-zinc-300">-</span>
-                      )}
-                    </div>
-                    <div className="rounded-lg bg-zinc-50 py-2">
-                      <p className="font-medium text-zinc-500 mb-0.5">
-                        Alibaba
-                      </p>
-                      {row.alibaba ? (
-                        <Check className="h-4 w-4 text-emerald-500 mx-auto" />
-                      ) : (
-                        <span className="text-zinc-300">-</span>
-                      )}
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Desktop: table comparison */}
-            <div className="hidden sm:block overflow-hidden rounded-2xl border border-zinc-200">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-zinc-50 border-b border-zinc-200">
-                    <th className="p-4 text-left font-semibold text-zinc-900">
-                      Feature
-                    </th>
-                    <th className="p-4 text-center font-semibold text-teal-700 bg-teal-50/50">
-                      Kaka Malem
-                    </th>
-                    <th className="p-4 text-center font-medium text-zinc-500">
-                      Shopify
-                    </th>
-                    <th className="p-4 text-center font-medium text-zinc-500">
-                      Alibaba
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {[
-                    {
-                      feature: "Crypto payments",
-                      us: true,
-                      shopify: false,
-                      alibaba: false,
-                    },
-                    {
-                      feature: "Built-in escrow",
-                      us: true,
-                      shopify: false,
-                      alibaba: true,
-                    },
-                    {
-                      feature: "No bank account needed",
-                      us: true,
-                      shopify: false,
-                      alibaba: false,
-                    },
-                    {
-                      feature: "No monthly fees",
-                      us: true,
-                      shopify: false,
-                      alibaba: true,
-                    },
-                    {
-                      feature: "Censorship resistant",
-                      us: true,
-                      shopify: false,
-                      alibaba: false,
-                    },
-                    {
-                      feature: "Retail buyer friendly",
-                      us: true,
-                      shopify: true,
-                      alibaba: false,
-                    },
-                    {
-                      feature: "Dispute resolution",
-                      us: true,
-                      shopify: false,
-                      alibaba: true,
-                    },
-                  ].map((row) => (
-                    <tr key={row.feature} className="hover:bg-zinc-50/50">
-                      <td className="p-4 font-medium text-zinc-700">
-                        {row.feature}
-                      </td>
-                      <td className="p-4 text-center bg-teal-50/30">
-                        {row.us ? (
-                          <Check className="h-5 w-5 text-emerald-500 mx-auto" />
-                        ) : (
-                          <span className="text-zinc-300">-</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-center">
-                        {row.shopify ? (
-                          <Check className="h-5 w-5 text-emerald-500 mx-auto" />
-                        ) : (
-                          <span className="text-zinc-300">-</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-center">
-                        {row.alibaba ? (
-                          <Check className="h-5 w-5 text-emerald-500 mx-auto" />
-                        ) : (
-                          <span className="text-zinc-300">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Compact two-column row */}
+            <div className="grid gap-4 sm:gap-5 sm:grid-cols-2">
+              {[
+                {
+                  icon: Tag,
+                  title: "Campaigns & promo codes",
+                  body: "Scheduled sales, bulk pricing tiers, percentage and fixed-amount coupons, free-shipping thresholds.",
+                },
+                {
+                  icon: Layers,
+                  title: "Shipping zones",
+                  body: "Flat, weight-based, or distance-based pricing. Per-zone delivery windows. Set it once.",
+                },
+                {
+                  icon: Users,
+                  title: "Customer accounts",
+                  body: "Buyers save addresses, view order history, build wishlists. Repeat checkout is one click.",
+                },
+                {
+                  icon: MessageSquareQuote,
+                  title: "Reviews & ratings",
+                  body: "Verified post-purchase reviews with photos. Reply publicly to any review.",
+                },
+              ].map((f) => (
+                <div
+                  key={f.title}
+                  className="rounded-2xl border border-zinc-200/70 bg-white/80 backdrop-blur-sm p-5 sm:p-6 hover:border-teal-200 transition-colors flex items-start gap-4"
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-teal-50 to-cyan-50 border border-teal-100/60">
+                    <f.icon className="size-4 text-teal-700" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold mb-1 tracking-tight">
+                      {f.title}
+                    </h3>
+                    <p className="text-sm text-zinc-600 leading-relaxed">
+                      {f.body}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         {/* ============================================================
-            6. FINAL CTA
+            PRICING
         ============================================================ */}
-        <section className="w-full py-16 sm:py-20 md:py-28">
-          <div className="max-w-4xl mx-auto px-5 sm:px-6">
-            <div className="relative rounded-3xl bg-linear-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-8 sm:p-10 md:p-16 text-center overflow-hidden">
-              {/* Glow */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-150 h-75 bg-linear-to-b from-teal-500/20 to-transparent blur-[100px] -translate-y-1/2" />
-
-              {/* Decorative USDT icons */}
-              <UsdtLogo className="absolute top-6 left-8 w-8 h-8 opacity-[0.06] -rotate-12" />
-              <UsdtLogo className="absolute bottom-8 right-10 w-12 h-12 opacity-[0.05] rotate-15" />
-              <UsdtLogo className="absolute top-1/2 left-4 w-6 h-6 opacity-[0.04] rotate-30 hidden md:block" />
-
-              <div className="relative">
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
-                  Skip the bank. Start selling.
-                </h2>
-                <p className="text-zinc-400 max-w-md mx-auto mb-8 text-[15px]">
-                  Create a store, list your products, share the link. Accept
-                  USDT from anyone, anywhere. Withdraw to your wallet.
-                </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 px-4 sm:px-0">
-                  <Button
-                    size="lg"
-                    className="rounded-full px-8 h-12 w-full sm:w-auto font-semibold text-[14px] gap-2 bg-white text-zinc-900 hover:bg-zinc-100 shadow-lg transition-all"
-                    asChild
-                  >
-                    <Link href={user ? "/dashboard" : "/signup"}>
-                      {user ? "Go to Dashboard" : "Create your store"}
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="rounded-full px-8 h-12 w-full sm:w-auto font-medium text-[14px] border-zinc-600 text-zinc-300 hover:text-white hover:border-zinc-400 hover:bg-zinc-800 bg-transparent transition-all duration-200"
-                    asChild
-                  >
-                    <Link href="#how-it-works">Learn more</Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============================================================
-            7. FOOTER
-        ============================================================ */}
-        <footer className="w-full border-t border-zinc-100 bg-zinc-950 text-zinc-400 py-10 sm:py-12 md:py-16">
-          <div className="max-w-5xl mx-auto px-5 sm:px-6">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-10">
-              {/* Brand */}
-              <div className="max-w-xs">
-                <Link href="/" className="flex items-center gap-2 mb-3 group">
-                  <span className="font-bold tracking-tight text-white">
-                    Kaka Malem
-                  </span>
-                </Link>
-                <p className="text-[14px] leading-relaxed">
-                  Crypto-native commerce platform. UK-registered, globally
-                  accessible. USDT escrow for cross-border trade.
-                </p>
-              </div>
-
-              {/* Links */}
-              <div className="grid grid-cols-2 gap-x-16 gap-y-6">
-                <div>
-                  <h4 className="text-[12px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
-                    Platform
-                  </h4>
-                  <div className="flex flex-col gap-2.5">
-                    <Link
-                      href="#how-it-works"
-                      className="text-[14px] hover:text-white transition-colors"
-                    >
-                      How it works
-                    </Link>
-                    <Link
-                      href="#features"
-                      className="text-[14px] hover:text-white transition-colors"
-                    >
-                      Features
-                    </Link>
-                    <Link
-                      href="#security"
-                      className="text-[14px] hover:text-white transition-colors"
-                    >
-                      Security
-                    </Link>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-[12px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
-                    Legal
-                  </h4>
-                  <div className="flex flex-col gap-2.5">
-                    <Link
-                      href="/terms"
-                      className="text-[14px] hover:text-white transition-colors"
-                    >
-                      Terms of Service
-                    </Link>
-                    <Link
-                      href="/privacy"
-                      className="text-[14px] hover:text-white transition-colors"
-                    >
-                      Privacy Policy
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-zinc-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <p className="text-[13px]">
-                &copy; {new Date().getFullYear()} Kaka Malem Ltd. All rights
-                reserved.
+        <section
+          id="pricing"
+          className="w-full px-5 sm:px-6 py-20 sm:py-24 md:py-28 border-t border-zinc-100/70"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="text-center mb-14">
+              <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
+                Pricing
               </p>
-              <a
-                href="https://find-and-update.company-information.service.gov.uk/company/17054971"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[12px] text-zinc-600 hover:text-zinc-400 transition-colors"
-              >
-                UK Registered Company
-              </a>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
+                One plan. Try it first.
+              </h2>
+              <p className="max-w-150 mx-auto text-zinc-600">
+                Seven days of full access on us. Stay if it works for you,
+                monthly or yearly. Cancel anytime.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3 max-w-5xl mx-auto">
+              {/* Trial */}
+              <div className="rounded-2xl border border-zinc-200/70 bg-white/80 backdrop-blur-sm p-7 sm:p-8 flex flex-col">
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold">7-day trial</h3>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    Full access, no card required
+                  </p>
+                </div>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-4xl font-bold tracking-tight">0</span>
+                  <span className="text-sm text-zinc-500">
+                    AFN &middot; 7 days
+                  </span>
+                </div>
+                <ul className="space-y-2.5 mb-8 flex-1">
+                  {[
+                    "Everything in Pro",
+                    "HesabPay + COD checkout",
+                    "Custom storefront",
+                    "Order management",
+                    "Analytics dashboard",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-start gap-2 text-sm text-zinc-700"
+                    >
+                      <Check className="size-4 text-teal-600 mt-0.5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="rounded-full w-full h-11 border-zinc-300"
+                >
+                  <Link href={user ? "/dashboard" : "/signup"}>
+                    Start your trial
+                  </Link>
+                </Button>
+              </div>
+
+              {/* Pro */}
+              <div className="rounded-2xl border-2 border-teal-900 bg-linear-to-br from-zinc-900 via-zinc-900 to-teal-950 text-white p-7 sm:p-8 flex flex-col relative shadow-xl shadow-teal-900/20">
+                <span className="absolute -top-3 right-6 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                  Most popular
+                </span>
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold">Pro</h3>
+                  <p className="text-sm text-zinc-400 mt-1">
+                    Built for growing stores
+                  </p>
+                </div>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-4xl font-bold tracking-tight">
+                    1,100
+                  </span>
+                  <span className="text-sm text-zinc-400">AFN / month</span>
+                </div>
+                <ul className="space-y-2.5 mb-8 flex-1">
+                  {[
+                    "Unlimited products",
+                    "Everything in Free",
+                    "Custom domain",
+                    "Offline POS",
+                    "Priority support",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-start gap-2 text-sm text-zinc-200"
+                    >
+                      <Check className="size-4 text-emerald-400 mt-0.5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  asChild
+                  className="rounded-full w-full h-11 bg-white text-zinc-900 hover:bg-zinc-100"
+                >
+                  <Link href={user ? "/dashboard" : "/signup"}>
+                    Start 7-day trial
+                  </Link>
+                </Button>
+                <p className="text-xs text-zinc-500 text-center mt-3">
+                  Also billed yearly. Cancel anytime.
+                </p>
+              </div>
+
+              {/* Enterprise (coming soon) */}
+              <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/40 backdrop-blur-sm p-7 sm:p-8 flex flex-col relative">
+                <span className="absolute -top-3 right-6 rounded-full border border-zinc-300 bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+                  Coming soon
+                </span>
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-zinc-700">
+                    Enterprise
+                  </h3>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    For high-volume stores and teams
+                  </p>
+                </div>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-4xl font-bold tracking-tight text-zinc-700">
+                    Custom
+                  </span>
+                </div>
+                <ul className="space-y-2.5 mb-8 flex-1">
+                  {[
+                    "Everything in Pro",
+                    "Dedicated account manager",
+                    "Custom integrations",
+                    "Volume pricing",
+                    "Uptime SLA",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-start gap-2 text-sm text-zinc-500"
+                    >
+                      <Check className="size-4 text-zinc-400 mt-0.5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  disabled
+                  variant="outline"
+                  className="rounded-full w-full h-11 border-dashed border-zinc-300 text-zinc-500"
+                >
+                  Coming soon
+                </Button>
+                <p className="text-xs text-zinc-400 text-center mt-3">
+                  Want early access?{" "}
+                  <a
+                    href="mailto:hello@kakamalem.com"
+                    className="underline underline-offset-2 hover:text-zinc-600"
+                  >
+                    Get in touch
+                  </a>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-center text-sm text-zinc-500 mt-8">
+              Billed via HesabPay. Switch between monthly and yearly anytime.
+            </p>
+          </div>
+        </section>
+
+        {/* ============================================================
+            FINAL CTA
+        ============================================================ */}
+        <section className="w-full px-5 sm:px-6 py-20 sm:py-24 md:py-28 border-t border-zinc-100/70">
+          <div className="mx-auto max-w-6xl">
+            <div className="relative overflow-hidden rounded-3xl border border-teal-200/60 bg-linear-to-br from-teal-50/80 via-cyan-50/60 to-emerald-50/40 backdrop-blur-sm p-10 sm:p-14 md:p-16 text-center mx-auto max-w-4xl">
+              <div className="absolute -top-16 -left-16 size-56 rounded-full bg-teal-300/30 blur-3xl" />
+              <div className="absolute -bottom-20 -right-16 size-64 rounded-full bg-cyan-300/30 blur-3xl" />
+              <div className="relative">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
+                  Open your store today
+                </h2>
+                <p className="text-zinc-600 mb-8 max-w-150 mx-auto">
+                  Start a 7-day free trial of Pro. No credit card. Your first
+                  product listed in under five minutes.
+                </p>
+                <Button asChild size="lg" className="rounded-full px-7 h-12">
+                  <Link href={user ? "/dashboard" : "/signup"}>
+                    {user ? "Go to dashboard" : "Create your store"}
+                    <ArrowRight className="ml-1 size-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
-        </footer>
+        </section>
       </main>
+
+      {/* ============================================================
+          FOOTER
+      ============================================================ */}
+      <footer className="border-t border-zinc-100 bg-zinc-950 pt-16 pb-8">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-y-10 gap-x-8 mb-12">
+            {/* Brand */}
+            <div className="col-span-2 flex flex-col gap-4">
+              <Link href="/" className="flex items-center gap-2.5 w-fit">
+                <Image
+                  src="/icons/android-chrome-192x192.png"
+                  alt="Kaka Malem"
+                  width={28}
+                  height={28}
+                  className="rounded-lg"
+                />
+                <span className="font-bold tracking-tight text-white">
+                  Kaka Malem
+                </span>
+              </Link>
+              <p className="text-[14px] text-zinc-500 max-w-xs leading-relaxed">
+                A storefront builder for Afghan businesses. Open your store
+                online, take orders, get paid.
+              </p>
+              <div className="flex flex-col gap-2 mt-1 text-[13px]">
+                <a
+                  href="mailto:hello@kakamalem.com"
+                  className="inline-flex items-center gap-2 text-zinc-500 hover:text-zinc-200 transition-colors"
+                >
+                  <Mail className="size-3.5" />
+                  hello@kakamalem.com
+                </a>
+                <a
+                  href="https://find-and-update.company-information.service.gov.uk/company/17054971"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-zinc-500 hover:text-zinc-200 transition-colors"
+                >
+                  <Building2 className="size-3.5" />
+                  UK Ltd &middot; #17054971
+                </a>
+              </div>
+            </div>
+            {[
+              {
+                title: "Product",
+                links: [
+                  ["/#features", "Features"],
+                  ["/#how-it-works", "How it works"],
+                  ["/#pricing", "Pricing"],
+                  [
+                    user ? "/dashboard" : "/signup",
+                    user ? "Dashboard" : "Sign up",
+                  ],
+                ] as [string, string][],
+              },
+              {
+                title: "Company",
+                links: [
+                  ["/become-affiliate", "Affiliate program"],
+                  ["mailto:hello@kakamalem.com", "Contact"],
+                  [
+                    "mailto:hello@kakamalem.com?subject=Enterprise%20inquiry",
+                    "Enterprise",
+                  ],
+                ] as [string, string][],
+              },
+              {
+                title: "Legal",
+                links: [
+                  ["/privacy", "Privacy Policy"],
+                  ["/terms", "Terms of Service"],
+                  ["/data-deletion", "Data deletion"],
+                ] as [string, string][],
+              },
+            ].map((col) => (
+              <div key={col.title}>
+                <h4 className="font-semibold text-zinc-300 mb-4 text-[13px] uppercase tracking-wider">
+                  {col.title}
+                </h4>
+                <ul className="space-y-3">
+                  {col.links.map(([href, label]) => (
+                    <li key={label}>
+                      <Link
+                        href={href}
+                        className="text-[14px] text-zinc-500 hover:text-zinc-200 transition-colors"
+                      >
+                        {label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-[13px] text-zinc-600">
+              © {new Date().getFullYear()} Kaka Malem Ltd. All rights reserved.
+            </p>
+            <div className="flex items-center gap-2 text-[13px] text-emerald-500 font-medium">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              All systems operational
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

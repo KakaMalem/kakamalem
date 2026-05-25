@@ -49,12 +49,6 @@ export function PaymentPageClient({
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
     null
   );
-  const [selectedNetwork, setSelectedNetwork] = useState<string>(() => {
-    const cryptoGateway = enabledGateways.find(
-      (g) => g.gateway === "crypto_usdt"
-    );
-    return cryptoGateway?.cryptoNetworks?.[0]?.network || "trc20";
-  });
 
   const handleMethodSelect = useCallback((method: PaymentMethod) => {
     setSelectedMethod(method);
@@ -71,10 +65,7 @@ export function PaymentPageClient({
     try {
       const result = await createOrderPaymentSession(
         orderId,
-        selectedMethod.gateway as PaymentGateway,
-        selectedMethod.gateway === "crypto_usdt"
-          ? { network: selectedNetwork }
-          : undefined
+        selectedMethod.gateway as PaymentGateway
       );
 
       if (!result.success) {
@@ -183,8 +174,6 @@ export function PaymentPageClient({
             disabled={isLoading}
             currency={currency}
             enabledMethods={enabledGateways}
-            selectedNetwork={selectedNetwork}
-            onNetworkSelect={setSelectedNetwork}
           />
         </CardContent>
       </Card>

@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Crown, Zap } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Check, Crown, Zap } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -8,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SubscriptionOverview } from "@/lib/db/queries/billing";
 
@@ -38,7 +40,7 @@ export function PlanComparison({
   subscription,
   currency,
   tenantId: _tenantId,
-  storeSlug: _storeSlug,
+  storeSlug,
 }: PlanComparisonProps) {
   const isPro = subscription.plan === "pro";
   const isActivePro = isPro && subscription.status === "active";
@@ -160,10 +162,18 @@ export function PlanComparison({
               </li>
             </ul>
 
-            {isActivePro && (
+            {isActivePro ? (
               <div className="mt-4 rounded-md bg-muted/50 px-3 py-1.5 text-center text-xs font-medium text-muted-foreground">
                 Current Plan
               </div>
+            ) : (
+              <Button asChild className="mt-4 w-full h-9 gap-1.5" size="sm">
+                <Link href={`/dashboard/${storeSlug}/billing/upgrade`}>
+                  <Crown className="size-3.5" />
+                  Upgrade to Pro
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              </Button>
             )}
           </div>
         </div>

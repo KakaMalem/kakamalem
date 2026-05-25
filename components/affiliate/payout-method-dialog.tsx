@@ -14,20 +14,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Building2, Smartphone, Wallet } from "lucide-react";
+import { Loader2, Building2, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { saveAffiliatePayoutMethod } from "@/lib/actions/platform-affiliates";
 
-type PayoutMethod = "bank_transfer" | "mobile_money" | "crypto";
-type CryptoNetwork = "trc20" | "erc20" | "bep20";
+type PayoutMethod = "bank_transfer" | "mobile_money";
 
 interface PayoutMethodDialogProps {
   currentMethod?: string | null;
@@ -37,8 +29,6 @@ interface PayoutMethodDialogProps {
     accountNumber?: string;
     mobileNumber?: string;
     provider?: string;
-    walletAddress?: string;
-    network?: CryptoNetwork;
   } | null;
   trigger?: React.ReactNode;
 }
@@ -70,25 +60,13 @@ export function PayoutMethodDialog({
   );
   const provider = currentDetails?.provider || "hesabpay";
 
-  // Crypto fields
-  const [walletAddress, setWalletAddress] = useState(
-    currentDetails?.walletAddress || ""
-  );
-  const [cryptoNetwork, setCryptoNetwork] = useState<CryptoNetwork>(
-    currentDetails?.network || "trc20"
-  );
-
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      let details;
-      if (method === "bank_transfer") {
-        details = { bankName, accountName, accountNumber };
-      } else if (method === "mobile_money") {
-        details = { mobileNumber, provider };
-      } else {
-        details = { walletAddress, network: cryptoNetwork };
-      }
+      const details =
+        method === "bank_transfer"
+          ? { bankName, accountName, accountNumber }
+          : { mobileNumber, provider };
 
       const result = await saveAffiliatePayoutMethod({ method, details });
 
@@ -130,7 +108,7 @@ export function PayoutMethodDialog({
           value={method}
           onValueChange={(v) => setMethod(v as PayoutMethod)}
         >
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="bank_transfer">
               <Building2 className="mr-2 size-4" />
               Bank
@@ -138,10 +116,6 @@ export function PayoutMethodDialog({
             <TabsTrigger value="mobile_money">
               <Smartphone className="mr-2 size-4" />
               Mobile
-            </TabsTrigger>
-            <TabsTrigger value="crypto">
-              <Wallet className="mr-2 size-4" />
-              USDT
             </TabsTrigger>
           </TabsList>
 
@@ -199,53 +173,6 @@ export function PayoutMethodDialog({
                 onChange={(e) => setMobileNumber(e.target.value)}
                 placeholder="Your mobile number"
               />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="crypto" className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="crypto-network">Network</Label>
-              <Select
-                value={cryptoNetwork}
-                onValueChange={(v) => setCryptoNetwork(v as CryptoNetwork)}
-              >
-                <SelectTrigger id="crypto-network">
-                  <SelectValue placeholder="Select network" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="trc20">
-                    TRC20 (Tron) - Low fees ~$1
-                  </SelectItem>
-                  <SelectItem value="bep20">
-                    BEP20 (BSC) - Low fees ~$0.50
-                  </SelectItem>
-                  <SelectItem value="erc20">
-                    ERC20 (Ethereum) - Higher fees
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                TRC20 is recommended for lower transaction fees
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="wallet-address">USDT Wallet Address</Label>
-              <Input
-                id="wallet-address"
-                value={walletAddress}
-                onChange={(e) => setWalletAddress(e.target.value)}
-                placeholder={cryptoNetwork === "trc20" ? "T..." : "0x..."}
-              />
-              <p className="text-xs text-muted-foreground">
-                Make sure this address supports{" "}
-                {cryptoNetwork === "trc20"
-                  ? "TRC20"
-                  : cryptoNetwork === "bep20"
-                    ? "BEP20"
-                    : "ERC20"}{" "}
-                USDT
-              </p>
             </div>
           </TabsContent>
         </Tabs>

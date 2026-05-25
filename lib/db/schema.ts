@@ -74,15 +74,6 @@ export type SeoMetadata = {
   ogImageUrl?: string; // URL to social preview image
 };
 
-// USDT wallet configuration for self-hosted crypto payments
-export type UsdtWalletConfig = {
-  trc20?: { address: string; enabled: boolean }; // Tron network - low fees
-  erc20?: { address: string; enabled: boolean }; // Ethereum network - high fees
-  bep20?: { address: string; enabled: boolean }; // BSC network - low fees
-  minAmount?: number; // Minimum USDT amount for payments
-  expirationMinutes?: number; // How long payment session is valid (default: 60)
-};
-
 // Store analytics (system-managed, read-only)
 export type StoreAnalytics = {
   totalViews: number;
@@ -494,29 +485,6 @@ export const orderEventCategoryEnum = pgEnum("order_event_category", [
 // FINANCE & PAYOUT ENUMS
 // ============================================================================
 
-// Seller transaction types (for financial ledger)
-export const sellerTransactionTypeEnum = pgEnum("seller_transaction_type", [
-  "sale", // Revenue from order
-  "refund", // Refund issued
-  "commission_fee", // Platform commission deducted
-  "shipping_fee", // Shipping fee collected
-  "adjustment", // Manual adjustment by admin
-  "payout", // Money sent to seller
-  "payout_reversal", // Failed payout reversed
-  "affiliate_commission", // Commission paid to affiliate
-  "hold", // Funds held (dispute, review)
-  "release", // Held funds released
-]);
-
-// Payout status
-export const payoutStatusEnum = pgEnum("payout_status", [
-  "pending", // Awaiting processing
-  "processing", // Being processed
-  "completed", // Successfully sent
-  "failed", // Failed to process
-  "cancelled", // Cancelled before processing
-]);
-
 // Payout method types
 export const payoutMethodTypeEnum = pgEnum("payout_method_type", [
   "bank_transfer", // Direct bank transfer
@@ -872,7 +840,7 @@ export const tenants = pgTable(
     seo: jsonb("seo").$type<SeoMetadata>(),
 
     // Settings
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // Delivery mode - how the store calculates shipping/delivery fees
     // DEPRECATED: Use enableDeliveryZones instead. Kept for backward compatibility.
@@ -960,22 +928,10 @@ export const tenants = pgTable(
     // Admin notes for manual billing decisions
     subscriptionNotes: text("subscription_notes"),
 
-    // ==========================================================================
-    // STRIPE INTEGRATION (for Pro subscriptions)
-    // ==========================================================================
-    // Stripe customer ID (created when store first upgrades to Pro)
-    stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
-    // Stripe subscription ID (for recurring billing)
-    stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
-    // Stripe price ID being subscribed to
-    stripePriceId: varchar("stripe_price_id", { length: 255 }),
-
     // Billing interval (monthly or yearly)
     billingInterval: varchar("billing_interval", { length: 10 })
       .default("monthly")
       .notNull(), // 'monthly' | 'yearly'
-    // Stripe yearly price ID (separate from monthly)
-    stripeYearlyPriceId: varchar("stripe_yearly_price_id", { length: 255 }),
 
     // ==========================================================================
     // SUBSCRIPTION PAUSE/RESUME
@@ -2890,7 +2846,7 @@ export const orders = pgTable(
 
     // Currency (ISO 4217 code) - store's base currency
     currencyCode: varchar("currency_code", { length: 10 })
-      .default("USDT")
+      .default("AFN")
       .notNull(),
 
     // ========== MULTI-CURRENCY SUPPORT ==========
@@ -3207,7 +3163,7 @@ export const orderTransactions = pgTable(
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
     // Currency
     currencyCode: varchar("currency_code", { length: 10 })
-      .default("USDT")
+      .default("AFN")
       .notNull(),
 
     // ========== PAYMENT METHOD ==========
@@ -3329,7 +3285,7 @@ export const refunds = pgTable(
     totalAmount: decimal("total_amount", { precision: 14, scale: 2 }).notNull(),
     // Currency
     currencyCode: varchar("currency_code", { length: 10 })
-      .default("USDT")
+      .default("AFN")
       .notNull(),
 
     // ========== REFUND METHOD ==========
@@ -3872,7 +3828,7 @@ export const storeCredits = pgTable(
     balance: decimal("balance", { precision: 14, scale: 2 }).notNull(),
     // Currency
     currencyCode: varchar("currency_code", { length: 10 })
-      .default("USDT")
+      .default("AFN")
       .notNull(),
 
     // ========== SOURCE ==========
@@ -4766,324 +4722,6 @@ export const commissionRules = pgTable(
 );
 
 // ============================================================================
-// COMMISSION TIERS (Volume-based commission discounts)
-// ============================================================================
-// Platform-level: Higher volume sellers get lower commission rates.
-export const commissionTiers = pgTable(
-  "commission_tiers",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-
-    name: varchar("name", { length: 100 }).notNull(), // "Bronze", "Silver", "Gold", "Platinum"
-    description: text("description"),
-
-    // Qualification criteria
-    minMonthlyRevenue: decimal("min_monthly_revenue", {
-      precision: 14,
-      scale: 2,
-    }), // Min monthly sales
-    minMonthlyOrders: integer("min_monthly_orders"), // Min orders per month
-    minAccountAge: integer("min_account_age_days"), // Days since store creation
-
-    // Benefits
-    commissionRate: decimal("commission_rate", {
-      precision: 5,
-      scale: 2,
-    }).notNull(),
-    freeShippingCredits: decimal("free_shipping_credits", {
-      precision: 12,
-      scale: 2,
-    }),
-    prioritySupport: boolean("priority_support").default(false).notNull(),
-
-    // Display
-    badgeUrl: text("badge_url"),
-    displayOrder: integer("display_order").default(0).notNull(),
-    isActive: boolean("is_active").default(true).notNull(),
-
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [uniqueIndex("commission_tiers_name_idx").on(table.name)]
-);
-
-// ============================================================================
-// SELLER BALANCES (Real-time balance tracking per store)
-// ============================================================================
-// Single source of truth for seller's financial state.
-export const sellerBalances = pgTable(
-  "seller_balances",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .unique()
-      .references(() => tenants.id, { onDelete: "cascade" }),
-
-    // Balance breakdown
-    available: decimal("available", { precision: 14, scale: 2 })
-      .default("0")
-      .notNull(), // Ready for payout
-    pending: decimal("pending", { precision: 14, scale: 2 })
-      .default("0")
-      .notNull(), // From recent orders (holding period)
-    reserved: decimal("reserved", { precision: 14, scale: 2 })
-      .default("0")
-      .notNull(), // Held for disputes/refunds
-    lifetimeEarnings: decimal("lifetime_earnings", { precision: 14, scale: 2 })
-      .default("0")
-      .notNull(),
-    lifetimePaidOut: decimal("lifetime_paid_out", { precision: 14, scale: 2 })
-      .default("0")
-      .notNull(),
-
-    // Commission tier
-    currentTierId: uuid("current_tier_id").references(
-      () => commissionTiers.id,
-      { onDelete: "set null" }
-    ),
-    tierQualifiedAt: timestamp("tier_qualified_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-
-    // Payout settings
-    autoPayout: boolean("auto_payout").default(false).notNull(),
-    autoPayoutThreshold: decimal("auto_payout_threshold", {
-      precision: 12,
-      scale: 2,
-    }),
-    payoutHoldDays: integer("payout_hold_days").default(7).notNull(), // Days before pending becomes available
-
-    // Currency
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
-
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [index("seller_balances_tenant_id_idx").on(table.tenantId)]
-);
-
-// ============================================================================
-// SELLER PAYOUT METHODS (How sellers receive money)
-// ============================================================================
-export const sellerPayoutMethods = pgTable(
-  "seller_payout_methods",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .references(() => tenants.id, { onDelete: "cascade" }),
-
-    type: payoutMethodTypeEnum("type").notNull(),
-    label: varchar("label", { length: 100 }), // "My Bank Account", "Mobile Money"
-
-    // Bank details (encrypted in production)
-    bankName: varchar("bank_name", { length: 255 }),
-    bankCode: varchar("bank_code", { length: 50 }),
-    accountNumber: varchar("account_number", { length: 100 }),
-    accountName: varchar("account_name", { length: 255 }),
-    routingNumber: varchar("routing_number", { length: 50 }),
-    swiftCode: varchar("swift_code", { length: 20 }),
-    iban: varchar("iban", { length: 50 }),
-
-    // Mobile money
-    mobileNumber: varchar("mobile_number", { length: 50 }),
-    mobileProvider: varchar("mobile_provider", { length: 100 }),
-
-    // Other
-    walletAddress: varchar("wallet_address", { length: 255 }), // For crypto
-    additionalInfo: jsonb("additional_info").$type<Record<string, string>>(),
-
-    // Status
-    isDefault: boolean("is_default").default(false).notNull(),
-    isVerified: boolean("is_verified").default(false).notNull(),
-    verifiedAt: timestamp("verified_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [index("seller_payout_methods_tenant_id_idx").on(table.tenantId)]
-);
-
-// ============================================================================
-// SELLER TRANSACTIONS (Financial ledger for sellers)
-// ============================================================================
-// Every financial event is recorded here for accounting/auditing.
-export const sellerTransactions = pgTable(
-  "seller_transactions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .references(() => tenants.id, { onDelete: "cascade" }),
-
-    // Transaction details
-    type: sellerTransactionTypeEnum("type").notNull(),
-    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(), // Positive or negative
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
-
-    // Balance snapshot after this transaction
-    availableAfter: decimal("available_after", {
-      precision: 14,
-      scale: 2,
-    }).notNull(),
-    pendingAfter: decimal("pending_after", {
-      precision: 14,
-      scale: 2,
-    }).notNull(),
-    reservedAfter: decimal("reserved_after", {
-      precision: 14,
-      scale: 2,
-    }).notNull(),
-
-    // References
-    orderId: uuid("order_id").references(() => orders.id, {
-      onDelete: "set null",
-    }),
-    orderItemId: uuid("order_item_id").references(() => orderItems.id, {
-      onDelete: "set null",
-    }),
-    payoutId: uuid("payout_id"), // Forward reference - will link to sellerPayouts
-    affiliateId: uuid("affiliate_id"), // Forward reference - will link to affiliates
-
-    // Description
-    description: text("description").notNull(),
-    notes: text("notes"), // Internal notes
-
-    // Metadata
-    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index("seller_transactions_tenant_id_idx").on(table.tenantId),
-    index("seller_transactions_order_id_idx").on(table.orderId),
-    index("seller_transactions_created_at_idx").on(table.createdAt),
-    index("seller_transactions_type_idx").on(table.type),
-  ]
-);
-
-// ============================================================================
-// SELLER PAYOUTS (Money sent to sellers)
-// ============================================================================
-export const sellerPayouts = pgTable(
-  "seller_payouts",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .references(() => tenants.id, { onDelete: "cascade" }),
-    payoutMethodId: uuid("payout_method_id").references(
-      () => sellerPayoutMethods.id,
-      { onDelete: "set null" }
-    ),
-
-    // Payout reference number
-    payoutNumber: varchar("payout_number", { length: 50 }).notNull(),
-
-    // Amount
-    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
-    fee: decimal("fee", { precision: 12, scale: 2 }).default("0").notNull(), // Transfer fee
-    netAmount: decimal("net_amount", { precision: 14, scale: 2 }).notNull(), // amount - fee
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
-
-    // Status
-    status: payoutStatusEnum("status").default("pending").notNull(),
-
-    // Timing
-    requestedAt: timestamp("requested_at", {
-      withTimezone: true,
-      mode: "string",
-    })
-      .defaultNow()
-      .notNull(),
-    processedAt: timestamp("processed_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-    completedAt: timestamp("completed_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-    failedAt: timestamp("failed_at", { withTimezone: true, mode: "string" }),
-
-    // External reference
-    externalReference: varchar("external_reference", { length: 255 }), // Bank reference, transaction ID, etc.
-    failureReason: text("failure_reason"),
-
-    // Crypto payout fields (for USDT payouts)
-    cryptoNetwork: varchar("crypto_network", { length: 10 }), // trc20, erc20, bep20
-    cryptoTxHash: varchar("crypto_tx_hash", { length: 100 }), // Transaction hash when admin sends
-    cryptoSentAt: timestamp("crypto_sent_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-
-    // Who processed
-    processedById: text("processed_by_id").references(() => user.id, {
-      onDelete: "set null",
-    }),
-
-    notes: text("notes"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex("seller_payouts_payout_number_idx").on(table.payoutNumber),
-    index("seller_payouts_tenant_id_idx").on(table.tenantId),
-    index("seller_payouts_status_idx").on(table.status),
-    index("seller_payouts_requested_at_idx").on(table.requestedAt),
-  ]
-);
-
-// ============================================================================
-// SELLER PAYOUT ITEMS (Individual transactions in a payout)
-// ============================================================================
-// Links transactions to payouts for reconciliation.
-export const sellerPayoutItems = pgTable(
-  "seller_payout_items",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    payoutId: uuid("payout_id")
-      .notNull()
-      .references(() => sellerPayouts.id, { onDelete: "cascade" }),
-    transactionId: uuid("transaction_id")
-      .notNull()
-      .references(() => sellerTransactions.id, { onDelete: "cascade" }),
-    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex("seller_payout_items_payout_transaction_idx").on(
-      table.payoutId,
-      table.transactionId
-    ),
-    index("seller_payout_items_payout_id_idx").on(table.payoutId),
-  ]
-);
-
-// ============================================================================
 // ANALYTICS: DAILY STORE SNAPSHOTS
 // ============================================================================
 export const analyticsDailySnapshots = pgTable(
@@ -5816,7 +5454,7 @@ export const affiliateConversions = pgTable(
     // Order details at time of conversion
     orderTotal: decimal("order_total", { precision: 14, scale: 2 }).notNull(),
     orderCurrency: varchar("order_currency", { length: 10 })
-      .default("USDT")
+      .default("AFN")
       .notNull(),
 
     // Commission calculation
@@ -5882,7 +5520,7 @@ export const affiliatePayouts = pgTable(
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
     fee: decimal("fee", { precision: 12, scale: 2 }).default("0").notNull(),
     netAmount: decimal("net_amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // How many conversions included
     conversionCount: integer("conversion_count").notNull(),
@@ -6012,9 +5650,6 @@ export type PlatformAffiliatePayoutDetails = {
   // Mobile money
   mobileNumber?: string;
   mobileProvider?: string; // e.g., "m-paisa", "m-hawala"
-  // Crypto (USDT)
-  walletAddress?: string;
-  network?: "trc20" | "erc20" | "bep20";
 };
 
 // Platform affiliates table - affiliates who promote Kaka Malem to acquire new stores
@@ -6295,7 +5930,7 @@ export const platformAffiliateCommissions = pgTable(
       scale: 2,
     }).notNull(), // Calculated commission
     commissionMonth: integer("commission_month").notNull(), // Month 1-12 of the 12-month period
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // Subscription period this commission covers
     periodStart: timestamp("period_start", {
@@ -6348,7 +5983,7 @@ export const platformAffiliatePayouts = pgTable(
     // Payout details
     payoutNumber: varchar("payout_number", { length: 20 }).notNull().unique(), // PAF-0001
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // Payout method snapshot (in case affiliate changes method later)
     payoutMethod: varchar("payout_method", { length: 50 }).notNull(),
@@ -6382,13 +6017,6 @@ export const platformAffiliatePayouts = pgTable(
     adminNotes: text("admin_notes"),
     failureReason: text("failure_reason"),
     transactionReference: varchar("transaction_reference", { length: 255 }),
-
-    // Crypto payout fields (for USDT payouts)
-    cryptoTxHash: varchar("crypto_tx_hash", { length: 100 }), // Transaction hash when admin sends
-    cryptoSentAt: timestamp("crypto_sent_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
 
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
@@ -6901,7 +6529,7 @@ export const deliveryPayouts = pgTable(
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
     fee: decimal("fee", { precision: 12, scale: 2 }).default("0").notNull(),
     netAmount: decimal("net_amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // How many deliveries included
     deliveryCount: integer("delivery_count").notNull(),
@@ -7026,12 +6654,6 @@ export const platformSettings = pgTable("platform_settings", {
   trialWarningDays: integer("trial_warning_days").default(3).notNull(),
 
   // ==========================================================================
-  // CRYPTO PAYMENTS (Self-hosted USDT)
-  // ==========================================================================
-  // USDT wallet configuration for self-hosted crypto payments
-  usdtWalletConfig: jsonb("usdt_wallet_config").$type<UsdtWalletConfig>(),
-
-  // ==========================================================================
   // METADATA
   // ==========================================================================
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
@@ -7093,7 +6715,7 @@ export const billingTransactions = pgTable(
     // Transaction details
     type: billingTransactionTypeEnum("type").notNull(),
     amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // Payment info (for subscription_payment type)
     paymentMethod: paymentMethodEnum("payment_method"),
@@ -7160,7 +6782,7 @@ export const invoices = pgTable(
     subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
     tax: decimal("tax", { precision: 10, scale: 2 }).default("0").notNull(),
     total: decimal("total", { precision: 10, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // Billing period
     periodStart: timestamp("period_start", {
@@ -7282,7 +6904,7 @@ export const subscriptionRefunds = pgTable(
 
     // Payment method for refund
     refundMethod: varchar("refund_method", { length: 50 }), // 'original_payment' | 'store_credit' | 'manual'
-    gatewayRefundId: varchar("gateway_refund_id", { length: 255 }), // Stripe refund ID if applicable
+    gatewayRefundId: varchar("gateway_refund_id", { length: 255 }), // External gateway refund ID if applicable
 
     // Audit trail (no FK - preserve audit even if user deleted)
     requestedBy: uuid("requested_by"),
@@ -7321,31 +6943,13 @@ export const subscriptionRefunds = pgTable(
 // PAYMENT GATEWAY CONFIGURATION
 // ============================================================================
 // Stores payment gateway credentials and settings per tenant.
-// Supports multiple gateways: HesabPay, Stripe, COD, manual bank transfer, etc.
+// Supports: HesabPay (hosted checkout), COD, manual bank transfer, mobile money.
 
 export const paymentGatewayEnum = pgEnum("payment_gateway", [
-  "hesabpay", // HesabPay - Afghanistan primary
-  "stripe", // Stripe Connect - International
+  "hesabpay", // HesabPay - Afghanistan + International via hosted checkout
   "cod", // Cash on Delivery
   "bank_transfer", // Manual bank transfer
   "mobile_money", // Mobile money (M-Paisa, M-Hawala)
-  "crypto_usdt", // Self-hosted USDT crypto payments
-]);
-
-// Crypto payment status (for manual verification flow)
-export const cryptoPaymentStatusEnum = pgEnum("crypto_payment_status", [
-  "pending", // Waiting for customer to send payment
-  "submitted", // Customer submitted transaction hash
-  "verified", // Admin verified the transaction
-  "expired", // Payment session expired
-  "rejected", // Admin rejected the transaction
-]);
-
-// Crypto network types
-export const cryptoNetworkEnum = pgEnum("crypto_network", [
-  "trc20", // Tron (USDT-TRC20) - Low fees
-  "erc20", // Ethereum (USDT-ERC20) - High fees but widely used
-  "bep20", // BNB Smart Chain (USDT-BEP20) - Low fees
 ]);
 
 export const paymentGatewayConfigs = pgTable(
@@ -7365,14 +6969,11 @@ export const paymentGatewayConfigs = pgTable(
     displayOrder: integer("display_order").default(0).notNull(),
 
     // Credentials (encrypt sensitive fields in production)
-    apiKey: text("api_key"), // HesabPay API key, Stripe publishable key
-    secretKey: text("secret_key"), // HesabPay secret, Stripe secret key
+    apiKey: text("api_key"), // HesabPay API key
+    secretKey: text("secret_key"), // HesabPay secret
     merchantId: varchar("merchant_id", { length: 100 }), // Merchant/account ID
     merchantPin: varchar("merchant_pin", { length: 50 }), // HesabPay PIN
     webhookSecret: text("webhook_secret"), // For verifying webhooks
-
-    // For Stripe Connect
-    stripeAccountId: varchar("stripe_account_id", { length: 100 }),
 
     // Mode and status
     isLive: boolean("is_live").default(false).notNull(), // Live vs sandbox
@@ -7513,7 +7114,7 @@ export const paymentSessions = pgTable(
     // Payment details
     gateway: paymentGatewayEnum("gateway").notNull(),
     amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
     // Gateway session info
     gatewaySessionId: varchar("gateway_session_id", { length: 255 }), // HesabPay session ID
@@ -7563,312 +7164,6 @@ export const paymentSessions = pgTable(
 );
 
 // ============================================================================
-// CRYPTO PAYMENTS (Self-hosted USDT verification)
-// ============================================================================
-// Tracks crypto payment sessions and manual verification workflow.
-// Customer sends USDT to platform wallet, submits tx hash, admin verifies.
-
-export const cryptoPayments = pgTable(
-  "crypto_payments",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    paymentSessionId: uuid("payment_session_id")
-      .notNull()
-      .references(() => paymentSessions.id, { onDelete: "cascade" }),
-
-    // Purpose: 'order' for store checkout, 'subscription' for Pro plan
-    purpose: varchar("purpose", { length: 20 }).default("order"),
-    // Tenant ID for subscription payments (store upgrading to Pro)
-    tenantId: uuid("tenant_id").references(() => tenants.id, {
-      onDelete: "cascade",
-    }),
-
-    // Network and wallet
-    network: cryptoNetworkEnum("network").notNull(), // trc20, erc20, bep20
-    walletAddress: varchar("wallet_address", { length: 100 }).notNull(),
-
-    // Amount
-    expectedAmount: decimal("expected_amount", {
-      precision: 20,
-      scale: 8,
-    }).notNull(), // USDT amount with high precision
-    currency: varchar("currency", { length: 10 }).default("USDT").notNull(),
-
-    // Exchange rate at time of payment (AFN to USDT)
-    exchangeRate: decimal("exchange_rate", { precision: 20, scale: 8 }),
-    originalAmountAfn: decimal("original_amount_afn", {
-      precision: 14,
-      scale: 2,
-    }), // Original order amount in AFN
-
-    // Verification
-    transactionHash: varchar("transaction_hash", { length: 100 }),
-    submittedAt: timestamp("submitted_at", {
-      withTimezone: true,
-      mode: "string",
-    }), // When customer submitted tx hash
-    verifiedAt: timestamp("verified_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-    verifiedBy: text("verified_by").references(() => user.id, {
-      onDelete: "set null",
-    }),
-
-    // Status
-    status: cryptoPaymentStatusEnum("status").default("pending").notNull(),
-
-    // Expiration
-    expiresAt: timestamp("expires_at", {
-      withTimezone: true,
-      mode: "string",
-    }).notNull(),
-
-    // Notes
-    customerNotes: text("customer_notes"), // Notes from customer when submitting
-    adminNotes: text("admin_notes"), // Notes from admin when verifying/rejecting
-    rejectionReason: text("rejection_reason"), // Why payment was rejected
-
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index("crypto_payments_session_idx").on(table.paymentSessionId),
-    index("crypto_payments_status_idx").on(table.status),
-    index("crypto_payments_hash_idx").on(table.transactionHash),
-    index("crypto_payments_expires_idx").on(table.expiresAt),
-    index("crypto_payments_tenant_idx").on(table.tenantId),
-    index("crypto_payments_purpose_idx").on(table.purpose),
-  ]
-);
-
-// ============================================================================
-// EXCHANGE RATES (For multi-currency support)
-// ============================================================================
-// Caches exchange rates from external APIs (Fawaz Ahmed Currency API).
-// Used to display prices in customer's local currency and record rates at checkout.
-
-export const exchangeRates = pgTable(
-  "exchange_rates",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-
-    // Base currency (always AFN for this platform)
-    baseCurrency: varchar("base_currency", { length: 10 }).notNull(),
-
-    // Target currency (EUR, USD, GBP, AED, etc.)
-    targetCurrency: varchar("target_currency", { length: 10 }).notNull(),
-
-    // Exchange rate (1 base = X target)
-    // e.g., 1 AFN = 0.011 USD means rate = 0.011
-    rate: decimal("rate", { precision: 18, scale: 10 }).notNull(),
-
-    // Source of the rate
-    source: varchar("source", { length: 50 }).default("fawazahmed0"),
-
-    // When the rate was fetched
-    fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    // One rate per currency pair
-    uniqueIndex("exchange_rates_base_target_idx").on(
-      table.baseCurrency,
-      table.targetCurrency
-    ),
-    index("exchange_rates_fetched_at_idx").on(table.fetchedAt),
-  ]
-);
-
-// ============================================================================
-// ESCROW SYSTEM
-// ============================================================================
-// Core of the platform. Buyer pays crypto → escrow holds → buyer confirms → release to seller.
-// All marketplace orders flow through escrow. Disputes freeze funds until admin resolves.
-
-export const escrowStatusEnum = pgEnum("escrow_status", [
-  "pending", // Order placed, awaiting buyer payment
-  "funded", // Crypto received and confirmed in escrow wallet
-  "in_transit", // Seller uploaded tracking, marked as shipped
-  "delivered", // Buyer confirmed receipt
-  "released", // Funds sent to seller wallet (minus platform fee)
-  "disputed", // Dispute opened, funds frozen
-  "resolved_buyer", // Admin ruled for buyer — refund sent
-  "resolved_seller", // Admin ruled for seller — funds released
-  "expired", // Auto-released to seller after timeout
-]);
-
-export const escrowCurrencyEnum = pgEnum("escrow_currency", ["usdt", "usdc"]);
-
-export const disputeStatusEnum = pgEnum("dispute_status", [
-  "open", // Dispute filed, awaiting resolution
-  "resolved_buyer", // Admin ruled in buyer's favor
-  "resolved_seller", // Admin ruled in seller's favor
-]);
-
-export const disputePartyEnum = pgEnum("dispute_party", [
-  "buyer",
-  "seller",
-  "admin",
-]);
-
-export const escrowTransactions = pgTable(
-  "escrow_transactions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    orderId: uuid("order_id")
-      .notNull()
-      .references(() => orders.id, { onDelete: "cascade" }),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .references(() => tenants.id, { onDelete: "cascade" }),
-    buyerId: text("buyer_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    sellerId: text("seller_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-
-    // Payment details
-    amount: decimal("amount", { precision: 20, scale: 8 }).notNull(), // Crypto amount held
-    currency: escrowCurrencyEnum("currency").notNull(),
-    network: cryptoNetworkEnum("network").notNull(),
-    walletAddress: varchar("wallet_address", { length: 100 }).notNull(), // Platform escrow address used
-    txHash: varchar("tx_hash", { length: 100 }), // Buyer's payment tx hash
-
-    // Status
-    status: escrowStatusEnum("status").default("pending").notNull(),
-
-    // Platform fee — snapshotted at payment time so changes don't affect existing escrows
-    platformFeePercent: decimal("platform_fee_percent", {
-      precision: 5,
-      scale: 2,
-    })
-      .default("5.00")
-      .notNull(),
-    platformFee: decimal("platform_fee", { precision: 20, scale: 8 }), // Calculated on release
-    sellerPayout: decimal("seller_payout", { precision: 20, scale: 8 }), // Amount after fee
-
-    // Seller payout wallet
-    sellerWalletAddress: varchar("seller_wallet_address", { length: 100 }),
-    sellerPayoutTxHash: varchar("seller_payout_tx_hash", { length: 100 }),
-
-    // Tracking
-    trackingNumber: varchar("tracking_number", { length: 100 }),
-    trackingCarrier: varchar("tracking_carrier", { length: 50 }),
-    shippedAt: timestamp("shipped_at", { withTimezone: true, mode: "string" }),
-
-    // Auto-release — set when status moves to in_transit (default: 30 days after shipped)
-    autoReleaseAt: timestamp("auto_release_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-
-    // Resolution audit
-    fundedAt: timestamp("funded_at", { withTimezone: true, mode: "string" }),
-    deliveredAt: timestamp("delivered_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-    releasedAt: timestamp("released_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index("escrow_tx_order_idx").on(table.orderId),
-    index("escrow_tx_tenant_idx").on(table.tenantId),
-    index("escrow_tx_buyer_idx").on(table.buyerId),
-    index("escrow_tx_seller_idx").on(table.sellerId),
-    index("escrow_tx_status_idx").on(table.status),
-    index("escrow_tx_auto_release_idx").on(table.autoReleaseAt),
-    index("escrow_tx_hash_idx").on(table.txHash),
-  ]
-);
-
-export const disputes = pgTable(
-  "disputes",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    escrowTransactionId: uuid("escrow_transaction_id")
-      .notNull()
-      .references(() => escrowTransactions.id, { onDelete: "cascade" }),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .references(() => tenants.id, { onDelete: "cascade" }),
-
-    // Who opened the dispute
-    openedBy: text("opened_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    openedByRole: disputePartyEnum("opened_by_role").notNull(),
-
-    // Dispute details
-    reason: varchar("reason", { length: 255 }).notNull(),
-    description: text("description"), // Detailed explanation
-    evidenceUrls: jsonb("evidence_urls").$type<string[]>().default([]), // Photo evidence
-
-    // Resolution
-    status: disputeStatusEnum("status").default("open").notNull(),
-    resolvedBy: text("resolved_by").references(() => user.id, {
-      onDelete: "set null",
-    }),
-    resolvedAt: timestamp("resolved_at", {
-      withTimezone: true,
-      mode: "string",
-    }),
-    resolutionNote: text("resolution_note"),
-
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index("disputes_escrow_idx").on(table.escrowTransactionId),
-    index("disputes_tenant_idx").on(table.tenantId),
-    index("disputes_status_idx").on(table.status),
-    index("disputes_opened_by_idx").on(table.openedBy),
-  ]
-);
-
-export const disputeMessages = pgTable(
-  "dispute_messages",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    disputeId: uuid("dispute_id")
-      .notNull()
-      .references(() => disputes.id, { onDelete: "cascade" }),
-    authorId: text("author_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    role: disputePartyEnum("role").notNull(), // buyer, seller, or admin
-    body: text("body").notNull(),
-    attachmentUrls: jsonb("attachment_urls").$type<string[]>().default([]),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index("dispute_messages_dispute_idx").on(table.disputeId),
-    index("dispute_messages_author_idx").on(table.authorId),
-  ]
-);
-
 // ============================================================================
 // RELATIONS
 // ============================================================================
@@ -8017,9 +7312,6 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
   // Commission & Finance
   commissionTransactions: many(commissionTransactions),
   commissionRules: many(commissionRules),
-  sellerPayoutMethods: many(sellerPayoutMethods),
-  sellerTransactions: many(sellerTransactions),
-  sellerPayouts: many(sellerPayouts),
   // Billing
   billingTransactions: many(billingTransactions),
   invoices: many(invoices),
@@ -8579,7 +7871,6 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   reviews: many(reviews),
   inventoryMovements: many(inventoryMovements),
   commissionTransactions: many(commissionTransactions),
-  sellerTransactions: many(sellerTransactions),
   affiliateClicks: many(affiliateClicks),
   affiliateConversions: many(affiliateConversions),
   conversionEvents: many(analyticsConversionEvents),
@@ -8630,7 +7921,6 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
     references: [productVariants.id],
   }),
   shipmentItems: many(shipmentItems),
-  sellerTransactions: many(sellerTransactions),
   refundItems: many(refundItems),
   discounts: many(orderDiscounts),
 }));
@@ -9085,88 +8375,6 @@ export const commissionRulesRelations = relations(
   })
 );
 
-export const commissionTiersRelations = relations(
-  commissionTiers,
-  ({ many }) => ({
-    sellerBalances: many(sellerBalances),
-  })
-);
-
-// Seller Finance Relations
-export const sellerBalancesRelations = relations(sellerBalances, ({ one }) => ({
-  tenant: one(tenants, {
-    fields: [sellerBalances.tenantId],
-    references: [tenants.id],
-  }),
-  currentTier: one(commissionTiers, {
-    fields: [sellerBalances.currentTierId],
-    references: [commissionTiers.id],
-  }),
-}));
-
-export const sellerPayoutMethodsRelations = relations(
-  sellerPayoutMethods,
-  ({ one, many }) => ({
-    tenant: one(tenants, {
-      fields: [sellerPayoutMethods.tenantId],
-      references: [tenants.id],
-    }),
-    payouts: many(sellerPayouts),
-  })
-);
-
-export const sellerTransactionsRelations = relations(
-  sellerTransactions,
-  ({ one, many }) => ({
-    tenant: one(tenants, {
-      fields: [sellerTransactions.tenantId],
-      references: [tenants.id],
-    }),
-    order: one(orders, {
-      fields: [sellerTransactions.orderId],
-      references: [orders.id],
-    }),
-    orderItem: one(orderItems, {
-      fields: [sellerTransactions.orderItemId],
-      references: [orderItems.id],
-    }),
-    payoutItems: many(sellerPayoutItems),
-  })
-);
-
-export const sellerPayoutsRelations = relations(
-  sellerPayouts,
-  ({ one, many }) => ({
-    tenant: one(tenants, {
-      fields: [sellerPayouts.tenantId],
-      references: [tenants.id],
-    }),
-    payoutMethod: one(sellerPayoutMethods, {
-      fields: [sellerPayouts.payoutMethodId],
-      references: [sellerPayoutMethods.id],
-    }),
-    processedBy: one(user, {
-      fields: [sellerPayouts.processedById],
-      references: [user.id],
-    }),
-    items: many(sellerPayoutItems),
-  })
-);
-
-export const sellerPayoutItemsRelations = relations(
-  sellerPayoutItems,
-  ({ one }) => ({
-    payout: one(sellerPayouts, {
-      fields: [sellerPayoutItems.payoutId],
-      references: [sellerPayouts.id],
-    }),
-    transaction: one(sellerTransactions, {
-      fields: [sellerPayoutItems.transactionId],
-      references: [sellerTransactions.id],
-    }),
-  })
-);
-
 // Affiliate Relations
 export const affiliatesRelations = relations(affiliates, ({ one, many }) => ({
   user: one(user, {
@@ -9599,21 +8807,6 @@ export const orderTransactionsRelations = relations(
   })
 );
 
-export const cryptoPaymentsRelations = relations(cryptoPayments, ({ one }) => ({
-  paymentSession: one(paymentSessions, {
-    fields: [cryptoPayments.paymentSessionId],
-    references: [paymentSessions.id],
-  }),
-  verifier: one(user, {
-    fields: [cryptoPayments.verifiedBy],
-    references: [user.id],
-  }),
-  tenant: one(tenants, {
-    fields: [cryptoPayments.tenantId],
-    references: [tenants.id],
-  }),
-}));
-
 export const refundsRelations = relations(refunds, ({ one, many }) => ({
   order: one(orders, {
     fields: [refunds.orderId],
@@ -9760,68 +8953,6 @@ export const storeCreditTransactionsRelations = relations(
     order: one(orders, {
       fields: [storeCreditTransactions.orderId],
       references: [orders.id],
-    }),
-  })
-);
-
-// Escrow relations
-export const escrowTransactionsRelations = relations(
-  escrowTransactions,
-  ({ one, many }) => ({
-    order: one(orders, {
-      fields: [escrowTransactions.orderId],
-      references: [orders.id],
-    }),
-    tenant: one(tenants, {
-      fields: [escrowTransactions.tenantId],
-      references: [tenants.id],
-    }),
-    buyer: one(user, {
-      fields: [escrowTransactions.buyerId],
-      references: [user.id],
-      relationName: "escrowBuyer",
-    }),
-    seller: one(user, {
-      fields: [escrowTransactions.sellerId],
-      references: [user.id],
-      relationName: "escrowSeller",
-    }),
-    disputes: many(disputes),
-  })
-);
-
-export const disputesRelations = relations(disputes, ({ one, many }) => ({
-  escrowTransaction: one(escrowTransactions, {
-    fields: [disputes.escrowTransactionId],
-    references: [escrowTransactions.id],
-  }),
-  tenant: one(tenants, {
-    fields: [disputes.tenantId],
-    references: [tenants.id],
-  }),
-  openedByUser: one(user, {
-    fields: [disputes.openedBy],
-    references: [user.id],
-    relationName: "disputeOpener",
-  }),
-  resolvedByUser: one(user, {
-    fields: [disputes.resolvedBy],
-    references: [user.id],
-    relationName: "disputeResolver",
-  }),
-  messages: many(disputeMessages),
-}));
-
-export const disputeMessagesRelations = relations(
-  disputeMessages,
-  ({ one }) => ({
-    dispute: one(disputes, {
-      fields: [disputeMessages.disputeId],
-      references: [disputes.id],
-    }),
-    author: one(user, {
-      fields: [disputeMessages.authorId],
-      references: [user.id],
     }),
   })
 );
@@ -10035,27 +9166,12 @@ export type NewInventoryCountItem = typeof inventoryCountItems.$inferInsert;
 export type ShippingWeightTier = typeof shippingWeightTiers.$inferSelect;
 export type NewShippingWeightTier = typeof shippingWeightTiers.$inferInsert;
 
-// Commission types (extended)
+// Commission types
 export type CommissionRule = typeof commissionRules.$inferSelect;
 export type NewCommissionRule = typeof commissionRules.$inferInsert;
-export type CommissionTier = typeof commissionTiers.$inferSelect;
-export type NewCommissionTier = typeof commissionTiers.$inferInsert;
 
-// Seller finance types
-export type SellerTransactionType =
-  (typeof sellerTransactionTypeEnum.enumValues)[number];
-export type PayoutStatus = (typeof payoutStatusEnum.enumValues)[number];
+// Payout method type (shared by affiliate + delivery payouts)
 export type PayoutMethodType = (typeof payoutMethodTypeEnum.enumValues)[number];
-export type SellerBalance = typeof sellerBalances.$inferSelect;
-export type NewSellerBalance = typeof sellerBalances.$inferInsert;
-export type SellerPayoutMethod = typeof sellerPayoutMethods.$inferSelect;
-export type NewSellerPayoutMethod = typeof sellerPayoutMethods.$inferInsert;
-export type SellerTransaction = typeof sellerTransactions.$inferSelect;
-export type NewSellerTransaction = typeof sellerTransactions.$inferInsert;
-export type SellerPayout = typeof sellerPayouts.$inferSelect;
-export type NewSellerPayout = typeof sellerPayouts.$inferInsert;
-export type SellerPayoutItem = typeof sellerPayoutItems.$inferSelect;
-export type NewSellerPayoutItem = typeof sellerPayoutItems.$inferInsert;
 
 // Affiliate types
 export type AffiliateStatus = (typeof affiliateStatusEnum.enumValues)[number];
@@ -10253,32 +9369,9 @@ export type NewPaymentWebhookEvent = typeof paymentWebhookEvents.$inferInsert;
 export type PaymentSession = typeof paymentSessions.$inferSelect;
 export type NewPaymentSession = typeof paymentSessions.$inferInsert;
 
-// Crypto payment types
-export type CryptoPaymentStatus =
-  (typeof cryptoPaymentStatusEnum.enumValues)[number];
-export type CryptoNetwork = (typeof cryptoNetworkEnum.enumValues)[number];
-export type CryptoPayment = typeof cryptoPayments.$inferSelect;
-export type NewCryptoPayment = typeof cryptoPayments.$inferInsert;
-
 // Billing interval type
 export type BillingInterval = "monthly" | "yearly";
-
-// Exchange rate types
-export type ExchangeRate = typeof exchangeRates.$inferSelect;
-export type NewExchangeRate = typeof exchangeRates.$inferInsert;
 
 // Order invoice token types
 export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;
 export type NewOrderInvoiceToken = typeof orderInvoiceTokens.$inferInsert;
-
-// Escrow types
-export type EscrowStatus = (typeof escrowStatusEnum.enumValues)[number];
-export type EscrowCurrency = (typeof escrowCurrencyEnum.enumValues)[number];
-export type DisputeStatus = (typeof disputeStatusEnum.enumValues)[number];
-export type DisputeParty = (typeof disputePartyEnum.enumValues)[number];
-export type EscrowTransaction = typeof escrowTransactions.$inferSelect;
-export type NewEscrowTransaction = typeof escrowTransactions.$inferInsert;
-export type Dispute = typeof disputes.$inferSelect;
-export type NewDispute = typeof disputes.$inferInsert;
-export type DisputeMessage = typeof disputeMessages.$inferSelect;
-export type NewDisputeMessage = typeof disputeMessages.$inferInsert;

@@ -37,7 +37,6 @@ interface InvoiceListProps {
   invoices: InvoiceWithStats[];
   total: number;
   currency: string;
-  hasStripeSubscription?: boolean;
   currentPage?: number;
   pageSize?: number;
   onPageChange?: (page: number) => void;
@@ -101,7 +100,6 @@ export function InvoiceList({
   invoices,
   total,
   currency,
-  hasStripeSubscription,
   currentPage = 1,
   pageSize = 10,
   onPageChange,
@@ -138,23 +136,10 @@ export function InvoiceList({
             <div className="mb-4 rounded-full bg-muted p-3">
               <FileText className="size-6 text-muted-foreground" />
             </div>
-            {hasStripeSubscription ? (
-              <>
-                <h3 className="font-medium">Billing managed by Stripe</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your invoices and receipts are available through the Stripe
-                  Customer Portal. Use the &quot;Manage Subscription&quot;
-                  button above to view them.
-                </p>
-              </>
-            ) : (
-              <>
-                <h3 className="font-medium">No billing history yet</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your invoices will appear here once you subscribe to Pro.
-                </p>
-              </>
-            )}
+            <h3 className="font-medium">No billing history yet</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Your invoices will appear here once you subscribe to Pro.
+            </p>
           </div>
         ) : (
           <>

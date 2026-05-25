@@ -2,152 +2,108 @@
 
 ## Vision
 
-Become the trust layer for cross-border trade — a crypto-native escrow platform connecting Western buyers with white-label sellers sourcing from Chinese factories. Market-neutral, censorship-resistant, no banks, no fiat.
+A no-nonsense storefront builder for Afghan businesses. Sellers create a store, list products, and start selling on day one — with HesabPay handling online payments and cash on delivery as a fallback.
 
-**Current stage:** Phase 1 and 2 complete. Core escrow system is live. Platform is functional for real sellers and buyers.
+**Current stage:** Coming out of a crypto-marketplace pivot. The codebase has been gutted of crypto/escrow/Stripe and rebuilt around HesabPay + a Pro subscription model. Many features that were temporarily hidden during the pivot are coming back online.
 
 ---
 
-## Already Built (from original platform)
+## Already Built (foundation)
 
-- [x] Multitenant architecture (seller storefronts via `[slug]`)
-- [x] Auth system (email/password, Google, Facebook OAuth)
-- [x] Product catalog (products, variants, categories, media library)
-- [x] Bulk product import/export with pricing (CSV, Excel, ZIP)
-- [x] Order management (creation, status tracking, order items)
+- [x] Multi-tenant architecture (seller storefronts via `[slug]` and custom domains)
+- [x] Auth (Better Auth — email/password, Google, Facebook OAuth)
+- [x] Product catalog (variants, categories, media library, bulk import/export)
+- [x] Order management (creation, status tracking, refunds, shipments)
 - [x] Customer accounts (auth, order history, wishlists, addresses)
-- [x] Shipping zones and methods
-- [x] Analytics dashboard
+- [x] Shipping zones and methods (unified delivery system)
+- [x] Analytics dashboard (revenue, top products, heatmaps, geographic)
 - [x] Custom domains with automatic SSL (Traefik + Let's Encrypt via Dokploy)
-- [x] Docker + Dokploy deployment pipeline
+- [x] Dokploy deployment pipeline (Git auto-deploy, builds Dockerfile on VPS)
 - [x] PostgreSQL 18 + PgBouncer + Drizzle ORM
-- [x] Rich text editor with H1-H6 headings and HTML source toggle
-
-> **Legacy:** Stripe and HesabPay integrations remain intact for existing clients. Do not remove. New development targets the escrow model only.
-
----
-
-## Phase 1: Pivot Foundation (COMPLETE)
-
-- [x] Landing page rewritten — escrow value prop, how it works, comparison table, "UK-based operating in Afghanistan"
-- [x] Seller onboarding reframed — "Start selling" not "Create a store"
-- [x] Default payment gateway changed to crypto_usdt (TRC20) for new stores
-- [x] Fiat payment options (COD, bank transfer, mobile money) removed from new store checkout
-- [x] Legacy stores keep their existing Stripe/HesabPay/COD configs untouched
-- [x] Payment settings page hidden from seller dashboard (legacy configs still work via DB)
-- [x] Crypto payment page redesigned — Stripe-style clean layout, no nav/footer, responsive two-column on desktop
-- [x] TRC20 as the only network — ERC20/BEP20 removed from checkout
-- [x] Auto-detection via TronGrid (no manual tx hash submission needed)
-- [x] Checkout page cleaned up — removed "Back to cart" link, removed "Secure Checkout" badge
+- [x] Rich text editor (TipTap)
+- [x] PWA / offline POS scaffolding (Dexie + Serwist)
+- [x] Affiliate program (separate from seller payouts)
+- [x] Reviews + ratings
+- [x] HesabPay hosted checkout integration
 
 ---
 
-## Phase 2: Escrow System (COMPLETE)
+## Phase 0 — Pivot Cleanup (DONE)
 
-### Schema & Core Logic
-
-- [x] `escrow_transactions`, `disputes`, `dispute_messages` tables + migration
-- [x] Escrow core logic: `createEscrow()`, `fundEscrow()`, `markShipped()`, `confirmDeliveryAndRelease()`, `openDispute()`, `resolveDispute()`, `processAutoReleases()`
-- [x] Escrow auto-created on crypto checkout (wired into `createOrderPaymentSession`)
-- [x] 5% platform fee snapshotted at payment time, deducted on release
-- [x] 30-day auto-release timer set when seller marks shipped
-
-### Buyer Flow
-
-- [x] Escrow status card on order detail page (funded → in_transit → delivered → released)
-- [x] "Confirm Delivery" button — releases funds to seller
-- [x] "Open Dispute" dialog — reason + description, freezes funds
-- [x] Auto-release countdown visible to buyer
-
-### Seller Flow
-
-- [x] Escrow card on seller order detail page — status, financial breakdown (amount → fee → payout)
-- [x] "Mark as Shipped" dialog — tracking number + carrier input
-- [x] Earnings dashboard (existing) — now wired to escrow releases via `creditSellerEarnings()`
-- [x] Payout wallet configuration (existing earnings page)
-
-### Admin
-
-- [x] Dispute queue at `/admin/disputes` — view evidence, message parties, resolve (refund buyer or release to seller)
-- [x] Payout processing at `/admin/payouts` — mark processing, complete with tx hash, reject with reason
-- [x] Dispute and payout nav items added to admin sidebar + mobile nav
-
-### Financial Security
-
-- [x] Race condition fixed — payout requests use `SELECT ... FOR UPDATE` row locking
-- [x] TRC20 wallet address validation (regex: starts with T, 34 chars, base58)
-- [x] Database CHECK constraints — `available >= 0`, `pending >= 0`, `reserved >= 0`
-- [x] $0.50 USDT withdrawal fee (covers TRC20 gas)
-- [x] Custodial wallet model — no private keys on server, all transfers manual
-
-### Cron Jobs
-
-- [x] `/api/cron/escrow-auto-release` — releases in_transit escrows past 30-day deadline
-- [x] `/api/cron/mature-earnings` — moves pending seller earnings to available after 7-day hold
-- [x] Both protected by `CRON_SECRET` env var, running hourly on server
+- [x] Stripe code + dependency removed
+- [x] Crypto / USDT / TRC20 code removed
+- [x] Escrow tables, disputes, seller earnings, seller payouts removed (schema + migration `drizzle/0045_*.sql`)
+- [x] HesabPay restored as the sole online payment gateway in code paths
+- [x] Admin nav links to deleted Disputes / Payouts pages removed
+- [x] Subscription billing rewired around HesabPay invoices (no Stripe, no crypto)
+- [x] CLAUDE.md, README.md rewritten to reflect new direction
 
 ---
 
-## Phase 3: Trust & Polish
+## Phase 1 — Restore Disabled Features
 
-_Goal: Build buyer confidence and seller reputation_
+Features that were commented out during the crypto pivot. All need to be turned back on and tested.
 
-### Seller Trust
-
-- [ ] Seller trust score — calculated from: order completion rate, dispute rate
-- [ ] "Kaka Malem Verified" badge — manual admin approval
-- [ ] Order count shown publicly on storefront (e.g. "127 completed orders")
-
-### Buyer Reviews
-
-- [ ] Post-delivery review form (1-5 stars, text, optional photos)
-- [ ] Verified purchase only — review unlocked after escrow released
-- [ ] Seller can reply to reviews
-
-### Notifications
-
-- [ ] Email notifications for key escrow events (funded, shipped, released, disputed)
-- [ ] Seller notification when payout is completed
-
-### Legal
-
-- [x] Terms of Service page (`/terms`)
-- [x] Privacy Policy page (`/privacy`)
-- [x] Update terms to include escrow agreement and dispute resolution policy
+- [ ] **Pro upgrade button** on the seller billing page
+- [ ] **Per-tenant payment gateway config UI** (let sellers turn HesabPay / COD on/off, pick the default at checkout)
+- [ ] **Custom domain config UI** (let sellers connect their own domain from the store settings)
+- [ ] **Offline POS** — POS register page, offline order recording, sync queue when back online
+- [ ] Verify each re-enabled feature against the new schema + payment flow
 
 ---
 
-## Phase 4: AI Features
+## Phase 2 — HesabPay International (deferred)
 
-_Goal: Scale trust and dispute resolution without a large ops team_
+HesabPay supports international payments. Wire it up if/when the customer base extends beyond Afghanistan. For now the platform is AFN-only and Afghan-only — no multi-currency, no international rails.
 
-- [ ] AI-generated product descriptions from supplier images + specs
-- [ ] AI dispute summarization for admin (buyer claim + seller response in one paragraph)
-- [ ] Auto-translate messages between Chinese sellers and English buyers
-- [ ] Risk score per listing (new seller + unusual price = flag)
-
----
-
-## Phase 5: Scale & Compliance
-
-_Goal: Sustainable infrastructure for growing volume_
-
-- [ ] Multi-coin expansion (BTC, ETH — price locked at payment time)
-- [ ] Optional seller KYC for "Verified" badge and higher limits
-- [ ] Escrow wallet monitoring — balance alerts, cold storage sweep
-- [ ] Multi-region redundancy (Afghanistan primary + failover)
-- [ ] Rate limiting and fraud detection on checkout
+- [ ] Audit HesabPay international API surface (currencies, sandbox, webhook event shape, 3DS flow)
+- [ ] Reintroduce multi-currency display + FX (the `crypto-baseline` tag has the sarafi.af integration to copy back)
+- [ ] Update `lib/payments/hesabpay/client.ts` to handle international endpoints
+- [ ] Detect buyer country → choose domestic vs international rail
+- [ ] Test refund flow end-to-end with international cards
 
 ---
 
-## Deferred / Legacy
+## Phase 3 — Subscription Billing Polish
 
-These exist in the codebase for existing clients. **Not being removed, not being developed further:**
+- [ ] Cron: send invoice 7 days before subscription period ends
+- [ ] In-app notification + email when invoice is generated
+- [ ] Email when subscription is expiring soon
+- [ ] Manual admin tools for handling expired-but-grace-period stores
+- [ ] (later) Automatic downgrade after configurable grace period
 
-- POS / offline sales system
-- HesabPay integration
-- Stripe subscriptions and billing
-- COD, bank transfer, mobile money payments
-- Subscription tiers (free/pro trial model)
-- AFN currency as default
-- Payment settings page (hidden from nav, configs remain in DB)
+---
+
+## Phase 4 — Redesign
+
+Full visual refresh with a quiet fintech aesthetic. No flashy colors, lots of whitespace, type-led design.
+
+- [ ] Design language doc (colors, type scale, spacing, components, voice)
+- [ ] Public landing page rebuild
+- [ ] Storefront pages (home, product, listing, cart, checkout success)
+- [ ] Seller dashboard (overview, products, orders, settings)
+- [ ] Admin panel polish
+- [ ] Mobile sweep (real-device testing on iOS Safari + Android Chrome)
+
+---
+
+## Phase 5 — Quality & Observability
+
+- [ ] Test framework setup (Vitest or similar)
+- [ ] Core path tests (checkout, order creation, subscription billing)
+- [ ] Error monitoring (Sentry or similar)
+- [ ] Performance budget for storefront pages (<2s on 4G)
+- [ ] Lighthouse audit + fixes
+- [ ] Database backup automation on the Dokploy host
+
+---
+
+## Backlog / Ideas
+
+- [ ] Storefront themes / template gallery
+- [ ] Built-in product photo editor (Sharp + cropping UI)
+- [ ] WhatsApp order notifications to sellers
+- [ ] Bulk order import for sellers running offline-first
+- [ ] Loyalty program / store credits for repeat customers
+- [ ] Sub-accounts for seller staff (role-based access — already in schema, needs UI polish)
+- [ ] Storefront SEO improvements (structured data, OG image generation)

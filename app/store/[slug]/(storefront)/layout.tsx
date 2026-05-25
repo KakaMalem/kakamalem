@@ -20,7 +20,6 @@ import { CartProvider } from "@/components/store/cart-provider";
 import { CartDrawer } from "@/components/store/cart-drawer";
 import { WishlistHydration } from "@/components/store/wishlist-hydration";
 import { WhatsAppButton } from "@/components/store/whatsapp-button";
-import { CurrencyInitializer } from "@/components/store/currency-initializer";
 import { SaleBanner } from "@/components/store/sale-banner";
 import {
   StoreStructuredData,
@@ -214,7 +213,6 @@ export default async function StoreLayout({
     <QueryProvider>
       <StorePathProvider basePath={basePath}>
         <CartProvider initialCart={cart} storeSlug={store.slug}>
-          <CurrencyInitializer storeCurrency={store.currency} />
           {/* SEO: Organization/Store structured data for Google Knowledge Panel */}
           <StoreStructuredData
             store={{

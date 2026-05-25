@@ -10,8 +10,6 @@ import {
   Settings,
   Handshake,
   Receipt,
-  ShieldAlert,
-  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,18 +28,6 @@ export function AdminSidebarNav({
       href: "/admin/payments",
       icon: Receipt,
       label: "Payments",
-      badge: 0,
-    },
-    {
-      href: "/admin/disputes",
-      icon: ShieldAlert,
-      label: "Disputes",
-      badge: 0,
-    },
-    {
-      href: "/admin/payouts",
-      icon: Wallet,
-      label: "Payouts",
       badge: 0,
     },
     {

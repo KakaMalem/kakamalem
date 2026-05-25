@@ -86,7 +86,7 @@ export async function scrapeAliExpressProductAction(
     if (
       product.price !== null &&
       product.currency &&
-      product.currency !== "USDT"
+      product.currency !== "AFN"
     ) {
       try {
         const rates = await getExchangeRates();

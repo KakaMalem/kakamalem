@@ -17,8 +17,7 @@ export default async function CreateStorePage() {
         <div className="text-center space-y-2 mb-8">
           <h1 className="text-2xl font-bold">Start selling</h1>
           <p className="text-muted-foreground">
-            Set up your storefront and start accepting crypto payments in
-            minutes
+            Set up your storefront and start accepting orders in minutes
           </p>
         </div>
 

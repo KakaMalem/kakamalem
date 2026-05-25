@@ -94,12 +94,10 @@ async function getTenantDeliverySettings(
  */
 function mapGatewayToPaymentMethod(gateway: PaymentGateway): PaymentMethod {
   const mapping: Record<PaymentGateway, PaymentMethod> = {
-    hesabpay: "card", // HesabPay is card payment
-    stripe: "card", // Stripe is card payment
-    cod: "cash", // Cash on Delivery
+    hesabpay: "card",
+    cod: "cash",
     bank_transfer: "bank_transfer",
     mobile_money: "mobile_money",
-    crypto_usdt: "card", // Crypto USDT - treated as digital payment like card
   };
   return mapping[gateway] || "cash";
 }
@@ -1185,7 +1183,7 @@ export async function createOrderAction(
       where: eq(tenants.id, tenantId),
       columns: { currency: true },
     });
-    const storeCurrency = tenantForCurrency?.currency || "USDT";
+    const storeCurrency = tenantForCurrency?.currency || "AFN";
 
     try {
       const order = await withTransaction(async (tx) => {
@@ -1371,7 +1369,7 @@ export async function createOrderAction(
       });
 
       // Only clear cart session for COD (offline payment)
-      // For online payments (HesabPay, Stripe), keep session until payment is confirmed
+      // For online payments (HesabPay), keep session until payment is confirmed
       // This prevents session errors during redirect and allows retry if payment fails
       const isOfflinePayment = input.paymentMethod === "cod";
       if (isOfflinePayment) {

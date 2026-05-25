@@ -1482,9 +1482,7 @@ export function StoreActionsClient({
                 <SelectContent>
                   <SelectItem value="mobile_money">HesabPay</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="card">Card (Stripe)</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="credit">USDT (Crypto)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

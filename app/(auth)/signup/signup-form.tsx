@@ -205,7 +205,7 @@ export function SignupForm() {
           Create your account
         </h1>
         <p className="text-sm text-muted-foreground">
-          Start selling with crypto in minutes
+          Open your store in minutes
         </p>
       </div>
 

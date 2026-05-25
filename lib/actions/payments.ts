@@ -21,9 +21,6 @@ import {
   paymentGatewayConfigs,
   paymentSessions,
   tenants,
-  tenantMembers,
-  escrowTransactions,
-  cryptoPayments,
 } from "@/lib/db/schema";
 import type { PaymentGateway, PaymentGatewayConfig } from "@/lib/db/schema";
 import { getUser, requireAuth } from "@/lib/auth/server";
@@ -143,8 +140,8 @@ export async function createOrderPaymentSession(
         }
       }
     } else {
-      // Stripe and other gateways: charge in store's base currency
-      paymentCurrency = order.currencyCode || "USDT";
+      // Other gateways: charge in store's base currency
+      paymentCurrency = order.currencyCode || "AFN";
       paymentAmount = parseFloat(order.amountDue || order.total);
     }
 
@@ -187,76 +184,9 @@ export async function createOrderPaymentSession(
       })
       .where(eq(orders.id, orderId));
 
-    // For crypto payments, also create an escrow record
-    if (gateway === "crypto_usdt" && user) {
-      try {
-        // Find the store owner (seller) for this tenant
-        const ownerMember = await db.query.tenantMembers.findFirst({
-          where: and(
-            eq(tenantMembers.tenantId, order.tenantId),
-            eq(tenantMembers.role, "owner")
-          ),
-          columns: { userId: true },
-        });
-
-        if (ownerMember) {
-          // Get the crypto payment details from the session
-          const cryptoPaymentRecord = await db.query.cryptoPayments.findFirst({
-            where: eq(
-              cryptoPayments.paymentSessionId,
-              result.paymentSessionId!
-            ),
-            columns: {
-              expectedAmount: true,
-              walletAddress: true,
-              network: true,
-            },
-          });
-
-          // Determine network from options or default
-          const network =
-            (options?.network as "trc20" | "erc20" | "bep20") || "trc20";
-
-          await db.insert(escrowTransactions).values({
-            orderId: order.id,
-            tenantId: order.tenantId,
-            buyerId: user.id,
-            sellerId: ownerMember.userId,
-            amount:
-              cryptoPaymentRecord?.expectedAmount ||
-              parseFloat(order.amountDue || order.total).toString(),
-            currency: "usdt",
-            network,
-            walletAddress: cryptoPaymentRecord?.walletAddress || "",
-            platformFeePercent: "5.00",
-            status: "pending",
-          });
-        }
-      } catch (escrowError) {
-        // Don't fail the payment if escrow creation fails — log and continue
-        console.error(
-          "[createOrderPaymentSession] Escrow creation error:",
-          escrowError
-        );
-      }
-    }
-
-    // For crypto payments, the paymentUrl points to an internal page.
-    // Convert to a relative path so it works regardless of NEXT_PUBLIC_APP_URL
-    // (avoids mismatch between env var and actual browser origin).
-    let paymentUrl = result.paymentUrl;
-    if (gateway === "crypto_usdt" && paymentUrl) {
-      try {
-        const url = new URL(paymentUrl);
-        paymentUrl = url.pathname + url.search;
-      } catch {
-        // Not a valid absolute URL — already relative, use as-is
-      }
-    }
-
     return {
       success: true,
-      paymentUrl,
+      paymentUrl: result.paymentUrl,
       paymentSessionId: result.paymentSessionId,
     };
   } catch (error) {
@@ -383,9 +313,9 @@ async function markOrderAsPaid(
   const paymentCurrency = (
     paymentInfo.currency ||
     order.currencyCode ||
-    "USDT"
+    "AFN"
   ).toUpperCase();
-  const orderCurrency = (order.currencyCode || "USDT").toUpperCase();
+  const orderCurrency = (order.currencyCode || "AFN").toUpperCase();
   const orderTotal = parseFloat(order.total);
 
   // Convert payment amount to order's currency if they differ
@@ -993,7 +923,7 @@ export async function confirmCODPayment(
       tenantId: order.tenantId,
       type: "payment",
       amount: order.amountDue || order.total,
-      currencyCode: order.currencyCode || "USDT",
+      currencyCode: order.currencyCode || "AFN",
       paymentMethod: "cash",
       status: "completed",
       gateway: "cod",

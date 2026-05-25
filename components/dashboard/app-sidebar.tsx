@@ -14,10 +14,12 @@ import {
   Warehouse,
   Star,
   Monitor,
-  Wallet,
+  CreditCard,
   Tag,
   CalendarDays,
   Globe,
+  Crown,
+  ArrowRight,
 } from "lucide-react";
 
 import {
@@ -37,6 +39,7 @@ import {
 } from "@/components/ui/sidebar";
 import { UserNav } from "./user-nav";
 import { StoreSwitcher, type StoreInfo } from "./store-switcher";
+import { useSubscription } from "@/lib/stores/use-subscription-store";
 
 // NavLink component that closes mobile sidebar on navigation
 // Uses forwardRef to properly work with SidebarMenuButton's asChild prop
@@ -60,6 +63,69 @@ const NavLink = forwardRef<
   );
 });
 NavLink.displayName = "NavLink";
+
+/**
+ * Upgrade-to-Pro CTA shown in the sidebar footer for free / cancelled /
+ * expired Pro stores. Hidden once the sidebar collapses to icon-only.
+ */
+function UpgradeCta({
+  storeSlug,
+  state,
+}: {
+  storeSlug: string;
+  state: "expanded" | "collapsed";
+}) {
+  const subscription = useSubscription();
+
+  // Wait for hydration before deciding anything
+  if (!subscription) return null;
+
+  // Already on active Pro — no nudge needed
+  if (subscription.plan === "pro" && subscription.status === "active") {
+    return null;
+  }
+
+  // When the sidebar is collapsed, render a tiny crown icon link
+  if (state === "collapsed") {
+    return (
+      <Link
+        href={`/dashboard/${storeSlug}/billing/upgrade`}
+        className="mx-auto flex size-9 items-center justify-center rounded-md bg-zinc-900 text-white hover:bg-zinc-800 transition-colors"
+        title="Upgrade to Pro"
+      >
+        <Crown className="size-4" />
+      </Link>
+    );
+  }
+
+  const headline =
+    subscription.status === "cancelled"
+      ? "Reactivate Pro"
+      : subscription.status === "expired"
+        ? "Renew Pro"
+        : "Upgrade to Pro";
+
+  const tagline =
+    subscription.status === "trialing"
+      ? subscription.daysRemainingInTrial
+        ? `Trial: ${subscription.daysRemainingInTrial} day${subscription.daysRemainingInTrial !== 1 ? "s" : ""} left`
+        : "Trial ending soon"
+      : "Unlimited products + priority support";
+
+  return (
+    <Link
+      href={`/dashboard/${storeSlug}/billing/upgrade`}
+      className="group block rounded-lg border border-zinc-200 bg-zinc-900 text-white p-3 hover:bg-zinc-800 transition-colors"
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <Crown className="size-3.5 text-amber-300" />
+        <span className="text-xs font-semibold">{headline}</span>
+        <ArrowRight className="ml-auto size-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+      <p className="text-[11px] text-zinc-400 leading-tight">{tagline}</p>
+    </Link>
+  );
+}
 
 interface AppSidebarProps {
   user: {
@@ -97,6 +163,7 @@ export function AppSidebar({
   storeSlug: initialStoreSlug,
 }: AppSidebarProps) {
   const pathname = usePathname();
+  const { state } = useSidebar();
 
   // Derive store slug from URL for client-side navigation
   const storeSlug = useMemo(() => {
@@ -112,12 +179,9 @@ export function AppSidebar({
     return currentStore ?? null;
   }, [storeSlug, stores, currentStore]);
 
-  // Derive posEnabled, userRole, and currency from current store
+  // Derive posEnabled and userRole from current store
   const posEnabled = currentStoreData?.posEnabled ?? true;
   const userRole = currentStoreData?.userRole ?? null;
-  const isCryptoStore =
-    currentStoreData?.currency === "USDT" ||
-    currentStoreData?.currency === "USDC";
 
   // Build store-specific URL prefix
   const baseUrl = storeSlug ? `/dashboard/${storeSlug}` : "/dashboard";
@@ -193,7 +257,7 @@ export function AppSidebar({
     },
   ];
 
-  // Growth items - marketing + earnings (owner/admin only)
+  // Growth items - marketing (owner/admin only)
   const growthNavItems = [
     {
       title: "Sale Campaigns",
@@ -205,19 +269,12 @@ export function AppSidebar({
       href: `${baseUrl}/coupons`,
       icon: Tag,
     },
-    ...(userRole === "owner"
-      ? [
-          {
-            title: "Earnings",
-            href: `${baseUrl}/earnings`,
-            icon: Wallet,
-          },
-        ]
-      : []),
   ];
 
   // Check if user can access settings (owner or admin only)
   const showSettings = userRole === "owner" || userRole === "admin";
+  // Only the owner sees billing
+  const showBilling = userRole === "owner";
 
   return (
     <Sidebar collapsible="icon">
@@ -319,23 +376,39 @@ export function AppSidebar({
           </SidebarGroup>
         )}
 
-        {/* Settings - single item, no section label needed */}
-        {showSettings && (
+        {/* Account section - billing + settings */}
+        {(showBilling || showSettings) && (
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(`${baseUrl}/settings`)}
-                    tooltip="Store Settings"
-                  >
-                    <NavLink href={`${baseUrl}/settings`}>
-                      <Store />
-                      <span>Store Settings</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {showBilling && storeSlug && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(`${baseUrl}/billing`)}
+                      tooltip="Billing"
+                    >
+                      <NavLink href={`${baseUrl}/billing`}>
+                        <CreditCard />
+                        <span>Billing</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {showSettings && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(`${baseUrl}/settings`)}
+                      tooltip="Store Settings"
+                    >
+                      <NavLink href={`${baseUrl}/settings`}>
+                        <Store />
+                        <span>Store Settings</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -343,7 +416,10 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter>
-        <UserNav user={user} hideBilling={isCryptoStore} />
+        {showBilling && storeSlug && (
+          <UpgradeCta storeSlug={storeSlug} state={state} />
+        )}
+        <UserNav user={user} />
       </SidebarFooter>
 
       <SidebarRail />

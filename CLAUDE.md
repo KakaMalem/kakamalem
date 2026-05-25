@@ -4,31 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Kaka Malem** is a UK-based, Afghanistan-operated crypto-native escrow marketplace for cross-border trade. It connects Western buyers with white-label sellers (dropshippers sourcing from Chinese factories) via trustless crypto escrow.
+**Kaka Malem** is an Afghan-market SaaS storefront builder. Sellers create a store, list products, and accept online card payments via HesabPay or cash on delivery. Multi-tenant: each seller gets their own subdomain or custom domain.
 
-**Business model:** No subscriptions. No upfront fees. Sellers list for free. Kaka Malem takes a **5% fee on escrow release** — deducted automatically when funds are released to the seller. Buyers pay nothing extra.
+**Business model:** Free tier (limited products), Pro plan via subscription (monthly or yearly, billed via HesabPay). The platform makes money on Pro subscriptions, not on per-transaction fees.
 
 **How it works:**
 
-1. Seller creates a storefront, lists white-label products
-2. Buyer pays crypto (USDT/USDC) → funds held in Kaka Malem escrow
-3. Seller ships, uploads tracking number
-4. Buyer confirms delivery → funds released to seller minus 5% fee
-5. If no confirmation after 30 days → auto-release to seller
-6. If dispute → admin resolves, funds go to winner
+1. Seller signs up, gets a free trial of Pro
+2. Seller creates a storefront, lists products, picks payment methods (HesabPay, COD)
+3. Customers shop on the storefront, check out via HesabPay's hosted checkout or place a COD order
+4. Seller fulfills orders, manages inventory, runs analytics
+5. To stay on Pro after trial: seller pays a monthly or yearly invoice via HesabPay
 
-**Supported payment currency:** USDT on TRC20 only. Auto-detected via TronGrid.
+**Supported payment methods:**
+
+- **HesabPay** — hosted checkout for online card payments (Afghanistan domestic + international when wired)
+- **Cash on Delivery** — customer pays the courier on arrival
 
 **Key architecture notes:**
 
-- Platform is in transition from Afghan-market SaaS to global escrow marketplace
-- The escrow system (`lib/escrow/`) is the new core of the platform — **this is what to build**
-- Fiat payment options (COD, bank transfer, mobile money) are removed from new storefront checkout
-- POS/offline sales are deprecated for new stores
-- Subscription billing (free/pro trial model) is replaced with per-transaction fees
-
-**Legacy infrastructure — DO NOT REMOVE:**
-Stripe and HesabPay integrations remain in the codebase for one existing client on the old Afghan-market SaaS model. They must not be deleted or broken. New features are built for the escrow model only. If you are working on something related to the new escrow marketplace, do not touch `lib/stripe/`, `lib/payments/hesabpay/`, or `app/api/webhooks/stripe/` and `app/api/webhooks/hesabpay/`.
+- Multi-tenant SaaS: each seller is a `tenant` row; data is isolated by `tenantId` foreign keys + application-level checks
+- HesabPay platform credentials live in env (`HESABPAY_API_KEY`), not per-tenant
+- Pro subscription billing uses one-time HesabPay invoices (not recurring) — invoice generated each cycle, customer pays via hosted checkout, webhook activates the period
+- Reminders go out 7 days before due date; **no automatic downgrade yet** — handle expired subscriptions manually for now
+- Custom domain support via Dokploy/Traefik (each tenant can connect their own domain)
+- Offline POS, gateway config UI, custom domain config, and the Pro upgrade button were temporarily commented out during a crypto-marketplace pivot — they need to be re-enabled as part of the next phase
 
 ## Development Commands
 
@@ -152,7 +152,7 @@ The [scripts/backup-database.sh](scripts/backup-database.sh) script handles `pg_
 - **Validation**: Zod
 - **Notifications**: Novu (in-app + push notifications)
 - **Offline/PWA**: Dexie.js (IndexedDB) + Serwist (Service Worker)
-- **Payments**: USDT/USDC crypto escrow (new model) — Stripe/HesabPay retained for legacy client only
+- **Payments**: HesabPay (hosted checkout) + COD
 - **Custom Domains**: Traefik via Dokploy (automatic SSL via Let's Encrypt)
 - **Package Manager**: pnpm
 - **Deployment**: Dokploy (Git auto-deploy, builds Dockerfile on VPS)
@@ -168,7 +168,7 @@ Path-based routing following [Next.js multi-tenant guide](https://nextjs.org/doc
 - **All tenant data isolated** via `tenant_id` foreign key + application-level checks
 - **Tenant-isolated carts**: Each shop has separate carts (no cross-shop cart)
 
-**Tenant = Seller.** Each seller gets their own storefront, product catalog, and order/escrow dashboard. Buyers shop across seller storefronts but all payments go through Kaka Malem's central escrow system.
+**Tenant = Seller.** Each seller gets their own storefront, product catalog, and order dashboard. Each store configures its own payment methods (HesabPay, COD).
 
 ### App Router Structure
 
@@ -225,12 +225,11 @@ app/
 
 Platform administration accessible only to `platform_admin` or `super_admin` users.
 
-- **Dashboard**: Platform stats, revenue from fees, active escrows
+- **Dashboard**: Platform stats, active Pro stores, revenue from subscriptions
 - **Stores**: List, search, filter, suspend/activate seller stores
-- **Payments**: Crypto payment verification, manual approval
-- **Disputes**: Dispute queue — view evidence, message parties, resolve (refund buyer or release to seller)
-- **Payouts**: Seller withdrawal requests — mark processing, complete with tx hash, or reject with reason
-- **Settings**: Platform fee %, escrow auto-release timeout, wallet addresses
+- **Payments**: Platform billing — subscription invoices, transactions, revenue stats
+- **Affiliates**: Affiliate program management
+- **Settings**: Pro plan pricing (AFN monthly/yearly), free tier limits, trial duration
 
 ### Key Directories
 
@@ -414,12 +413,8 @@ These features require analytics event tracking to be implemented:
 - **Order status**: `pending`, `confirmed`, `processing`, `shipped`, `delivered`, `cancelled`, `refunded`, `partially_refunded`
 - **Payment status**: `unpaid`, `partial`, `paid`, `refunded`, `partial_refund`
 - **Payment method**: `cash`, `card`, `bank_transfer`, `mobile_money`, `store_credit`
-- **Payment gateway**: `hesabpay`, `stripe`, `cod`, `bank_transfer`, `mobile_money`
+- **Payment gateway**: `hesabpay`, `cod`, `bank_transfer`, `mobile_money`
 - **Payment session status**: `pending`, `processing`, `completed`, `failed`, `expired`, `cancelled`
-- **Escrow status**: `pending`, `funded`, `in_transit`, `delivered`, `released`, `disputed`, `resolved_buyer`, `resolved_seller`, `expired`
-- **Escrow currency**: `usdt`, `usdc`
-- **Dispute status**: `open`, `resolved_buyer`, `resolved_seller`
-- **Dispute party**: `buyer`, `seller`, `admin`
 - **Stock status**: `in_stock`, `low_stock`, `out_of_stock`, `on_backorder`
 - **Shipment status**: `pending`, `picked_up`, `in_transit`, `out_for_delivery`, `delivered`, `failed`, `returned`
 - **Store mode**: `full`, `online_only`, `offline_only`, `catalog`
@@ -435,17 +430,23 @@ These features require analytics event tracking to be implemented:
 
 When `store_mode` is `catalog` or `offline_only`, the storefront disables the cart drawer and shows appropriate CTAs (contact info or "visit in-store").
 
-### Platform Fee Model
+### Revenue Model
 
-No subscriptions. Revenue comes from a **5% fee on every escrow release**.
+Subscription-based. Revenue comes from sellers paying for **Pro plan** access:
 
-- Fee is deducted automatically when escrow is released to the seller
-- Fee % is configurable in admin settings (default: 5%)
-- Fee is snapshotted on the `escrow_transactions` record at payment time — changes to the fee % do not affect existing escrows
-- Buyers see the full product price — sellers account for the fee in their margin
-- No listing fees, no monthly fees, no transaction fees on disputes
+- **Free tier**: limited product count (configurable in admin settings, default 20). Full feature set otherwise.
+- **Pro plan**: unlimited products, priority support. Billed monthly or yearly via HesabPay invoices.
+- **Trial**: configurable trial length (default 7 days) gives new stores Pro features.
+- **No per-transaction fee** on orders. Sellers keep 100% of their order revenue (whatever HesabPay or the courier passes through).
 
-> **Legacy:** The subscription billing schema (`tenants.subscriptionStatus`, `tenants.subscriptionPlan`, trial logic) remains in the database and code for the one existing client using the old Afghan-market SaaS model. Do not remove it. New stores on the escrow model bypass this entirely.
+### How Pro billing actually works
+
+HesabPay doesn't natively support recurring card-on-file billing, so Pro is implemented as **repeated one-time invoices**:
+
+1. Seller upgrades → invoice generated → HesabPay hosted checkout → webhook activates subscription period
+2. Cron sends a reminder email 7 days before the period ends
+3. Seller clicks the reminder → new invoice → pays again → period extends
+4. **No automatic downgrade yet** — expired subscriptions are handled manually (review + grace period). Build the auto-downgrade later if churn becomes an issue.
 
 ## Authorization
 
@@ -614,148 +615,48 @@ STORAGE_PATH="C:/Users/YourName/kakamalem-uploads"
 
 **Note:** `.env.local` takes precedence over `.env` in Next.js. Delete or rename `.env.local` to use production environment.
 
-## Escrow System
-
-The escrow system is the core product. All buyer payments are held in escrow until delivery is confirmed or a dispute is resolved.
-
-### Escrow Flow
-
-```
-Buyer pays crypto → Kaka Malem escrow wallet (custodial)
-  → Seller ships → uploads tracking number
-    → Buyer confirms delivery → funds released to seller (minus 5% fee)
-    → OR: 30 days after in_transit with no buyer action → auto-release to seller
-    → OR: Buyer opens dispute → funds frozen → admin resolves → release or refund
-```
-
-### Escrow Status Enum
-
-```
-pending          → Order placed, awaiting buyer payment
-funded           → Crypto received and confirmed in escrow wallet
-in_transit       → Seller uploaded tracking, marked as shipped
-delivered        → Buyer confirmed receipt
-released         → Funds sent to seller wallet (minus platform fee)
-disputed         → Dispute opened, funds frozen pending admin decision
-resolved_buyer   → Admin ruled for buyer — full refund sent to buyer
-resolved_seller  → Admin ruled for seller — funds released to seller
-expired          → Auto-released to seller after 30-day timeout
-```
-
-### Key Files
-
-```
-lib/escrow/
-├── index.ts         # Core: createEscrow(), fundEscrow(), markShipped(), confirmDeliveryAndRelease(),
-│                    #   openDispute(), resolveDispute(), processAutoReleases()
-└── types.ts         # EscrowStatus enum, input types, result types
-
-lib/actions/escrow.ts    # Server actions: createOrderEscrow, confirmEscrowPayment, sellerMarkShipped,
-                         #   buyerConfirmDelivery, openEscrowDispute, adminResolveDispute, addDisputeMessage
-
-app/api/cron/
-├── escrow-auto-release/ # Cron: auto-releases in_transit escrows past 30-day deadline
-└── mature-earnings/     # Cron: moves pending seller earnings to available after 7-day hold
-
-app/admin/disputes/      # Admin dispute queue — review, message, resolve
-app/admin/payouts/       # Admin seller payout processing — approve, complete, reject
-```
-
-### Database Tables
-
-| Table                 | Purpose                                                          |
-| --------------------- | ---------------------------------------------------------------- |
-| `escrow_transactions` | Per-order escrow record (amount, currency, network, status, fee) |
-| `disputes`            | Dispute records (reason, status, resolution, resolver)           |
-| `dispute_messages`    | Threaded evidence/messages per dispute (buyer, seller, admin)    |
-
-### Seller Earnings Integration
-
-When escrow releases (buyer confirms, admin resolves for seller, or 30-day auto-release), `creditSellerEarnings()` is called automatically. Funds go to the seller's `pending` balance, then mature to `available` after 7 days (configurable via `payoutHoldDays`). Sellers request payouts from their earnings dashboard; admins process them manually at `/admin/payouts`.
-
-- Withdrawal fee: **$0.50 USDT** (covers TRC20 gas)
-- No minimum withdrawal
-- Race condition protected via `SELECT ... FOR UPDATE` row locking
-- Database `CHECK` constraints prevent negative balances
-
-### Platform Fee
-
-- Default: **5%** — configurable in admin settings
-- Deducted on `release()` — seller receives `amount * (1 - feePercent)`
-- Fee % snapshotted on `escrow_transactions.platformFeePercent` at payment time
-- Platform fee sent to a configurable platform wallet address
-
----
-
 ## Payment System
 
-**USDT on TRC20 only for new storefront checkout. No new fiat integrations.**
+**HesabPay (hosted checkout) and COD only.**
 
-| Currency | Network | Status |
-| -------- | ------- | ------ |
-| USDT     | TRC20   | Live   |
-
-TRC20 was chosen for lowest fees (~$0.30), fastest confirmation (~3s), and auto-detection support via TronGrid API (free, no API key). ERC20/BEP20 were removed from checkout — only TRC20 is offered to buyers. The platform operates a custodial wallet model: all USDT sits in the platform wallet, seller balances are internal bookkeeping, and on-chain transfers only happen on buyer deposit and seller withdrawal.
-
-> **Legacy payment infrastructure** (Stripe, HesabPay, COD, bank transfer, mobile money) remains intact in `lib/payments/` and `lib/stripe/` for the one existing client. Do not remove or modify.
+| Gateway         | Type    | Use Case                                                 |
+| --------------- | ------- | -------------------------------------------------------- |
+| `hesabpay`      | Online  | Card payments — HesabPay hosts the checkout, we redirect |
+| `cod`           | Offline | Cash on Delivery — courier collects at door              |
+| `bank_transfer` | Manual  | Bank transfer with manual verification (rarely used)     |
+| `mobile_money`  | Manual  | M-Paisa, M-Hawala (rarely used)                          |
 
 ### Payment Architecture
 
 ```
 lib/payments/
-├── index.ts              # Payment orchestrator
+├── index.ts              # Payment orchestrator (HesabPay-only API path; COD goes through non-API branch)
 ├── types.ts              # Common gateway types
-├── hesabpay/
-│   ├── index.ts          # HesabPay exports
-│   ├── client.ts         # HesabPay API client
-│   └── types.ts          # HesabPay-specific types
-└── stripe/
-    └── index.ts          # Stripe payment provider
+└── hesabpay/
+    ├── index.ts          # HesabPay exports
+    ├── client.ts         # HesabPay API client
+    └── types.ts          # HesabPay-specific types
 
-lib/stripe/
-├── index.ts              # Stripe server client
-├── client.ts             # Stripe browser client (@stripe/stripe-js)
-└── subscriptions.ts      # Pro subscription management
-
-lib/actions/payments.ts   # Server actions for payments
-lib/actions/stripe-subscriptions.ts  # Subscription server actions
-app/api/webhooks/hesabpay/route.ts   # HesabPay webhook handler
-app/api/webhooks/stripe/route.ts     # Stripe webhook handler
+lib/actions/payments.ts            # Server actions for payments
+app/api/webhooks/hesabpay/route.ts # HesabPay webhook handler
 ```
 
-### Supported Payment Gateways
+### Payment Flow
 
-| Gateway         | Type    | Use Case                               |
-| --------------- | ------- | -------------------------------------- |
-| `hesabpay`      | Online  | Card payments (Afghanistan primary)    |
-| `stripe`        | Online  | International payments + subscriptions |
-| `cod`           | Offline | Cash on Delivery                       |
-| `bank_transfer` | Manual  | Bank transfer with verification        |
-| `mobile_money`  | Manual  | M-Paisa, M-Hawala                      |
+1. Customer picks a payment method at checkout
+2. Order is created (status: `pending`)
+3. If `hesabpay`: create a payment session, redirect to HesabPay's hosted checkout
+4. HesabPay redirects back with `?data={success, message, transaction_id}` AND fires a webhook
+5. Webhook handler updates the payment session + order to `paid` and `confirmed`
+6. If `cod`: skip the redirect, mark the order as confirmed immediately, customer pays the courier
 
-### Multi-Currency Support
+### Currency
 
-International customers can view prices and pay in their preferred currency:
+Single-currency platform: **AFN (Afghan Afghani)**. All prices, orders, invoices, and payments are in AFN. No currency selector, no FX conversion.
 
-```
-lib/currency/
-├── index.ts              # Exchange rate service (caching, conversion)
-└── country-currency.ts   # Country → currency mapping
+`lib/stores/use-currency-store.ts` is a hardcoded AFN shim kept around so existing storefront/dashboard components don't all need refactoring. `components/store/price-display.tsx` is a thin wrapper around `formatPrice()` from `lib/utils.ts`.
 
-lib/stores/use-currency-store.ts    # Client-side currency state (Zustand)
-components/store/currency-selector.tsx  # Currency dropdown
-components/store/price-display.tsx      # Auto-converting price display
-app/api/exchange-rates/route.ts         # Exchange rate API endpoint
-```
-
-**Features:**
-
-- Auto-detect currency based on IP/browser locale
-- Real-time exchange rates (cached, updated daily)
-- Prices displayed in customer's currency
-- Payments processed in customer's currency via Stripe
-
-**Exchange Rate Source:** [Fawaz Ahmed Currency API](https://github.com/fawazahmed0/exchange-api) (free, supports AFN)
+`lib/currency/` contains no-op `convertToAFN()` / `getExchangeRates()` stubs that exist only so the Amazon/AliExpress dropship importers still compile — they store the source price as-is, and the seller adjusts after import.
 
 ### Database Tables
 
@@ -765,7 +666,6 @@ app/api/exchange-rates/route.ts         # Exchange rate API endpoint
 | `payment_sessions`        | Track payment attempts               |
 | `payment_webhook_events`  | Audit log for webhooks               |
 | `order_transactions`      | Financial transaction ledger         |
-| `exchange_rates`          | Cached exchange rates for AFN        |
 
 ### Configuration
 

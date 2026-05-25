@@ -7,57 +7,45 @@ import {
   Building2,
   Smartphone,
   AlertCircle,
-  Globe,
-  Wallet,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import type { PaymentMethod } from "@/lib/stores/use-checkout-store";
 import type { EnabledGateway } from "@/lib/payments/types";
 
-// Icons for each payment method (using string index for flexibility)
 const PAYMENT_ICONS: Record<string, typeof CreditCard> = {
   hesabpay: CreditCard,
-  stripe: Globe,
   cod: Banknote,
   bank_transfer: Building2,
   mobile_money: Smartphone,
-  crypto_usdt: Wallet,
 };
 
-// Badges for payment methods
 const PAYMENT_BADGES: Record<
   string,
   { text: string; variant: "recommended" | "info" } | null
 > = {
   hesabpay: { text: "Recommended", variant: "recommended" },
-  stripe: { text: "International", variant: "info" },
   cod: null,
   bank_transfer: null,
   mobile_money: null,
-  crypto_usdt: { text: "Crypto", variant: "info" },
 };
 
-// Fallback payment method if none configured — crypto only for new stores
+// Fallback if the store hasn't configured any payment methods yet
 const FALLBACK_METHODS: EnabledGateway[] = [
   {
-    gateway: "crypto_usdt",
-    displayName: "Pay with Crypto (USDT)",
-    description: "Pay securely with USDT on TRC20 network",
+    gateway: "hesabpay",
+    displayName: "Pay with Card (HesabPay)",
+    description: "Secure payment via HesabPay",
     displayOrder: 0,
-    cryptoNetworks: [
-      { network: "trc20", label: "TRC20 (Tron)", feeHint: "~$0.30" },
-    ],
+  },
+  {
+    gateway: "cod",
+    displayName: "Cash on Delivery",
+    description: "Pay when your order arrives",
+    displayOrder: 1,
   },
 ];
 
@@ -67,10 +55,6 @@ interface PaymentMethodSelectorProps {
   disabled?: boolean;
   currency: string;
   enabledMethods: EnabledGateway[];
-  /** Selected crypto network (for crypto_usdt) */
-  selectedNetwork?: string;
-  /** Called when user selects a crypto network */
-  onNetworkSelect?: (network: string) => void;
 }
 
 export function PaymentMethodSelector({
@@ -78,14 +62,10 @@ export function PaymentMethodSelector({
   onMethodSelect,
   disabled = false,
   enabledMethods,
-  selectedNetwork,
-  onNetworkSelect,
 }: PaymentMethodSelectorProps) {
-  // Use enabled methods from DB, or fallback to COD if nothing enabled
   const availableMethods =
     enabledMethods.length > 0 ? enabledMethods : FALLBACK_METHODS;
 
-  // Auto-select first method if nothing selected
   useEffect(() => {
     if (!selectedMethod && availableMethods.length > 0) {
       const firstMethod = availableMethods[0];
@@ -97,7 +77,6 @@ export function PaymentMethodSelector({
     }
   }, [selectedMethod, availableMethods, onMethodSelect]);
 
-  // Show warning if no methods are available
   if (availableMethods.length === 0) {
     return (
       <Alert variant="destructive">
@@ -190,42 +169,6 @@ export function PaymentMethodSelector({
           );
         })}
       </RadioGroup>
-
-      {/* Crypto network selector - shown when crypto_usdt is selected */}
-      {selectedMethod?.gateway === "crypto_usdt" &&
-        onNetworkSelect &&
-        (() => {
-          const cryptoGateway = availableMethods.find(
-            (m) => m.gateway === "crypto_usdt"
-          );
-          const networks = cryptoGateway?.cryptoNetworks;
-          if (!networks || networks.length <= 1) return null;
-          return (
-            <div className="rounded-lg border p-4 mt-3">
-              <label className="text-sm font-medium">Select Network</label>
-              <Select
-                value={selectedNetwork || networks[0].network}
-                onValueChange={onNetworkSelect}
-                disabled={disabled}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select network" />
-                </SelectTrigger>
-                <SelectContent>
-                  {networks.map((n) => (
-                    <SelectItem key={n.network} value={n.network}>
-                      {n.label} - Fees {n.feeHint}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-2">
-                Choose the network you&apos;ll use to send USDT. Lower fee
-                networks are recommended.
-              </p>
-            </div>
-          );
-        })()}
     </div>
   );
 }

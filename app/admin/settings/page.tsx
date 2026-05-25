@@ -9,32 +9,19 @@ import {
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Settings, History } from "lucide-react";
 import { SettingsForm } from "./settings-form";
-import { isStripeEnabled, getProPricingInfo } from "@/lib/stripe";
-
-// =============================================================================
-// ADMIN SETTINGS PAGE
-// =============================================================================
-// Configure platform-wide billing and subscription settings
-// =============================================================================
 
 export default async function AdminSettingsPage() {
-  // Check if Stripe is enabled and fetch pricing
-  const stripeEnabled = isStripeEnabled();
-
-  const [settings, auditLogs, stripePricingInfo] = await Promise.all([
+  const [settings, auditLogs] = await Promise.all([
     getPlatformSettings(),
     getAdminAuditLogs(10),
-    stripeEnabled ? getProPricingInfo() : Promise.resolve(null),
   ]);
 
-  // Filter to only settings-related logs
   const settingsLogs = auditLogs.filter((log) =>
     log.action.startsWith("settings.")
   );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
@@ -43,7 +30,6 @@ export default async function AdminSettingsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Settings Form */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
@@ -56,12 +42,7 @@ export default async function AdminSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SettingsForm
-                settings={settings}
-                stripeEnabled={stripeEnabled}
-                stripePriceInfo={stripePricingInfo?.monthly ?? null}
-                stripeYearlyPriceInfo={stripePricingInfo?.yearly ?? null}
-              />
+              <SettingsForm settings={settings} />
             </CardContent>
           </Card>
         </div>

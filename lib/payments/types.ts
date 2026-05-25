@@ -2,7 +2,7 @@
  * Common payment gateway types
  *
  * Defines the interface all payment gateways must implement,
- * allowing for easy addition of new gateways (Stripe, PayTabs, etc.)
+ * allowing for easy addition of new gateways in the future.
  */
 
 import type { PaymentGateway } from "@/lib/db/schema";
@@ -251,10 +251,4 @@ export interface EnabledGateway {
   minAmount?: number;
   maxAmount?: number;
   supportedCurrencies?: string[];
-  /** Available crypto networks (only for crypto_usdt gateway) */
-  cryptoNetworks?: Array<{
-    network: "trc20" | "erc20" | "bep20";
-    label: string;
-    feeHint: string;
-  }>;
 }

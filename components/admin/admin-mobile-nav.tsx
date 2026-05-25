@@ -22,8 +22,6 @@ import {
   Shield,
   Menu,
   Handshake,
-  ShieldAlert,
-  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,8 +37,6 @@ const navItems: NavItem[] = [
   { href: "/admin/stores", icon: Store, label: "Stores" },
   { href: "/admin/users", icon: Users, label: "Users" },
   { href: "/admin/affiliates", icon: Handshake, label: "Affiliates" },
-  { href: "/admin/disputes", icon: ShieldAlert, label: "Disputes" },
-  { href: "/admin/payouts", icon: Wallet, label: "Payouts" },
   { href: "/admin/settings", icon: Settings, label: "Settings" },
 ];
 

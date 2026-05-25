@@ -382,13 +382,6 @@ export async function updatePlatformSettings(data: {
   trialDurationDays?: number;
   transactionFeePercent?: string;
   trialWarningDays?: number;
-  usdtWalletConfig?: {
-    trc20?: { address: string; enabled: boolean };
-    erc20?: { address: string; enabled: boolean };
-    bep20?: { address: string; enabled: boolean };
-    minAmount?: number;
-    expirationMinutes?: number;
-  };
 }): Promise<ActionResult> {
   try {
     const admin = await requirePlatformAdmin();
@@ -514,7 +507,7 @@ export async function recordBillingTransaction(data: {
           subtotal: amount.toString(),
           tax: "0",
           total: amount.toString(),
-          currency: store.currency ?? "USDT",
+          currency: store.currency ?? "AFN",
           periodStart,
           periodEnd,
           dueDate: now,
@@ -543,7 +536,7 @@ export async function recordBillingTransaction(data: {
         tenantId: storeId,
         type,
         amount: amount.toString(),
-        currency: store.currency ?? "USDT",
+        currency: store.currency ?? "AFN",
         paymentMethod,
         paymentReference,
         periodStart,
@@ -669,7 +662,7 @@ export async function recordBillingTransaction(data: {
                 commissionRate: commissionRate.toString(),
                 commissionAmount: commissionAmount.toString(),
                 commissionMonth,
-                currency: store.currency ?? "USDT",
+                currency: store.currency ?? "AFN",
                 periodStart: periodStart || now,
                 periodEnd: periodEnd || now,
                 status: "available", // Available for payout
@@ -800,7 +793,7 @@ export async function createInvoice(data: {
         subtotal: amount.toString(),
         tax: "0",
         total: amount.toString(),
-        currency: store.currency ?? "USDT",
+        currency: store.currency ?? "AFN",
         periodStart,
         periodEnd,
         dueDate: dueDate ?? now,

@@ -66,14 +66,11 @@ export function BillingPageClient({
 
   // Parse payment result from URL parameters
   // HesabPay appends ?data={success, message, transaction_id}
-  // Stripe uses ?upgrade=success/cancelled
   // We also check for our own ?payment=success/cancelled param as fallback
   const paymentResult = useMemo(() => {
     const dataParam = searchParams.get("data");
     const paymentParam = searchParams.get("payment");
-    const upgradeParam = searchParams.get("upgrade");
 
-    // First try to parse HesabPay's data parameter
     const hesabPayData = parseHesabPayData(dataParam);
     if (hesabPayData) {
       return {
@@ -85,24 +82,6 @@ export function BillingPageClient({
       };
     }
 
-    // Check for Stripe upgrade parameter
-    if (upgradeParam === "success") {
-      return {
-        status: "success" as const,
-        message:
-          "Your subscription has been upgraded to Pro via Stripe. Welcome aboard!",
-        transactionId: undefined,
-      };
-    }
-    if (upgradeParam === "cancelled") {
-      return {
-        status: "cancelled" as const,
-        message: "Your upgrade was cancelled. You can try again anytime.",
-        transactionId: undefined,
-      };
-    }
-
-    // Fallback to our own payment parameter
     if (paymentParam === "success") {
       return {
         status: "success" as const,
@@ -210,10 +189,7 @@ export function BillingPageClient({
 
   // Clear the URL params after mounting (only once)
   useEffect(() => {
-    const hasParams =
-      searchParams.get("data") ||
-      searchParams.get("payment") ||
-      searchParams.get("upgrade");
+    const hasParams = searchParams.get("data") || searchParams.get("payment");
     if (hasParams && !clearedUrl.current) {
       clearedUrl.current = true;
       // Use setTimeout to avoid blocking the render
@@ -313,7 +289,6 @@ export function BillingPageClient({
         invoices={invoices}
         total={invoicesTotal}
         currency={currency}
-        hasStripeSubscription={subscription.hasStripeSubscription}
         onViewInvoice={handleViewInvoice}
         onDownloadInvoice={handleDownloadInvoice}
       />

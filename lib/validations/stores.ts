@@ -37,15 +37,13 @@ export const headerDisplayOptions = [
 ] as const;
 
 // Currency options (all supported currencies for store pricing)
-// USDT is the default for the escrow marketplace; fiat currencies are legacy
 export const currencyOptions = [
-  "USDT",
+  "AFN",
   "USD",
   "EUR",
   "GBP",
   "AED",
   "SAR",
-  "AFN",
   "PKR",
   "INR",
   "TRY",
@@ -96,7 +94,7 @@ export const createStoreSchema = z.object({
     .optional()
     .or(z.literal("")),
   contactPhone: optionalPhoneSchema,
-  currency: z.enum(currencyOptions).default("USDT"),
+  currency: z.enum(currencyOptions).default("AFN"),
 
   // Step 4: Location (optional)
   storeLocationLat: z.number().min(-90).max(90).optional().nullable(),
@@ -132,7 +130,7 @@ export const generalSettingsSchema = z.object({
     .optional()
     .or(z.literal("")),
   contactPhone: optionalPhoneSchema,
-  currency: z.enum(currencyOptions).default("USDT"),
+  currency: z.enum(currencyOptions).default("AFN"),
 });
 
 export type GeneralSettingsInput = z.infer<typeof generalSettingsSchema>;

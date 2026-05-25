@@ -3,44 +3,33 @@
 /**
  * Price Display Component
  *
- * Displays a price converted to the customer's preferred currency.
- * Uses Zustand store for currency preference and cached exchange rates.
- * Prices are passed in the store's base currency and auto-converted.
+ * AFN-only price formatting. Single-currency platform; no conversion.
  */
 
-import { useCurrencyStore } from "@/lib/stores/use-currency-store";
+import { formatPrice } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface PriceDisplayProps {
-  /** Price in the store's base currency */
   price: number;
-  /** Show original store-currency price in parentheses */
-  showOriginal?: boolean;
-  /** Additional class names */
   className?: string;
-  /** Size variant */
   size?: "sm" | "md" | "lg";
-  /** Show strikethrough (for sale prices) */
   strikethrough?: boolean;
+  /** Kept for API compatibility; ignored in single-currency mode */
+  showOriginal?: boolean;
 }
+
+const sizeClasses = {
+  sm: "text-sm",
+  md: "text-base",
+  lg: "text-lg font-semibold",
+} as const;
 
 export function PriceDisplay({
   price,
-  showOriginal = false,
   className,
   size = "md",
   strikethrough = false,
 }: PriceDisplayProps) {
-  const { format } = useCurrencyStore();
-
-  const formattedPrice = format(price, showOriginal);
-
-  const sizeClasses = {
-    sm: "text-sm",
-    md: "text-base",
-    lg: "text-lg font-semibold",
-  };
-
   return (
     <span
       className={cn(
@@ -49,14 +38,11 @@ export function PriceDisplay({
         className
       )}
     >
-      {formattedPrice}
+      {formatPrice(price)}
     </span>
   );
 }
 
-/**
- * Price range display (min - max)
- */
 interface PriceRangeProps {
   minPrice: number;
   maxPrice: number;
@@ -70,29 +56,17 @@ export function PriceRange({
   className,
   size = "md",
 }: PriceRangeProps) {
-  const { format } = useCurrencyStore();
-
-  // If min and max are the same, just show one price
   if (minPrice === maxPrice) {
     return <PriceDisplay price={minPrice} className={className} size={size} />;
   }
 
-  const sizeClasses = {
-    sm: "text-sm",
-    md: "text-base",
-    lg: "text-lg font-semibold",
-  };
-
   return (
     <span className={cn(sizeClasses[size], className)}>
-      {format(minPrice)} - {format(maxPrice)}
+      {formatPrice(minPrice)} - {formatPrice(maxPrice)}
     </span>
   );
 }
 
-/**
- * Sale price display with original and discounted price
- */
 interface SalePriceProps {
   originalPrice: number;
   salePrice: number;
@@ -106,14 +80,6 @@ export function SalePrice({
   className,
   size = "md",
 }: SalePriceProps) {
-  const { format } = useCurrencyStore();
-
-  const sizeClasses = {
-    sm: "text-sm",
-    md: "text-base",
-    lg: "text-lg",
-  };
-
   const discount = Math.round(
     ((originalPrice - salePrice) / originalPrice) * 100
   );
@@ -121,7 +87,7 @@ export function SalePrice({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <span className={cn(sizeClasses[size], "font-semibold text-red-600")}>
-        {format(salePrice)}
+        {formatPrice(salePrice)}
       </span>
       <span
         className={cn(
@@ -129,7 +95,7 @@ export function SalePrice({
           "line-through text-muted-foreground text-sm"
         )}
       >
-        {format(originalPrice)}
+        {formatPrice(originalPrice)}
       </span>
       {discount > 0 && (
         <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
@@ -140,26 +106,11 @@ export function SalePrice({
   );
 }
 
-/**
- * Approximate price indicator
- * Used when showing converted prices to indicate the amount is approximate
- */
 interface ApproximatePriceProps {
   price: number;
   className?: string;
 }
 
 export function ApproximatePrice({ price, className }: ApproximatePriceProps) {
-  const { currency, storeCurrency, format } = useCurrencyStore();
-
-  // Don't show approximate indicator when displaying in store currency
-  if (currency === storeCurrency) {
-    return <span className={className}>{format(price)}</span>;
-  }
-
-  return (
-    <span className={cn("text-muted-foreground", className)}>
-      ≈ {format(price)}
-    </span>
-  );
+  return <span className={className}>{formatPrice(price)}</span>;
 }
