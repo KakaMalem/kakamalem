@@ -80,8 +80,8 @@ export function emailShell(opts: {
       <td align="center" style="padding:32px 16px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;">
           <tr>
-            <td style="background:${t.brandGradient};padding:28px 32px;border-radius:14px 14px 0 0;text-align:center;">
-              <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.01em;font-family:${t.fontStack};">Kaka Malem</span>
+            <td style="background:#09090b;padding:36px 32px;border-radius:14px 14px 0 0;text-align:center;">
+              <span style="color:#ffffff;font-size:28px;font-weight:800;letter-spacing:-0.025em;font-family:${t.fontStack};">Kaka Malem</span>
             </td>
           </tr>
           <tr>
