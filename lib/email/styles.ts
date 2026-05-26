@@ -85,12 +85,12 @@ export function emailShell(opts: {
       <td align="center" style="padding:32px 16px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;">
           <tr>
-            <td bgcolor="#09090b" style="background:#09090b;background-color:#09090b;padding:36px 32px;border-radius:14px 14px 0 0;text-align:center;">
-              <span style="color:#ffffff;font-size:30px;font-weight:800;letter-spacing:-0.025em;font-family:${t.fontStack};line-height:1;"><font color="#ffffff" style="color:#ffffff;">Kaka Malem</font></span>
+            <td bgcolor="#000000" style="background:#000000;background-color:#000000;padding:30px;border-radius:10px 10px 0 0;text-align:center;">
+              <h1 style="margin:0;padding:0;color:#ffffff;font-size:28px;font-weight:bold;font-family:${t.fontStack};line-height:1.2;"><font color="#ffffff" face="${t.fontStack}">Kaka Malem</font></h1>
             </td>
           </tr>
           <tr>
-            <td style="background:${t.bgWhite};padding:36px 32px;border:1px solid ${t.border};border-top:none;border-radius:0 0 14px 14px;color:${t.textBody};font-size:15px;line-height:1.65;font-family:${t.fontStack};">
+            <td style="background:#ffffff;padding:30px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 10px 10px;color:#333333;font-size:15px;line-height:1.6;font-family:${t.fontStack};">
               ${opts.body}
             </td>
           </tr>
@@ -180,8 +180,8 @@ export function banner(opts: {
   } as const;
   const c = map[opts.kind];
   const icon = opts.icon || c.icon;
-  return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:10px;padding:14px 18px;margin:0 0 24px 0;text-align:center;">
-    <span style="color:${c.color};font-size:15px;margin-right:6px;vertical-align:middle;">${icon}</span><span style="color:${c.color};font-weight:700;font-size:12px;font-family:${t.fontStack};text-transform:uppercase;letter-spacing:0.08em;vertical-align:middle;">${escapeHtml(opts.text)}</span>
+  return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:6px;padding:12px;margin:0 0 20px 0;text-align:center;">
+    <span style="color:${c.color};font-weight:600;font-size:14px;font-family:${t.fontStack};">${icon} ${escapeHtml(opts.text)}</span>
   </div>`;
 }
 
@@ -231,17 +231,17 @@ export function bulletList(
   const t = emailTokens;
   const rows = items
     .map((item) => {
-      const color = item.kind === "positive" ? t.successText : t.dangerText;
+      const color = item.kind === "positive" ? "#16a34a" : "#dc2626";
       const icon = item.kind === "positive" ? "&#10003;" : "&#10007;";
       return `<tr>
-        <td style="padding:8px 0;font-size:14px;color:${t.textBody};font-family:${t.fontStack};">
+        <td style="padding:8px 0;font-size:14px;color:${t.textBody};font-family:${t.fontStack};line-height:1.6;">
           <span style="color:${color};margin-right:10px;font-weight:700;">${icon}</span>
           ${escapeHtml(item.text)}
         </td>
       </tr>`;
     })
     .join("");
-  return `<div style="background:${t.bgSubtle};border:1px solid ${t.border};border-radius:12px;padding:14px 20px;margin:24px 0;">
+  return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:20px 0;">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
       <tbody>${rows}</tbody>
     </table>

@@ -29,7 +29,7 @@ export function getStoreSuspendedEmailHtml(
     : "";
 
   const body = `
-    ${banner({ kind: "danger", text: "Store suspended" })}
+    ${banner({ kind: "danger", text: "Store Suspended" })}
     ${heading("Your store has been suspended")}
     ${paragraph(`Hi ${escapeHtml(params.ownerName)},`)}
     ${paragraph(`Your store <strong>${escapeHtml(params.storeName)}</strong> has been suspended by the Kaka Malem team.`)}

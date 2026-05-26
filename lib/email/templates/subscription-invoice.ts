@@ -45,7 +45,7 @@ export function getSubscriptionInvoiceEmailHtml(
   const supportEmail = params.supportEmail || "support@kakamalem.com";
 
   const body = `
-    ${banner({ kind: "success", text: "Payment successful" })}
+    ${banner({ kind: "success", text: "Payment Successful" })}
     ${heading("Payment confirmed")}
     ${paragraph(`Hi ${escapeHtml(params.ownerName)},`)}
     ${paragraph(`Your subscription payment for <strong>${escapeHtml(params.storeName)}</strong> has been processed. A receipt is attached below and available in your dashboard.`)}

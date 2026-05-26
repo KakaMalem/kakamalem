@@ -37,7 +37,7 @@ function pickUrgency(daysUntil: number) {
   if (daysUntil <= 1) {
     return {
       kind: "danger" as const,
-      label: "Final notice",
+      label: "Final Notice",
       heading: "Your Pro subscription expires tomorrow",
       preheader: `Renew today to avoid losing Pro access`,
     };
@@ -45,14 +45,14 @@ function pickUrgency(daysUntil: number) {
   if (daysUntil <= 3) {
     return {
       kind: "warning" as const,
-      label: "Expiring soon",
+      label: "Expiring Soon",
       heading: `Your Pro subscription expires in ${daysUntil} days`,
       preheader: `Renew now to keep Pro features active`,
     };
   }
   return {
     kind: "info" as const,
-    label: "Renewal reminder",
+    label: "Renewal Reminder",
     heading: `Your Pro subscription expires in ${daysUntil} days`,
     preheader: `Heads up — your renewal is coming up`,
   };

@@ -35,7 +35,7 @@ export function getSubscriptionExpiredEmailHtml(
   const supportEmail = params.supportEmail || "support@kakamalem.com";
 
   const body = `
-    ${banner({ kind: "danger", text: "Subscription expired", icon: "&#10007;" })}
+    ${banner({ kind: "danger", text: "Subscription Expired", icon: "&#10007;" })}
     ${heading("Your Pro subscription has expired")}
     ${paragraph(`Hi ${escapeHtml(params.ownerName)},`)}
     ${paragraph(`Your <strong>Kaka Malem Pro</strong> subscription for <strong>${escapeHtml(params.storeName)}</strong> expired on <strong>${formatDate(params.expiredDate)}</strong>. Your store has been moved to the Free plan.`)}

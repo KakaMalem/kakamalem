@@ -41,7 +41,7 @@ export function getRenewalInvoiceEmailHtml(
   const supportEmail = params.supportEmail || "support@kakamalem.com";
 
   const body = `
-    ${banner({ kind: "info", text: "Renewal invoice", icon: "&#128196;" })}
+    ${banner({ kind: "info", text: "Renewal Invoice", icon: "&#128196;" })}
     ${heading("Time to renew your subscription")}
     ${paragraph(`Hi ${escapeHtml(params.ownerName)},`)}
     ${paragraph(`Your <strong>Kaka Malem Pro</strong> subscription for <strong>${escapeHtml(params.storeName)}</strong> is due for renewal. We've prepared the invoice for the next billing period.`)}
