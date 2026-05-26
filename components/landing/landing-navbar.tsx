@@ -77,7 +77,7 @@ export function LandingNavbar({
           {/* Primary CTA */}
           <Button
             size="sm"
-            className="rounded-full h-8 px-4 text-xs font-semibold bg-linear-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 border-0 shadow-sm shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-200"
+            className="rounded-full h-8 px-4 text-xs font-semibold bg-zinc-950 hover:bg-zinc-800 text-white border-0 shadow-sm shadow-zinc-950/20 hover:shadow-zinc-950/30 transition-all duration-200"
             asChild
           >
             <Link href={user ? "/dashboard" : "/signup"}>
