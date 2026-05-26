@@ -164,6 +164,7 @@ export async function GET(request: Request) {
                   currency: "AFN",
                   billingInterval: isYearly ? "Yearly" : "Monthly",
                   baseUrl,
+                  supportEmail: process.env.SUPPORT_EMAIL,
                 });
                 await sendEmail({
                   to: u.email,
@@ -256,6 +257,7 @@ export async function GET(request: Request) {
                         periodStart: periodStart.toISOString(),
                         periodEnd: periodEnd.toISOString(),
                         baseUrl,
+                        supportEmail: process.env.SUPPORT_EMAIL,
                       });
                       await sendEmail({
                         to: u.email,
@@ -453,6 +455,7 @@ export async function GET(request: Request) {
                   storeSlug: tenant.slug,
                   expiredDate: tenant.subscriptionEndsAt!,
                   baseUrl,
+                  supportEmail: process.env.SUPPORT_EMAIL,
                 });
                 await sendEmail({
                   to: owner.email,

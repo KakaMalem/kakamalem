@@ -127,6 +127,7 @@ export async function sendSubscriptionInvoice(params: {
       paymentMethod: params.paymentMethod,
       pdfUrl: pdfResult.pdfUrl || "",
       baseUrl,
+      supportEmail: process.env.SUPPORT_EMAIL,
     });
 
     // 8. Send email
