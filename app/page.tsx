@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getUser } from "@/lib/auth/server";
+import { getPlatformSettings } from "@/lib/db/queries/admin";
 import { Button } from "@/components/ui/button";
 import { LandingNavbar } from "@/components/landing/landing-navbar";
 import {
@@ -42,7 +43,13 @@ function NoiseOverlay() {
 }
 
 export default async function Home() {
-  const user = await getUser();
+  const [user, settings] = await Promise.all([
+    getUser(),
+    getPlatformSettings(),
+  ]);
+  const proMonthlyPrice = Number(settings.proPlanPriceAfn).toLocaleString(
+    "en-US"
+  );
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 selection:bg-teal-100 selection:text-teal-900 font-sans antialiased overflow-x-hidden">
@@ -449,7 +456,7 @@ export default async function Home() {
                 </div>
                 <div className="flex items-baseline gap-1 mb-6">
                   <span className="text-4xl font-bold tracking-tight">
-                    1,100
+                    {proMonthlyPrice}
                   </span>
                   <span className="text-sm text-zinc-400">AFN / month</span>
                 </div>

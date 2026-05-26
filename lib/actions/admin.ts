@@ -115,10 +115,7 @@ export async function updateStoreStatus(
           reason,
         });
       } catch (emailError) {
-        console.error(
-          "Failed to send store suspension email:",
-          emailError
-        );
+        console.error("Failed to send store suspension email:", emailError);
       }
     }
 
@@ -178,10 +175,7 @@ async function sendStoreSuspendedEmail({
             baseUrl,
           }),
         }).catch((err) => {
-          console.error(
-            `Failed to send suspension email to ${r.email}:`,
-            err
-          );
+          console.error(`Failed to send suspension email to ${r.email}:`, err);
         })
       )
   );
