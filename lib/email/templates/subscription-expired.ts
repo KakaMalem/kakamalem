@@ -93,7 +93,7 @@ export function getSubscriptionExpiredEmailHtml(
     <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
 
     <p style="color: #999; font-size: 12px; margin: 0;">
-      If you have any questions, contact us at kakamalem.team@gmail.com
+      If you have any questions, contact us at support@kakamalem.com
     </p>
   </div>
 

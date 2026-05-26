@@ -322,7 +322,7 @@ export function SubscriptionInvoiceDocument({
           <View>
             <Text style={styles.platformName}>Kaka Malem</Text>
             <Text style={styles.platformInfo}>kakamalem.com</Text>
-            <Text style={styles.platformInfo}>kakamalem.team@gmail.com</Text>
+            <Text style={styles.platformInfo}>support@kakamalem.com</Text>
           </View>
           <View>
             <Text style={styles.invoiceTitle}>INVOICE</Text>
@@ -475,7 +475,7 @@ export function SubscriptionInvoiceDocument({
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Questions? Contact us at kakamalem.team@gmail.com
+            Questions? Contact us at support@kakamalem.com
           </Text>
           <Text style={styles.footerThankYou}>
             Thank you for choosing Kaka Malem!

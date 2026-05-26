@@ -158,7 +158,7 @@ async function sendStoreSuspendedEmail({
   const supportEmail =
     process.env.SUPPORT_EMAIL ||
     process.env.SMTP_FROM_EMAIL ||
-    "kakamalem.team@gmail.com";
+    "support@kakamalem.com";
 
   await Promise.all(
     recipients
