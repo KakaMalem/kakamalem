@@ -69,7 +69,12 @@ export function emailShell(opts: {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
   <title>${escapeHtml(opts.title)}</title>
+  <style>
+    :root { color-scheme: light only; supported-color-schemes: light only; }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:${t.bgPage};font-family:${t.fontStack};-webkit-font-smoothing:antialiased;color:${t.textBody};">
   <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${t.bgPage};">
@@ -80,8 +85,8 @@ export function emailShell(opts: {
       <td align="center" style="padding:32px 16px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;">
           <tr>
-            <td style="background:#09090b;padding:36px 32px;border-radius:14px 14px 0 0;text-align:center;">
-              <span style="color:#ffffff;font-size:28px;font-weight:800;letter-spacing:-0.025em;font-family:${t.fontStack};">Kaka Malem</span>
+            <td bgcolor="#09090b" style="background:#09090b;background-color:#09090b;padding:36px 32px;border-radius:14px 14px 0 0;text-align:center;">
+              <span style="color:#ffffff;font-size:30px;font-weight:800;letter-spacing:-0.025em;font-family:${t.fontStack};line-height:1;"><font color="#ffffff" style="color:#ffffff;">Kaka Malem</font></span>
             </td>
           </tr>
           <tr>
@@ -175,8 +180,8 @@ export function banner(opts: {
   } as const;
   const c = map[opts.kind];
   const icon = opts.icon || c.icon;
-  return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:10px;padding:12px 16px;margin:0 0 24px 0;">
-    <span style="color:${c.color};font-weight:600;font-size:14px;font-family:${t.fontStack};">${icon} ${escapeHtml(opts.text)}</span>
+  return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:10px;padding:14px 18px;margin:0 0 24px 0;text-align:center;">
+    <span style="color:${c.color};font-size:15px;margin-right:6px;vertical-align:middle;">${icon}</span><span style="color:${c.color};font-weight:700;font-size:12px;font-family:${t.fontStack};text-transform:uppercase;letter-spacing:0.08em;vertical-align:middle;">${escapeHtml(opts.text)}</span>
   </div>`;
 }
 
