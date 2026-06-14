@@ -1,30 +1,31 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { getCurrencyMeta, DEFAULT_CURRENCY } from "@/lib/currency/currencies";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 /**
- * Format a price with currency symbol.
- * Defaults to AFN; supports any ISO currency code.
+ * Format a price in the given store currency.
+ *
+ * Uses the per-currency metadata (symbol, position, decimals) from
+ * lib/currency/currencies.ts so the symbol and grouping are consistent
+ * everywhere. Unknown/empty currencies fall back to the platform default.
  */
-export function formatPrice(price: number, currency: string = "AFN"): string {
-  if (currency === "AFN") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "AFN",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })
-      .format(price)
-      .replace("AFN", "؋");
-  }
-
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
+export function formatPrice(
+  price: number,
+  currency: string = DEFAULT_CURRENCY
+): string {
+  const meta = getCurrencyMeta(currency);
+  const amount = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: meta.decimals,
+    maximumFractionDigits: meta.decimals,
   }).format(price);
+
+  return meta.symbolPosition === "before"
+    ? `${meta.symbol}${amount}`
+    : `${amount} ${meta.symbol}`;
 }
 
 /**

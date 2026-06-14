@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, Tag, Sparkles } from "lucide-react";
 
@@ -8,15 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
-import {
-  useCartItemCount,
-  useCartItems,
-  getApplicableTierPrice,
-} from "@/lib/stores/use-cart-store";
-import {
-  useCartCampaignDiscounts,
-  calculateDiscountedPrice,
-} from "@/lib/hooks/use-campaign-discounts";
+import { useCartItemCount } from "@/lib/stores/use-cart-store";
+import { useCartCheckoutTotals } from "@/lib/hooks/use-cart-totals";
 
 interface CartSummaryProps {
   storeSlug: string;
@@ -36,62 +28,15 @@ export function CartSummary({
   const basePath = useStoreBasePath();
   const { format: formatPrice } = useCurrencyStore();
   const itemCount = useCartItemCount();
-  const items = useCartItems();
 
-  // Fetch campaign discounts
-  const { discountsMap } = useCartCampaignDiscounts(tenantId || null, items);
-
-  // Calculate totals with both campaign and tier discounts
-  const { originalSubtotal, campaignSavings, tierSavings, finalSubtotal } =
-    useMemo(() => {
-      let originalSubtotal = 0;
-      let campaignSavings = 0;
-      let tierSavings = 0;
-      let finalSubtotal = 0;
-
-      for (const item of items) {
-        const originalPrice = item.variant?.price
-          ? parseFloat(item.variant.price)
-          : parseFloat(item.product.price);
-
-        originalSubtotal += originalPrice * item.quantity;
-
-        // Apply campaign discount
-        const campaignDiscount = discountsMap.get(item.product.id);
-        const afterCampaignPrice = calculateDiscountedPrice(
-          originalPrice,
-          campaignDiscount || null
-        );
-
-        if (campaignDiscount && afterCampaignPrice < originalPrice) {
-          campaignSavings +=
-            (originalPrice - afterCampaignPrice) * item.quantity;
-        }
-
-        // Apply tier discount (on top of campaign price)
-        const effectivePrice = getApplicableTierPrice(
-          afterCampaignPrice,
-          item.quantity,
-          item.product.priceTiers || []
-        );
-
-        if (effectivePrice < afterCampaignPrice) {
-          tierSavings += (afterCampaignPrice - effectivePrice) * item.quantity;
-        }
-
-        finalSubtotal += effectivePrice * item.quantity;
-      }
-
-      return { originalSubtotal, campaignSavings, tierSavings, finalSubtotal };
-    }, [items, discountsMap]);
-
-  const totalSavings = campaignSavings + tierSavings;
-
-  // Future: These could be calculated based on store settings
-  const shipping = 0; // Free shipping or calculated at checkout
-  const tax = 0; // Calculated at checkout
-
-  const total = finalSubtotal + shipping + tax;
+  // Shared money math (campaign + tier discounts) — see useCartCheckoutTotals
+  const {
+    originalSubtotal,
+    campaignSavings,
+    tierSavings,
+    totalSavings,
+    total,
+  } = useCartCheckoutTotals(tenantId || null);
 
   return (
     <div className="rounded-lg border bg-card p-6">

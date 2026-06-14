@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ShoppingCart,
   Heart,
@@ -422,6 +422,22 @@ export function ProductInfo({
     }
   }
 
+  // Sticky mobile buy bar: show once the inline Add-to-Cart scrolls out of view
+  const inlineActionsRef = useRef<HTMLDivElement>(null);
+  const [showStickyBar, setShowStickyBar] = useState(false);
+
+  useEffect(() => {
+    if (catalogMode) return;
+    const el = inlineActionsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowStickyBar(!entry.isIntersecting),
+      { rootMargin: "0px 0px -8px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [catalogMode]);
+
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* Product Title */}
@@ -815,7 +831,7 @@ export function ProductInfo({
           )}
 
           {/* Action buttons */}
-          <div className="flex gap-2 sm:gap-3">
+          <div ref={inlineActionsRef} className="flex gap-2 sm:gap-3">
             <Button
               className={cn(
                 "flex-1 gap-2 h-12 sm:h-14 text-sm sm:text-base rounded-xl transition-all active:scale-[0.98]",
@@ -879,6 +895,48 @@ export function ProductInfo({
             html={selectedVariant?.description || product.description || ""}
           />
         </>
+      )}
+
+      {/* Sticky mobile buy bar — mirrors the inline CTA once it scrolls away */}
+      {!catalogMode && (
+        <div
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-50 border-t bg-background/95 backdrop-blur-lg transition-transform duration-300 md:hidden",
+            showStickyBar
+              ? "translate-y-0"
+              : "pointer-events-none translate-y-full"
+          )}
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="flex flex-col">
+              <span className="text-lg font-bold leading-none">
+                {formatPrice(effectivePrice)}
+              </span>
+              {hasDiscount && displayCompareAtPrice && (
+                <span className="text-xs text-muted-foreground line-through">
+                  {formatPrice(displayCompareAtPrice)}
+                </span>
+              )}
+            </div>
+            <Button
+              className={cn(
+                "flex-1 gap-2 h-12 rounded-xl transition-all active:scale-[0.98]",
+                shakeButton && "animate-shake"
+              )}
+              size="lg"
+              disabled={isOutOfStock || isAddingToCart}
+              onClick={handleAddToCart}
+            >
+              {isAddingToCart ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : (
+                <ShoppingCart className="size-5" />
+              )}
+              {isOutOfStock ? "Sold Out" : "Add to Cart"}
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

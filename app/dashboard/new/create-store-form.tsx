@@ -188,6 +188,13 @@ export function CreateStoreForm({
     }
   };
 
+  const updateCurrency = (value: string) => {
+    setFormData((prev) => ({ ...prev, currency: value }));
+    if (fieldErrors.currency) {
+      setFieldErrors((prev) => ({ ...prev, currency: undefined }));
+    }
+  };
+
   const updateContactPhone = (value: string) => {
     setFormData((prev) => ({ ...prev, contactPhone: value }));
     if (fieldErrors.contactPhone) {
@@ -442,8 +449,10 @@ export function CreateStoreForm({
                 <StepContact
                   contactEmail={formData.contactEmail}
                   contactPhone={formData.contactPhone}
+                  currency={formData.currency}
                   onContactEmailChange={updateContactEmail}
                   onContactPhoneChange={updateContactPhone}
+                  onCurrencyChange={updateCurrency}
                   fieldErrors={fieldErrors}
                   disabled={isPending}
                 />

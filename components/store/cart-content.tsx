@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CartItem } from "./cart-item";
 import { CartSummary } from "./cart-summary";
+import { CartStickyBar } from "./cart-sticky-bar";
 import { EmptyCart } from "./empty-cart";
 import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { useCart } from "@/lib/hooks/use-cart";
@@ -48,7 +49,7 @@ export function CartContent({
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 pt-8 pb-28 sm:px-6 md:pb-8 lg:px-8">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -136,6 +137,9 @@ export function CartContent({
           </div>
         </div>
       </div>
+
+      {/* Mobile sticky checkout bar */}
+      {checkoutEnabled && <CartStickyBar tenantId={tenantId} />}
     </div>
   );
 }

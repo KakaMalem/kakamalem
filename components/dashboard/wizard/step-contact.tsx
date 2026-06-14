@@ -9,13 +9,26 @@ import {
   FieldError,
   FieldDescription,
 } from "@/components/ui/field";
-import type { CreateStoreInput } from "@/lib/validations/stores";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  currencyOptions,
+  type CreateStoreInput,
+} from "@/lib/validations/stores";
+import { CURRENCIES } from "@/lib/currency/currencies";
 
 interface StepContactProps {
   contactEmail: string;
   contactPhone: string;
+  currency: string;
   onContactEmailChange: (value: string) => void;
   onContactPhoneChange: (value: string) => void;
+  onCurrencyChange: (value: string) => void;
   fieldErrors: Partial<Record<keyof CreateStoreInput, string>>;
   disabled?: boolean;
 }
@@ -23,8 +36,10 @@ interface StepContactProps {
 export function StepContact({
   contactEmail,
   contactPhone,
+  currency,
   onContactEmailChange,
   onContactPhoneChange,
+  onCurrencyChange,
   fieldErrors,
   disabled,
 }: StepContactProps) {
@@ -62,6 +77,41 @@ export function StepContact({
           aria-invalid={!!fieldErrors.contactPhone}
         />
         <FieldError>{fieldErrors.contactPhone}</FieldError>
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor="currency">Currency</FieldLabel>
+        <Select
+          value={currency}
+          onValueChange={onCurrencyChange}
+          disabled={disabled}
+        >
+          <SelectTrigger id="currency" className="w-full">
+            <SelectValue placeholder="Select a currency" />
+          </SelectTrigger>
+          <SelectContent>
+            {currencyOptions.map((code) => {
+              const meta = CURRENCIES[code];
+              return (
+                <SelectItem key={code} value={code}>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-6 text-muted-foreground">
+                      {meta.symbol}
+                    </span>
+                    <span>
+                      {meta.label}{" "}
+                      <span className="text-muted-foreground">({code})</span>
+                    </span>
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+        <FieldDescription>
+          The currency your prices will be shown in. You can change this later.
+        </FieldDescription>
+        <FieldError>{fieldErrors.currency}</FieldError>
       </Field>
     </motion.div>
   );

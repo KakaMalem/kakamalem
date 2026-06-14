@@ -42,7 +42,8 @@ export function WhatsAppButton({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "fixed bottom-6 right-6 z-50",
+        // Lifted above the mobile bottom tab bar; normal position on desktop
+        "fixed bottom-20 right-4 z-40 md:bottom-6 md:right-6 md:z-50",
         "flex items-center justify-center",
         "size-14 rounded-full",
         "bg-[#25D366] text-white shadow-lg",

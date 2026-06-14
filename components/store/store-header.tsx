@@ -330,7 +330,7 @@ export function StoreHeader({
 
         {/* Mobile Header */}
         <div className="flex flex-col gap-3 py-3 md:hidden">
-          {/* Top Row: Logo, Cart, Profile */}
+          {/* Top Row: Logo (cart + account live in the bottom tab bar) */}
           <div className="flex items-center justify-between">
             {/* Left: Logo / Store Name */}
             <Link
@@ -352,163 +352,14 @@ export function StoreHeader({
               )}
             </Link>
 
-            {/* Right: Cart & Profile */}
-            <div className="flex items-center gap-0.5">
-              {/* Cart Button - Hidden in catalog mode */}
-              {!isCartDisabled && !isCheckoutPage && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="relative size-9"
-                  onClick={() => cartActions.setIsOpen(true)}
-                  aria-label={`Shopping cart with ${hydratedCartCount} items`}
-                >
-                  <ShoppingCart className="size-5" />
-                  <CartBadge initialCount={cartItemCount} />
-                </Button>
-              )}
-
-              {isCheckoutPage && (
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/5 rounded-full text-[10px] font-semibold text-primary/80 uppercase tracking-wider border border-primary/10">
-                  <Lock className="size-3" />
-                  Secure
-                </div>
-              )}
-
-              {/* Profile/Auth - Mobile */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 rounded-full"
-                    aria-label={
-                      user ? "Account menu" : "Sign in or create account"
-                    }
-                  >
-                    {user ? (
-                      <Avatar className="size-7">
-                        {user.avatarUrl && (
-                          <AvatarImage
-                            src={user.avatarUrl}
-                            alt={user.name || "User"}
-                          />
-                        )}
-                        <AvatarFallback className="text-xs">
-                          {userInitials}
-                        </AvatarFallback>
-                      </Avatar>
-                    ) : (
-                      <div className="flex size-7 items-center justify-center rounded-full bg-muted">
-                        <User className="size-4 text-muted-foreground" />
-                      </div>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {user ? (
-                    <>
-                      <div className="px-2 py-1.5">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">
-                            {user.name || "User"}
-                          </p>
-                          {userContext?.isOwner && (
-                            <Badge
-                              variant="secondary"
-                              className="h-5 gap-0.5 text-[10px] px-1.5"
-                            >
-                              <Crown className="size-2.5" />
-                              Owner
-                            </Badge>
-                          )}
-                          {userContext?.isStaff && !userContext?.isOwner && (
-                            <Badge
-                              variant="outline"
-                              className="h-5 gap-0.5 text-[10px] px-1.5"
-                            >
-                              <Shield className="size-2.5" />
-                              {userContext.role === "admin" ? "Admin" : "Staff"}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {user.email}
-                        </p>
-                      </div>
-                      <DropdownMenuSeparator />
-                      {/* Customer Account Links */}
-                      <DropdownMenuItem asChild>
-                        <Link href={`${basePath}/account`}>
-                          <User className="mr-2 size-4" />
-                          My Account
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`${basePath}/account/orders`}>
-                          <Package className="mr-2 size-4" />
-                          My Orders
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`${basePath}/account/wishlist`}>
-                          <Heart className="mr-2 size-4" />
-                          Wishlist
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`${basePath}/account/notifications`}>
-                          <Bell className="mr-2 size-4" />
-                          Notifications
-                        </Link>
-                      </DropdownMenuItem>
-                      {/* Owner/Staff Dashboard Link */}
-                      {userContext?.isMember && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => {
-                              const url = `${basePath === "" ? process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com" : ""}/dashboard/${store.slug}`;
-                              // Empty features string is a workaround for PWAs to open links outside the app context
-                              // See: https://github.com/pwa-builder/PWABuilder-CLI/issues/261
-                              window.open(url, "_blank", "");
-                            }}
-                          >
-                            <LayoutDashboard className="mr-2 size-4" />
-                            Store Dashboard
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={handleSignOut}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <LogOut className="mr-2 size-4" />
-                        Sign out
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <div className="p-2">
-                      <p className="mb-1 text-sm font-medium">Welcome</p>
-                      <p className="mb-3 text-xs text-muted-foreground">
-                        Sign in for the best experience
-                      </p>
-                      <div className="flex flex-col gap-2">
-                        <Button asChild className="w-full">
-                          <Link href={`${basePath}/auth/login`}>Sign in</Link>
-                        </Button>
-                        <Button variant="outline" asChild className="w-full">
-                          <Link href={`${basePath}/auth/signup`}>
-                            Create account
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            {/* Cart & account live in the bottom tab bar on mobile.
+                Only the checkout security cue remains in the header. */}
+            {isCheckoutPage && (
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/5 rounded-full text-[10px] font-semibold text-primary/80 uppercase tracking-wider border border-primary/10">
+                <Lock className="size-3" />
+                Secure
+              </div>
+            )}
           </div>
 
           {!isCheckoutPage && (

@@ -144,7 +144,9 @@ export function StoreFooter({
 
   return (
     <TooltipProvider>
-      <footer className="border-t bg-muted/30">
+      {/* Hidden on mobile — the bottom tab bar is the navigation there.
+          Full footer shows on tablet/desktop (md+). */}
+      <footer className="hidden border-t bg-muted/30 md:block">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-12 lg:px-8">
           <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
             {/* Store Info */}

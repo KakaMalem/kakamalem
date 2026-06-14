@@ -15,8 +15,10 @@ import { getUser } from "@/lib/auth/server";
 import { getUserStoreContext } from "@/lib/auth/context";
 import { StoreHeaderWrapper } from "@/components/store/store-header-wrapper";
 import { StoreCategoriesBar } from "@/components/store/store-categories-bar";
+import { StoreBottomNav } from "@/components/store/store-bottom-nav";
 import { StoreFooter } from "@/components/store/store-footer";
 import { CartProvider } from "@/components/store/cart-provider";
+import { CurrencyProvider } from "@/lib/stores/use-currency-store";
 import { CartDrawer } from "@/components/store/cart-drawer";
 import { WishlistHydration } from "@/components/store/wishlist-hydration";
 import { WhatsAppButton } from "@/components/store/whatsapp-button";
@@ -212,97 +214,105 @@ export default async function StoreLayout({
   return (
     <QueryProvider>
       <StorePathProvider basePath={basePath}>
-        <CartProvider initialCart={cart} storeSlug={store.slug}>
-          {/* SEO: Organization/Store structured data for Google Knowledge Panel */}
-          <StoreStructuredData
-            store={{
-              name: store.name,
-              slug: store.slug,
-              tagline: store.tagline,
-              description: store.description,
-              logoUrl: store.logoUrl,
-              contactEmail: store.contactEmail,
-              contactPhone: store.contactPhone,
-              socialLinks: socialLinks,
-              currency: store.currency,
-            }}
-          />
-          {/* SEO: Website structured data for sitelinks searchbox */}
-          <WebsiteStructuredData
-            storeName={store.name}
-            storeSlug={store.slug}
-          />
-
-          <WishlistHydration
-            tenantId={store.id}
-            initialProductIds={wishlistedProductIds}
-          />
-          <div className="flex min-h-screen flex-col bg-background">
-            {/* Sale Banner - positioned at very top, only shown on homepage */}
-            {activeCampaigns.length > 0 && (
-              <SaleBanner
-                campaign={activeCampaigns[0]}
-                storeSlug={store.slug}
-                currency={store.currency}
-              />
-            )}
-            <StoreHeaderWrapper
-              store={store}
-              cartItemCount={cartItemCount}
-              user={
-                user
-                  ? {
-                      name: user.name,
-                      email: user.email,
-                      avatarUrl: user.image || undefined,
-                    }
-                  : null
-              }
-              userContext={
-                userContext
-                  ? {
-                      isOwner: userContext.isOwner,
-                      isStaff: userContext.isStaff,
-                      isMember: userContext.isMember,
-                      role: userContext.role,
-                    }
-                  : null
-              }
+        <CurrencyProvider currency={store.currency}>
+          <CartProvider initialCart={cart} storeSlug={store.slug}>
+            {/* SEO: Organization/Store structured data for Google Knowledge Panel */}
+            <StoreStructuredData
+              store={{
+                name: store.name,
+                slug: store.slug,
+                tagline: store.tagline,
+                description: store.description,
+                logoUrl: store.logoUrl,
+                contactEmail: store.contactEmail,
+                contactPhone: store.contactPhone,
+                socialLinks: socialLinks,
+                currency: store.currency,
+              }}
             />
-            {/* Categories bar - hidden on checkout to keep focus */}
-            <StoreCategoriesBar
-              categories={categories.map((c) => ({
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-                imageUrl: c.imageUrl,
-              }))}
+            {/* SEO: Website structured data for sitelinks searchbox */}
+            <WebsiteStructuredData
+              storeName={store.name}
               storeSlug={store.slug}
             />
-            <main className="flex-1">{children}</main>
-            <StoreFooter
-              store={store}
-              categories={categories.map((c) => ({
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-              }))}
-              hideBranding={store.subscriptionPlan === "pro"}
+
+            <WishlistHydration
+              tenantId={store.id}
+              initialProductIds={wishlistedProductIds}
             />
-            {/* Cart Drawer - Hidden when online cart is disabled */}
-            {!isCartDisabled && (
-              <CartDrawer
-                storeSlug={store.slug}
-                currency={store.currency}
-                tenantId={store.id}
+            <div className="flex min-h-screen flex-col bg-background pb-16 md:pb-0">
+              {/* Sale Banner - positioned at very top, only shown on homepage */}
+              {activeCampaigns.length > 0 && (
+                <SaleBanner
+                  campaign={activeCampaigns[0]}
+                  storeSlug={store.slug}
+                  currency={store.currency}
+                />
+              )}
+              <StoreHeaderWrapper
+                store={store}
+                cartItemCount={cartItemCount}
+                user={
+                  user
+                    ? {
+                        name: user.name,
+                        email: user.email,
+                        avatarUrl: user.image || undefined,
+                      }
+                    : null
+                }
+                userContext={
+                  userContext
+                    ? {
+                        isOwner: userContext.isOwner,
+                        isStaff: userContext.isStaff,
+                        isMember: userContext.isMember,
+                        role: userContext.role,
+                      }
+                    : null
+                }
               />
-            )}
-            {/* Floating WhatsApp Button */}
-            {showWhatsAppButton && whatsappNumber && (
-              <WhatsAppButton phoneNumber={whatsappNumber} />
-            )}
-          </div>
-        </CartProvider>
+              {/* Categories bar - hidden on checkout to keep focus */}
+              <StoreCategoriesBar
+                categories={categories.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  slug: c.slug,
+                  imageUrl: c.imageUrl,
+                }))}
+                storeSlug={store.slug}
+              />
+              <main className="flex-1">{children}</main>
+              <StoreFooter
+                store={store}
+                categories={categories.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  slug: c.slug,
+                }))}
+                hideBranding={store.subscriptionPlan === "pro"}
+              />
+              {/* Cart Drawer - Hidden when online cart is disabled */}
+              {!isCartDisabled && (
+                <CartDrawer
+                  storeSlug={store.slug}
+                  currency={store.currency}
+                  tenantId={store.id}
+                />
+              )}
+              {/* Mobile bottom tab bar */}
+              <StoreBottomNav
+                cartItemCount={cartItemCount}
+                isLoggedIn={!!user}
+                isCartDisabled={isCartDisabled}
+              />
+              {/* Floating WhatsApp Button */}
+              {showWhatsAppButton && whatsappNumber && (
+                <WhatsAppButton phoneNumber={whatsappNumber} />
+              )}
+            </div>
+          </CartProvider>
+        </CurrencyProvider>
       </StorePathProvider>
     </QueryProvider>
   );

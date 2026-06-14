@@ -451,7 +451,7 @@ export async function updateGeneralSettings(
 
   try {
     const newCurrency = formValues.currency;
-    const oldCurrency = store.currency || "USD";
+    const oldCurrency = store.currency || "AFN";
 
     // Block currency change if there are pending (unpaid) orders in progress
     if (newCurrency !== oldCurrency) {

@@ -21,13 +21,22 @@ import {
   FieldError,
   FieldDescription,
 } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, Info } from "lucide-react";
 import {
   generalSettingsSchema,
+  currencyOptions,
   type GeneralSettingsInput,
 } from "@/lib/validations/stores";
+import { CURRENCIES } from "@/lib/currency/currencies";
 import { updateGeneralSettings } from "@/lib/actions/stores";
 import { ZodError } from "zod";
 
@@ -269,6 +278,62 @@ export function GeneralSettingsForm({
             />
             <FieldError>{fieldErrors.contactPhone}</FieldError>
           </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Currency</CardTitle>
+          <CardDescription>
+            The currency all your prices are shown in, across your storefront,
+            dashboard, and receipts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="currency">Store currency</FieldLabel>
+            <Select
+              value={formData.currency}
+              onValueChange={(value) => updateField("currency", value)}
+              disabled={isPending}
+            >
+              <SelectTrigger id="currency" className="w-full sm:w-72">
+                <SelectValue placeholder="Select a currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {currencyOptions.map((code) => {
+                  const meta = CURRENCIES[code];
+                  return (
+                    <SelectItem key={code} value={code}>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="w-6 text-muted-foreground">
+                          {meta.symbol}
+                        </span>
+                        <span>
+                          {meta.label}{" "}
+                          <span className="text-muted-foreground">
+                            ({code})
+                          </span>
+                        </span>
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <FieldError>{fieldErrors.currency}</FieldError>
+          </Field>
+
+          {formData.currency !== initialData.currency && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Changing the currency only changes the symbol shown — it does
+                not convert your existing product prices. Review your prices
+                after switching.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
         <CardFooter className="border-t pt-6">
           <Button type="submit" disabled={isPending}>

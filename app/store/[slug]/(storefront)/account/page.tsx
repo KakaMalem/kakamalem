@@ -1,10 +1,19 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Package, Heart, MapPin, Settings, ChevronRight } from "lucide-react";
+import {
+  Package,
+  Heart,
+  MapPin,
+  Settings,
+  ChevronRight,
+  LayoutDashboard,
+  LogOut,
+} from "lucide-react";
 
 import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getStoreBasePath } from "@/lib/utils/store-path";
 import { getUser } from "@/lib/auth/server";
+import { getUserStoreContext } from "@/lib/auth/context";
 import {
   getRecentOrdersSummary,
   getOrderStatusInfo,
@@ -43,11 +52,20 @@ export default async function AccountPage({ params }: AccountPageProps) {
   const baseUrl = `${basePath}/account`;
 
   // Fetch data in parallel
-  const [recentOrders, wishlistCount, addressCount] = await Promise.all([
-    getRecentOrdersSummary(store.id, user.id, 3),
-    getWishlistItemCount(store.id, user.id),
-    getAddressCount(user.id),
-  ]);
+  const [recentOrders, wishlistCount, addressCount, userContext] =
+    await Promise.all([
+      getRecentOrdersSummary(store.id, user.id, 3),
+      getWishlistItemCount(store.id, user.id),
+      getAddressCount(user.id),
+      getUserStoreContext(store.id),
+    ]);
+
+  // Owner/staff can jump to the management dashboard. On a custom domain the
+  // dashboard lives on the main app host; on a path-based store it's relative.
+  const dashboardUrl =
+    basePath === ""
+      ? `${process.env.NEXT_PUBLIC_APP_URL || "https://kakamalem.com"}/dashboard/${store.slug}`
+      : `/dashboard/${store.slug}`;
 
   const quickLinks = [
     {
@@ -165,6 +183,28 @@ export default async function AccountPage({ params }: AccountPageProps) {
             </Card>
           </Link>
         ))}
+      </div>
+
+      {/* Dashboard (owners/staff) + sign out */}
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+        {userContext?.isMember && (
+          <Button variant="outline" asChild className="sm:flex-1">
+            <a href={dashboardUrl} target="_blank" rel="noopener noreferrer">
+              <LayoutDashboard className="mr-2 size-4" />
+              Store Dashboard
+            </a>
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          asChild
+          className="text-destructive hover:text-destructive sm:flex-1"
+        >
+          <Link href={`${basePath}/logout`}>
+            <LogOut className="mr-2 size-4" />
+            Sign out
+          </Link>
+        </Button>
       </div>
     </div>
   );
