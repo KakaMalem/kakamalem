@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { classifyError, generateErrorReference, logError } from "@/lib/errors";
 import type { ErrorCategory } from "@/lib/errors";
+import { isDeploymentSkewError, reloadForUpdate } from "@/lib/app-reload";
 
 interface ErrorDisplayProps {
   error: Error & { digest?: string };
@@ -66,12 +67,35 @@ export function ErrorDisplay({
   const [copied, setCopied] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
+  // A stale build hitting a redeployed server: don't show a scary error,
+  // just reload onto the fresh build. If the reload is suppressed (already
+  // tried recently — i.e. it isn't really skew), fall through to the normal
+  // error UI rather than spinning forever.
+  const isSkew = isDeploymentSkewError(error);
+  const [updating, setUpdating] = useState(isSkew);
+
   const classifiedError = classifyError(error);
 
   useEffect(() => {
     // Log error with reference
     logError(error, { errorRef });
   }, [error, errorRef]);
+
+  useEffect(() => {
+    if (!isSkew) return;
+    reloadForUpdate().then((didReload) => {
+      if (!didReload) setUpdating(false);
+    });
+  }, [isSkew]);
+
+  if (updating) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-muted-foreground">Updating to the latest version…</p>
+      </div>
+    );
+  }
 
   const handleRetry = async () => {
     if (!reset) return;
