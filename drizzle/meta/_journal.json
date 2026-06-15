@@ -337,6 +337,13 @@
       "when": 1779680019264,
       "tag": "0047_charming_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1781511246407,
+      "tag": "0048_giant_vivisector",
+      "breakpoints": true
     }
   ]
 }

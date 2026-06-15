@@ -20,6 +20,7 @@ import {
   Globe,
   Crown,
   ArrowRight,
+  Link2,
 } from "lucide-react";
 
 import {
@@ -268,6 +269,11 @@ export function AppSidebar({
       title: "Promo Codes",
       href: `${baseUrl}/coupons`,
       icon: Tag,
+    },
+    {
+      title: "Links",
+      href: `${baseUrl}/links`,
+      icon: Link2,
     },
   ];
 

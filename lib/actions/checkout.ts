@@ -42,6 +42,7 @@ import {
   recordCouponUsage,
   createOrderDiscountRecord,
 } from "@/lib/actions/coupons";
+import { attributeOrderToLink } from "@/lib/links/attribution";
 import type { CartItemForCoupon } from "@/lib/validations/coupons";
 import {
   isUnifiedDeliveryEnabled,
@@ -1407,6 +1408,14 @@ export async function createOrderAction(
         productNames,
       }).catch((error) => {
         console.error("Failed to send order notification:", error);
+      });
+
+      // Attribute the order to a store marketing link if the buyer arrived
+      // via one (best-effort; never blocks order completion).
+      await attributeOrderToLink({
+        orderId: order.id,
+        tenantId,
+        orderTotal: parseFloat(order.total),
       });
 
       return {

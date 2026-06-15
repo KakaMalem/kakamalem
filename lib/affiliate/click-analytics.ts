@@ -211,15 +211,31 @@ export function getClientIp(headers: Headers): string {
 }
 
 /**
- * Extract geo-location from Vercel headers (free on Vercel)
- * Falls back to null if not available
+ * Extract geo-location from edge/proxy headers. Falls back to null if not
+ * available.
  *
- * Vercel provides these headers automatically:
- * - x-vercel-ip-country: ISO country code
- * - x-vercel-ip-city: City name (URL-encoded)
- * - x-vercel-ip-country-region: Region/state code
+ * This deployment sits behind Cloudflare (Dokploy/Traefik), so Cloudflare's
+ * headers are checked first:
+ * - cf-ipcountry: ISO country code (always present on CF)
+ * - cf-ipcity / cf-region: city/region (Enterprise plans; usually absent)
+ *
+ * Vercel headers (x-vercel-ip-*) are kept as a fallback in case the app is
+ * ever run on Vercel.
  */
 export function getGeoFromHeaders(headers: Headers): GeoInfo {
+  // Cloudflare (current production proxy)
+  const cfCountry = headers.get("cf-ipcountry");
+  if (cfCountry && cfCountry !== "XX") {
+    const cfCity = headers.get("cf-ipcity");
+    const cfRegion = headers.get("cf-region");
+    return {
+      country: cfCountry,
+      city: cfCity ? decodeURIComponent(cfCity) : null,
+      region: cfRegion ? decodeURIComponent(cfRegion) : null,
+    };
+  }
+
+  // Vercel fallback
   const country = headers.get("x-vercel-ip-country");
   const city = headers.get("x-vercel-ip-city");
   const region = headers.get("x-vercel-ip-country-region");

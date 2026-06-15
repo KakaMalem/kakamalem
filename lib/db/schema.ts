@@ -9283,6 +9283,164 @@ export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 
 // ============================================================================
+// STORE MARKETING LINKS (store-owned trackable short links)
+// ============================================================================
+// A store creates a short link (kakamalem.com/s/{code}) that points to its
+// storefront, a product, a category, or a custom path, optionally tagged with
+// UTM params. The redirect route records a click and attributes later orders.
+// Distinct from the affiliate program: these are the store's OWN links, with
+// no third-party affiliate or commission involved.
+export const storeLinks = pgTable(
+  "store_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Short code used in the URL: kakamalem.com/s/{code}
+    code: varchar("code", { length: 50 }).notNull().unique(),
+
+    // Seller-facing label
+    name: varchar("name", { length: 255 }),
+
+    // What the link points to
+    targetType: varchar("target_type", { length: 20 }).notNull(), // "store" | "product" | "category" | "url"
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "cascade",
+    }),
+    categoryId: uuid("category_id").references(() => categories.id, {
+      onDelete: "cascade",
+    }),
+    // For targetType "url": an absolute URL or a store-relative path
+    targetUrl: text("target_url"),
+
+    // UTM tagging appended on redirect
+    utmSource: varchar("utm_source", { length: 255 }),
+    utmMedium: varchar("utm_medium", { length: 255 }),
+    utmCampaign: varchar("utm_campaign", { length: 255 }),
+    utmContent: varchar("utm_content", { length: 255 }),
+    utmTerm: varchar("utm_term", { length: 255 }),
+
+    // Rolling stats (kept in sync by the redirect route + conversion attribution)
+    totalClicks: integer("total_clicks").default(0).notNull(),
+    uniqueClicks: integer("unique_clicks").default(0).notNull(),
+    totalConversions: integer("total_conversions").default(0).notNull(),
+    totalRevenue: decimal("total_revenue", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    isActive: boolean("is_active").default(true).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("store_links_code_idx").on(table.code),
+    index("store_links_tenant_id_idx").on(table.tenantId),
+    index("store_links_tenant_created_idx").on(table.tenantId, table.createdAt),
+  ]
+);
+
+export const storeLinkClicks = pgTable(
+  "store_link_clicks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    linkId: uuid("link_id")
+      .notNull()
+      .references(() => storeLinks.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Visitor
+    visitorId: varchar("visitor_id", { length: 255 }),
+    ipAddress: varchar("ip_address", { length: 45 }), // IPv6-safe
+
+    // Source / device
+    referrer: text("referrer"),
+    userAgent: text("user_agent"),
+    deviceType: varchar("device_type", { length: 20 }),
+    browser: varchar("browser", { length: 50 }),
+    os: varchar("os", { length: 50 }),
+
+    // Geo (country from Cloudflare header; city when available)
+    countryCode: varchar("country_code", { length: 2 }),
+    city: varchar("city", { length: 100 }),
+
+    // First click from this visitor for this link
+    isUnique: boolean("is_unique").default(false).notNull(),
+    // Bot clicks are stored for transparency but excluded from counters
+    isBot: boolean("is_bot").default(false).notNull(),
+
+    // Conversion attribution
+    isConverted: boolean("is_converted").default(false).notNull(),
+    convertedAt: timestamp("converted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+
+    clickedAt: timestamp("clicked_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("store_link_clicks_link_id_idx").on(table.linkId),
+    index("store_link_clicks_tenant_id_idx").on(table.tenantId),
+    index("store_link_clicks_clicked_at_idx").on(table.clickedAt),
+    index("store_link_clicks_link_clicked_idx").on(
+      table.linkId,
+      table.clickedAt
+    ),
+    index("store_link_clicks_visitor_id_idx").on(table.visitorId),
+  ]
+);
+
+export const storeLinksRelations = relations(storeLinks, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [storeLinks.tenantId],
+    references: [tenants.id],
+  }),
+  product: one(products, {
+    fields: [storeLinks.productId],
+    references: [products.id],
+  }),
+  category: one(categories, {
+    fields: [storeLinks.categoryId],
+    references: [categories.id],
+  }),
+  clicks: many(storeLinkClicks),
+}));
+
+export const storeLinkClicksRelations = relations(
+  storeLinkClicks,
+  ({ one }) => ({
+    link: one(storeLinks, {
+      fields: [storeLinkClicks.linkId],
+      references: [storeLinks.id],
+    }),
+    order: one(orders, {
+      fields: [storeLinkClicks.orderId],
+      references: [orders.id],
+    }),
+  })
+);
+
+export type StoreLink = typeof storeLinks.$inferSelect;
+export type NewStoreLink = typeof storeLinks.$inferInsert;
+export type StoreLinkClick = typeof storeLinkClicks.$inferSelect;
+export type NewStoreLinkClick = typeof storeLinkClicks.$inferInsert;
+export type StoreLinkTargetType = "store" | "product" | "category" | "url";
+
+// ============================================================================
 // UNIFIED COMMERCE TYPE EXPORTS
 // ============================================================================
 

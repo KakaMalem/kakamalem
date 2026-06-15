@@ -63,6 +63,8 @@ const RESERVED_PATHS = new Set([
   // API/System routes
   "api",
   "uploads",
+  // Short-link redirect route (kakamalem.com/s/{code})
+  "s",
   // Affiliate routes
   "affiliate",
   "affiliates",
