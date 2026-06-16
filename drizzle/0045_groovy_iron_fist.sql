@@ -11,6 +11,9 @@ DROP TABLE "seller_transactions" CASCADE;--> statement-breakpoint
 ALTER TABLE "payment_gateway_configs" ALTER COLUMN "gateway" SET DATA TYPE text;--> statement-breakpoint
 ALTER TABLE "payment_sessions" ALTER COLUMN "gateway" SET DATA TYPE text;--> statement-breakpoint
 ALTER TABLE "payment_webhook_events" ALTER COLUMN "gateway" SET DATA TYPE text;--> statement-breakpoint
+DELETE FROM "payment_gateway_configs" WHERE "gateway" NOT IN ('hesabpay', 'cod', 'bank_transfer', 'mobile_money');--> statement-breakpoint
+UPDATE "payment_sessions" SET "gateway" = 'hesabpay' WHERE "gateway" NOT IN ('hesabpay', 'cod', 'bank_transfer', 'mobile_money');--> statement-breakpoint
+UPDATE "payment_webhook_events" SET "gateway" = 'hesabpay' WHERE "gateway" NOT IN ('hesabpay', 'cod', 'bank_transfer', 'mobile_money');--> statement-breakpoint
 DROP TYPE "public"."payment_gateway";--> statement-breakpoint
 CREATE TYPE "public"."payment_gateway" AS ENUM('hesabpay', 'cod', 'bank_transfer', 'mobile_money');--> statement-breakpoint
 ALTER TABLE "payment_gateway_configs" ALTER COLUMN "gateway" SET DATA TYPE "public"."payment_gateway" USING "gateway"::"public"."payment_gateway";--> statement-breakpoint
