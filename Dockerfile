@@ -39,6 +39,12 @@ RUN --mount=type=secret,id=BETTER_AUTH_SECRET \
     BETTER_AUTH_SECRET=$(cat /run/secrets/BETTER_AUTH_SECRET) \
     pnpm build
 
+# Bundle the migration runner into a single self-contained CJS file so the
+# slim runtime image can apply migrations without drizzle-kit / full deps.
+RUN pnpm exec esbuild scripts/db-migrate-deploy.ts \
+    --bundle --platform=node --target=node22 --format=cjs \
+    --outfile=db-migrate-deploy.cjs
+
 # -----------------------------------------------------------------------------
 # Stage 3: Runner
 # -----------------------------------------------------------------------------
@@ -59,6 +65,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Migration runner: the bundled script + the migration SQL it applies on boot.
+COPY --from=builder --chown=nextjs:nodejs /app/db-migrate-deploy.cjs ./db-migrate-deploy.cjs
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 RUN mkdir -p /var/www/kakamalem-uploads && chown nextjs:nodejs /var/www/kakamalem-uploads
 
 USER nextjs
@@ -68,4 +80,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
-CMD ["node", "server.js"]
+# Apply migrations, then start the server (see docker-entrypoint.sh).
+ENTRYPOINT ["./docker-entrypoint.sh"]

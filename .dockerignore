@@ -58,11 +58,9 @@ coverage
 # TypeScript build info
 *.tsbuildinfo
 
-# Drizzle migrations (run separately)
-drizzle/
-
-# Scripts (deployment scripts not needed inside container)
-scripts/
+# Scripts: only the in-container migrate runner is needed in the image.
+scripts/*
+!scripts/db-migrate-deploy.ts
 
 # Backups
 .backups/
@@ -76,3 +74,9 @@ uploads/
 tmp/
 temp/
 .temp/
+
+# Drizzle migrations are applied on container start by the entrypoint
+# (docker-entrypoint.sh → scripts/db-migrate-deploy.ts). Re-included here,
+# last, so these win over the broad *.sql rule above.
+!drizzle/
+!drizzle/**
