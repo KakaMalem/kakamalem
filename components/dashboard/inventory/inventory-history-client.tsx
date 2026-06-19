@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { parseDate, safeFormat } from "@/lib/utils/safe-date";
 import type { DateRange } from "react-day-picker";
 import {
   ChevronLeft,
@@ -160,13 +161,15 @@ export function InventoryHistoryClient({
   );
 
   const formatDate = (date: string) => {
+    const d = parseDate(date);
+    if (!d) return "—";
     return new Intl.DateTimeFormat("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(new Date(date));
+    }).format(d);
   };
 
   const hasActiveFilters =
@@ -362,9 +365,9 @@ export function InventoryHistoryClient({
               )}
               {currentFilters.startDate && (
                 <Badge variant="secondary" className="gap-1">
-                  Date: {format(new Date(currentFilters.startDate), "MMM d")}
+                  Date: {safeFormat(currentFilters.startDate, "MMM d")}
                   {currentFilters.endDate &&
-                    ` - ${format(new Date(currentFilters.endDate), "MMM d")}`}
+                    ` - ${safeFormat(currentFilters.endDate, "MMM d")}`}
                   <Button
                     variant="ghost"
                     size="icon"

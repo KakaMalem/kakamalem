@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 import Link from "next/link";
 
 interface Store {
@@ -224,7 +224,7 @@ export function NotificationsPageContent({
 
   const formatTime = (date: string) => {
     try {
-      return formatDistanceToNow(new Date(date), { addSuffix: true });
+      return safeFormatDistanceToNow(date, { addSuffix: true });
     } catch {
       return "";
     }

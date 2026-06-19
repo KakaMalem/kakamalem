@@ -32,6 +32,7 @@ import {
   ChevronsRight,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+import { parseDate } from "@/lib/utils/safe-date";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -354,10 +355,10 @@ export function InventoryDataTable({
         ),
         cell: ({ row }) => {
           const dateStr = row.getValue("lastMovementDate") as string | null;
-          if (!dateStr) {
+          const date = parseDate(dateStr);
+          if (!date) {
             return <span className="text-muted-foreground">No activity</span>;
           }
-          const date = new Date(dateStr);
           return (
             <TooltipProvider>
               <Tooltip>

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Store, Check, X, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 import {
   acceptStoreTransfer,
   rejectStoreTransfer,
@@ -106,7 +106,7 @@ export function TransferRequestsBanner({
     <>
       <div className="space-y-3 mb-6">
         {requests.map((request) => {
-          const expiresIn = formatDistanceToNow(new Date(request.expiresAt), {
+          const expiresIn = safeFormatDistanceToNow(request.expiresAt, {
             addSuffix: true,
           });
           const isProcessing = isPending && actionRequestId === request.id;

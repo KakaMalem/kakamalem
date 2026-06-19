@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { UserPlus, Loader2, Clock, X } from "lucide-react";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 import {
   initiateStoreTransfer,
   cancelStoreTransfer,
@@ -125,7 +125,7 @@ export function TransferOwnership({
 
   // If there's a pending transfer, show that state
   if (pendingTransfer) {
-    const expiresIn = formatDistanceToNow(new Date(pendingTransfer.expiresAt), {
+    const expiresIn = safeFormatDistanceToNow(pendingTransfer.expiresAt, {
       addSuffix: true,
     });
 

@@ -13,7 +13,7 @@ import {
   Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/utils/safe-date";
 import type {
   OrderStatus,
   FulfillmentType,
@@ -246,7 +246,7 @@ function getStepLabel(status: OrderStatus, context: TimelineContext): string {
 
 function formatTimestamp(timestamp: string | null): string | null {
   if (!timestamp) return null;
-  return format(new Date(timestamp), "MMM d, h:mm a");
+  return safeFormat(timestamp, "MMM d, h:mm a");
 }
 
 export function OrderTimeline({

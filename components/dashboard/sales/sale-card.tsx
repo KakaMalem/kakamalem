@@ -36,6 +36,7 @@ import {
 
 import type { ScheduledSale } from "@/lib/db/schema";
 import { formatPrice } from "@/lib/utils";
+import { parseDate, toTime } from "@/lib/utils/safe-date";
 import {
   deleteScheduledSaleAction,
   toggleScheduledSaleActiveAction,
@@ -56,9 +57,9 @@ interface SaleCardProps {
 type SaleStatus = "active" | "upcoming" | "ended";
 
 function getSaleStatus(sale: ScheduledSale): SaleStatus {
-  const now = new Date();
-  const startsAt = new Date(sale.startsAt);
-  const endsAt = new Date(sale.endsAt);
+  const now = Date.now();
+  const startsAt = toTime(sale.startsAt);
+  const endsAt = toTime(sale.endsAt);
 
   if (now < startsAt) return "upcoming";
   if (now > endsAt) return "ended";
@@ -66,7 +67,8 @@ function getSaleStatus(sale: ScheduledSale): SaleStatus {
 }
 
 function formatDateTime(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseDate(dateString);
+  if (!date) return "—";
   return date.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -77,9 +79,7 @@ function formatDateTime(dateString: string): string {
 }
 
 function getTimeRemaining(dateString: string): string {
-  const now = new Date();
-  const target = new Date(dateString);
-  const diff = target.getTime() - now.getTime();
+  const diff = toTime(dateString) - Date.now();
 
   if (diff <= 0) return "0s";
 

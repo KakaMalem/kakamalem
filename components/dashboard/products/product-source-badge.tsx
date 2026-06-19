@@ -8,7 +8,7 @@ import {
   Zap,
   Package,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useState } from "react";
@@ -134,8 +134,7 @@ export function ProductSourceBadge({
       {lastSyncedAt && (
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60 flex items-center gap-1 ml-1">
           <RefreshCw className="size-2.5" />
-          Synced{" "}
-          {formatDistanceToNow(new Date(lastSyncedAt), { addSuffix: true })}
+          Synced {safeFormatDistanceToNow(lastSyncedAt, { addSuffix: true })}
         </span>
       )}
 

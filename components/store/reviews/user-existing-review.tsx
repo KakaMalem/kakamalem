@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 import {
   Star,
   BadgeCheck,
@@ -69,7 +69,7 @@ export function UserExistingReview({
     }
   };
 
-  const timeAgo = formatDistanceToNow(new Date(review.createdAt), {
+  const timeAgo = safeFormatDistanceToNow(review.createdAt, {
     addSuffix: true,
   });
 

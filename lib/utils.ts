@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { getCurrencyMeta, DEFAULT_CURRENCY } from "@/lib/currency/currencies";
+import { parseDate } from "@/lib/utils/safe-date";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -33,7 +34,8 @@ export function formatPrice(
  * Format: "Jan 15, 2024 at 3:30 PM"
  */
 export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseDate(dateString);
+  if (!date) return "—";
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",

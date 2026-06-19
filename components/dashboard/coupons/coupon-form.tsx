@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/popover";
 
 import { formatPrice, cn } from "@/lib/utils";
+import { parseDate, toISO } from "@/lib/utils/safe-date";
 import {
   couponSchema,
   type CouponInput,
@@ -64,7 +65,9 @@ interface CouponFormProps {
 
 type FormErrors = Partial<Record<keyof CouponInput, string>>;
 
-function formatDateTimeLocal(date: Date): string {
+function formatDateTimeLocal(value: Date | string | null | undefined): string {
+  const date = parseDate(value);
+  if (!date) return "";
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
     date.getDate()
@@ -109,11 +112,11 @@ export function CouponForm({
   );
   const [startsAt, setStartsAt] = useState(
     coupon?.startsAt
-      ? formatDateTimeLocal(new Date(coupon.startsAt))
+      ? formatDateTimeLocal(coupon.startsAt)
       : formatDateTimeLocal(new Date())
   );
   const [expiresAt, setExpiresAt] = useState(
-    coupon?.expiresAt ? formatDateTimeLocal(new Date(coupon.expiresAt)) : ""
+    coupon?.expiresAt ? formatDateTimeLocal(coupon.expiresAt) : ""
   );
   const [firstOrderOnly, setFirstOrderOnly] = useState(
     coupon?.firstOrderOnly || false
@@ -174,8 +177,8 @@ export function CouponForm({
       maximumDiscountAmount: maximumDiscountAmount || null,
       usageLimit: usageLimit || null,
       usageLimitPerCustomer: usageLimitPerCustomer || null,
-      startsAt: startsAt ? new Date(startsAt).toISOString() : null,
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+      startsAt: startsAt ? toISO(startsAt) : null,
+      expiresAt: expiresAt ? toISO(expiresAt) : null,
       eligibleProducts:
         scope === "item" && selectedProductIds.length > 0
           ? selectedProductIds

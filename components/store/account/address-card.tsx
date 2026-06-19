@@ -62,15 +62,20 @@ export function AddressCard({ address, userName }: AddressCardProps) {
   const longitude = parseFloat(address.longitude);
   const googleMapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
-  const handleCopyPlusCode = () => {
+  const handleCopyPlusCode = async () => {
     if (address.plusCode) {
       // Copy Plus Code with city name (e.g., "WH5J+6M Nairobi")
       const textToCopy = address.city
         ? `${address.plusCode} ${address.city}`
         : address.plusCode;
-      navigator.clipboard.writeText(textToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Safari/iOS rejects clipboard writes outside a trusted gesture or
+        // over http — fail quietly instead of throwing an unhandled rejection.
+      }
     }
   };
 

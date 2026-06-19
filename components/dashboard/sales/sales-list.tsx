@@ -5,6 +5,7 @@ import { CalendarOff, Clock, History, Zap } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { SaleCard } from "./sale-card";
+import { toTime } from "@/lib/utils/safe-date";
 import type { ScheduledSale } from "@/lib/db/schema";
 
 interface SalesListProps {
@@ -49,16 +50,12 @@ export function SalesList({
     }
 
     // Sort active and upcoming by start date (ascending)
-    categorized.active.sort(
-      (a, b) => new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime()
-    );
+    categorized.active.sort((a, b) => toTime(a.endsAt) - toTime(b.endsAt));
     categorized.upcoming.sort(
-      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+      (a, b) => toTime(a.startsAt) - toTime(b.startsAt)
     );
     // Sort ended by end date (descending - most recent first)
-    categorized.ended.sort(
-      (a, b) => new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime()
-    );
+    categorized.ended.sort((a, b) => toTime(b.endsAt) - toTime(a.endsAt));
 
     return categorized;
   }, [sales]);

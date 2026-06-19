@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 import {
   Star,
   ThumbsUp,
@@ -152,7 +152,7 @@ export function ReviewCard({
     })) || [];
 
   // Format relative time
-  const relativeTime = formatDistanceToNow(new Date(review.createdAt), {
+  const relativeTime = safeFormatDistanceToNow(review.createdAt, {
     addSuffix: true,
   });
 
@@ -339,7 +339,7 @@ export function ReviewCard({
                 {review.repliedAt && (
                   <span className="text-xs text-muted-foreground">
                     ·{" "}
-                    {formatDistanceToNow(new Date(review.repliedAt), {
+                    {safeFormatDistanceToNow(review.repliedAt, {
                       addSuffix: true,
                     })}
                   </span>

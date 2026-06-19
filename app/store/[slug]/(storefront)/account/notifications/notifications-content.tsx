@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 
 interface CustomerNotificationsContentProps {
   tenantId: string;
@@ -175,7 +175,7 @@ export function CustomerNotificationsContent({
 
   const formatTime = (date: string) => {
     try {
-      return formatDistanceToNow(new Date(date), { addSuffix: true });
+      return safeFormatDistanceToNow(date, { addSuffix: true });
     } catch {
       return "";
     }

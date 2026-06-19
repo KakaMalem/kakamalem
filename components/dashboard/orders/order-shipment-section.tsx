@@ -22,7 +22,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/utils/safe-date";
 import type {
   ShipmentRecord,
   ShipmentTrackingEventRecord,
@@ -75,11 +75,11 @@ const STATUS_CONFIG: Record<
 };
 
 function formatDate(dateString: string) {
-  return format(new Date(dateString), "MMM d, yyyy");
+  return safeFormat(dateString, "MMM d, yyyy");
 }
 
 function formatDateTime(dateString: string) {
-  return format(new Date(dateString), "MMM d, h:mm a");
+  return safeFormat(dateString, "MMM d, h:mm a");
 }
 
 function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {

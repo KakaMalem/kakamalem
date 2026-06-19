@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
+import { safeFormatDistanceToNow } from "@/lib/utils/safe-date";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   playNotificationSound,
@@ -305,7 +305,7 @@ export function NotificationBell({
                         {notification.body}
                       </p>
                       <span className="text-[10px] text-muted-foreground mt-1 sm:mt-1.5 block">
-                        {formatDistanceToNow(new Date(notification.createdAt), {
+                        {safeFormatDistanceToNow(notification.createdAt, {
                           addSuffix: true,
                         })}
                       </span>
