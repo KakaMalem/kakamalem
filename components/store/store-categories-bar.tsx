@@ -40,9 +40,9 @@ export function StoreCategoriesBar({
   const isHomepage = pathname === storeHome || pathname === `${storeHome}/`;
   const shouldShowCategoriesBar =
     isHomepage ||
-    pathname?.startsWith(`${basePath}/category/`) || // Category pages
-    pathname?.startsWith(`${basePath}/products`) || // Products pages
-    pathname?.startsWith(`${basePath}/categories`); // Categories listing page
+    pathname?.startsWith(`${basePath}/category/`) || // Individual category pages
+    pathname?.startsWith(`${basePath}/products`); // Products pages
+  // Intentionally NOT shown on the /categories listing page.
 
   const checkScroll = useCallback(() => {
     if (scrollRef.current) {

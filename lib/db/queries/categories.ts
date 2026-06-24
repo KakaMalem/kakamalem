@@ -1,16 +1,26 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { categories, products, media } from "@/lib/db/schema";
-import { eq, and, asc, count, sql } from "drizzle-orm";
+import {
+  categories,
+  products,
+  media,
+  productCategories,
+} from "@/lib/db/schema";
+import { eq, and, asc, countDistinct, sql } from "drizzle-orm";
 
 export type CategoryWithProductCount = Awaited<
   ReturnType<typeof getCategoriesWithCounts>
 >[number];
 
 /**
- * Get all categories for a tenant with their product counts and image URLs
- * Only counts active products (consistent with POS and storefront views)
+ * Get all categories for a tenant with their product counts and image URLs.
+ *
+ * Category membership is the many-to-many `product_categories` junction table
+ * (the same source of truth the storefront uses to list products by category),
+ * NOT the legacy single `products.category_id` column — counting via that
+ * column reports 0 for products assigned through the junction. Only active
+ * products are counted, consistent with POS and storefront views.
  */
 export async function getCategoriesWithCounts(tenantId: string) {
   const categoriesList = await db
@@ -25,13 +35,20 @@ export async function getCategoriesWithCounts(tenantId: string) {
       displayOrder: categories.displayOrder,
       createdAt: categories.createdAt,
       updatedAt: categories.updatedAt,
-      productCount: count(products.id),
+      productCount: countDistinct(products.id),
     })
     .from(categories)
     .leftJoin(media, eq(media.id, categories.imageId))
     .leftJoin(
+      productCategories,
+      eq(productCategories.categoryId, categories.id)
+    )
+    .leftJoin(
       products,
-      and(eq(products.categoryId, categories.id), eq(products.status, "active"))
+      and(
+        eq(products.id, productCategories.productId),
+        eq(products.status, "active")
+      )
     )
     .where(eq(categories.tenantId, tenantId))
     .groupBy(categories.id, media.url)
