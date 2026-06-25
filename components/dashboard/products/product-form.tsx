@@ -92,6 +92,7 @@ import {
 import { savePriceTiers } from "@/lib/actions/price-tiers";
 import { useBarcodeScanner } from "@/lib/hooks/use-barcode-scanner";
 import { cn } from "@/lib/utils";
+import { requestSubmit } from "@/lib/utils/request-submit";
 import { handleFormErrors } from "@/lib/utils/form-errors";
 import {
   generateVariantCombinations,
@@ -2177,7 +2178,7 @@ export function ProductForm({
               const form = e.currentTarget.closest("form");
               setStatus("draft");
               setTimeout(() => {
-                form?.requestSubmit();
+                requestSubmit(form);
               }, 0);
             }}
           >
@@ -2198,7 +2199,7 @@ export function ProductForm({
               const form = e.currentTarget.closest("form");
               setStatus("active");
               setTimeout(() => {
-                form?.requestSubmit();
+                requestSubmit(form);
               }, 0);
             }}
           >

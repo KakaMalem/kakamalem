@@ -67,6 +67,14 @@ export function ErrorDisplay({
   const [copied, setCopied] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
+  // Append ?debug=1 to the URL to reveal the raw error on the page itself —
+  // useful for diagnosing browser-specific (e.g. Safari) crashes without dev
+  // tools. Off by default so normal users never see internals.
+  const [showDebug] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("debug") === "1";
+  });
+
   // A stale build hitting a redeployed server: don't show a scary error,
   // just reload onto the fresh build. If the reload is suppressed (already
   // tried recently — i.e. it isn't really skew), fall through to the normal
@@ -172,6 +180,20 @@ export function ErrorDisplay({
             If this problem persists, please contact support with the reference
             code above.
           </p>
+
+          {/* Raw diagnostics (only with ?debug=1) */}
+          {showDebug && (
+            <div className="rounded-lg border bg-muted/40 p-3 text-left">
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                Diagnostic details
+              </p>
+              <pre className="max-h-64 overflow-auto whitespace-pre-wrap wrap-break-word text-[11px] leading-relaxed text-foreground/80">
+                {error.name}: {error.message}
+                {error.digest ? `\n\ndigest: ${error.digest}` : ""}
+                {error.stack ? `\n\n${error.stack}` : ""}
+              </pre>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col gap-3">
