@@ -126,7 +126,8 @@ export function CartContent({
 
         {/* Order Summary */}
         <div className="lg:col-span-1">
-          <div className="sticky top-24">
+          {/* top-24 (96px) under-cleared the 109px mobile header */}
+          <div className="sticky top-[var(--store-sticky-top)]">
             <CartSummary
               storeSlug={storeSlug}
               currency={currency}

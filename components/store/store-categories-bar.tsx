@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, LayoutGrid, Package } from "lucide-react";
 import { useRef, useState, useEffect, useCallback } from "react";
 
@@ -18,13 +18,17 @@ interface StoreCategoriesBarProps {
     imageUrl: string | null;
   }[];
   storeSlug: string;
+  /** What the storefront homepage leads with — see tenants.homepageLayout */
+  homepageLayout?: "products" | "categories";
 }
 
 export function StoreCategoriesBar({
   categories,
   storeSlug: _storeSlug,
+  homepageLayout = "products",
 }: StoreCategoriesBarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const basePath = useStoreBasePath();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -38,10 +42,19 @@ export function StoreCategoriesBar({
   // Determine if categories bar should be shown on this page
   const storeHome = basePath || "/";
   const isHomepage = pathname === storeHome || pathname === `${storeHome}/`;
+  // When the homepage leads with the category grid, this strip is the same
+  // navigation twice on one screen — the same reason it's hidden on
+  // /categories. Search results are the exception: they live on the homepage
+  // path but render products, so the grid is suppressed there and the bar has
+  // to come back, or that page has no category navigation at all.
+  const isSearching = Boolean(searchParams.get("q"));
+  const isCategoriesHome =
+    isHomepage && homepageLayout === "categories" && !isSearching;
+  const isProductsPage = pathname?.startsWith(`${basePath}/products`) ?? false;
   const shouldShowCategoriesBar =
-    isHomepage ||
-    pathname?.startsWith(`${basePath}/category/`) || // Individual category pages
-    pathname?.startsWith(`${basePath}/products`); // Products pages
+    (isHomepage && !isCategoriesHome) ||
+    (pathname?.startsWith(`${basePath}/category/`) ?? false) || // Individual category pages
+    isProductsPage; // Products pages
   // Intentionally NOT shown on the /categories listing page.
 
   const checkScroll = useCallback(() => {
@@ -117,14 +130,22 @@ export function StoreCategoriesBar({
     return null;
   }
 
-  const isAllActive = isHomepage;
+  // "All" means "every product". With a categories homepage that lives at
+  // /products, not at the store root.
+  const allProductsHref =
+    homepageLayout === "categories" ? `${basePath}/products` : storeHome;
+  const isAllActive =
+    homepageLayout === "categories" ? isProductsPage : isHomepage;
 
   // Show circular design if at least one category has an image
   if (hasAnyImage) {
     return (
       <section
         className={cn(
-          "sticky top-28 z-40 border-b bg-background transition-transform duration-300 ease-out md:top-16",
+          // Offset is the header's measured height (see --store-header-h in
+          // globals.css) — a hardcoded value leaves a gap on stores whose
+          // header is shorter than assumed.
+          "sticky top-[var(--store-bar-top)] z-40 border-b bg-background transition-transform duration-300 ease-out",
           isVisible ? "translate-y-0" : "-translate-y-full"
         )}
       >
@@ -250,7 +271,10 @@ export function StoreCategoriesBar({
   return (
     <nav
       className={cn(
-        "sticky top-28 z-40 border-b bg-background transition-transform duration-300 ease-out md:top-16",
+        // Offset is the header's measured height (see --store-header-h in
+        // globals.css) — a hardcoded value leaves a gap on stores whose
+        // header is shorter than assumed.
+        "sticky top-[var(--store-bar-top)] z-40 border-b bg-background transition-transform duration-300 ease-out",
         isVisible ? "translate-y-0" : "-translate-y-full"
       )}
       aria-label="Product categories"
@@ -295,7 +319,7 @@ export function StoreCategoriesBar({
           >
             {/* All Products chip */}
             <Link
-              href={storeHome}
+              href={allProductsHref}
               role="listitem"
               className={cn(
                 "group relative flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-all duration-200 md:px-4",

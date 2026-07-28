@@ -268,7 +268,7 @@ export function ProductPageContent({
   return (
     <>
       {/* Image Gallery Column - sticky on desktop so it stays visible while scrolling long descriptions */}
-      <div className="flex flex-col md:sticky md:top-4 md:self-start">
+      <div className="flex flex-col md:sticky md:top-[var(--store-sticky-top)] md:self-start">
         <ProductImageGallery
           images={images}
           productName={product.name}

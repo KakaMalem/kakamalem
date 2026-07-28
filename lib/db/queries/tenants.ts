@@ -243,6 +243,7 @@ export async function updateTenant(
     logoUrl: string | null;
     faviconUrl: string | null;
     headerDisplay: string;
+    homepageLayout: string;
     contactEmail: string | null;
     contactPhone: string | null;
     currency: string;

@@ -36,6 +36,21 @@ export const headerDisplayOptions = [
   "logo_and_name",
 ] as const;
 
+// What the storefront homepage leads with
+export const homepageLayoutOptions = ["products", "categories"] as const;
+
+export type HomepageLayout = (typeof homepageLayoutOptions)[number];
+
+export const homepageLayoutLabels: Record<HomepageLayout, string> = {
+  products: "Products first",
+  categories: "Categories first",
+};
+
+export const homepageLayoutDescriptions: Record<HomepageLayout, string> = {
+  products: "Shoppers land straight on your product grid.",
+  categories: "Shoppers see your collections first, products below.",
+};
+
 // Currency options (all supported currencies for store pricing)
 export const currencyOptions = [
   "AFN",
@@ -148,6 +163,7 @@ export const brandingSettingsSchema = z.object({
     .optional()
     .or(z.literal("")),
   headerDisplay: z.enum(headerDisplayOptions).default("logo_and_name"),
+  homepageLayout: z.enum(homepageLayoutOptions).default("products"),
 });
 
 export type BrandingSettingsInput = z.infer<typeof brandingSettingsSchema>;

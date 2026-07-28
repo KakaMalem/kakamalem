@@ -541,6 +541,9 @@ export async function updateBrandingSettings(
         | "logo_only"
         | "name_only"
         | "logo_and_name") || "logo_and_name",
+    homepageLayout:
+      (formData.get("homepageLayout") as "products" | "categories") ||
+      "products",
   };
 
   try {
@@ -562,9 +565,16 @@ export async function updateBrandingSettings(
       logoUrl: formValues.logoUrl || null,
       faviconUrl: formValues.faviconUrl || null,
       headerDisplay: formValues.headerDisplay,
+      homepageLayout: formValues.homepageLayout,
     });
 
-    revalidatePath("/dashboard/settings/branding", "page");
+    revalidatePath(`/dashboard/${store.slug}/settings/branding`, "page");
+    // Branding drives the storefront chrome and now the homepage layout, so
+    // the public store tree has to be revalidated too. Custom domains render
+    // under the reserved "custom-domain" slug (see proxy.ts), not the tenant
+    // slug, so they need their own call.
+    revalidatePath(`/store/${store.slug}`, "layout");
+    revalidatePath("/store/custom-domain", "layout");
     return { success: true };
   } catch {
     return {

@@ -4,8 +4,13 @@ import { Package } from "lucide-react";
 import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getProducts } from "@/lib/db/queries/products";
 import { getActiveCampaigns } from "@/lib/db/queries/campaigns";
+import {
+  getCategoriesWithCounts,
+  getCategoryCoverFallbacks,
+} from "@/lib/db/queries/categories";
 import { getStoreBasePath } from "@/lib/utils/store-path";
 import { InfiniteScrollProducts } from "@/components/store/infinite-scroll-products";
+import { CategoryShowcase } from "@/components/store/category-showcase";
 import { Button } from "@/components/ui/button";
 
 interface StorePageProps {
@@ -30,16 +35,34 @@ export default async function StorePage({
 
   const basePath = await getStoreBasePath(store.slug);
 
-  // Fetch products and active campaigns in parallel
-  const [productsResult, activeCampaigns] = await Promise.all([
-    getProducts(store.id, {
-      page: 1,
-      limit: 20,
-      filters: { isActive: true, showOnStorefront: true, search: searchQuery },
-      sort: { field: "displayOrder", direction: "asc" },
-    }),
-    getActiveCampaigns(store.id),
-  ]);
+  // Categories lead the homepage only when the seller opted in — and never
+  // over search results, which land on this same route (the header pushes
+  // `${basePath}?q=...`) and must show matching products, not collections.
+  const leadWithCategories =
+    store.homepageLayout === "categories" && !searchQuery;
+
+  // Fetch products, active campaigns, and (when leading with categories) the
+  // category grid data in parallel
+  const [productsResult, activeCampaigns, categories, categoryCovers] =
+    await Promise.all([
+      getProducts(store.id, {
+        page: 1,
+        limit: 20,
+        filters: {
+          isActive: true,
+          showOnStorefront: true,
+          search: searchQuery,
+        },
+        sort: { field: "displayOrder", direction: "asc" },
+      }),
+      getActiveCampaigns(store.id),
+      leadWithCategories
+        ? getCategoriesWithCounts(store.id, { storefrontOnly: true })
+        : [],
+      leadWithCategories
+        ? getCategoryCoverFallbacks(store.id)
+        : new Map<string, string>(),
+    ]);
 
   const hasProducts = productsResult.products.length > 0;
 
@@ -49,8 +72,10 @@ export default async function StorePage({
   const isCartDisabled =
     store.storeMode === "catalog" || store.storeMode === "offline_only";
 
+  const showCategoryShowcase = leadWithCategories && categories.length > 0;
+
   return (
-    <div className="flex flex-col min-h-[50vh]">
+    <div className="flex min-h-[50vh] flex-col">
       {/* Search Results Info */}
       {searchQuery && (
         <div className="border-b bg-muted/20 py-3 sm:py-4">
@@ -73,34 +98,62 @@ export default async function StorePage({
         </div>
       )}
 
+      {/* Categories first (opt-in via branding settings) */}
+      {showCategoryShowcase && (
+        <section className="pt-6 sm:pt-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <CategoryShowcase
+              variant="home"
+              basePath={basePath}
+              categories={categories.map((c) => ({
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+                description: c.description,
+                imageUrl: c.imageUrl,
+                productCount: c.productCount,
+                coverImageUrl: categoryCovers.get(c.id) ?? null,
+              }))}
+            />
+          </div>
+        </section>
+      )}
+
       {/* Products Grid */}
-      <section className="py-6 sm:py-8 flex-1">
+      <section className="flex-1 py-6 sm:py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {hasProducts ? (
-            <InfiniteScrollProducts
-              initialProducts={productsResult.products}
-              initialPagination={productsResult.pagination}
-              tenantId={store.id}
-              storeSlug={store.slug}
-              currency={store.currency}
-              filters={{
-                isActive: true,
-                showOnStorefront: true,
-                search: searchQuery,
-              }}
-              sort={{ field: "displayOrder", direction: "asc" }}
-              catalogMode={isCartDisabled}
-              activeCampaigns={activeCampaigns}
-            />
+            <>
+              {showCategoryShowcase && (
+                <h2 className="mb-4 text-xl font-bold tracking-tight sm:mb-6 sm:text-2xl">
+                  All Products
+                </h2>
+              )}
+              <InfiniteScrollProducts
+                initialProducts={productsResult.products}
+                initialPagination={productsResult.pagination}
+                tenantId={store.id}
+                storeSlug={store.slug}
+                currency={store.currency}
+                filters={{
+                  isActive: true,
+                  showOnStorefront: true,
+                  search: searchQuery,
+                }}
+                sort={{ field: "displayOrder", direction: "asc" }}
+                catalogMode={isCartDisabled}
+                activeCampaigns={activeCampaigns}
+              />
+            </>
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 sm:py-24 text-center">
+            <div className="flex flex-col items-center justify-center py-16 text-center sm:py-24">
               <div className="mb-6 flex size-20 items-center justify-center rounded-2xl bg-muted/50">
                 <Package className="size-10 text-muted-foreground/50" />
               </div>
               <h2 className="text-xl font-semibold">
                 {searchQuery ? "No products found" : "No products yet"}
               </h2>
-              <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
                 {searchQuery
                   ? "Try adjusting your search terms or browse our categories"
                   : "Check back soon for new arrivals!"}

@@ -831,6 +831,13 @@ export const tenants = pgTable(
       "logo_and_name"
     ), // logo_and_name, logo_only, name_only
 
+    // What the storefront homepage leads with.
+    // "products" = product grid only (default)
+    // "categories" = category showcase first, product grid underneath
+    homepageLayout: varchar("homepage_layout", { length: 20 })
+      .default("products")
+      .notNull(), // products | categories
+
     // Contact
     contactEmail: varchar("contact_email", { length: 255 }),
     contactPhone: varchar("contact_phone", { length: 50 }),

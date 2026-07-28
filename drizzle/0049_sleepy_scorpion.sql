@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ADD COLUMN "homepage_layout" varchar(20) DEFAULT 'products' NOT NULL;

@@ -88,6 +88,30 @@
   html {
     scrollbar-gutter: stable;
   }
+
+  /* ============================================================================
+     STOREFRONT HEADER HEIGHT
+     The storefront header's height varies with the store's branding settings
+     (logo vs. name only) and breakpoint, so anything sticking below it can't
+     hardcode an offset. StoreHeader measures itself with a ResizeObserver and
+     overwrites --store-header-h on <html>; the values here are only the
+     pre-hydration fallbacks, matching the mobile (109px) and desktop (65px)
+     layouts. The -1px tucks the next element under the header's bottom border
+     so no hairline shows through.
+     ============================================================================ */
+  :root {
+    --store-header-h: 109px;
+    /* Flush against the header, tucked under its bottom border */
+    --store-bar-top: calc(var(--store-header-h) - 1px);
+    /* Clears the header with breathing room — for sticky sidebars and the
+       scroll-margin on in-page anchors */
+    --store-sticky-top: calc(var(--store-header-h) + 1rem);
+  }
+  @media (min-width: 768px) {
+    :root {
+      --store-header-h: 65px;
+    }
+  }
   * {
     @apply border-border outline-ring/50;
   }

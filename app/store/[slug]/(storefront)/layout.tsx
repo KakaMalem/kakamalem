@@ -171,7 +171,7 @@ export default async function StoreLayout({
 
   // Fetch categories, user, session data, and active campaigns
   const [categories, user, sessionId, activeCampaigns] = await Promise.all([
-    getCategoriesWithCounts(store.id),
+    getCategoriesWithCounts(store.id, { storefrontOnly: true }),
     getUser(),
     getCartSessionIdOrNull(),
     getActiveCampaigns(store.id),
@@ -281,6 +281,11 @@ export default async function StoreLayout({
                   imageUrl: c.imageUrl,
                 }))}
                 storeSlug={store.slug}
+                homepageLayout={
+                  store.homepageLayout === "categories"
+                    ? "categories"
+                    : "products"
+                }
               />
               <main className="flex-1">{children}</main>
               <StoreFooter

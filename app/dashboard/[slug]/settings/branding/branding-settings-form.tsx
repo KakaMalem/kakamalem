@@ -17,9 +17,17 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, Check, Upload, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  LayoutGrid,
+  Package,
+  Upload,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { brandingSettingsSchema } from "@/lib/validations/stores";
+import type { HomepageLayout } from "@/lib/validations/stores";
 import { updateBrandingSettings } from "@/lib/actions/stores";
 import { toast } from "sonner";
 import {
@@ -47,6 +55,7 @@ interface BrandingSettingsFormProps {
     logoUrl: string;
     faviconUrl: string;
     headerDisplay: "logo_only" | "name_only" | "logo_and_name";
+    homepageLayout: HomepageLayout;
   };
 }
 
@@ -60,6 +69,9 @@ export function BrandingSettingsForm({
   const [isPending, startTransition] = useTransition();
 
   const [headerDisplay, setHeaderDisplay] = useState(initialData.headerDisplay);
+  const [homepageLayout, setHomepageLayout] = useState(
+    initialData.homepageLayout
+  );
 
   // Logo image state
   const [logo, setLogo] = useState<ImageState | null>(() =>
@@ -78,6 +90,7 @@ export function BrandingSettingsForm({
   if (prevInitialData !== initialData) {
     setPrevInitialData(initialData);
     setHeaderDisplay(initialData.headerDisplay);
+    setHomepageLayout(initialData.homepageLayout);
     setLogo(
       initialData.logoUrl ? { url: initialData.logoUrl, isStaged: false } : null
     );
@@ -309,6 +322,7 @@ export function BrandingSettingsForm({
             logoUrl: uploadedLogoUrl,
             faviconUrl: uploadedFaviconUrl,
             headerDisplay,
+            homepageLayout,
           };
 
           // Client-side validation
@@ -324,6 +338,7 @@ export function BrandingSettingsForm({
           submitData.append("logoUrl", uploadedLogoUrl);
           submitData.append("faviconUrl", uploadedFaviconUrl);
           submitData.append("headerDisplay", headerDisplay);
+          submitData.append("homepageLayout", homepageLayout);
 
           const result = await updateBrandingSettings(storeId, submitData);
 
@@ -558,6 +573,77 @@ export function BrandingSettingsForm({
               </label>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Storefront Homepage</CardTitle>
+          <CardDescription>
+            Choose what shoppers see first when they land on your store.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup
+            value={homepageLayout}
+            onValueChange={(value) => {
+              setHomepageLayout(value as HomepageLayout);
+              setSuccess(false);
+            }}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+            disabled={isPending}
+          >
+            <Label
+              htmlFor="hl_products"
+              className={cn(
+                // The radio itself is sr-only, so without this the option that
+                // has keyboard focus is completely invisible.
+                "flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 p-4 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2",
+                homepageLayout === "products"
+                  ? "border-primary bg-primary/5"
+                  : "border-muted hover:border-muted-foreground/50"
+              )}
+            >
+              <RadioGroupItem
+                value="products"
+                id="hl_products"
+                className="sr-only"
+              />
+              <div className="flex h-10 items-center">
+                <Package className="size-6 text-foreground" />
+              </div>
+              <span className="font-semibold">Products first</span>
+              <span className="text-sm text-muted-foreground">
+                Shoppers land straight on your product grid.
+              </span>
+            </Label>
+
+            <Label
+              htmlFor="hl_categories"
+              className={cn(
+                // The radio itself is sr-only, so without this the option that
+                // has keyboard focus is completely invisible.
+                "flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 p-4 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2",
+                homepageLayout === "categories"
+                  ? "border-primary bg-primary/5"
+                  : "border-muted hover:border-muted-foreground/50"
+              )}
+            >
+              <RadioGroupItem
+                value="categories"
+                id="hl_categories"
+                className="sr-only"
+              />
+              <div className="flex h-10 items-center">
+                <LayoutGrid className="size-6 text-foreground" />
+              </div>
+              <span className="font-semibold">Categories first</span>
+              <span className="text-sm text-muted-foreground">
+                Shoppers browse your collections first, with all products
+                underneath.
+              </span>
+            </Label>
+          </RadioGroup>
         </CardContent>
       </Card>
 

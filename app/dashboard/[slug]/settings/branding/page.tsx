@@ -4,6 +4,7 @@ import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getUserStoreContext } from "@/lib/auth/context";
 import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
 import { AccessDenied } from "@/components/access-denied";
+import type { HomepageLayout } from "@/lib/validations/stores";
 import { BrandingSettingsForm } from "./branding-settings-form";
 
 interface BrandingSettingsPageProps {
@@ -49,6 +50,7 @@ export default async function BrandingSettingsPage({
             | "logo_only"
             | "name_only"
             | "logo_and_name") || "logo_and_name",
+        homepageLayout: (store.homepageLayout as HomepageLayout) || "products",
       }}
     />
   );

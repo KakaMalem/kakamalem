@@ -1,3 +1,8 @@
+-- Orphan from the crypto-era `db:push` work: never created by any migration and
+-- absent from schema.ts, but its `status` column uses crypto_payment_status, so
+-- it blocks the DROP TYPE at the bottom of this file. IF EXISTS because a
+-- database built from 0000 forward never had it.
+DROP TABLE IF EXISTS "hesabpay_manual_payments" CASCADE;--> statement-breakpoint
 DROP TABLE "commission_tiers" CASCADE;--> statement-breakpoint
 DROP TABLE "crypto_payments" CASCADE;--> statement-breakpoint
 DROP TABLE "dispute_messages" CASCADE;--> statement-breakpoint

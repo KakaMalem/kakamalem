@@ -1,52 +1,75 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
 import { resolveTenant } from "@/lib/db/queries/tenants";
-import { getCategoriesWithCounts } from "@/lib/db/queries/categories";
-import { CategoryCard } from "@/components/store/category-card";
+import {
+  getCategoriesWithCounts,
+  getCategoryCoverFallbacks,
+} from "@/lib/db/queries/categories";
+import { getStoreBasePath, getStoreBaseUrl } from "@/lib/utils/store-path";
+import { CategoryShowcase } from "@/components/store/category-showcase";
 
 interface CategoriesPageProps {
   params: Promise<{ slug: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: CategoriesPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const store = await resolveTenant(slug);
+
+  if (!store) {
+    return { title: "Categories Not Found" };
+  }
+
+  const storeBaseUrl = await getStoreBaseUrl(store.slug);
+  const title = `Shop by Category | ${store.name}`;
+  const description = `Browse every collection at ${store.name}.`;
+
+  return {
+    title,
+    description,
+    // Without this the page inherits the layout's canonical, which points at
+    // the store homepage — and that homepage may now show categories too.
+    alternates: { canonical: `${storeBaseUrl}/categories` },
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      url: `${storeBaseUrl}/categories`,
+      siteName: store.name,
+    },
+  };
 }
 
 export default async function CategoriesPage({ params }: CategoriesPageProps) {
   const { slug } = await params;
 
   const store = await resolveTenant(slug);
-  if (!store) return null;
+  if (!store) notFound();
 
-  const categories = await getCategoriesWithCounts(store.id);
+  const [categories, covers, basePath] = await Promise.all([
+    getCategoriesWithCounts(store.id, { storefrontOnly: true }),
+    getCategoryCoverFallbacks(store.id),
+    getStoreBasePath(store.slug),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      {/* Page Header */}
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          All Categories
-        </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground sm:mt-2 sm:text-base">
-          Browse our collection by category
-        </p>
-      </div>
-
-      {/* Categories Grid */}
-      {categories.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-          {categories.map((category) => (
-            <CategoryCard
-              key={category.id}
-              category={category}
-              storeSlug={store.slug}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="py-16 text-center">
-          <h2 className="text-xl font-semibold text-muted-foreground">
-            No categories yet
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            Check back soon for new categories!
-          </p>
-        </div>
-      )}
+      <CategoryShowcase
+        variant="page"
+        basePath={basePath}
+        categories={categories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          description: c.description,
+          imageUrl: c.imageUrl,
+          productCount: c.productCount,
+          coverImageUrl: covers.get(c.id) ?? null,
+        }))}
+      />
     </div>
   );
 }

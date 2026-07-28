@@ -166,7 +166,8 @@ export function CheckoutContainer({
 
         {/* Desktop Order Summary Sidebar */}
         <div className="hidden lg:block lg:col-span-1 min-w-0 max-w-full">
-          <div className="sticky top-4">
+          {/* top-4 (16px) slid the summary under the sticky header */}
+          <div className="sticky top-[var(--store-sticky-top)]">
             <CheckoutSummary
               cart={cart}
               currency={currency}

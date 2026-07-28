@@ -43,7 +43,9 @@ export function StoreBottomNav({
   }
 
   const isHome = pathname === home || pathname === `${home}/`;
-  const isCategories = pathname?.startsWith(`${basePath}/categor`) ?? false;
+  // Exact match — `/categor` also matched `/category/[slug]`, lighting up the
+  // Categories tab while the shopper was inside a single category.
+  const isCategories = pathname?.startsWith(`${basePath}/categories`) ?? false;
   const isCart = pathname?.startsWith(`${basePath}/cart`) ?? false;
   const isAccount = pathname?.startsWith(`${basePath}/account`) ?? false;
 

@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useCallback, useTransition, useEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useTransition,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import {
   ShoppingCart,
   Search,
@@ -37,6 +44,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Tenant } from "@/lib/db/schema";
 import type { StoreRole } from "@/lib/auth/context";
 
+// useLayoutEffect warns during SSR; the effect only ever runs in the browser.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 interface StoreHeaderProps {
   store: Tenant;
   cartItemCount?: number;
@@ -65,6 +76,43 @@ export function StoreHeader({
   // Initialize from server prop to avoid hydration mismatch
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [isSearching, startSearchTransition] = useTransition();
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Publish the header's real height so sticky elements below it (the
+  // categories bar) can sit flush against it. The height changes with the
+  // store's branding settings, the breakpoint, and whether the search box is
+  // rendered, so a hardcoded offset always leaves a gap on some store.
+  useIsomorphicLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const write = (height: number) => {
+      document.documentElement.style.setProperty(
+        "--store-header-h",
+        `${height}px`
+      );
+    };
+
+    write(el.getBoundingClientRect().height);
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // borderBoxSize keeps sub-pixel precision — offsetHeight rounds to an
+        // integer, which reintroduces a hairline at iOS's 2x/3x DPR.
+        const height =
+          entry.borderBoxSize?.[0]?.blockSize ??
+          entry.target.getBoundingClientRect().height;
+        write(height);
+      }
+    });
+    observer.observe(el, { box: "border-box" });
+
+    return () => {
+      observer.disconnect();
+      // Don't leak the storefront's value into the dashboard/admin trees.
+      document.documentElement.style.removeProperty("--store-header-h");
+    };
+  }, []);
 
   // Sync with URL changes (back/forward navigation) after hydration
   useEffect(() => {
@@ -143,7 +191,10 @@ export function StoreHeader({
   const userInitials = getInitials(user?.name, user?.email);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-50 w-full border-b bg-background"
+    >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Desktop & Tablet Header */}
         <div className="hidden h-16 items-center gap-3 md:flex lg:gap-6">

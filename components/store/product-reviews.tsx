@@ -71,8 +71,10 @@ export async function ProductReviews({
   const filteredCount = reviews.length;
   const hasReviews = totalReviewsCount > 0;
 
+  // scroll-mt was 32px, far short of the header, so every #reviews link landed
+  // with the heading hidden behind it.
   return (
-    <div id="reviews" className="scroll-mt-8">
+    <div id="reviews" className="scroll-mt-[var(--store-sticky-top)]">
       {/* Section Header */}
       <div className="pb-6 border-b">
         <div className="space-y-1">
@@ -134,7 +136,7 @@ export async function ProductReviews({
           {/* Left Column - Rating Summary, Photo Gallery, Write Review Form */}
           <div className="xl:col-span-4 space-y-6">
             {/* Rating Breakdown - Sticky on desktop */}
-            <div className="xl:sticky xl:top-24 space-y-6">
+            <div className="xl:sticky xl:top-[var(--store-sticky-top)] space-y-6">
               <Suspense fallback={<ReviewBreakdownSkeleton />}>
                 <ReviewRatingBreakdown
                   averageRating={reviewStats.averageRating}
@@ -206,7 +208,8 @@ export async function ProductReviews({
             </div>
 
             {/* Sort & Filter Bar */}
-            <div className="flex items-center justify-between gap-4 pb-4 mb-4 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10 -mx-1 px-1">
+            {/* Pins flush below the header — top-0 put it behind the header */}
+            <div className="flex items-center justify-between gap-4 pb-4 mb-4 border-b sticky top-[var(--store-header-h)] bg-background/95 backdrop-blur-sm z-10 -mx-1 px-1">
               <div className="flex items-center gap-2 text-sm">
                 {isFiltered ? (
                   <div className="flex items-center gap-2">
