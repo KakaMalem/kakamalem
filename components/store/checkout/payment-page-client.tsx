@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -18,6 +18,7 @@ import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { PaymentMethodSelector } from "./payment-method-selector";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
+import { toAfnAmount } from "@/lib/payments/currency";
 import type { EnabledGateway } from "@/lib/payments/types";
 import type { PaymentGateway } from "@/lib/db/schema";
 import type { PaymentMethod } from "@/lib/stores/use-checkout-store";
@@ -43,7 +44,7 @@ export function PaymentPageClient({
   wasCancelled,
   enabledGateways,
 }: PaymentPageClientProps) {
-  const { format: formatPrice } = useCurrencyStore();
+  const { format: formatPrice, formatDirect } = useCurrencyStore();
   const basePath = useStoreBasePath();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
@@ -53,6 +54,28 @@ export function PaymentPageClient({
   const handleMethodSelect = useCallback((method: PaymentMethod) => {
     setSelectedMethod(method);
   }, []);
+
+  // HesabPay settles in Afghani — show the converted amount for non-AFN stores.
+  const gatewayCharge = useMemo(() => {
+    const gateway = enabledGateways.find(
+      (g) => g.gateway === selectedMethod?.gateway
+    );
+    if (
+      !gateway?.chargeCurrency ||
+      !gateway.chargeExchangeRate ||
+      gateway.chargeCurrency === currency
+    ) {
+      return null;
+    }
+    return {
+      currency: gateway.chargeCurrency,
+      amount: toAfnAmount(amount, gateway.chargeExchangeRate),
+    };
+  }, [enabledGateways, selectedMethod, currency, amount]);
+
+  const payLabel = gatewayCharge
+    ? formatDirect(gatewayCharge.amount, gatewayCharge.currency)
+    : formatPrice(amount);
 
   const handlePayment = async () => {
     if (!selectedMethod) {
@@ -159,6 +182,14 @@ export function PaymentPageClient({
             <span className="font-semibold">Amount Due</span>
             <span className="font-semibold">{formatPrice(amount)}</span>
           </div>
+          {gatewayCharge && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>You pay at checkout</span>
+              <span>
+                {formatDirect(gatewayCharge.amount, gatewayCharge.currency)}
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -193,7 +224,7 @@ export function PaymentPageClient({
           ) : (
             <>
               <Lock className="mr-2 size-4" />
-              Pay {formatPrice(amount)}
+              Pay {payLabel}
             </>
           )}
         </Button>

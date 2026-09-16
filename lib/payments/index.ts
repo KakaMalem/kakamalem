@@ -13,7 +13,11 @@
 
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { paymentGatewayConfigs, paymentSessions } from "@/lib/db/schema";
+import {
+  paymentGatewayConfigs,
+  paymentSessions,
+  tenants,
+} from "@/lib/db/schema";
 import type { PaymentGateway, PaymentGatewayConfig } from "@/lib/db/schema";
 import type {
   PaymentGatewayProvider,
@@ -28,6 +32,11 @@ import type {
   EnabledGateway,
 } from "./types";
 import { hesabPayClient } from "./hesabpay";
+import {
+  HESABPAY_CURRENCY,
+  canStoreUseHesabPay,
+  parseExchangeRate,
+} from "./currency";
 
 // =============================================================================
 // GATEWAY REGISTRY
@@ -89,31 +98,77 @@ const DEFAULT_ENABLED_GATEWAYS: EnabledGateway[] = [
 export async function getEnabledGateways(
   tenantId: string
 ): Promise<EnabledGateway[]> {
-  const configs = await db
-    .select()
-    .from(paymentGatewayConfigs)
-    .where(eq(paymentGatewayConfigs.tenantId, tenantId))
-    .orderBy(asc(paymentGatewayConfigs.displayOrder));
-
-  if (configs.length === 0) {
-    return DEFAULT_ENABLED_GATEWAYS;
-  }
+  const [configs, store] = await Promise.all([
+    db
+      .select()
+      .from(paymentGatewayConfigs)
+      .where(eq(paymentGatewayConfigs.tenantId, tenantId))
+      .orderBy(asc(paymentGatewayConfigs.displayOrder)),
+    db
+      .select({
+        currency: tenants.currency,
+        afnExchangeRate: tenants.afnExchangeRate,
+      })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1)
+      .then((rows) => rows[0] || null),
+  ]);
 
   const enabledConfigs = configs.filter((c) => c.isEnabled);
 
-  if (enabledConfigs.length === 0) {
-    return DEFAULT_ENABLED_GATEWAYS;
+  const gateways: EnabledGateway[] =
+    enabledConfigs.length === 0
+      ? DEFAULT_ENABLED_GATEWAYS
+      : enabledConfigs.map((config) => ({
+          gateway: config.gateway,
+          displayName:
+            config.displayName || getDefaultDisplayName(config.gateway),
+          description: config.description || undefined,
+          displayOrder: config.displayOrder,
+          minAmount: config.minAmount
+            ? parseFloat(config.minAmount)
+            : undefined,
+          maxAmount: config.maxAmount
+            ? parseFloat(config.maxAmount)
+            : undefined,
+          supportedCurrencies: config.supportedCurrencies as
+            | string[]
+            | undefined,
+        }));
+
+  return applyHesabPayCurrencyRules(gateways, store);
+}
+
+/**
+ * HesabPay settles in AFN only. Drop it from the list when the store prices in
+ * another currency and has no AFN exchange rate configured (otherwise the
+ * customer picks it and hits a dead end), and annotate it with the conversion
+ * so the storefront can tell the customer what they will actually be charged.
+ */
+function applyHesabPayCurrencyRules(
+  gateways: EnabledGateway[],
+  store: { currency: string; afnExchangeRate: string | null } | null
+): EnabledGateway[] {
+  const storeCurrency = (store?.currency || HESABPAY_CURRENCY).toUpperCase();
+
+  if (storeCurrency === HESABPAY_CURRENCY) {
+    return gateways;
   }
 
-  return enabledConfigs.map((config) => ({
-    gateway: config.gateway,
-    displayName: config.displayName || getDefaultDisplayName(config.gateway),
-    description: config.description || undefined,
-    displayOrder: config.displayOrder,
-    minAmount: config.minAmount ? parseFloat(config.minAmount) : undefined,
-    maxAmount: config.maxAmount ? parseFloat(config.maxAmount) : undefined,
-    supportedCurrencies: config.supportedCurrencies as string[] | undefined,
-  }));
+  const rate = parseExchangeRate(store?.afnExchangeRate);
+
+  return gateways.flatMap((gateway) => {
+    if (gateway.gateway !== "hesabpay") return [gateway];
+    if (!canStoreUseHesabPay(storeCurrency, rate)) return [];
+    return [
+      {
+        ...gateway,
+        chargeCurrency: HESABPAY_CURRENCY,
+        chargeExchangeRate: rate ?? undefined,
+      },
+    ];
+  });
 }
 
 function configToCredentials(config: PaymentGatewayConfig): GatewayCredentials {

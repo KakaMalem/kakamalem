@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import { getCurrencyMeta } from "@/lib/currency/currencies";
 import type { PaymentMethod } from "@/lib/stores/use-checkout-store";
 import type { EnabledGateway } from "@/lib/payments/types";
 
@@ -61,6 +62,7 @@ export function PaymentMethodSelector({
   selectedMethod,
   onMethodSelect,
   disabled = false,
+  currency,
   enabledMethods,
 }: PaymentMethodSelectorProps) {
   const availableMethods =
@@ -162,6 +164,19 @@ export function PaymentMethodSelector({
                         {method.description}
                       </p>
                     )}
+                    {method.chargeCurrency &&
+                      method.chargeCurrency !== currency &&
+                      method.chargeExchangeRate && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Charged in{" "}
+                          {getCurrencyMeta(method.chargeCurrency).label} at 1{" "}
+                          {currency} ={" "}
+                          {getCurrencyMeta(method.chargeCurrency).symbol}
+                          {method.chargeExchangeRate.toLocaleString("en-US", {
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      )}
                   </div>
                 </CardContent>
               </Card>

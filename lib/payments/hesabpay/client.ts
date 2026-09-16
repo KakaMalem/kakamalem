@@ -29,6 +29,7 @@ import {
   type HesabPayVerifySignatureResponse,
   type HesabPayItem,
 } from "./types";
+import { HESABPAY_CURRENCY } from "../currency";
 
 // =============================================================================
 // HESABPAY CLIENT
@@ -52,16 +53,36 @@ export class HesabPayClient implements PaymentGatewayProvider {
     const baseUrl = this.getBaseUrl();
     const url = `${baseUrl}${HESABPAY_API.CREATE_SESSION}`;
 
+    // HesabPay's create-session payload has no currency field: every price it
+    // receives is treated as AFN. Callers must convert before reaching here.
+    if (
+      (params.currency || HESABPAY_CURRENCY).toUpperCase() !== HESABPAY_CURRENCY
+    ) {
+      console.error(
+        `[HesabPay] Refusing to create a session in ${params.currency} — HesabPay only accepts AFN`
+      );
+      return {
+        success: false,
+        error: "HesabPay can only charge in Afghani (AFN).",
+      };
+    }
+
+    // HesabPay echoes `items` back on the webhook, so the item id is our most
+    // reliable handle on what was paid for. Its own WooCommerce plugin puts the
+    // order id on every line and reads items[0].id in the webhook; do the same.
+    const reference = params.orderId || params.invoiceId || "order-payment";
+
     // Build the request payload according to HesabPay API docs
-    const items: HesabPayItem[] = params.items?.map((item, index) => ({
-      id: `item-${index + 1}`,
+    const items: HesabPayItem[] = params.items?.map((item) => ({
+      id: reference,
       name: item.name,
-      price: item.unitPrice * item.quantity, // HesabPay expects total price per line
+      // HesabPay expects the total price per line, in whole AFN
+      price: Math.round(item.unitPrice * item.quantity),
     })) || [
       {
-        id: "order-payment",
+        id: reference,
         name: "Order Payment",
-        price: params.amount,
+        price: Math.round(params.amount),
       },
     ];
 

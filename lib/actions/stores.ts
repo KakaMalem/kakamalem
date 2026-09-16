@@ -433,6 +433,7 @@ export async function updateGeneralSettings(
     contactEmail: (formData.get("contactEmail") as string) || "",
     contactPhone: (formData.get("contactPhone") as string) || "",
     currency: (formData.get("currency") as string) || "AFN",
+    afnExchangeRate: (formData.get("afnExchangeRate") as string) || "",
   };
 
   try {
@@ -484,6 +485,13 @@ export async function updateGeneralSettings(
       }
     }
 
+    // The AFN rate only means anything for stores priced in another currency;
+    // clear it when the store goes back to pricing in AFN.
+    const afnExchangeRate =
+      newCurrency === "AFN" || !formValues.afnExchangeRate
+        ? null
+        : Number(formValues.afnExchangeRate).toString();
+
     await updateTenant(storeId, {
       name: formValues.name,
       tagline: formValues.tagline || null,
@@ -491,6 +499,7 @@ export async function updateGeneralSettings(
       contactEmail: formValues.contactEmail || null,
       contactPhone: formValues.contactPhone || null,
       currency: formValues.currency,
+      afnExchangeRate,
     });
 
     // Mark onboarding item as complete (async, don't block)

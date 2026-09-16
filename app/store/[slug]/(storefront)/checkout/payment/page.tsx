@@ -5,6 +5,7 @@ import { resolveTenant } from "@/lib/db/queries/tenants";
 import { getStoreBasePath } from "@/lib/utils/store-path";
 import { getOrderForCheckout } from "@/lib/db/queries/orders";
 import { getEnabledGateways } from "@/lib/payments";
+import { HESABPAY_CURRENCY, parseExchangeRate } from "@/lib/payments/currency";
 import { PaymentPageClient } from "@/components/store/checkout/payment-page-client";
 
 interface PaymentPageProps {
@@ -72,11 +73,24 @@ export default async function PaymentPage({
   const enabledGateways = await getEnabledGateways(store.id);
 
   // Filter to only online payment gateways (exclude COD, bank_transfer for retry page)
-  const onlineGateways = enabledGateways.filter(
-    (g) => g.gateway === "hesabpay"
-  );
+  // A previous attempt locks an AFN rate onto the order and retries reuse it, so
+  // quote the locked rate rather than the store's current one.
+  const lockedAfnRate =
+    order.customerCurrency === HESABPAY_CURRENCY
+      ? parseExchangeRate(order.exchangeRateUsed)
+      : null;
 
-  const wasCancelled = cancelled === "true";
+  const onlineGateways = enabledGateways
+    .filter((g) => g.gateway === "hesabpay")
+    .map((g) =>
+      lockedAfnRate && g.chargeCurrency === HESABPAY_CURRENCY
+        ? { ...g, chargeExchangeRate: lockedAfnRate }
+        : g
+    );
+
+  // HesabPay appends `?data={...}` even when the URL already has a query
+  // string, so `cancelled=true` can arrive as `true?data={...}`.
+  const wasCancelled = cancelled?.startsWith("true") ?? false;
 
   return (
     <PaymentPageClient

@@ -49,6 +49,7 @@ interface GeneralSettingsFormProps {
     contactEmail: string;
     contactPhone: string;
     currency: string;
+    afnExchangeRate: string;
     slug: string;
   };
 }
@@ -72,6 +73,7 @@ export function GeneralSettingsForm({
     contactEmail: initialData.contactEmail,
     contactPhone: initialData.contactPhone,
     currency: initialData.currency,
+    afnExchangeRate: initialData.afnExchangeRate,
   });
 
   // Track previous initialData to sync state when props change (e.g., after router.refresh())
@@ -85,6 +87,7 @@ export function GeneralSettingsForm({
       contactEmail: initialData.contactEmail,
       contactPhone: initialData.contactPhone,
       currency: initialData.currency,
+      afnExchangeRate: initialData.afnExchangeRate,
     });
   }
 
@@ -333,6 +336,41 @@ export function GeneralSettingsForm({
                 after switching.
               </AlertDescription>
             </Alert>
+          )}
+
+          {formData.currency !== "AFN" && (
+            <Field>
+              <FieldLabel htmlFor="afnExchangeRate">
+                Afghani exchange rate
+              </FieldLabel>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  1 {formData.currency} =
+                </span>
+                <Input
+                  id="afnExchangeRate"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  className="w-40"
+                  value={formData.afnExchangeRate}
+                  onChange={(e) =>
+                    updateField("afnExchangeRate", e.target.value)
+                  }
+                  placeholder="70"
+                  disabled={isPending}
+                  aria-invalid={!!fieldErrors.afnExchangeRate}
+                />
+                <span className="text-sm text-muted-foreground">AFN</span>
+              </div>
+              <FieldDescription>
+                HesabPay can only charge customers in Afghani, so orders priced
+                in {formData.currency} are converted at this rate. Leave it
+                empty to hide card payment and accept cash on delivery only.
+              </FieldDescription>
+              <FieldError>{fieldErrors.afnExchangeRate}</FieldError>
+            </Field>
           )}
         </CardContent>
         <CardFooter className="border-t pt-6">

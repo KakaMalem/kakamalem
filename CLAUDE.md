@@ -652,11 +652,21 @@ app/api/webhooks/hesabpay/route.ts # HesabPay webhook handler
 
 ### Currency
 
-Single-currency platform: **AFN (Afghan Afghani)**. All prices, orders, invoices, and payments are in AFN. No currency selector, no FX conversion.
+**One base currency per store, no live FX.** Each tenant picks a base currency (`tenants.currency`, default AFN) from `currencyOptions` in `lib/validations/stores.ts`; `lib/currency/currencies.ts` holds the display metadata (symbol, decimals) that `formatPrice()` uses. Every price, order, invoice and dashboard figure for that store is in its base currency. Customers cannot switch currency.
 
-`lib/stores/use-currency-store.ts` is a hardcoded AFN shim kept around so existing storefront/dashboard components don't all need refactoring. `components/store/price-display.tsx` is a thin wrapper around `formatPrice()` from `lib/utils.ts`.
+`lib/stores/use-currency-store.tsx` is a `CurrencyProvider` seeded with the store's currency; `currency` and `storeCurrency` are always equal and `rates` is always empty, because there is no customer-side conversion. `components/store/price-display.tsx` is a thin wrapper around `formatPrice()`.
 
-`lib/currency/` contains no-op `convertToAFN()` / `getExchangeRates()` stubs that exist only so the Amazon/AliExpress dropship importers still compile — they store the source price as-is, and the seller adjusts after import.
+`lib/currency/index.ts` contains no-op `convertToAFN()` / `getExchangeRates()` stubs that exist only so the Amazon/AliExpress dropship importers still compile — they store the source price as-is, and the seller adjusts after import.
+
+#### HesabPay is AFN-only
+
+HesabPay's create-session API has **no currency field**: every `price` it receives is treated as AFN, and HesabPay does not convert. A store priced in another currency must therefore convert before calling it.
+
+- `tenants.afnExchangeRate` — seller-set rate, "1 unit of the store's currency = X AFN". NULL on a non-AFN store means HesabPay is not offered. Ignored for AFN stores. Edited in Settings → General → Currency.
+- `lib/payments/currency.ts` — dependency-free helpers (`resolveHesabPayCharge`, `toAfnAmount`, `fromAfnAmount`, `canStoreUseHesabPay`) shared by server actions and client components so the customer sees exactly what will be charged.
+- `getEnabledGateways()` drops HesabPay for a non-AFN store with no rate, and otherwise annotates it with `chargeCurrency` / `chargeExchangeRate` for the storefront to display.
+- `createOrderPaymentSession()` converts, then locks `customerCurrency` / `customerAmount` / `exchangeRateUsed` / `exchangeRateLockedAt` onto the order. Retries reuse the locked rate, so a customer is always charged what they were quoted.
+- `lib/payments/order-payment.ts` converts the AFN payment back with that locked rate, de-duplicates webhook replays by `gatewayTransactionId`, and writes `order_payments` (the ledger whose triggers sync `orders.amount_paid` — see `drizzle/custom/0005_payment_ledger_cleanup.sql`) plus an `order_transactions` row in the charged currency.
 
 ### Database Tables
 
@@ -693,14 +703,17 @@ await savePaymentGatewayConfig(tenantId, "hesabpay", {
 
 ### Webhook Setup
 
-HesabPay webhook URL: `https://kakamalem.com/api/webhooks/hesabpay?tenantId={tenantId}`
+HesabPay webhook URL: `https://kakamalem.com/api/webhooks/hesabpay`
 
-Events handled:
+Credentials are platform-level, so one URL is registered for the whole platform and the optional `?tenantId={tenantId}` query param is normally absent. HesabPay sends no event type — the handler derives success/failure from the payload's `success` flag, and registers separate URLs for the "Payment Success" and "Payment Failure" events.
 
-- `payment.completed` - Mark order as paid
-- `payment.failed` - Update session status
-- `payment.cancelled` - Update session status
-- `refund.completed` - Process refund
+Matching a webhook back to a payment session, most to least reliable:
+
+1. `session_id` / `memo` against `payment_sessions.gateway_session_id`
+2. the order or invoice id echoed back in `items[0].id` — we put it on every line item when creating the session, which is also what HesabPay's own WooCommerce plugin reads
+3. tenant + exact amount + created within the hour (only works when `?tenantId=` is present)
+
+Crediting is idempotent: a repeat of the same `transaction_id` is ignored, so webhook retries are safe.
 
 ## Offline/PWA Support
 

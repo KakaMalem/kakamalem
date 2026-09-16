@@ -251,4 +251,12 @@ export interface EnabledGateway {
   minAmount?: number;
   maxAmount?: number;
   supportedCurrencies?: string[];
+  /**
+   * Currency the customer is actually charged in, when it differs from the
+   * store's base currency. HesabPay settles in AFN only, so a non-AFN store
+   * sets this to "AFN" together with the rate below.
+   */
+  chargeCurrency?: string;
+  /** 1 unit of the store's currency = X of `chargeCurrency`. */
+  chargeExchangeRate?: number;
 }

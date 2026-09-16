@@ -20,6 +20,7 @@ import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
 import { PaymentMethodSelector } from "../payment-method-selector";
 import { useStoreBasePath } from "@/components/store/store-path-provider";
+import { toAfnAmount } from "@/lib/payments/currency";
 import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 
@@ -52,12 +53,7 @@ export function SectionPayment({
 }: SectionPaymentProps) {
   const router = useRouter();
   const basePath = useStoreBasePath();
-  const {
-    format: formatPrice,
-    currency: customerCurrency,
-    storeCurrency,
-    rates,
-  } = useCurrencyStore();
+  const { format: formatPrice, formatDirect } = useCurrencyStore();
 
   const {
     customerInfo,
@@ -79,6 +75,25 @@ export function SectionPayment({
   const [cartErrors, setCartErrors] = useState<
     Array<{ itemId: string; productName: string; error: string }>
   >([]);
+
+  // HesabPay settles in Afghani. When the store prices in another currency the
+  // customer is charged a converted amount, so show it before they are sent off.
+  const gatewayCharge = useMemo(() => {
+    const method = enabledPaymentMethods.find(
+      (m) => m.gateway === selectedPaymentMethod?.gateway
+    );
+    if (
+      !method?.chargeCurrency ||
+      !method.chargeExchangeRate ||
+      method.chargeCurrency === currency
+    ) {
+      return null;
+    }
+    return {
+      currency: method.chargeCurrency,
+      amount: toAfnAmount(total, method.chargeExchangeRate),
+    };
+  }, [enabledPaymentMethods, selectedPaymentMethod, currency, total]);
 
   // Calculate total bulk savings from tier pricing
   const totalBulkSavings = useMemo(() => {
@@ -128,23 +143,9 @@ export function SectionPayment({
         return;
       }
 
-      // Build multi-currency fields if customer is viewing in a different currency
-      const currencyFields: {
-        customerCurrency?: string;
-        exchangeRateUsed?: number;
-        exchangeRateLockedAt?: string;
-      } = {};
-      if (customerCurrency !== storeCurrency) {
-        const storeRate =
-          storeCurrency === "AFN" ? 1 : rates[storeCurrency] || 1;
-        const targetRate =
-          customerCurrency === "AFN" ? 1 : rates[customerCurrency] || 1;
-        currencyFields.customerCurrency = customerCurrency;
-        currencyFields.exchangeRateUsed = targetRate / storeRate;
-        currencyFields.exchangeRateLockedAt = new Date().toISOString();
-      }
-
-      // Create order
+      // Create order. Orders are always recorded in the store's own currency;
+      // any gateway-side conversion (HesabPay settles in AFN) is resolved and
+      // locked onto the order when the payment session is created.
       const result = await createOrderAction(tenantId, storeSlug, {
         customerInfo: user ? null : customerInfo,
         shippingAddress,
@@ -153,7 +154,6 @@ export function SectionPayment({
         customerNotes: customerNotes || null,
         paymentMethod: selectedPaymentMethod.gateway,
         appliedCouponCode: appliedCoupon?.code || null,
-        ...currencyFields,
       });
 
       if (!result.success) {
@@ -450,6 +450,16 @@ export function SectionPayment({
                 </span>
                 <span className="text-primary">{formatPrice(total)}</span>
               </div>
+              {gatewayCharge && (
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t pt-2.5">
+                  <span className="text-muted-foreground shrink-0 uppercase text-[10px] font-bold tracking-wider">
+                    You pay at checkout
+                  </span>
+                  <span className="font-medium ml-auto">
+                    {formatDirect(gatewayCharge.amount, gatewayCharge.currency)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -472,7 +482,10 @@ export function SectionPayment({
             ) : selectedPaymentMethod?.gateway === "hesabpay" ? (
               <>
                 <Lock className="mr-2 size-4" />
-                Pay {formatPrice(total)}
+                Pay{" "}
+                {gatewayCharge
+                  ? formatDirect(gatewayCharge.amount, gatewayCharge.currency)
+                  : formatPrice(total)}
               </>
             ) : (
               <>

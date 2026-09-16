@@ -247,6 +247,7 @@ export async function updateTenant(
     contactEmail: string | null;
     contactPhone: string | null;
     currency: string;
+    afnExchangeRate: string | null;
     deliveryMode: "distance_based" | "service_level" | "weight_price_based";
     enableDeliveryZones: boolean;
     enableShipping: boolean;

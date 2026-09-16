@@ -28,7 +28,7 @@ Sellers keep 100% of order revenue. No per-transaction fee.
 - **Styling**: Tailwind CSS 4 + shadcn/ui
 - **State**: Zustand + React Query
 - **Payments**: HesabPay (hosted checkout) + COD
-- **Currency**: AFN (Afghan Afghani) — single-currency platform
+- **Currency**: one base currency per store (AFN by default); HesabPay always settles in AFN
 - **Custom Domains**: Dokploy + Traefik (automatic SSL via Let's Encrypt)
 - **Offline/PWA**: Dexie.js + Serwist (offline POS)
 - **Deployment**: Dokploy on a self-hosted VPS (Docker + Traefik)

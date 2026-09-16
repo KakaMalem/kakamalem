@@ -10,18 +10,18 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   paymentWebhookEvents,
   paymentSessions,
-  orders,
-  orderTransactions,
   invoices,
   tenants,
   billingTransactions,
 } from "@/lib/db/schema";
 import { verifyWebhook, getPaymentSessionByGatewayId } from "@/lib/payments";
+import { HESABPAY_CURRENCY } from "@/lib/payments/currency";
+import { recordGatewayPaymentForOrder } from "@/lib/payments/order-payment";
 import type { HesabPayWebhookPayload } from "@/lib/payments/hesabpay/types";
 
 // Disable body parsing - we need the raw body for signature verification
@@ -153,30 +153,68 @@ export async function POST(request: NextRequest) {
 }
 
 // =============================================================================
-// EVENT HANDLERS
+// SESSION MATCHING
 // =============================================================================
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Handle successful payment (payment.success event)
+ * Work out which payment session a webhook belongs to.
+ *
+ * HesabPay does not reliably echo our session id, but it does echo the `items`
+ * we sent, so we put the order (or invoice) id on every item when creating the
+ * session — the same trick HesabPay's own WooCommerce plugin uses. Strategies,
+ * most to least reliable:
+ *
+ *   1. `session_id` / `memo` matched against the gateway session id
+ *   2. the order or invoice id echoed back in `items[0].id`
+ *   3. tenant + exact amount + created in the last hour (needs `?tenantId=`
+ *      on the webhook URL, so it only works for per-tenant registrations)
  */
-async function handlePaymentSuccess(
+async function findSessionForWebhook(
   payload: HesabPayWebhookPayload,
   webhookTenantId?: string
-): Promise<{ orderId?: string; transactionId?: string }> {
-  // Find the payment session
-  // Try by session_id first, then fall back to matching by tenantId + amount + recent time
-  let session = null;
+) {
+  const gatewaySessionId = payload.session_id || payload.memo;
+  if (gatewaySessionId) {
+    const session = await getPaymentSessionByGatewayId(
+      gatewaySessionId,
+      "hesabpay"
+    );
+    if (session) return session;
+  }
 
-  const sessionId = payload.session_id || payload.memo;
-  if (sessionId) {
-    session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
+  const reference = payload.items?.[0]?.id;
+  if (reference && UUID_PATTERN.test(reference)) {
+    const [matched] = await db
+      .select()
+      .from(paymentSessions)
+      .where(
+        and(
+          eq(paymentSessions.gateway, "hesabpay"),
+          or(
+            eq(paymentSessions.orderId, reference),
+            eq(paymentSessions.invoiceId, reference)
+          )
+        )
+      )
+      .orderBy(desc(paymentSessions.createdAt))
+      .limit(1);
+
+    if (matched) {
+      console.log(
+        `[HesabPay Webhook] Matched session by item reference ${reference}: ${matched.id}`
+      );
+      return matched;
+    }
   }
 
   // Fallback: match by tenantId + amount + created within the last hour
   // Requires tenantId from webhook URL query params for security
-  if (!session && payload.amount && webhookTenantId) {
+  if (payload.amount && webhookTenantId) {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const [matchedSession] = await db
+    const [matched] = await db
       .select()
       .from(paymentSessions)
       .where(
@@ -191,13 +229,29 @@ async function handlePaymentSuccess(
       .orderBy(desc(paymentSessions.createdAt))
       .limit(1);
 
-    if (matchedSession) {
+    if (matched) {
       console.log(
-        `[HesabPay Webhook] Matched session by tenant+amount fallback: ${matchedSession.id}`
+        `[HesabPay Webhook] Matched session by tenant+amount fallback: ${matched.id}`
       );
-      session = matchedSession;
+      return matched;
     }
   }
+
+  return null;
+}
+
+// =============================================================================
+// EVENT HANDLERS
+// =============================================================================
+
+/**
+ * Handle successful payment (payment.success event)
+ */
+async function handlePaymentSuccess(
+  payload: HesabPayWebhookPayload,
+  webhookTenantId?: string
+): Promise<{ orderId?: string; transactionId?: string }> {
+  const session = await findSessionForWebhook(payload, webhookTenantId);
 
   if (!session) {
     console.error(
@@ -217,72 +271,31 @@ async function handlePaymentSuccess(
     })
     .where(eq(paymentSessions.id, session.id));
 
-  let transactionId: string | undefined;
-
-  // If this is for an order, mark it as paid
+  // If this is for an order, mark it as paid.
+  // HesabPay always settles in AFN, which is not necessarily the order's
+  // currency — recordGatewayPaymentForOrder converts using the rate locked onto
+  // the order, de-duplicates webhook replays, and writes the payment ledger.
   if (session.orderId) {
-    // Get the order
-    const [order] = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, session.orderId))
-      .limit(1);
+    const result = await recordGatewayPaymentForOrder({
+      orderId: session.orderId,
+      gateway: "hesabpay",
+      amount: payload.amount ?? parseFloat(session.amount),
+      currency: session.currency || HESABPAY_CURRENCY,
+      transactionId: payload.transaction_id,
+      gatewayResponse: payload as unknown as Record<string, unknown>,
+    });
 
-    if (order && order.paymentStatus !== "paid") {
-      // Create transaction record
-      const [transaction] = await db
-        .insert(orderTransactions)
-        .values({
-          orderId: session.orderId,
-          tenantId: session.tenantId,
-          type: "payment",
-          amount: payload.amount?.toString() || session.amount,
-          currencyCode: session.currency, // HesabPay uses AFN by default
-          paymentMethod: "card", // HesabPay processes card/digital wallet payments
-          status: "completed",
-          gateway: "hesabpay",
-          gatewayTransactionId: payload.transaction_id,
-          gatewayResponse: payload as unknown as Record<string, unknown>,
-          // HesabPay webhook doesn't include card details
-          processedAt: new Date().toISOString(),
-        })
-        .returning();
-
-      transactionId = transaction.id;
-
-      // Update order
-      const newAmountPaid =
-        parseFloat(order.amountPaid || "0") +
-        (payload.amount || parseFloat(session.amount));
-      const orderTotal = parseFloat(order.total);
-      const isFullyPaid = newAmountPaid >= orderTotal;
-
-      await db
-        .update(orders)
-        .set({
-          amountPaid: newAmountPaid.toString(),
-          amountDue: (orderTotal - newAmountPaid).toString(),
-          paymentStatus: isFullyPaid ? "paid" : "partial",
-          isPaid: isFullyPaid,
-          paidAt: isFullyPaid ? new Date().toISOString() : undefined,
-          status:
-            isFullyPaid && order.status === "pending"
-              ? "confirmed"
-              : order.status,
-          confirmedAt:
-            isFullyPaid && order.status === "pending"
-              ? new Date().toISOString()
-              : order.confirmedAt,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(orders.id, session.orderId));
-
+    if (result.recorded) {
       console.log(
-        `[HesabPay Webhook] Order ${order.orderNumber} marked as ${isFullyPaid ? "paid" : "partially paid"}`
+        `[HesabPay Webhook] Order ${session.orderId} marked as ${result.isFullyPaid ? "paid" : "partially paid"}`
+      );
+    } else {
+      console.log(
+        `[HesabPay Webhook] Order ${session.orderId} not credited (${result.reason})`
       );
     }
 
-    return { orderId: session.orderId, transactionId };
+    return { orderId: session.orderId, transactionId: result.transactionId };
   }
 
   // If this is for an invoice (subscription payment)
@@ -375,37 +388,20 @@ async function handlePaymentFailure(
   payload: HesabPayWebhookPayload,
   webhookTenantId?: string
 ): Promise<void> {
-  // Find the payment session (same fallback logic as success handler)
-  let session = null;
-
-  const sessionId = payload.session_id || payload.memo;
-  if (sessionId) {
-    session = await getPaymentSessionByGatewayId(sessionId, "hesabpay");
-  }
-
-  if (!session && payload.amount && webhookTenantId) {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const [matchedSession] = await db
-      .select()
-      .from(paymentSessions)
-      .where(
-        and(
-          eq(paymentSessions.gateway, "hesabpay"),
-          eq(paymentSessions.status, "pending"),
-          eq(paymentSessions.tenantId, webhookTenantId),
-          eq(paymentSessions.amount, payload.amount.toString()),
-          gte(paymentSessions.createdAt, oneHourAgo)
-        )
-      )
-      .orderBy(desc(paymentSessions.createdAt))
-      .limit(1);
-
-    session = matchedSession || null;
-  }
+  const session = await findSessionForWebhook(payload, webhookTenantId);
 
   if (!session) {
     console.error(
       `[HesabPay Webhook] No matching session for failed payment: ${payload.transaction_id}`
+    );
+    return;
+  }
+
+  // A failure notice that arrives after the payment succeeded (a late retry, or
+  // an earlier abandoned attempt) must not undo a completed session.
+  if (session.status === "completed") {
+    console.log(
+      `[HesabPay Webhook] Ignoring failure for already-completed session ${session.id}`
     );
     return;
   }
@@ -428,7 +424,7 @@ async function handlePaymentFailure(
     .where(eq(paymentSessions.id, session.id));
 
   console.log(
-    `[HesabPay Webhook] Payment failed for session ${sessionId}: ${failureReason}`
+    `[HesabPay Webhook] Payment failed for session ${session.id}: ${failureReason}`
   );
 }
 

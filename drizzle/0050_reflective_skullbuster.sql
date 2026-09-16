@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ADD COLUMN "afn_exchange_rate" numeric(18, 6);

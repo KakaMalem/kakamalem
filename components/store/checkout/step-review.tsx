@@ -54,12 +54,7 @@ export function StepReview({
 }: StepReviewProps) {
   const router = useRouter();
   const basePath = useStoreBasePath();
-  const {
-    format: formatPrice,
-    currency: customerCurrency,
-    storeCurrency,
-    rates,
-  } = useCurrencyStore();
+  const { format: formatPrice } = useCurrencyStore();
 
   const {
     customerInfo,
@@ -132,23 +127,9 @@ export function StepReview({
         return;
       }
 
-      // Build multi-currency fields if customer is viewing in a different currency
-      const currencyFields: {
-        customerCurrency?: string;
-        exchangeRateUsed?: number;
-        exchangeRateLockedAt?: string;
-      } = {};
-      if (customerCurrency !== storeCurrency) {
-        const storeRate =
-          storeCurrency === "AFN" ? 1 : rates[storeCurrency] || 1;
-        const targetRate =
-          customerCurrency === "AFN" ? 1 : rates[customerCurrency] || 1;
-        currencyFields.customerCurrency = customerCurrency;
-        currencyFields.exchangeRateUsed = targetRate / storeRate;
-        currencyFields.exchangeRateLockedAt = new Date().toISOString();
-      }
-
-      // Create order with selected payment method
+      // Create order with selected payment method. Orders are recorded in the
+      // store's own currency; gateway-side conversion (HesabPay settles in AFN)
+      // is resolved when the payment session is created.
       const result = await createOrderAction(tenantId, storeSlug, {
         customerInfo: user ? null : customerInfo,
         shippingAddress,
@@ -156,7 +137,6 @@ export function StepReview({
         shippingMethodId: selectedMethod.id,
         customerNotes: customerNotes || null,
         paymentMethod: selectedPaymentMethod.gateway,
-        ...currencyFields,
       });
 
       if (!result.success) {

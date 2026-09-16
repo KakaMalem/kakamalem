@@ -849,6 +849,17 @@ export const tenants = pgTable(
     // Settings
     currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
+    // HesabPay charges customers in AFN only (its API has no currency field).
+    // For stores whose base currency is not AFN, this is the seller-set rate
+    // used to convert the order total into the AFN amount HesabPay collects.
+    // Convention: 1 unit of `currency` = X AFN (e.g. USD store, rate 70).
+    // NULL on a non-AFN store means HesabPay is not offered at checkout.
+    // Ignored when `currency` is already AFN.
+    afnExchangeRate: decimal("afn_exchange_rate", {
+      precision: 18,
+      scale: 6,
+    }),
+
     // Delivery mode - how the store calculates shipping/delivery fees
     // DEPRECATED: Use enableDeliveryZones instead. Kept for backward compatibility.
     deliveryMode: deliveryModeEnum("delivery_mode")
