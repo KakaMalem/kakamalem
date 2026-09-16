@@ -20,7 +20,10 @@ import { createOrderAction, validateCartAction } from "@/lib/actions/checkout";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
 import { PaymentMethodSelector } from "../payment-method-selector";
 import { useStoreBasePath } from "@/components/store/store-path-provider";
-import { toAfnAmount } from "@/lib/payments/currency";
+import {
+  HESABPAY_CONVERSION_NOTICE,
+  toAfnAmount,
+} from "@/lib/payments/currency";
 import type { Cart } from "@/lib/db/queries/carts";
 import type { EnabledGateway } from "@/lib/payments/types";
 
@@ -451,13 +454,21 @@ export function SectionPayment({
                 <span className="text-primary">{formatPrice(total)}</span>
               </div>
               {gatewayCharge && (
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t pt-2.5">
-                  <span className="text-muted-foreground shrink-0 uppercase text-[10px] font-bold tracking-wider">
-                    You pay at checkout
-                  </span>
-                  <span className="font-medium ml-auto">
-                    {formatDirect(gatewayCharge.amount, gatewayCharge.currency)}
-                  </span>
+                <div className="space-y-1.5 border-t pt-2.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <span className="text-muted-foreground shrink-0 uppercase text-[10px] font-bold tracking-wider">
+                      You pay at checkout
+                    </span>
+                    <span className="font-medium ml-auto">
+                      {formatDirect(
+                        gatewayCharge.amount,
+                        gatewayCharge.currency
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    {HESABPAY_CONVERSION_NOTICE}
+                  </p>
                 </div>
               )}
             </div>

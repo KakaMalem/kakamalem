@@ -24,6 +24,18 @@ export const HESABPAY_CURRENCY = "AFN";
 export const MAX_AFN_EXCHANGE_RATE = 1_000_000;
 
 /**
+ * Shown to the customer whenever HesabPay is charging a converted amount.
+ *
+ * We hand HesabPay an AFN figure. For a card denominated in another currency,
+ * HesabPay (and then the card issuer) converts back at their own rates, which
+ * will not match the store's rate exactly, so the amount that finally lands on
+ * the statement can differ by a few percent either way. Say so up front rather
+ * than let it look like a surprise surcharge at the last step.
+ */
+export const HESABPAY_CONVERSION_NOTICE =
+  "HesabPay charges in Afghani and converts back at its own rate, so the final amount on your card may differ slightly.";
+
+/**
  * Convert an amount in the store's currency into whole AFN.
  *
  * AFN is displayed and charged without decimals, so the result is rounded to

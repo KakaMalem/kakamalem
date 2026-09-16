@@ -18,7 +18,10 @@ import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useStoreBasePath } from "@/components/store/store-path-provider";
 import { PaymentMethodSelector } from "./payment-method-selector";
 import { createOrderPaymentSession } from "@/lib/actions/payments";
-import { toAfnAmount } from "@/lib/payments/currency";
+import {
+  HESABPAY_CONVERSION_NOTICE,
+  toAfnAmount,
+} from "@/lib/payments/currency";
 import type { EnabledGateway } from "@/lib/payments/types";
 import type { PaymentGateway } from "@/lib/db/schema";
 import type { PaymentMethod } from "@/lib/stores/use-checkout-store";
@@ -183,11 +186,16 @@ export function PaymentPageClient({
             <span className="font-semibold">{formatPrice(amount)}</span>
           </div>
           {gatewayCharge && (
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>You pay at checkout</span>
-              <span>
-                {formatDirect(gatewayCharge.amount, gatewayCharge.currency)}
-              </span>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>You pay at checkout</span>
+                <span>
+                  {formatDirect(gatewayCharge.amount, gatewayCharge.currency)}
+                </span>
+              </div>
+              <p className="text-xs leading-snug text-muted-foreground">
+                {HESABPAY_CONVERSION_NOTICE}
+              </p>
             </div>
           )}
         </CardContent>

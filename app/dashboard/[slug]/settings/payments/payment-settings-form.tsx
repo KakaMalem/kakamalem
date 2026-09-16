@@ -398,6 +398,21 @@ export function PaymentSettingsForm({
                   {Math.round(100 * parsedRate).toLocaleString("en-US")}.
                 </p>
               )}
+              {parsedRate && (
+                <Alert>
+                  <Info className="size-4" />
+                  <AlertDescription>
+                    HesabPay converts that Afghani amount back to the
+                    customer&apos;s card currency at its own rate, which is
+                    usually weaker than the market rate. If customers are billed
+                    more than your listed price, lower this rate until the
+                    amount HesabPay shows matches. A market rate keeps your
+                    Afghani revenue whole instead, at the cost of a slightly
+                    higher card charge. Customers are told the final amount may
+                    differ either way.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
         </CardContent>
