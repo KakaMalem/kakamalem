@@ -8,10 +8,10 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.28.0 --activate
 
 COPY package.json pnpm-lock.yaml .npmrc ./
-RUN pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
+RUN pnpm install --frozen-lockfile
 
 # -----------------------------------------------------------------------------
 # Stage 2: Builder
@@ -19,7 +19,7 @@ RUN pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.28.0 --activate
 
 # Build arguments for public environment variables
 ARG NEXT_PUBLIC_APP_URL

@@ -2,6 +2,7 @@
   "name": "kakamalem",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
@@ -13,6 +14,13 @@
     "db:push": "drizzle-kit push --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
     "db:migrate:custom": "tsx scripts/migrate-custom.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
   },
   "dependencies": {
     "@geoman-io/leaflet-geoman-free": "^2.19.2",
