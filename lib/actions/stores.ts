@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { ZodError } from "zod";
 import { getUser } from "@/lib/auth/server";
+import { hasMinimumRole } from "@/lib/auth/context";
 import {
   createStoreSchema,
   generalSettingsSchema,
@@ -11,8 +12,10 @@ import {
   socialLinksSchema,
   seoSettingsSchema,
   storeModeSettingsSchema,
+  paymentCurrencySettingsSchema,
   type CreateStoreInput,
   type StoreModeSettingsInput,
+  type PaymentCurrencySettingsInput,
 } from "@/lib/validations/stores";
 import {
   checkSlugAvailable,
@@ -432,8 +435,6 @@ export async function updateGeneralSettings(
     description: (formData.get("description") as string) || "",
     contactEmail: (formData.get("contactEmail") as string) || "",
     contactPhone: (formData.get("contactPhone") as string) || "",
-    currency: (formData.get("currency") as string) || "AFN",
-    afnExchangeRate: (formData.get("afnExchangeRate") as string) || "",
   };
 
   try {
@@ -451,10 +452,89 @@ export async function updateGeneralSettings(
   }
 
   try {
-    const newCurrency = formValues.currency;
+    await updateTenant(storeId, {
+      name: formValues.name,
+      tagline: formValues.tagline || null,
+      description: formValues.description || null,
+      contactEmail: formValues.contactEmail || null,
+      contactPhone: formValues.contactPhone || null,
+    });
+
+    // Mark onboarding item as complete (async, don't block)
+    completeOnboardingItem(storeId, "customize_store").catch(() => {
+      // Silently ignore - onboarding completion is not critical
+    });
+
+    revalidatePath("/dashboard/settings", "page");
+    return { success: true };
+  } catch (error) {
+    console.error("[updateGeneralSettings] Error:", error);
+    return {
+      error: {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to update settings. Please try again.",
+      },
+    };
+  }
+}
+
+/**
+ * Update the store's currency settings.
+ *
+ * Lives on the Payments settings page: the currency a store prices in decides
+ * what customers are charged, and HesabPay settles in AFN only, so a non-AFN
+ * store also needs a rate before card payment can be offered.
+ */
+export async function updatePaymentCurrencySettings(
+  storeId: string,
+  input: PaymentCurrencySettingsInput
+): Promise<StoreActionResult> {
+  const user = await getUser();
+
+  if (!user) {
+    return { error: { message: "You must be logged in" } };
+  }
+
+  const store = await getTenantById(storeId);
+  if (!store) {
+    return { error: { message: "Store not found" } };
+  }
+
+  // Matches the Payments settings page: owners and admins can manage currency.
+  const canManage = await hasMinimumRole(storeId, "admin");
+  if (!canManage) {
+    return {
+      error: {
+        message:
+          "You need admin or owner access to change currency settings",
+      },
+    };
+  }
+
+  let values: PaymentCurrencySettingsInput;
+  try {
+    values = paymentCurrencySettingsSchema.parse(input);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const firstError = err.issues[0];
+      return {
+        error: {
+          message: firstError?.message || "Validation failed",
+          field: firstError?.path[0] as string,
+        },
+      };
+    }
+    return { error: { message: "Validation failed" } };
+  }
+
+  try {
+    const newCurrency = values.currency;
     const oldCurrency = store.currency || "AFN";
 
-    // Block currency change if there are pending (unpaid) orders in progress
+    // Block currency change if there are pending (unpaid) orders in progress,
+    // whose totals are recorded in the old currency.
     if (newCurrency !== oldCurrency) {
       const [pendingOrders] = await db
         .select({
@@ -488,35 +568,26 @@ export async function updateGeneralSettings(
     // The AFN rate only means anything for stores priced in another currency;
     // clear it when the store goes back to pricing in AFN.
     const afnExchangeRate =
-      newCurrency === "AFN" || !formValues.afnExchangeRate
+      newCurrency === "AFN" || !values.afnExchangeRate
         ? null
-        : Number(formValues.afnExchangeRate).toString();
+        : Number(values.afnExchangeRate).toString();
 
     await updateTenant(storeId, {
-      name: formValues.name,
-      tagline: formValues.tagline || null,
-      description: formValues.description || null,
-      contactEmail: formValues.contactEmail || null,
-      contactPhone: formValues.contactPhone || null,
-      currency: formValues.currency,
+      currency: newCurrency,
       afnExchangeRate,
     });
 
-    // Mark onboarding item as complete (async, don't block)
-    completeOnboardingItem(storeId, "customize_store").catch(() => {
-      // Silently ignore - onboarding completion is not critical
-    });
-
-    revalidatePath("/dashboard/settings", "page");
+    revalidatePath(`/dashboard/${store.slug}/settings/payments`);
+    revalidatePath(`/dashboard/${store.slug}`);
     return { success: true };
   } catch (error) {
-    console.error("[updateGeneralSettings] Error:", error);
+    console.error("[updatePaymentCurrencySettings] Error:", error);
     return {
       error: {
         message:
           error instanceof Error
             ? error.message
-            : "Failed to update settings. Please try again.",
+            : "Failed to update currency settings. Please try again.",
       },
     };
   }

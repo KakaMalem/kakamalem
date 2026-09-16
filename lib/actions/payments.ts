@@ -24,7 +24,7 @@ import {
 } from "@/lib/db/schema";
 import type { PaymentGateway, PaymentGatewayConfig } from "@/lib/db/schema";
 import { getUser, requireAuth } from "@/lib/auth/server";
-import { canManageStore } from "@/lib/auth/context";
+import { canManageStore, hasMinimumRole } from "@/lib/auth/context";
 import {
   createPaymentSession as createSession,
   verifyPayment,
@@ -595,8 +595,8 @@ export async function savePaymentGatewayConfig(
   try {
     await requireAuth();
 
-    // Check permission
-    const canManage = await canManageStore(tenantId);
+    // Check permission — same bar as the Payments settings page
+    const canManage = await hasMinimumRole(tenantId, "admin");
     if (!canManage) {
       return { success: false, error: "Permission denied" };
     }
@@ -667,8 +667,8 @@ export async function deletePaymentGatewayConfig(
   try {
     await requireAuth();
 
-    // Check permission
-    const canManage = await canManageStore(tenantId);
+    // Check permission — same bar as the Payments settings page
+    const canManage = await hasMinimumRole(tenantId, "admin");
     if (!canManage) {
       return { success: false, error: "Permission denied" };
     }

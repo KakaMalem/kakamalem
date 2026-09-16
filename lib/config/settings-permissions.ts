@@ -116,9 +116,9 @@ export const SETTINGS_PAGES: SettingsPageConfig[] = [
   {
     key: "payments",
     title: "Payments",
-    description: "Choose which payment methods customers can use at checkout",
+    description: "Store currency and the payment methods offered at checkout",
     href: "/payments",
-    minRole: "owner",
+    minRole: "admin",
     group: "operations",
   },
   {

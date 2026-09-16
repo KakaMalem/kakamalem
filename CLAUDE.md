@@ -337,7 +337,7 @@ Location: `lib/stores/`
 
 | Table                     | Purpose                                                                    |
 | ------------------------- | -------------------------------------------------------------------------- |
-| `payment_gateway_configs` | Gateway credentials per tenant (legacy stores only — settings page hidden) |
+| `payment_gateway_configs` | Per-tenant gateway display name + enabled/order, written from Settings → Payments. Its credential columns are legacy: HesabPay uses platform env credentials |
 | `payment_sessions`        | Track payment attempts and redirects                                       |
 | `payment_webhook_events`  | Audit log for gateway webhooks                                             |
 | `order_transactions`      | Financial transaction ledger                                               |
@@ -652,7 +652,7 @@ app/api/webhooks/hesabpay/route.ts # HesabPay webhook handler
 
 ### Currency
 
-**One base currency per store, no live FX.** Each tenant picks a base currency (`tenants.currency`, default AFN) from `currencyOptions` in `lib/validations/stores.ts`; `lib/currency/currencies.ts` holds the display metadata (symbol, decimals) that `formatPrice()` uses. Every price, order, invoice and dashboard figure for that store is in its base currency. Customers cannot switch currency.
+**One base currency per store, no live FX.** Each tenant picks a base currency (`tenants.currency`, default AFN) from `currencyOptions` in `lib/validations/stores.ts`. It is chosen in the store-creation wizard and afterwards in Settings → Payments (owner or admin), alongside the AFN rate and the payment-method toggles, because currency decides what customers are actually charged; `lib/currency/currencies.ts` holds the display metadata (symbol, decimals) that `formatPrice()` uses. Every price, order, invoice and dashboard figure for that store is in its base currency. Customers cannot switch currency.
 
 `lib/stores/use-currency-store.tsx` is a `CurrencyProvider` seeded with the store's currency; `currency` and `storeCurrency` are always equal and `rates` is always empty, because there is no customer-side conversion. `components/store/price-display.tsx` is a thin wrapper around `formatPrice()`.
 
@@ -662,7 +662,7 @@ app/api/webhooks/hesabpay/route.ts # HesabPay webhook handler
 
 HesabPay's create-session API has **no currency field**: every `price` it receives is treated as AFN, and HesabPay does not convert. A store priced in another currency must therefore convert before calling it.
 
-- `tenants.afnExchangeRate` — seller-set rate, "1 unit of the store's currency = X AFN". NULL on a non-AFN store means HesabPay is not offered. Ignored for AFN stores. Edited in Settings → General → Currency.
+- `tenants.afnExchangeRate` — seller-set rate, "1 unit of the store's currency = X AFN". NULL on a non-AFN store means HesabPay is not offered. Ignored for AFN stores.
 - `lib/payments/currency.ts` — dependency-free helpers (`resolveHesabPayCharge`, `toAfnAmount`, `fromAfnAmount`, `canStoreUseHesabPay`) shared by server actions and client components so the customer sees exactly what will be charged.
 - `getEnabledGateways()` drops HesabPay for a non-AFN store with no rate, and otherwise annotates it with `chargeCurrency` / `chargeExchangeRate` for the storefront to display.
 - `createOrderPaymentSession()` converts, then locks `customerCurrency` / `customerAmount` / `exchangeRateUsed` / `exchangeRateLockedAt` onto the order. Retries reuse the locked rate, so a customer is always charged what they were quoted.
@@ -672,26 +672,26 @@ HesabPay's create-session API has **no currency field**: every `price` it receiv
 
 | Table                     | Purpose                              |
 | ------------------------- | ------------------------------------ |
-| `payment_gateway_configs` | Store gateway credentials per tenant |
+| `payment_gateway_configs` | Per-tenant gateway enable/order (credential columns are legacy) |
 | `payment_sessions`        | Track payment attempts               |
 | `payment_webhook_events`  | Audit log for webhooks               |
 | `order_transactions`      | Financial transaction ledger         |
 
 ### Configuration
 
-Gateway credentials are stored per-tenant in `payment_gateway_configs`:
+Sellers configure payments at `/dashboard/[slug]/settings/payments` (owner or admin): store currency, the AFN exchange rate when they price in something else, which methods are offered, and which is preselected. That page writes `tenants.currency` / `tenants.afnExchangeRate` via `updatePaymentCurrencySettings()` and the per-gateway rows via `savePaymentGatewayConfig()`:
 
 ```typescript
-// Enable HesabPay for a store
+// Offer HesabPay on a store, preselected at checkout
 await savePaymentGatewayConfig(tenantId, "hesabpay", {
   displayName: "Pay with Card",
-  apiKey: "hpay_live_xxx",
-  merchantPin: "1234",
-  webhookSecret: "whsec_xxx",
-  isLive: true,
+  description: "Secure payment via HesabPay",
   isEnabled: true,
+  displayOrder: 0,
 });
 ```
+
+HesabPay credentials are **not** per-tenant: the platform's `HESABPAY_API_KEY` env var is used for every store (escrow model). The credential columns on `payment_gateway_configs` (`apiKey`, `merchantPin`, `webhookSecret`, …) are legacy, unused by the UI, and should not be surfaced to client components.
 
 ### Payment Flow
 

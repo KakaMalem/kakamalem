@@ -6,6 +6,7 @@ import { canAccessSettingsPage } from "@/lib/config/settings-permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { getAllPaymentGatewayConfigs } from "@/lib/actions/payments";
 import { PaymentSettingsForm } from "./payment-settings-form";
+import type { PaymentGatewayConfig } from "@/lib/db/schema";
 
 interface PaymentSettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -31,7 +32,7 @@ export default async function PaymentSettingsPage({
   if (!userContext || !canAccessSettingsPage(userContext, "payments")) {
     return (
       <AccessDenied
-        message="You need owner access to configure payment settings."
+        message="You need admin or owner access to configure payment settings."
         backUrl={`/dashboard/${slug}/settings`}
         backLabel="Back to Settings"
       />
@@ -41,13 +42,24 @@ export default async function PaymentSettingsPage({
   const gatewayConfigs = await getAllPaymentGatewayConfigs(store.id);
   const configMap = new Map(gatewayConfigs.map((c) => [c.gateway, c]));
 
+  // Project down to what the client form actually uses. The raw row also holds
+  // per-tenant credential columns (apiKey, merchantPin, webhookSecret), and
+  // anything handed to a client component is serialized into the page payload.
+  const toGatewaySettings = (config: PaymentGatewayConfig | undefined) =>
+    config
+      ? { isEnabled: config.isEnabled, displayOrder: config.displayOrder }
+      : null;
+
   return (
     <PaymentSettingsForm
       storeId={store.id}
       storeCurrency={store.currency}
+      afnExchangeRate={
+        store.afnExchangeRate ? String(Number(store.afnExchangeRate)) : ""
+      }
       initialConfigs={{
-        hesabpay: configMap.get("hesabpay") || null,
-        cod: configMap.get("cod") || null,
+        hesabpay: toGatewaySettings(configMap.get("hesabpay")),
+        cod: toGatewaySettings(configMap.get("cod")),
       }}
     />
   );

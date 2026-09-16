@@ -146,30 +146,43 @@ export const generalSettingsSchema = z.object({
     .optional()
     .or(z.literal("")),
   contactPhone: optionalPhoneSchema,
-  currency: z.enum(currencyOptions).default("AFN"),
-  // HesabPay charges customers in AFN only. Stores priced in another currency
-  // need a rate ("1 unit of the store currency = X AFN") before card payment
-  // can be offered. Empty means "HesabPay unavailable", which is allowed.
-  afnExchangeRate: z
-    .string()
-    .trim()
-    .refine(
-      (value) => {
-        if (!value) return true;
-        const parsed = Number(value);
-        return (
-          Number.isFinite(parsed) &&
-          parsed > 0 &&
-          parsed <= MAX_AFN_EXCHANGE_RATE
-        );
-      },
-      { message: "Enter a rate greater than 0" }
-    )
-    .optional()
-    .or(z.literal("")),
 });
 
 export type GeneralSettingsInput = z.infer<typeof generalSettingsSchema>;
+
+/**
+ * HesabPay charges customers in AFN only. A store priced in another currency
+ * needs a rate ("1 unit of the store currency = X AFN") before card payment can
+ * be offered. Empty is allowed and simply means HesabPay stays unavailable.
+ */
+const afnExchangeRateSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => {
+      if (!value) return true;
+      const parsed = Number(value);
+      return (
+        Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_AFN_EXCHANGE_RATE
+      );
+    },
+    { message: "Enter a rate greater than 0" }
+  )
+  .optional()
+  .or(z.literal(""));
+
+/**
+ * Currency settings, edited on the Payments settings page: the currency a store
+ * prices in, plus the Afghani rate HesabPay is charged at when they differ.
+ */
+export const paymentCurrencySettingsSchema = z.object({
+  currency: z.enum(currencyOptions).default("AFN"),
+  afnExchangeRate: afnExchangeRateSchema,
+});
+
+export type PaymentCurrencySettingsInput = z.infer<
+  typeof paymentCurrencySettingsSchema
+>;
 
 // Branding settings validation schema
 export const brandingSettingsSchema = z.object({
