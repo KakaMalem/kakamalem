@@ -5,10 +5,7 @@ import { eq, and } from "drizzle-orm";
 
 import { verifyApiKey } from "@/lib/integrations/verify-api-key";
 import { checkRateLimit } from "@/lib/integrations/api-middleware";
-import {
-  formatRecipientName,
-  hasMapLocation,
-} from "@/lib/geo/address";
+import { formatRecipientName, hasMapLocation } from "@/lib/geo/address";
 
 /**
  * GET /api/v1/integrations/autods/[tenantId]/orders

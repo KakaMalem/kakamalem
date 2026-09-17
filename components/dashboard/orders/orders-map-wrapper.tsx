@@ -22,11 +22,42 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 });
 
+// A single Earth: Web Mercator tiles stop at roughly +/-85 degrees latitude.
+const WORLD_BOUNDS = L.latLngBounds(
+  L.latLng(-85.05112878, -180),
+  L.latLng(85.05112878, 180)
+);
+// Zoom 2 still fits the whole world without leaving empty space beside it.
+const MIN_ZOOM = 2;
+// OpenStreetMap's raster tiles do not go past 19.
+const MAX_ZOOM = 19;
+
+export type OrdersMapView = "delivery" | "origin";
+
+/** One country's worth of orders, ready to plot. */
+export interface BuyerOriginPoint {
+  countryCode: string;
+  countryName: string;
+  /** Null when the country is not in the centroid table: counted, not plotted. */
+  lat: number | null;
+  lng: number | null;
+  orders: number;
+  revenue: number;
+  /** Cities seen for this country, when the edge reported any. */
+  cities: string[];
+}
+
 export interface OrdersMapProps {
   orders: DashboardOrder[];
   currency: string;
   storeSlug: string;
   className?: string;
+  /**
+   * "delivery" plots where each order is going, from its address pin.
+   * "origin" plots where orders were placed from, one circle per country.
+   */
+  view?: OrdersMapView;
+  originPoints?: BuyerOriginPoint[];
 }
 
 export default function OrdersMap({
@@ -34,6 +65,8 @@ export default function OrdersMap({
   currency,
   storeSlug,
   className = "",
+  view = "delivery",
+  originPoints = [],
 }: OrdersMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -47,20 +80,29 @@ export default function OrdersMap({
       const map = L.map(mapContainerRef.current, {
         center: [34.5553, 69.2075], // Default center (Kabul)
         zoom: 12,
+        minZoom: MIN_ZOOM,
+        maxZoom: MAX_ZOOM,
         scrollWheelZoom: true,
         attributionControl: true,
+        // Keep the view on a single Earth. Without these you can zoom out
+        // past the whole world and pan sideways into repeated copies of it.
+        maxBounds: WORLD_BOUNDS,
+        maxBoundsViscosity: 1,
+        worldCopyJump: false,
       });
 
-      // CartoDB Positron - Premium minimalist look
-      L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: "abcd",
-          maxZoom: 20,
-        }
-      ).addTo(map);
+      // OpenStreetMap, same source as every other map in the dashboard.
+      // CARTO's free basemap endpoint now answers with "API key required"
+      // tiles, which rendered that text across the whole map.
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        subdomains: "abc",
+        maxZoom: MAX_ZOOM,
+        // Do not repeat the map horizontally.
+        noWrap: true,
+        bounds: WORLD_BOUNDS,
+      }).addTo(map);
 
       mapRef.current = map;
       markersGroupRef.current = L.featureGroup().addTo(map);
@@ -73,6 +115,68 @@ export default function OrdersMap({
 
     // Clear existing markers
     markersGroup.clearLayers();
+
+    // --- Where orders come from: one circle per country, sized by volume ---
+    if (view === "origin") {
+      if (originPoints.length === 0) return;
+
+      const plottable = originPoints.filter(
+        (point): point is BuyerOriginPoint & { lat: number; lng: number } =>
+          point.lat !== null && point.lng !== null
+      );
+      if (plottable.length === 0) return;
+
+      const maxOrders = Math.max(...plottable.map((p) => p.orders));
+
+      plottable.forEach((point) => {
+        // Area scales with volume, so a country with 4x the orders looks 4x
+        // bigger rather than 16x. Clamped so a single order is still clickable.
+        const share = maxOrders > 0 ? point.orders / maxOrders : 0;
+        const radius = 10 + Math.sqrt(share) * 24;
+
+        const circle = L.circleMarker([point.lat, point.lng], {
+          radius,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: "#6366f1",
+          fillOpacity: 0.7,
+        });
+
+        const cityLine =
+          point.cities.length > 0
+            ? `<div style="color:#71717a;font-size:11px;margin-top:2px">${point.cities
+                .slice(0, 4)
+                .join(", ")}</div>`
+            : "";
+
+        circle.bindPopup(
+          `<div style="min-width:170px;font-family:inherit">
+            <div style="font-weight:700;font-size:13px">${point.countryName}</div>
+            ${cityLine}
+            <div style="margin-top:6px;font-size:12px">
+              <strong>${point.orders}</strong> order${point.orders === 1 ? "" : "s"}
+            </div>
+            <div style="font-size:12px;color:#3f3f46">
+              ${point.revenue.toLocaleString()} ${currency}
+            </div>
+          </div>`
+        );
+
+        circle.bindTooltip(`${point.countryName} · ${point.orders}`, {
+          direction: "top",
+        });
+
+        circle.addTo(markersGroup);
+      });
+
+      if (markersGroup.getLayers().length > 0) {
+        map.fitBounds(markersGroup.getBounds(), {
+          padding: [60, 60],
+          maxZoom: 6,
+        });
+      }
+      return;
+    }
 
     if (orders.length === 0) return;
 
@@ -263,8 +367,9 @@ export default function OrdersMap({
       markersGroup.addLayer(marker);
     });
 
-    // Fit map to markers
-    if (orders.length > 0) {
+    // Fit map to markers. getBounds() is invalid for an empty group, and
+    // fitBounds throws on invalid bounds.
+    if (markersGroup.getLayers().length > 0) {
       map.fitBounds(markersGroup.getBounds(), {
         padding: [50, 50],
         maxZoom: 15,
@@ -274,7 +379,7 @@ export default function OrdersMap({
     return () => {
       // Cleanup is handled by the first initialization check
     };
-  }, [orders, currency, storeSlug]);
+  }, [orders, currency, storeSlug, view, originPoints]);
 
   return (
     <div

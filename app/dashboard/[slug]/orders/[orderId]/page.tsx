@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, Globe, MapPin, Phone } from "lucide-react";
 import { getTenantBySlug } from "@/lib/db/queries/tenants";
 import { getDashboardOrderById } from "@/lib/db/queries/orders";
 import { getRefundsByOrderId } from "@/lib/db/queries/refunds";
@@ -25,6 +25,7 @@ import {
   formatRecipientName,
   hasMapLocation,
 } from "@/lib/geo/address";
+import { getCountryName } from "@/lib/geo/countries";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
@@ -61,13 +62,23 @@ export default async function OrderDetailPage({
   const deliveryAddressLines = formatPostalAddressLines(order.shippingAddress);
   const showDeliveryMap = hasMapLocation(order.shippingAddress);
 
+  // Buyer origin, recorded from the request when the order was placed.
+  const buyerOriginLabel = [
+    order.buyerCity,
+    getCountryName(order.buyerCountryCode),
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   // Guest orders placed through the GPS flow store the phone as the customer
   // name. When the address carries a real name, show that instead.
   const snapshotName = order.customerSnapshot.name?.trim() || "";
   const customerDisplayName =
     snapshotName && snapshotName !== order.customerSnapshot.phone
       ? snapshotName
-      : formatRecipientName(order.shippingAddress) || snapshotName || "Customer";
+      : formatRecipientName(order.shippingAddress) ||
+        snapshotName ||
+        "Customer";
 
   const amountPaid = parseFloat(order.totalPaid || "0");
   const amountRefunded = parseFloat(order.amountRefunded || "0");
@@ -204,9 +215,7 @@ export default async function OrderDetailPage({
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <p className="font-medium truncate">
-                    {customerDisplayName}
-                  </p>
+                  <p className="font-medium truncate">{customerDisplayName}</p>
                   {order.customerSnapshot.email && (
                     <a
                       href={`mailto:${order.customerSnapshot.email}`}
@@ -259,6 +268,14 @@ export default async function OrderDetailPage({
                           </p>
                         )}
                       </>
+                    )}
+                    {/* Where the order was placed from, which for a gift
+                        store is rarely where it is delivered */}
+                    {buyerOriginLabel && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Globe className="size-4 shrink-0" />
+                        <span>Ordered from {buyerOriginLabel}</span>
+                      </div>
                     )}
                     {/* Delivery Notes */}
                     {order.shippingAddress.notes && (

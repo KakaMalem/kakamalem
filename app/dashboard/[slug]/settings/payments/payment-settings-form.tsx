@@ -469,16 +469,18 @@ export function PaymentSettingsForm({
                   <p className="mt-1 text-sm text-muted-foreground">
                     {gw.description}
                   </p>
-                  {gw.gateway === "hesabpay" && needsAfnConversion && !isUnavailable && (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Customers are charged in Afghani at 1 {currency} ={" "}
-                      {afnMeta.symbol}
-                      {parsedRate?.toLocaleString("en-US", {
-                        maximumFractionDigits: 2,
-                      })}
-                      .
-                    </p>
-                  )}
+                  {gw.gateway === "hesabpay" &&
+                    needsAfnConversion &&
+                    !isUnavailable && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Customers are charged in Afghani at 1 {currency} ={" "}
+                        {afnMeta.symbol}
+                        {parsedRate?.toLocaleString("en-US", {
+                          maximumFractionDigits: 2,
+                        })}
+                        .
+                      </p>
+                    )}
                   {isUnavailable && (
                     <p className="mt-2 flex items-start gap-1.5 text-sm text-amber-700">
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />

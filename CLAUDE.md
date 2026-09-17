@@ -335,12 +335,12 @@ Location: `lib/stores/`
 
 ### Payments
 
-| Table                     | Purpose                                                                    |
-| ------------------------- | -------------------------------------------------------------------------- |
+| Table                     | Purpose                                                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `payment_gateway_configs` | Per-tenant gateway display name + enabled/order, written from Settings → Payments. Its credential columns are legacy: HesabPay uses platform env credentials |
-| `payment_sessions`        | Track payment attempts and redirects                                       |
-| `payment_webhook_events`  | Audit log for gateway webhooks                                             |
-| `order_transactions`      | Financial transaction ledger                                               |
+| `payment_sessions`        | Track payment attempts and redirects                                                                                                                         |
+| `payment_webhook_events`  | Audit log for gateway webhooks                                                                                                                               |
+| `order_transactions`      | Financial transaction ledger                                                                                                                                 |
 
 ### Analytics (System-Managed)
 
@@ -670,12 +670,12 @@ HesabPay's create-session API has **no currency field**: every `price` it receiv
 
 ### Database Tables
 
-| Table                     | Purpose                              |
-| ------------------------- | ------------------------------------ |
+| Table                     | Purpose                                                         |
+| ------------------------- | --------------------------------------------------------------- |
 | `payment_gateway_configs` | Per-tenant gateway enable/order (credential columns are legacy) |
-| `payment_sessions`        | Track payment attempts               |
-| `payment_webhook_events`  | Audit log for webhooks               |
-| `order_transactions`      | Financial transaction ledger         |
+| `payment_sessions`        | Track payment attempts                                          |
+| `payment_webhook_events`  | Audit log for webhooks                                          |
+| `order_transactions`      | Financial transaction ledger                                    |
 
 ### Configuration
 

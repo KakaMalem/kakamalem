@@ -2883,6 +2883,18 @@ export const orders = pgTable(
       mode: "string",
     }),
 
+    // ========== BUYER ORIGIN ==========
+    // Where the order was placed FROM, which is not where it is delivered to.
+    // A Kabul gift store is bought from by relatives abroad, so the delivery
+    // address says Kabul while the buyer is in Hamburg or Toronto. Derived from
+    // the request at checkout (Cloudflare geo headers), never from the address.
+    // ISO 3166-1 alpha-2, e.g. "DE".
+    buyerCountryCode: varchar("buyer_country_code", { length: 2 }),
+    // City and region are only populated when the edge provides them; on
+    // Cloudflare's free plan they are usually absent and the country stands alone.
+    buyerCity: varchar("buyer_city", { length: 100 }),
+    buyerRegion: varchar("buyer_region", { length: 100 }),
+
     // ========== PAYMENT TRACKING (Enhanced) ==========
     // Total amount paid so far
     amountPaid: decimal("amount_paid", { precision: 14, scale: 2 })
@@ -2991,6 +3003,11 @@ export const orders = pgTable(
     index("orders_store_customer_id_idx").on(table.storeCustomerId),
     // Channel filtering
     index("orders_tenant_channel_idx").on(table.tenantId, table.channel),
+    // Grouping orders by where the buyer was
+    index("orders_tenant_buyer_country_idx").on(
+      table.tenantId,
+      table.buyerCountryCode
+    ),
     // Payment status filtering
     index("orders_tenant_payment_status_idx").on(
       table.tenantId,

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { withTransaction, type Transaction } from "@/lib/db";
 import {
@@ -43,6 +44,11 @@ import {
   createOrderDiscountRecord,
 } from "@/lib/actions/coupons";
 import { attributeOrderToLink } from "@/lib/links/attribution";
+import {
+  getClientIp,
+  getGeoFromHeaders,
+} from "@/lib/affiliate/click-analytics";
+import { lookupIpLocation } from "@/lib/geo/ip-location";
 import type { CartItemForCoupon } from "@/lib/validations/coupons";
 import {
   isUnifiedDeliveryEnabled,
@@ -1192,6 +1198,14 @@ export async function createOrderAction(
       // The user already saw the validation error in the UI
     }
 
+    // Where the order is being placed FROM. For a gift store this is the
+    // relative abroad, not the Kabul address the parcel goes to, so it comes
+    // from the request rather than the delivery address. Cloudflare always
+    // sends the country; city and region only on paid plans.
+    const requestHeaders = await headers();
+    const buyerGeo = getGeoFromHeaders(requestHeaders);
+    const buyerIp = getClientIp(requestHeaders);
+
     // Fetch the store's currency for the order
     const tenantForCurrency = await db.query.tenants.findFirst({
       where: eq(tenants.id, tenantId),
@@ -1252,6 +1266,12 @@ export async function createOrderAction(
               ? input.exchangeRateUsed.toString()
               : null,
             exchangeRateLockedAt: input.exchangeRateLockedAt || null,
+            // Buyer origin, for "where do our customers order from"
+            buyerCountryCode: buyerGeo.country
+              ? buyerGeo.country.toUpperCase().slice(0, 2)
+              : null,
+            buyerCity: buyerGeo.city?.slice(0, 100) || null,
+            buyerRegion: buyerGeo.region?.slice(0, 100) || null,
             status: "pending",
             paymentStatus: paymentGateway === "cod" ? "unpaid" : "unpaid", // Both start unpaid
             paymentMethod,
@@ -1422,6 +1442,27 @@ export async function createOrderAction(
       }).catch((error) => {
         console.error("Failed to send order notification:", error);
       });
+
+      // If the edge gave us no country, look the IP up out of band. Never
+      // awaited: the buyer's confirmation should not wait on a geo service,
+      // and an order with an unknown origin is only a gap in a chart.
+      if (!buyerGeo.country) {
+        lookupIpLocation(buyerIp)
+          .then(async (location) => {
+            if (!location?.country) return;
+            await db
+              .update(orders)
+              .set({
+                buyerCountryCode: location.country,
+                buyerCity: location.city,
+                buyerRegion: location.region,
+              })
+              .where(eq(orders.id, order.id));
+          })
+          .catch((error) => {
+            console.error("[checkout] Buyer IP lookup failed:", error);
+          });
+      }
 
       // Attribute the order to a store marketing link if the buyer arrived
       // via one (best-effort; never blocks order completion).

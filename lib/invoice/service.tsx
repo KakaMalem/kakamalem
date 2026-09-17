@@ -11,10 +11,7 @@ import {
 } from "@/lib/db/schema";
 import { InvoiceDocument, type InvoiceData } from "./template";
 import { computePaymentStatus } from "@/lib/utils/payment-status";
-import {
-  formatCoordinates,
-  formatPostalAddressLines,
-} from "@/lib/geo/address";
+import { formatCoordinates, formatPostalAddressLines } from "@/lib/geo/address";
 
 /**
  * Generate a secure random token for shareable invoice links

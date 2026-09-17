@@ -139,9 +139,7 @@ export function CheckoutAccordion({
         isExpanded={expandedSection === "delivery"}
         onToggle={() => handleToggleSection("delivery")}
         onEdit={() => handleEditSection("delivery")}
-        summary={
-          <DeliverySummary shippingAddress={shippingAddress} />
-        }
+        summary={<DeliverySummary shippingAddress={shippingAddress} />}
       >
         <SectionDelivery
           user={user}

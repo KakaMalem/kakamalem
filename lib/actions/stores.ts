@@ -507,8 +507,7 @@ export async function updatePaymentCurrencySettings(
   if (!canManage) {
     return {
       error: {
-        message:
-          "You need admin or owner access to change currency settings",
+        message: "You need admin or owner access to change currency settings",
       },
     };
   }

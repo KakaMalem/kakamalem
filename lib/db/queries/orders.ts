@@ -290,6 +290,10 @@ export type DashboardOrder = {
   createdAt: string;
   updatedAt: string;
   itemCount: number;
+  /** Where the order was placed from (ISO 3166-1 alpha-2), not where it ships. */
+  buyerCountryCode: string | null;
+  buyerCity: string | null;
+  buyerRegion: string | null;
 };
 
 /**
@@ -401,6 +405,9 @@ export const getDashboardOrders = cache(
         customerNotes: order.customerNotes,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
+        buyerCountryCode: order.buyerCountryCode,
+        buyerCity: order.buyerCity,
+        buyerRegion: order.buyerRegion,
         itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
       };
     });
@@ -471,6 +478,10 @@ export type DashboardOrderDetail = {
   customerSnapshot: CustomerSnapshot;
   shippingAddress: Address | null;
   billingAddress: Address | null;
+  /** Where the order was placed from, not where it ships. */
+  buyerCountryCode: string | null;
+  buyerCity: string | null;
+  buyerRegion: string | null;
   subtotal: string;
   shippingTotal: string;
   taxTotal: string;
