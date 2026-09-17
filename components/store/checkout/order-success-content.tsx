@@ -19,6 +19,12 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
+import {
+  formatCoordinates,
+  formatPostalAddressLines,
+  formatRecipientName,
+  getGoogleMapsUrl,
+} from "@/lib/geo/address";
 import { useCurrencyStore } from "@/lib/stores/use-currency-store";
 import { useStoreBasePath } from "@/components/store/store-path-provider";
 import type { Address, PaymentMethod, PaymentStatus } from "@/lib/db/schema";
@@ -156,6 +162,14 @@ export function OrderSuccessContent({
   }, []);
 
   const shippingAddress = order?.shippingAddress;
+  // Typed addresses have no pin (coordinates are 0/0), so render the street
+  // lines and drop the map link rather than pointing at 0,0.
+  const recipientName = formatRecipientName(shippingAddress);
+  const addressLines = formatPostalAddressLines(shippingAddress);
+  const mapsUrl = getGoogleMapsUrl(shippingAddress);
+  const pinLabel = shippingAddress?.plusCode
+    ? formatPlusCodeForDisplay(shippingAddress.plusCode, shippingAddress.city)
+    : formatCoordinates(shippingAddress);
 
   // Determine payment display info
   const isPaid = order?.paymentStatus === "paid";
@@ -357,30 +371,26 @@ export function OrderSuccessContent({
                   <div>
                     <p className="font-medium mb-2">Delivering to</p>
                     <div className="text-sm text-muted-foreground space-y-1">
-                      {(shippingAddress.firstName ||
-                        shippingAddress.lastName) && (
-                        <p>
-                          {shippingAddress.firstName} {shippingAddress.lastName}
-                        </p>
+                      {recipientName && <p>{recipientName}</p>}
+                      {addressLines.length > 0 ? (
+                        addressLines.map((line) => (
+                          <p key={line} className="break-words">
+                            {line}
+                          </p>
+                        ))
+                      ) : pinLabel ? (
+                        <p className="font-mono">{pinLabel}</p>
+                      ) : null}
+                      {mapsUrl && (
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          View on Google Maps
+                        </a>
                       )}
-                      <p className="font-mono">
-                        {shippingAddress.plusCode
-                          ? formatPlusCodeForDisplay(
-                              shippingAddress.plusCode,
-                              shippingAddress.city
-                            )
-                          : `${shippingAddress.latitude.toFixed(
-                              6
-                            )}, ${shippingAddress.longitude.toFixed(6)}`}
-                      </p>
-                      <a
-                        href={`https://www.google.com/maps?q=${shippingAddress.latitude},${shippingAddress.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        View on Google Maps
-                      </a>
                       {shippingAddress.notes && (
                         <p className="mt-1">{shippingAddress.notes}</p>
                       )}

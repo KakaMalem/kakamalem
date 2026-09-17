@@ -845,9 +845,10 @@ export async function createOrderAction(
     // For logged-in: name from user, email from user, phone from shipping address
     const customerSnapshot: CustomerSnapshot = input.customerInfo
       ? {
-          // Guest checkout - phone is the primary identifier
-          // Name uses phone number since we don't collect name for guests
-          name: input.customerInfo.phone,
+          // Guest checkout - phone is the primary identifier. The GPS flow
+          // collects no name, so the phone stands in; the standard form does
+          // collect one, so prefer it when it is there.
+          name: `${firstName} ${lastName}`.trim() || input.customerInfo.phone,
           phone: input.customerInfo.phone,
           email: undefined, // Not collected in phone-first guest checkout
         }
@@ -870,6 +871,13 @@ export async function createOrderAction(
       accuracy: input.shippingAddress.accuracy,
       source: input.shippingAddress.source,
       notes: input.shippingAddress.notes,
+      // Typed address fields, present only in standard_form mode. Dropping
+      // these left such orders with a city and nothing else to deliver to.
+      addressLine1: input.shippingAddress.addressLine1,
+      addressLine2: input.shippingAddress.addressLine2,
+      province: input.shippingAddress.province,
+      postalCode: input.shippingAddress.postalCode,
+      country: input.shippingAddress.country,
     };
 
     // Fill in billing address name from user if not provided
@@ -894,6 +902,11 @@ export async function createOrderAction(
         accuracy: input.billingAddress.accuracy,
         source: input.billingAddress.source,
         notes: input.billingAddress.notes,
+        addressLine1: input.billingAddress.addressLine1,
+        addressLine2: input.billingAddress.addressLine2,
+        province: input.billingAddress.province,
+        postalCode: input.billingAddress.postalCode,
+        country: input.billingAddress.country,
       };
     }
 

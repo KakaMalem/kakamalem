@@ -140,10 +140,7 @@ export function CheckoutAccordion({
         onToggle={() => handleToggleSection("delivery")}
         onEdit={() => handleEditSection("delivery")}
         summary={
-          <DeliverySummary
-            shippingAddress={shippingAddress}
-            checkoutAddressMode={checkoutAddressMode}
-          />
+          <DeliverySummary shippingAddress={shippingAddress} />
         }
       >
         <SectionDelivery

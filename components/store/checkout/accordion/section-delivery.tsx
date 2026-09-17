@@ -23,6 +23,13 @@ import {
 import { AddressesMapPreview } from "../addresses-map-preview";
 import { cn } from "@/lib/utils";
 import { formatPlusCodeForDisplay } from "@/lib/geo";
+import { COUNTRIES } from "@/lib/geo/countries";
+import {
+  formatAddressOneLine,
+  formatCoordinates,
+  formatRecipientName,
+  hasPostalAddress,
+} from "@/lib/geo/address";
 import { useCheckoutStore } from "@/lib/stores/use-checkout-store";
 import { createAddressAction } from "@/lib/actions/addresses";
 import type { Address } from "@/lib/db/schema";
@@ -38,48 +45,7 @@ import {
 // COUNTRY LIST FOR STANDARD FORM
 // =============================================================================
 
-const COUNTRIES = [
-  { code: "AF", name: "Afghanistan" },
-  { code: "AE", name: "United Arab Emirates" },
-  { code: "US", name: "United States" },
-  { code: "GB", name: "United Kingdom" },
-  { code: "CA", name: "Canada" },
-  { code: "DE", name: "Germany" },
-  { code: "FR", name: "France" },
-  { code: "AU", name: "Australia" },
-  { code: "IN", name: "India" },
-  { code: "PK", name: "Pakistan" },
-  { code: "IR", name: "Iran" },
-  { code: "TR", name: "Turkey" },
-  { code: "SA", name: "Saudi Arabia" },
-  { code: "QA", name: "Qatar" },
-  { code: "KW", name: "Kuwait" },
-  { code: "OM", name: "Oman" },
-  { code: "BH", name: "Bahrain" },
-  { code: "JP", name: "Japan" },
-  { code: "CN", name: "China" },
-  { code: "KR", name: "South Korea" },
-  { code: "NL", name: "Netherlands" },
-  { code: "SE", name: "Sweden" },
-  { code: "NO", name: "Norway" },
-  { code: "DK", name: "Denmark" },
-  { code: "IT", name: "Italy" },
-  { code: "ES", name: "Spain" },
-  { code: "BR", name: "Brazil" },
-  { code: "MX", name: "Mexico" },
-  { code: "EG", name: "Egypt" },
-  { code: "NG", name: "Nigeria" },
-  { code: "ZA", name: "South Africa" },
-  { code: "MY", name: "Malaysia" },
-  { code: "SG", name: "Singapore" },
-  { code: "TH", name: "Thailand" },
-  { code: "ID", name: "Indonesia" },
-  { code: "PH", name: "Philippines" },
-  { code: "NZ", name: "New Zealand" },
-  { code: "TJ", name: "Tajikistan" },
-  { code: "UZ", name: "Uzbekistan" },
-  { code: "TM", name: "Turkmenistan" },
-].sort((a, b) => a.name.localeCompare(b.name));
+
 
 // =============================================================================
 // TYPES
@@ -910,45 +876,35 @@ function GpsDelivery({
 
 export function DeliverySummary({
   shippingAddress,
-  checkoutAddressMode = "gps",
 }: {
   shippingAddress: Address | null;
-  checkoutAddressMode?: "gps" | "standard_form";
 }) {
   if (!shippingAddress) return null;
 
-  // Standard form: show formatted address
-  if (checkoutAddressMode === "standard_form" && shippingAddress.addressLine1) {
-    const parts = [
-      shippingAddress.addressLine1,
-      shippingAddress.city,
-      shippingAddress.province,
-      shippingAddress.postalCode,
-    ].filter(Boolean);
+  const name = formatRecipientName(shippingAddress);
 
-    const name =
-      `${shippingAddress.firstName || ""} ${shippingAddress.lastName || ""}`.trim();
+  // Branch on what the address holds rather than the store's current mode, so
+  // an order captured before the seller switched modes still reads correctly.
+  const isPostal = hasPostalAddress(shippingAddress);
+  const location = isPostal
+    ? formatAddressOneLine(shippingAddress)
+    : (shippingAddress.plusCode
+        ? formatPlusCodeForDisplay(
+            shippingAddress.plusCode,
+            shippingAddress.city
+          )
+        : formatCoordinates(shippingAddress)) ||
+      shippingAddress.city ||
+      "";
 
-    return (
-      <span className="truncate block w-full">
-        {name && <span className="font-medium mr-1.5">{name} &bull;</span>}
-        <span className="opacity-90">{parts.join(", ")}</span>
-      </span>
-    );
-  }
-
-  // GPS mode: show plus code or coordinates
-  const location = shippingAddress.plusCode
-    ? formatPlusCodeForDisplay(shippingAddress.plusCode, shippingAddress.city)
-    : `${shippingAddress.latitude.toFixed(6)}, ${shippingAddress.longitude.toFixed(6)}`;
-
-  const name =
-    `${shippingAddress.firstName || ""} ${shippingAddress.lastName || ""}`.trim();
+  if (!name && !location) return null;
 
   return (
     <span className="truncate block w-full">
       {name && <span className="font-medium mr-1.5">{name} &bull;</span>}
-      <span className="font-mono opacity-90">{location}</span>
+      <span className={cn("opacity-90", !isPostal && "font-mono")}>
+        {location}
+      </span>
     </span>
   );
 }

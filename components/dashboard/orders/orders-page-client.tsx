@@ -2,6 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
+import {
+  formatAddressOneLine,
+  formatRecipientName,
+  hasPostalAddress,
+} from "@/lib/geo/address";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -296,10 +301,13 @@ export function OrdersPageClient({
       Discount: parseFloat(order.discountTotal) || 0,
       Total: parseFloat(order.total) || 0,
       Currency: currency,
-      "Delivery City": order.shippingAddress?.city || "",
-      "Delivery Recipient": order.shippingAddress
-        ? `${order.shippingAddress.firstName || ""} ${order.shippingAddress.lastName || ""}`.trim()
+      // Full street address for typed addresses; empty for pin-only orders,
+      // which are covered by the city and plus code columns instead.
+      "Delivery Address": hasPostalAddress(order.shippingAddress)
+        ? formatAddressOneLine(order.shippingAddress)
         : "",
+      "Delivery City": order.shippingAddress?.city || "",
+      "Delivery Recipient": formatRecipientName(order.shippingAddress) || "",
       "Delivery Phone": formatPhone(order.shippingAddress?.phone),
       "Plus Code": order.shippingAddress?.plusCode || "",
       "Delivery Notes": (order.shippingAddress?.notes || "")
@@ -330,6 +338,7 @@ export function OrdersPageClient({
       { wch: 10 }, // Discount
       { wch: 12 }, // Total
       { wch: 8 }, // Currency
+      { wch: 34 }, // Delivery Address
       { wch: 14 }, // Delivery City
       { wch: 18 }, // Delivery Recipient
       { wch: 16 }, // Delivery Phone

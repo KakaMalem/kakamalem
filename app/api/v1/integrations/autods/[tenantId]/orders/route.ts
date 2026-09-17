@@ -5,6 +5,10 @@ import { eq, and } from "drizzle-orm";
 
 import { verifyApiKey } from "@/lib/integrations/verify-api-key";
 import { checkRateLimit } from "@/lib/integrations/api-middleware";
+import {
+  formatRecipientName,
+  hasMapLocation,
+} from "@/lib/geo/address";
 
 /**
  * GET /api/v1/integrations/autods/[tenantId]/orders
@@ -59,17 +63,28 @@ export async function GET(
       currency: storeCurrency,
       customer_name:
         order.customerSnapshot?.name ||
-        `${order.shippingAddress?.firstName || ""} ${order.shippingAddress?.lastName || ""}`.trim() ||
+        formatRecipientName(order.shippingAddress) ||
         "Customer",
       customer_email: order.customerSnapshot?.email,
       customer_phone: order.customerSnapshot?.phone,
+      // Stores using the standard form have a real postal address; GPS stores
+      // only have a pin, where the delivery notes are the best street line.
       shipping_address: {
-        address1: order.shippingAddress?.notes || "Refer to GPS",
+        address1:
+          order.shippingAddress?.addressLine1 ||
+          order.shippingAddress?.notes ||
+          "Refer to GPS",
+        address2: order.shippingAddress?.addressLine2 || undefined,
         city: order.shippingAddress?.city || "Kabul",
-        zip: "1001",
-        country: "AF",
-        latitude: order.shippingAddress?.latitude,
-        longitude: order.shippingAddress?.longitude,
+        province: order.shippingAddress?.province || undefined,
+        zip: order.shippingAddress?.postalCode || "1001",
+        country: order.shippingAddress?.country || "AF",
+        latitude: hasMapLocation(order.shippingAddress)
+          ? order.shippingAddress?.latitude
+          : undefined,
+        longitude: hasMapLocation(order.shippingAddress)
+          ? order.shippingAddress?.longitude
+          : undefined,
       },
       items: order.items.map((item) => ({
         id: item.id,

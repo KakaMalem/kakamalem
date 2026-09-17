@@ -48,6 +48,15 @@ export const shippingAddressSchema = z.object({
   source: z.enum(["gps", "manual"]).optional(),
   // Optional notes for delivery
   notes: z.string().max(500).optional(),
+  // Standard form fields, sent when the store collects a typed address
+  // (tenants.checkoutAddressMode = "standard_form") and absent in GPS mode.
+  // Without them here Zod strips the street address off the submission and the
+  // order is saved with nothing but a city.
+  addressLine1: z.string().max(300).optional(),
+  addressLine2: z.string().max(300).optional(),
+  province: z.string().max(100).optional(),
+  postalCode: z.string().max(20).optional(),
+  country: z.string().max(2).optional(),
 });
 
 export type ShippingAddressInput = z.infer<typeof shippingAddressSchema>;

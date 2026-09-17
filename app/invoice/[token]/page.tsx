@@ -65,6 +65,7 @@ export default async function PublicInvoicePage({ params }: PageProps) {
   function formatAddress(address?: {
     firstName?: string;
     lastName?: string;
+    addressLines?: string[];
     city?: string;
     notes?: string;
     phone?: string;
@@ -78,7 +79,12 @@ export default async function PublicInvoicePage({ params }: PageProps) {
         [address.firstName, address.lastName].filter(Boolean).join(" ")
       );
     }
-    if (address.city) lines.push(address.city);
+    // A typed address already includes its city and country in these lines.
+    if (address.addressLines?.length) {
+      lines.push(...address.addressLines);
+    } else if (address.city) {
+      lines.push(address.city);
+    }
     if (address.plusCode) lines.push(`Plus Code: ${address.plusCode}`);
     if (address.coordinates) lines.push(`GPS: ${address.coordinates}`);
     if (address.notes) lines.push(address.notes);

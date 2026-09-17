@@ -267,10 +267,16 @@ const styles = StyleSheet.create({
   },
 });
 
-// GPS-based address type for Afghan market
-type GpsAddress = {
+/**
+ * Address as shown on an invoice. A store collects either a map pin (plus code
+ * and coordinates) or a typed postal address (`addressLines`), never both, so
+ * every field here is optional.
+ */
+type InvoiceAddress = {
   firstName?: string;
   lastName?: string;
+  /** Street lines for a typed address, already formatted for display. */
+  addressLines?: string[];
   city?: string;
   notes?: string;
   phone?: string;
@@ -303,8 +309,8 @@ export interface InvoiceData {
       phone?: string;
     };
     // GPS-based addresses (Afghan market)
-    shippingAddress?: GpsAddress;
-    billingAddress?: GpsAddress;
+    shippingAddress?: InvoiceAddress;
+    billingAddress?: InvoiceAddress;
     // Items
     items: Array<{
       productName: string;
@@ -343,13 +349,18 @@ function formatDate(dateString: string): string {
   });
 }
 
-function formatAddress(address?: GpsAddress): string {
+function formatAddress(address?: InvoiceAddress): string {
   if (!address) return "N/A";
   const parts = [];
   if (address.firstName || address.lastName) {
     parts.push([address.firstName, address.lastName].filter(Boolean).join(" "));
   }
-  if (address.city) parts.push(address.city);
+  // A typed address already includes its city and country in these lines.
+  if (address.addressLines?.length) {
+    parts.push(...address.addressLines);
+  } else if (address.city) {
+    parts.push(address.city);
+  }
   if (address.plusCode) parts.push(`Plus Code: ${address.plusCode}`);
   if (address.coordinates) parts.push(`GPS: ${address.coordinates}`);
   if (address.notes) parts.push(address.notes);

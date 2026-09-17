@@ -11,6 +11,10 @@ import {
 } from "@/lib/db/schema";
 import { InvoiceDocument, type InvoiceData } from "./template";
 import { computePaymentStatus } from "@/lib/utils/payment-status";
+import {
+  formatCoordinates,
+  formatPostalAddressLines,
+} from "@/lib/geo/address";
 
 /**
  * Generate a secure random token for shareable invoice links
@@ -25,19 +29,21 @@ export function generateInvoiceToken(): string {
 function formatAddressForInvoice(
   address: Address
 ): InvoiceData["order"]["shippingAddress"] {
+  const addressLines = formatPostalAddressLines(address);
+
   return {
     firstName: address.firstName,
     lastName: address.lastName,
+    // Street lines when the shopper typed an address; empty for a map pin.
+    addressLines: addressLines.length > 0 ? addressLines : undefined,
     // Use city if available, or coordinates as fallback
     city: address.city,
     // Include notes which often contain delivery instructions
     notes: address.notes,
     phone: address.phone,
     // Include coordinates for reference
-    coordinates:
-      address.latitude && address.longitude
-        ? `${address.latitude.toFixed(6)}, ${address.longitude.toFixed(6)}`
-        : undefined,
+    // Coordinates only when there is a real pin (typed addresses store 0/0)
+    coordinates: formatCoordinates(address) ?? undefined,
     plusCode: address.plusCode,
   };
 }

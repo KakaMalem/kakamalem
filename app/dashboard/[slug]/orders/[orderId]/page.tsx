@@ -20,6 +20,11 @@ import { OrderItemsCard } from "@/components/dashboard/orders/order-items-card";
 import { AutoPrintTrigger } from "@/components/dashboard/orders/auto-print-trigger";
 import { OrderRefundsSection } from "@/components/dashboard/orders/order-refunds-section";
 import { RelativeTime } from "@/components/ui/relative-time";
+import {
+  formatPostalAddressLines,
+  formatRecipientName,
+  hasMapLocation,
+} from "@/lib/geo/address";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
@@ -51,6 +56,19 @@ export default async function OrderDetailPage({
   ]);
 
   // Check if order is eligible for refund (has received payment)
+  // Typed addresses store 0/0 coordinates, so decide from the address itself
+  // whether there is anything to map.
+  const deliveryAddressLines = formatPostalAddressLines(order.shippingAddress);
+  const showDeliveryMap = hasMapLocation(order.shippingAddress);
+
+  // Guest orders placed through the GPS flow store the phone as the customer
+  // name. When the address carries a real name, show that instead.
+  const snapshotName = order.customerSnapshot.name?.trim() || "";
+  const customerDisplayName =
+    snapshotName && snapshotName !== order.customerSnapshot.phone
+      ? snapshotName
+      : formatRecipientName(order.shippingAddress) || snapshotName || "Customer";
+
   const amountPaid = parseFloat(order.totalPaid || "0");
   const amountRefunded = parseFloat(order.amountRefunded || "0");
   const canRefund = canManage && amountPaid > amountRefunded;
@@ -182,12 +200,12 @@ export default async function OrderDetailPage({
               <div className="flex items-center gap-3">
                 <div className="flex size-10 items-center justify-center rounded-full bg-muted shrink-0">
                   <span className="text-sm font-medium">
-                    {order.customerSnapshot.name.charAt(0).toUpperCase()}
+                    {customerDisplayName.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="min-w-0">
                   <p className="font-medium truncate">
-                    {order.customerSnapshot.name}
+                    {customerDisplayName}
                   </p>
                   {order.customerSnapshot.email && (
                     <a
@@ -215,18 +233,32 @@ export default async function OrderDetailPage({
                         {order.shippingAddress.phone}
                       </a>
                     </div>
-                    {/* City */}
-                    {order.shippingAddress.city && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="size-4 shrink-0" />
-                        <span>{order.shippingAddress.city}</span>
+                    {/* Address — a typed postal address, otherwise the pin */}
+                    {deliveryAddressLines.length > 0 ? (
+                      <div className="flex items-start gap-2 text-muted-foreground">
+                        <MapPin className="size-4 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          {deliveryAddressLines.map((line) => (
+                            <p key={line} className="break-words">
+                              {line}
+                            </p>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                    {/* Plus Code */}
-                    {order.shippingAddress.plusCode && (
-                      <p className="text-xs text-muted-foreground font-mono pl-6">
-                        {order.shippingAddress.plusCode}
-                      </p>
+                    ) : (
+                      <>
+                        {order.shippingAddress.city && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <MapPin className="size-4 shrink-0" />
+                            <span>{order.shippingAddress.city}</span>
+                          </div>
+                        )}
+                        {order.shippingAddress.plusCode && (
+                          <p className="text-xs text-muted-foreground font-mono pl-6">
+                            {order.shippingAddress.plusCode}
+                          </p>
+                        )}
+                      </>
                     )}
                     {/* Delivery Notes */}
                     {order.shippingAddress.notes && (
@@ -240,21 +272,22 @@ export default async function OrderDetailPage({
                 </>
               )}
 
-              {/* Delivery Location Map */}
-              {order.shippingAddress?.latitude &&
-                order.shippingAddress?.longitude && (
-                  <>
-                    <Separator />
-                    <DeliveryLocationMapWrapper
-                      latitude={order.shippingAddress.latitude}
-                      longitude={order.shippingAddress.longitude}
-                      customerName={
-                        `${order.shippingAddress.firstName || ""} ${order.shippingAddress.lastName || ""}`.trim() ||
-                        order.customerSnapshot.name
-                      }
-                    />
-                  </>
-                )}
+              {/* Delivery Location Map — only when the order has a real pin.
+                  Typed addresses store 0/0, and `{0 && ...}` would render a
+                  stray "0" as well as mapping the Gulf of Guinea. */}
+              {showDeliveryMap && order.shippingAddress && (
+                <>
+                  <Separator />
+                  <DeliveryLocationMapWrapper
+                    latitude={order.shippingAddress.latitude}
+                    longitude={order.shippingAddress.longitude}
+                    customerName={
+                      formatRecipientName(order.shippingAddress) ||
+                      order.customerSnapshot.name
+                    }
+                  />
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

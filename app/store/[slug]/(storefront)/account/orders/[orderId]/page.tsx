@@ -36,6 +36,12 @@ import {
 } from "@/lib/utils/payment-status";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { Address } from "@/lib/db/schema";
+import {
+  formatCoordinates,
+  formatPostalAddressLines,
+  formatRecipientName,
+  getGoogleMapsUrl,
+} from "@/lib/geo/address";
 
 interface OrderDetailPageProps {
   params: Promise<{ slug: string; orderId: string }>;
@@ -73,6 +79,12 @@ export default async function OrderDetailPage({
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = new Date(order.createdAt);
   const shippingAddress = order.shippingAddress as Address;
+  // A typed address has no pin (coordinates are stored as 0/0), so show the
+  // street lines instead of fake coordinates and skip the map link.
+  const recipientName = formatRecipientName(shippingAddress);
+  const addressLines = formatPostalAddressLines(shippingAddress);
+  const coordinates = formatCoordinates(shippingAddress);
+  const mapsUrl = getGoogleMapsUrl(shippingAddress);
 
   const paymentInfo = computePaymentStatus({
     total: order.total,
@@ -273,26 +285,36 @@ export default async function OrderDetailPage({
         </CardHeader>
         <CardContent>
           <div className="text-sm space-y-1">
-            {(shippingAddress.firstName || shippingAddress.lastName) && (
-              <p className="font-medium">
-                {shippingAddress.firstName} {shippingAddress.lastName}
-              </p>
+            {recipientName && <p className="font-medium">{recipientName}</p>}
+            {addressLines.length > 0 ? (
+              <div className="flex items-start gap-1 text-muted-foreground">
+                <MapPin className="size-3 mt-1 shrink-0" />
+                <div className="min-w-0">
+                  {addressLines.map((line) => (
+                    <p key={line} className="break-words">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              coordinates && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="size-3" />
+                  <span>{coordinates}</span>
+                </div>
+              )
             )}
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <MapPin className="size-3" />
-              <span>
-                {shippingAddress.latitude.toFixed(6)},{" "}
-                {shippingAddress.longitude.toFixed(6)}
-              </span>
-            </div>
-            <a
-              href={`https://www.google.com/maps?q=${shippingAddress.latitude},${shippingAddress.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              View on Google Maps
-            </a>
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                View on Google Maps
+              </a>
+            )}
             {shippingAddress.notes && (
               <p className="text-muted-foreground mt-2">
                 {shippingAddress.notes}
