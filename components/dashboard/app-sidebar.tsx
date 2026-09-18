@@ -21,6 +21,7 @@ import {
   Crown,
   ArrowRight,
   Link2,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -250,6 +251,12 @@ export function AppSidebar({
       title: "Analytics",
       href: `${baseUrl}/analytics`,
       icon: BarChart3,
+    },
+    // Money the platform is holding for this store, and withdrawals.
+    {
+      title: "Earnings",
+      href: `${baseUrl}/payments`,
+      icon: Wallet,
     },
     {
       title: "Reviews",

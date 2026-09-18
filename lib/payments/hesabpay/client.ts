@@ -28,7 +28,12 @@ import {
   type HesabPayRefundResponse,
   type HesabPayVerifySignatureResponse,
   type HesabPayItem,
+  type HesabPaySendMoneyRequest,
+  type HesabPaySendMoneyResponse,
+  type HesabPayVendorTransfer,
+  HESABPAY_MAX_VENDORS_PER_TRANSFER,
 } from "./types";
+import { encryptMerchantPin } from "./pin";
 import { HESABPAY_CURRENCY } from "../currency";
 
 // =============================================================================
@@ -427,6 +432,125 @@ export class HesabPayClient implements PaymentGatewayProvider {
         success: false,
         error:
           error instanceof Error ? error.message : "Failed to process refund",
+      };
+    }
+  }
+
+  /**
+   * Send money from the platform's HesabPay account to seller accounts.
+   *
+   * This is how a seller is paid: customers pay into the platform account
+   * because HesabPay credentials are platform-level, and this forwards what
+   * they are owed. HesabPay caps a single call at 16 destinations.
+   */
+  async sendMoneyToVendors(
+    vendors: HesabPayVendorTransfer[],
+    credentials: GatewayCredentials
+  ): Promise<{
+    success: boolean;
+    transactionId?: string;
+    error?: string;
+    gatewayResponse?: Record<string, unknown>;
+  }> {
+    if (vendors.length === 0) {
+      return { success: false, error: "No destinations to send to" };
+    }
+
+    if (vendors.length > HESABPAY_MAX_VENDORS_PER_TRANSFER) {
+      return {
+        success: false,
+        error: `HesabPay accepts at most ${HESABPAY_MAX_VENDORS_PER_TRANSFER} destinations per transfer`,
+      };
+    }
+
+    if (!credentials.apiKey) {
+      return { success: false, error: "HesabPay API key is not configured" };
+    }
+
+    if (!credentials.merchantPin) {
+      return {
+        success: false,
+        error:
+          "HesabPay merchant PIN is not configured, so payouts cannot be sent",
+      };
+    }
+
+    const invalid = vendors.find(
+      (vendor) => !vendor.account_number || !(vendor.amount > 0)
+    );
+    if (invalid) {
+      return {
+        success: false,
+        error: "Every destination needs an account number and a positive amount",
+      };
+    }
+
+    const url = `${this.getBaseUrl()}${HESABPAY_API.SEND_MONEY_MULTI_VENDOR}`;
+
+    const payload: HesabPaySendMoneyRequest = {
+      pin: encryptMerchantPin(credentials.merchantPin, credentials.apiKey),
+      vendors,
+    };
+
+    try {
+      // Log the destinations but never the payload: it carries the PIN.
+      console.log("[HesabPay] Sending money:", {
+        url,
+        destinations: vendors.map((vendor) => ({
+          account: vendor.account_number,
+          amount: vendor.amount,
+        })),
+      });
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `API-KEY ${credentials.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await response.json()) as HesabPaySendMoneyResponse;
+
+      const failedVendor = data.results?.find(
+        (result) => result.success === false
+      );
+
+      if (!response.ok || data.success === false || failedVendor) {
+        console.error("[HesabPay] Send money failed:", {
+          httpStatus: response.status,
+          message: data.message,
+          failedVendor,
+        });
+        return {
+          success: false,
+          error:
+            failedVendor?.message ||
+            data.message ||
+            `HesabPay rejected the transfer (HTTP ${response.status})`,
+          gatewayResponse: data as unknown as Record<string, unknown>,
+        };
+      }
+
+      return {
+        success: true,
+        transactionId:
+          data.transaction_id || data.results?.[0]?.transaction_id,
+        gatewayResponse: data as unknown as Record<string, unknown>,
+      };
+    } catch (error) {
+      // A network failure here is the dangerous case: the transfer may or may
+      // not have happened. The caller leaves the payout in "processing" rather
+      // than assuming either way.
+      console.error("[HesabPay] Send money error:", error);
+      return {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not reach HesabPay to send the payout",
       };
     }
   }

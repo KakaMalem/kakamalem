@@ -693,6 +693,25 @@ await savePaymentGatewayConfig(tenantId, "hesabpay", {
 
 HesabPay credentials are **not** per-tenant: the platform's `HESABPAY_API_KEY` env var is used for every store (escrow model). The credential columns on `payment_gateway_configs` (`apiKey`, `merchantPin`, `webhookSecret`, …) are legacy, unused by the UI, and should not be surfaced to client components.
 
+### Seller earnings and payouts
+
+Because credentials are platform-level, a card payment lands in the **platform's** HesabPay account, not the seller's. The platform therefore owes the seller that money and forwards it on request. Cash on delivery never enters this system: the courier hands that money straight to the seller.
+
+Sellers keep 100% of order revenue. Nothing is deducted on the way through; the platform earns from Pro subscriptions only.
+
+| Table                   | Purpose                                                              |
+| ----------------------- | -------------------------------------------------------------------- |
+| `seller_balances`       | One row per store: available / reserved / lifetime. The row exists to be locked. |
+| `seller_ledger_entries` | Append-only movements. Unique on (`reference_type`, `reference_id`).  |
+| `seller_payouts`        | One row per withdrawal, with the destination snapshotted.             |
+
+- `lib/payouts/ledger.ts` owns every balance change. Earnings are credited from `recordGatewayPaymentForOrder()` keyed on the `order_transactions` row, so a replayed webhook credits once. Refunds debit from `processRefund()`, converted back to AFN with the order's locked rate, and only for orders actually paid through HesabPay.
+- Balances are **AFN**, because that is what HesabPay settled, even when the store prices in another currency.
+- `lib/actions/payouts.ts` runs withdrawals in three steps: reserve in a transaction, call HesabPay **outside** any transaction, then settle or reverse. A payout stuck in `processing` means the outcome is genuinely unknown and needs a human to check HesabPay before retrying.
+- `lib/payments/hesabpay/pin.ts` encrypts the merchant PIN exactly as HesabPay's own WooCommerce plugin does: AES-256-CBC, key = first 32 bytes of the API key (zero-padded), random IV, `base64(IV || ciphertext)`.
+- Withdrawing and changing the payout account are **owner-only**; viewing earnings is admin or owner.
+- `pnpm earnings:backfill` credits past HesabPay payments into the ledger. Idempotent, and supports `--dry-run`.
+
 ### Payment Flow
 
 1. Customer selects payment method at checkout

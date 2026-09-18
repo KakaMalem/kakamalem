@@ -18,6 +18,8 @@ import {
 } from "@/lib/validations/orders";
 import { getUser } from "@/lib/auth/server";
 import { computePaymentStatus } from "@/lib/utils/payment-status";
+import { parseExchangeRate, toAfnAmount } from "@/lib/payments/currency";
+import { debitSellerForRefund } from "@/lib/payouts/ledger";
 
 // Validation schema for order discount adjustment
 const adjustOrderDiscountSchema = z.object({
@@ -865,6 +867,9 @@ export async function processRefund(
         isPaid: true,
         status: true,
         staffNotes: true,
+        // Needed to convert the refund back into the AFN the platform holds
+        currencyCode: true,
+        exchangeRateUsed: true,
       },
     });
 
@@ -951,15 +956,32 @@ export async function processRefund(
       store_credit: "cash", // Store credit treated as cash for transaction purposes
     };
 
-    await db.insert(orderTransactions).values({
-      orderId,
+    const [refundTransaction] = await db
+      .insert(orderTransactions)
+      .values({
+        orderId,
+        tenantId,
+        type: "refund",
+        amount: amount.toFixed(2),
+        paymentMethod: paymentMethodMap[refundMethod || "cash"] || "cash",
+        status: "completed",
+        notes: reason || undefined,
+        processedAt: new Date().toISOString(),
+      })
+      .returning({ id: orderTransactions.id });
+
+    // Take the refund back off the seller's balance, but only for money the
+    // platform is actually holding. A card payment landed in the platform's
+    // HesabPay account; cash on delivery went straight to the seller, so
+    // refunding it is between them and the customer and must not touch the
+    // ledger.
+    await debitSellerForCardRefund({
       tenantId,
-      type: "refund",
-      amount: amount.toFixed(2),
-      paymentMethod: paymentMethodMap[refundMethod || "cash"] || "cash",
-      status: "completed",
-      notes: reason || undefined,
-      processedAt: new Date().toISOString(),
+      orderId,
+      refundTransactionId: refundTransaction?.id,
+      amountInOrderCurrency: amount,
+      orderCurrency: order.currencyCode,
+      exchangeRateUsed: order.exchangeRateUsed,
     });
 
     // Revalidate order detail page
@@ -981,5 +1003,76 @@ export async function processRefund(
       success: false,
       error: { message: "Failed to process refund" },
     };
+  }
+}
+
+/**
+ * Reduce a seller's balance when a card-paid order is refunded.
+ *
+ * Three things have to line up before any money moves:
+ *
+ * - the order must have been paid through HesabPay, so the platform is the one
+ *   holding it. Cash on delivery never reaches us and must be left alone.
+ * - the refund amount is in the order's currency, but the ledger is in AFN, so
+ *   a non-AFN store's refund is converted with the rate locked on the order.
+ * - the debit is keyed on the refund transaction, so re-running it changes
+ *   nothing.
+ *
+ * Failures are logged rather than thrown: the customer's refund has already
+ * been recorded and must not be rolled back because a balance update failed.
+ */
+async function debitSellerForCardRefund(params: {
+  tenantId: string;
+  orderId: string;
+  refundTransactionId?: string;
+  amountInOrderCurrency: number;
+  orderCurrency: string | null;
+  exchangeRateUsed: string | null;
+}): Promise<void> {
+  if (!params.refundTransactionId || !(params.amountInOrderCurrency > 0)) {
+    return;
+  }
+
+  try {
+    const [cardPayment] = await db
+      .select({ id: orderTransactions.id })
+      .from(orderTransactions)
+      .where(
+        and(
+          eq(orderTransactions.orderId, params.orderId),
+          eq(orderTransactions.type, "payment"),
+          eq(orderTransactions.status, "completed"),
+          eq(orderTransactions.gateway, "hesabpay")
+        )
+      )
+      .limit(1);
+
+    if (!cardPayment) return;
+
+    const orderCurrency = (params.orderCurrency || "AFN").toUpperCase();
+    let amountAfn = params.amountInOrderCurrency;
+
+    if (orderCurrency !== "AFN") {
+      const rate = parseExchangeRate(params.exchangeRateUsed);
+      if (!rate) {
+        console.warn(
+          `[refund] Order ${params.orderId} is priced in ${orderCurrency} with no locked rate — seller balance not adjusted`
+        );
+        return;
+      }
+      amountAfn = toAfnAmount(params.amountInOrderCurrency, rate);
+    }
+
+    await debitSellerForRefund({
+      tenantId: params.tenantId,
+      orderId: params.orderId,
+      amountAfn,
+      refundId: params.refundTransactionId,
+    });
+  } catch (error) {
+    console.error(
+      `[refund] Failed to adjust seller balance for order ${params.orderId}:`,
+      error
+    );
   }
 }

@@ -196,7 +196,7 @@ function getDefaultDisplayName(gateway: PaymentGateway): string {
 /**
  * Get platform-level credentials for HesabPay (used for subscription payments).
  */
-async function getPlatformCredentials(
+export async function getPlatformCredentials(
   gateway: PaymentGateway
 ): Promise<GatewayCredentials | null> {
   if (gateway === "hesabpay") {
@@ -209,6 +209,8 @@ async function getPlatformCredentials(
     const isLive = process.env.NODE_ENV === "production";
     return {
       apiKey,
+      // Only needed to send money out (seller payouts), not to take it in.
+      merchantPin: process.env.HESABPAY_MERCHANT_PIN || undefined,
       isLive,
     };
   }

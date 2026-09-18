@@ -30,6 +30,7 @@ import {
   type PaymentGateway,
 } from "@/lib/db/schema";
 import { fromAfnAmount, parseExchangeRate } from "./currency";
+import { creditSellerEarning } from "@/lib/payouts/ledger";
 
 /** Rounding slack: converting AFN back to the store currency is not exact. */
 const FULLY_PAID_TOLERANCE = 0.99;
@@ -181,7 +182,31 @@ export async function recordGatewayPaymentForOrder(
     })
     .returning();
 
-  // 3. Order status. The ledger trigger owns the cached payment columns, but
+  // 3. The seller's share. Card money landed in the PLATFORM's HesabPay
+  //    account, so the store is now owed it and can withdraw it later. Keyed on
+  //    the transaction row, so a replayed webhook credits nothing twice. Only
+  //    HesabPay: cash on delivery and manual transfers never reach us.
+  if (params.gateway === "hesabpay" && transaction?.id) {
+    try {
+      await creditSellerEarning({
+        tenantId: order.tenantId,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        amountAfn: params.amount,
+        paymentTransactionId: transaction.id,
+      });
+    } catch (error) {
+      // The customer has paid and the order must still be marked paid. A
+      // missing credit is recoverable from the transaction row; a failed
+      // order update is not.
+      console.error(
+        `[payments] Failed to credit seller for order ${order.orderNumber}:`,
+        error
+      );
+    }
+  }
+
+  // 4. Order status. The ledger trigger owns the cached payment columns, but
   //    set them explicitly too so this is correct even where the custom SQL
   //    migrations have not been applied. Order status is ours either way.
   await db

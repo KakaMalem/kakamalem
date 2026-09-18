@@ -849,6 +849,15 @@ export const tenants = pgTable(
     // Settings
     currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
 
+    // ========== SELLER PAYOUT ACCOUNT ==========
+    // Customers pay into the platform's HesabPay account, so order money has to
+    // be forwarded to the seller. This is the HesabPay account it goes to.
+    // Without it the store can accept card payments but cannot be paid out.
+    hesabpayAccountNumber: varchar("hesabpay_account_number", { length: 50 }),
+    // Account holder, shown back to the seller so they can check it before
+    // withdrawing. Never used to route money; the number does that.
+    hesabpayAccountName: varchar("hesabpay_account_name", { length: 120 }),
+
     // HesabPay charges customers in AFN only (its API has no currency field).
     // For stores whose base currency is not AFN, this is the seller-set rate
     // used to convert the order total into the AFN amount HesabPay collects.
@@ -6646,6 +6655,164 @@ export const deliveryPayoutItems = pgTable(
 // ============================================================================
 // Single-row table for platform-wide configuration.
 // Managed exclusively through /admin
+// ============================================================================
+// SELLER EARNINGS & PAYOUTS
+// ============================================================================
+// Card payments land in the PLATFORM's HesabPay account, because HesabPay
+// credentials are platform-level. The seller is therefore owed that money and
+// the platform forwards it via HesabPay's send-money-MultiVendor endpoint.
+//
+// Three pieces:
+//   seller_balances       what a store can withdraw right now (lockable row)
+//   seller_ledger_entries every movement, append-only, one row per source event
+//   seller_payouts        each withdrawal and how it went
+//
+// Cash on delivery never appears here: that money goes straight from the
+// customer to the seller and the platform never holds it.
+
+export const sellerLedgerEntryTypeEnum = pgEnum("seller_ledger_entry_type", [
+  "earning", // an order was paid through the platform's HesabPay account
+  "refund", // money returned to a customer, taken back off the seller
+  "payout", // withdrawn to the seller's own HesabPay account
+  "payout_reversal", // a withdrawal failed and the money came back
+  "adjustment", // manual correction by a platform admin
+]);
+
+export const sellerPayoutStatusEnum = pgEnum("seller_payout_status", [
+  "processing", // funds reserved, transfer in flight
+  "completed", // HesabPay accepted the transfer
+  "failed", // transfer rejected; funds returned to available
+]);
+
+export const sellerBalances = pgTable(
+  "seller_balances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .unique()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Everything here is AFN: it is what HesabPay actually settled to the
+    // platform, regardless of the currency the store prices in.
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
+
+    // Withdrawable right now.
+    available: decimal("available", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    // Reserved by a payout that is in flight. Deducted from available at
+    // request time so the same money cannot be withdrawn twice.
+    reserved: decimal("reserved", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    // Running totals, for display only.
+    lifetimeEarned: decimal("lifetime_earned", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    lifetimePaidOut: decimal("lifetime_paid_out", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("seller_balances_tenant_id_idx").on(table.tenantId),
+    // A balance must never go negative, whatever a bug upstream does.
+    check("seller_balances_available_check", sql`available >= 0`),
+    check("seller_balances_reserved_check", sql`reserved >= 0`),
+  ]
+);
+
+export const sellerLedgerEntries = pgTable(
+  "seller_ledger_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    type: sellerLedgerEntryTypeEnum("type").notNull(),
+    // Signed AFN: positive adds to the balance, negative takes away.
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+    // Available balance immediately after this entry, for auditing.
+    balanceAfter: decimal("balance_after", { precision: 14, scale: 2 }).notNull(),
+
+    // What caused this entry. The unique index below makes every source event
+    // land exactly once, so a replayed webhook cannot pay a seller twice.
+    referenceType: varchar("reference_type", { length: 30 }).notNull(),
+    referenceId: uuid("reference_id").notNull(),
+
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    description: text("description"),
+
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("seller_ledger_entries_tenant_idx").on(
+      table.tenantId,
+      table.createdAt
+    ),
+    index("seller_ledger_entries_order_idx").on(table.orderId),
+    uniqueIndex("seller_ledger_entries_source_idx").on(
+      table.referenceType,
+      table.referenceId
+    ),
+  ]
+);
+
+export const sellerPayouts = pgTable(
+  "seller_payouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Human-readable, e.g. "PO-7F3A21"
+    payoutNumber: varchar("payout_number", { length: 30 }).notNull().unique(),
+
+    amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 10 }).default("AFN").notNull(),
+
+    status: sellerPayoutStatusEnum("status").default("processing").notNull(),
+
+    // Snapshot of the destination at request time. The seller may edit their
+    // account later; this records where the money was actually sent.
+    accountNumber: varchar("account_number", { length: 50 }).notNull(),
+    accountName: varchar("account_name", { length: 120 }),
+
+    gatewayResponse: jsonb("gateway_response").$type<Record<string, unknown>>(),
+    failureReason: text("failure_reason"),
+
+    requestedBy: text("requested_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    requestedAt: timestamp("requested_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .defaultNow()
+      .notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    index("seller_payouts_tenant_idx").on(table.tenantId, table.requestedAt),
+    index("seller_payouts_status_idx").on(table.status),
+    check("seller_payouts_amount_check", sql`amount > 0`),
+  ]
+);
+
 export const platformSettings = pgTable("platform_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
 
@@ -9568,3 +9735,15 @@ export type BillingInterval = "monthly" | "yearly";
 // Order invoice token types
 export type OrderInvoiceToken = typeof orderInvoiceTokens.$inferSelect;
 export type NewOrderInvoiceToken = typeof orderInvoiceTokens.$inferInsert;
+
+// Seller earnings & payout types
+export type SellerLedgerEntryType =
+  (typeof sellerLedgerEntryTypeEnum.enumValues)[number];
+export type SellerPayoutStatus =
+  (typeof sellerPayoutStatusEnum.enumValues)[number];
+export type SellerBalance = typeof sellerBalances.$inferSelect;
+export type NewSellerBalance = typeof sellerBalances.$inferInsert;
+export type SellerLedgerEntry = typeof sellerLedgerEntries.$inferSelect;
+export type NewSellerLedgerEntry = typeof sellerLedgerEntries.$inferInsert;
+export type SellerPayout = typeof sellerPayouts.$inferSelect;
+export type NewSellerPayout = typeof sellerPayouts.$inferInsert;

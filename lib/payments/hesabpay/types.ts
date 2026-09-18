@@ -189,7 +189,43 @@ export const HESABPAY_API = {
   REFUND: "/payment/refund",
   /** Webhook signature verification endpoint */
   VERIFY_WEBHOOK_SIGNATURE: "/hesab/webhooks/verify-signature",
+  /** Send money to one or more vendor accounts (marketplace payouts) */
+  SEND_MONEY_MULTI_VENDOR: "/payment/send-money-MultiVendor",
 } as const;
+
+/**
+ * HesabPay accepts at most 16 vendors in one send-money call. Stay under it.
+ */
+export const HESABPAY_MAX_VENDORS_PER_TRANSFER = 15;
+
+/** One destination in a send-money-MultiVendor call. */
+export interface HesabPayVendorTransfer {
+  /** Destination HesabPay account number. */
+  account_number: string;
+  /** Amount in AFN. */
+  amount: number;
+}
+
+export interface HesabPaySendMoneyRequest {
+  /** Merchant PIN, encrypted with the API key (never sent in plaintext). */
+  pin: string;
+  vendors: HesabPayVendorTransfer[];
+}
+
+export interface HesabPaySendMoneyResponse {
+  success?: boolean;
+  status_code?: number;
+  message?: string;
+  transaction_id?: string;
+  /** Per-vendor outcome, when HesabPay reports one. */
+  results?: Array<{
+    account_number?: string;
+    amount?: number;
+    success?: boolean;
+    message?: string;
+    transaction_id?: string;
+  }>;
+}
 
 // =============================================================================
 // WEBHOOK SIGNATURE VERIFICATION

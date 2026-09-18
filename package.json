@@ -13,7 +13,8 @@
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:push": "drizzle-kit push --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
-    "db:migrate:custom": "tsx scripts/migrate-custom.ts"
+    "db:migrate:custom": "tsx scripts/migrate-custom.ts",
+    "earnings:backfill": "tsx scripts/backfill-seller-earnings.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
