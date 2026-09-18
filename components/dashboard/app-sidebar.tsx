@@ -252,12 +252,6 @@ export function AppSidebar({
       href: `${baseUrl}/analytics`,
       icon: BarChart3,
     },
-    // Money the platform is holding for this store, and withdrawals.
-    {
-      title: "Earnings",
-      href: `${baseUrl}/payments`,
-      icon: Wallet,
-    },
     {
       title: "Reviews",
       href: `${baseUrl}/reviews`,
@@ -389,11 +383,27 @@ export function AppSidebar({
           </SidebarGroup>
         )}
 
-        {/* Account section - billing + settings */}
+        {/* Account section - earnings, billing + settings */}
         {(showBilling || showSettings) && (
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
+                {/* Money coming in, next to the money going out. Same roles
+                    as the page itself allows: admin or owner. */}
+                {showSettings && storeSlug && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(`${baseUrl}/payments`)}
+                      tooltip="Earnings"
+                    >
+                      <NavLink href={`${baseUrl}/payments`}>
+                        <Wallet />
+                        <span>Earnings</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 {showBilling && storeSlug && (
                   <SidebarMenuItem>
                     <SidebarMenuButton
