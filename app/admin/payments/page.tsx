@@ -5,6 +5,8 @@ import {
   getPlatformBillingStats,
 } from "@/lib/db/queries/admin";
 import { PlatformBillingClient } from "./platform-billing-client";
+import { UnresolvedPayouts } from "./unresolved-payouts";
+import { getUnresolvedPayouts } from "@/lib/actions/payouts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 /**
@@ -15,10 +17,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 export default async function AdminPaymentsPage() {
   await requirePlatformAdmin();
 
-  const [transactions, invoices, stats] = await Promise.all([
+  const [transactions, invoices, stats, unresolvedPayouts] = await Promise.all([
     getPlatformTransactions({ limit: 20 }),
     getPlatformInvoices({ limit: 20 }),
     getPlatformBillingStats(),
+    // Seller withdrawals HesabPay never confirmed. Their money is held until
+    // someone checks and says which way it went.
+    getUnresolvedPayouts(),
   ]);
 
   return (
@@ -31,6 +36,8 @@ export default async function AdminPaymentsPage() {
           Monitor platform revenue and manage service invoices.
         </p>
       </div>
+
+      <UnresolvedPayouts payouts={unresolvedPayouts} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="border-none shadow-sm bg-primary/5">

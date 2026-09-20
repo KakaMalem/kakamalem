@@ -34,7 +34,35 @@ import {
   HESABPAY_MAX_VENDORS_PER_TRANSFER,
 } from "./types";
 import { encryptMerchantPin } from "./pin";
+import { extractGatewayMessage, toGatewayErrorText } from "./errors";
 import { HESABPAY_CURRENCY } from "../currency";
+
+/**
+ * Result of a send-money attempt. See `sendMoneyToVendors` for why `rejected`
+ * and `unknown` must stay separate.
+ */
+export type SendMoneyOutcome =
+  | {
+      status: "sent";
+      transactionId?: string;
+      gatewayResponse?: Record<string, unknown>;
+    }
+  | {
+      status: "rejected";
+      /**
+       * Whose fault it was. `gateway` is HesabPay declining; `configuration`
+       * is us being set up wrong, which the seller must not be blamed for.
+       * Either way no money moved, so the balance is safe to give back.
+       */
+      reason: "gateway" | "configuration";
+      message: string;
+      gatewayResponse?: Record<string, unknown>;
+    }
+  | {
+      status: "unknown";
+      message: string;
+      gatewayResponse?: Record<string, unknown>;
+    };
 
 // =============================================================================
 // HESABPAY CLIENT
@@ -439,38 +467,53 @@ export class HesabPayClient implements PaymentGatewayProvider {
   /**
    * Send money from the platform's HesabPay account to seller accounts.
    *
-   * This is how a seller is paid: customers pay into the platform account
-   * because HesabPay credentials are platform-level, and this forwards what
-   * they are owed. HesabPay caps a single call at 16 destinations.
+   * The return type separates three genuinely different situations, because
+   * the caller must treat them differently:
+   *
+   * - `sent`      HesabPay accepted it. Settle the payout.
+   * - `rejected`  HesabPay answered and refused. No money moved, so the
+   *               seller's balance can safely be given back.
+   * - `unknown`   We never got a clear answer: the connection dropped, the
+   *               body was not JSON, or HesabPay returned a server error. The
+   *               money may or may not have moved, so the caller must NOT
+   *               return it to the balance. A human checks HesabPay instead.
+   *
+   * Collapsing `unknown` into `rejected` is how a marketplace pays someone
+   * twice, so the distinction is deliberate.
    */
   async sendMoneyToVendors(
     vendors: HesabPayVendorTransfer[],
     credentials: GatewayCredentials
-  ): Promise<{
-    success: boolean;
-    transactionId?: string;
-    error?: string;
-    gatewayResponse?: Record<string, unknown>;
-  }> {
+  ): Promise<SendMoneyOutcome> {
     if (vendors.length === 0) {
-      return { success: false, error: "No destinations to send to" };
+      return {
+        status: "rejected",
+        reason: "configuration",
+        message: "No destinations to send to",
+      };
     }
 
     if (vendors.length > HESABPAY_MAX_VENDORS_PER_TRANSFER) {
       return {
-        success: false,
-        error: `HesabPay accepts at most ${HESABPAY_MAX_VENDORS_PER_TRANSFER} destinations per transfer`,
+        status: "rejected",
+        reason: "configuration",
+        message: `HesabPay accepts at most ${HESABPAY_MAX_VENDORS_PER_TRANSFER} destinations per transfer`,
       };
     }
 
     if (!credentials.apiKey) {
-      return { success: false, error: "HesabPay API key is not configured" };
+      return {
+        status: "rejected",
+        reason: "configuration",
+        message: "HesabPay API key is not configured",
+      };
     }
 
     if (!credentials.merchantPin) {
       return {
-        success: false,
-        error:
+        status: "rejected",
+        reason: "configuration",
+        message:
           "HesabPay merchant PIN is not configured, so payouts cannot be sent",
       };
     }
@@ -480,18 +523,35 @@ export class HesabPayClient implements PaymentGatewayProvider {
     );
     if (invalid) {
       return {
-        success: false,
-        error: "Every destination needs an account number and a positive amount",
+        status: "rejected",
+        reason: "configuration",
+        message:
+          "Every destination needs an account number and a positive amount",
       };
     }
 
     const url = `${this.getBaseUrl()}${HESABPAY_API.SEND_MONEY_MULTI_VENDOR}`;
 
-    const payload: HesabPaySendMoneyRequest = {
-      pin: encryptMerchantPin(credentials.merchantPin, credentials.apiKey),
-      vendors,
-    };
+    // Anything that must never appear in a message shown to a seller.
+    const secrets = [credentials.apiKey, credentials.merchantPin];
 
+    let payload: HesabPaySendMoneyRequest;
+    try {
+      payload = {
+        pin: encryptMerchantPin(credentials.merchantPin, credentials.apiKey),
+        vendors,
+      };
+    } catch (error) {
+      // Nothing was sent, so this is definitive and the balance can go back.
+      console.error("[HesabPay] Could not prepare payout credentials:", error);
+      return {
+        status: "rejected",
+        reason: "configuration",
+        message: "Payout credentials could not be prepared",
+      };
+    }
+
+    let response: Response;
     try {
       // Log the destinations but never the payload: it carries the PIN.
       console.log("[HesabPay] Sending money:", {
@@ -502,7 +562,7 @@ export class HesabPayClient implements PaymentGatewayProvider {
         })),
       });
 
-      const response = await fetch(url, {
+      response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -511,48 +571,116 @@ export class HesabPayClient implements PaymentGatewayProvider {
         },
         body: JSON.stringify(payload),
       });
+    } catch (error) {
+      // The request may have reached HesabPay before the connection died.
+      console.error("[HesabPay] Send money request failed:", error);
+      return {
+        status: "unknown",
+        message:
+          "We could not reach HesabPay to confirm the transfer. Check your HesabPay account before trying again.",
+      };
+    }
 
-      const data = (await response.json()) as HesabPaySendMoneyResponse;
+    let data: HesabPaySendMoneyResponse;
+    try {
+      data = (await response.json()) as HesabPaySendMoneyResponse;
+    } catch {
+      // A body we cannot read tells us nothing about whether money moved.
+      console.error(
+        `[HesabPay] Send money returned an unreadable body (HTTP ${response.status})`
+      );
+      return {
+        status: "unknown",
+        message: `HesabPay returned an unreadable response (HTTP ${response.status}). Check your HesabPay account before trying again.`,
+      };
+    }
 
-      const failedVendor = data.results?.find(
-        (result) => result.success === false
+    const failedVendor = data.results?.find(
+      (result) => result.success === false
+    );
+
+    // HesabPay signals status two ways: a `success` boolean and its own
+    // `status_code`, where 10 means success (see the create-session and
+    // webhook payload types in ./types).
+    const statusCode =
+      typeof data.status_code === "number" ? data.status_code : undefined;
+    const bodySaysRefused =
+      data.success === false ||
+      Boolean(failedVendor) ||
+      (statusCode !== undefined && statusCode !== 10 && statusCode >= 400);
+
+    const refused = !response.ok || bodySaysRefused;
+
+    if (refused) {
+      // Log the entire body as JSON. HesabPay nests the real reason, and
+      // console's default object depth hides it.
+      console.error(
+        `[HesabPay] Send money failed (HTTP ${response.status}):`,
+        JSON.stringify(data)
       );
 
-      if (!response.ok || data.success === false || failedVendor) {
-        console.error("[HesabPay] Send money failed:", {
-          httpStatus: response.status,
-          message: data.message,
-          failedVendor,
-        });
+      // A server-side error means the request arrived but we do not know what
+      // it did. Only a client error (4xx) is a definitive "no".
+      if (response.status >= 500) {
         return {
-          success: false,
-          error:
-            failedVendor?.message ||
-            data.message ||
-            `HesabPay rejected the transfer (HTTP ${response.status})`,
+          status: "unknown",
+          message: `HesabPay had a server error (HTTP ${response.status}). Check your HesabPay account before trying again.`,
           gatewayResponse: data as unknown as Record<string, unknown>,
         };
       }
 
+      // `message` is not reliably a string. Ask the failed vendor entry for
+      // ITS message rather than handing over the whole entry, which is mostly
+      // our own request echoed back and would bury the real reason.
+      const reason =
+        extractGatewayMessage(failedVendor?.message) ??
+        extractGatewayMessage(data.message) ??
+        extractGatewayMessage(data);
+
+      // An auth failure is our key being wrong, not HesabPay declining this
+      // particular seller's transfer.
+      const isAuthFailure = response.status === 401 || response.status === 403;
+
       return {
-        success: true,
-        transactionId:
-          data.transaction_id || data.results?.[0]?.transaction_id,
+        status: "rejected",
+        reason: isAuthFailure ? "configuration" : "gateway",
+        message: toGatewayErrorText(
+          reason,
+          `HesabPay rejected the transfer (HTTP ${response.status})`,
+          secrets
+        ),
         gatewayResponse: data as unknown as Record<string, unknown>,
       };
-    } catch (error) {
-      // A network failure here is the dangerous case: the transfer may or may
-      // not have happened. The caller leaves the payout in "processing" rather
-      // than assuming either way.
-      console.error("[HesabPay] Send money error:", error);
+    }
+
+    const transactionId =
+      data.transaction_id || data.results?.[0]?.transaction_id;
+
+    // Only treat this as sent when HesabPay actually says so. Inferring success
+    // from the absence of a failure flag means a 200 that carries its error in
+    // the body would consume the seller's balance for a transfer that never
+    // happened, with nothing anywhere to notice it.
+    const confirmedSent =
+      data.success === true || statusCode === 10 || Boolean(transactionId);
+
+    if (!confirmedSent) {
+      console.error(
+        `[HesabPay] Send money gave no success signal (HTTP ${response.status}):`,
+        JSON.stringify(data)
+      );
       return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not reach HesabPay to send the payout",
+        status: "unknown",
+        message:
+          "HesabPay accepted the request but did not confirm the transfer. Check your HesabPay account before trying again.",
+        gatewayResponse: data as unknown as Record<string, unknown>,
       };
     }
+
+    return {
+      status: "sent",
+      transactionId,
+      gatewayResponse: data as unknown as Record<string, unknown>,
+    };
   }
 }
 

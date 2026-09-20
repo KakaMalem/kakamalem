@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Dialog,
   DialogContent,
@@ -35,14 +36,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { formatPrice } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import { requestPayout, updatePayoutAccount } from "@/lib/actions/payouts";
 import type { PayoutRecord } from "@/lib/actions/payouts";
+import { MIN_PAYOUT_AFN } from "@/lib/payouts/constants";
 import {
-  MIN_PAYOUT_AFN,
-  isValidHesabPayAccount,
-} from "@/lib/payouts/constants";
+  HESABPAY_COUNTRY,
+  PAYOUT_ACCOUNT_MESSAGES,
+  formatPayoutAccount,
+  normalizePayoutAccount,
+  toE164ForDisplay,
+} from "@/lib/payouts/account";
+import { isSafeToRetry } from "@/lib/payouts/errors";
+import type { PayoutError, PayoutErrorKind } from "@/lib/payouts/errors";
 import type {
   LedgerEntryView,
   SellerBalanceSummary,
@@ -62,10 +68,66 @@ const PAYOUT_STATUS: Record<
   PayoutRecord["status"],
   { label: string; variant: "default" | "secondary" | "destructive" }
 > = {
-  processing: { label: "Processing", variant: "secondary" },
+  processing: { label: "Checking", variant: "secondary" },
   completed: { label: "Sent", variant: "default" },
   failed: { label: "Failed", variant: "destructive" },
 };
+
+type FieldName = NonNullable<PayoutError["field"]>;
+
+/**
+ * The only way an error message reaches the DOM.
+ *
+ * Values cross the server-action boundary and can carry whatever a gateway
+ * returned. Handing React a non-string as a child throws and blanks the page,
+ * which is exactly how this page broke once, so every path goes through here:
+ * toasts and inline field errors alike.
+ */
+function asText(value: unknown, fallback: string): string {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value !== null && value !== undefined) {
+    console.error("[earnings] Non-string error from server action:", value);
+  }
+  return fallback;
+}
+
+/**
+ * A failure is not just a message. What the seller should do next depends
+ * entirely on why it failed, so each kind gets its own treatment.
+ */
+function reportError(error: PayoutError | undefined, fallback: string) {
+  const message = asText(error?.message, fallback);
+  const kind: PayoutErrorKind = error?.kind ?? "unexpected";
+
+  switch (kind) {
+    case "unknown_outcome":
+      // The money may have moved. This must not be dismissed in two seconds.
+      toast.warning("We could not confirm this withdrawal", {
+        description: `${message} Do not try again until you have checked.`,
+        duration: 30000,
+      });
+      return;
+    case "gateway":
+      toast.error("HesabPay refused the transfer", {
+        description: message,
+        duration: 10000,
+      });
+      return;
+    case "configuration":
+      toast.error("Payouts are unavailable", {
+        description: message,
+        duration: 10000,
+      });
+      return;
+    case "balance":
+    case "permission":
+    case "validation":
+      toast.error(message);
+      return;
+    default:
+      toast.error(message);
+  }
+}
 
 interface EarningsClientProps {
   storeId: string;
@@ -93,34 +155,78 @@ export function EarningsClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [accountNumber, setAccountNumber] = useState(
-    payoutAccount.accountNumber
+  // The phone input works in E.164. A value saved before this field became a
+  // phone input is converted on the way in, or dropped if it cannot be read.
+  const [accountNumber, setAccountNumber] = useState(() =>
+    toE164ForDisplay(payoutAccount.accountNumber)
   );
   const [accountName, setAccountName] = useState(payoutAccount.accountName);
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<FieldName, string>>
+  >({});
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
 
-  const hasAccount = isValidHesabPayAccount(payoutAccount.accountNumber);
+  // After an unconfirmed withdrawal, pressing Send again could pay twice.
+  const [lastErrorKind, setLastErrorKind] = useState<PayoutErrorKind | null>(
+    null
+  );
+
+  // "No account" and "an account that cannot be paid" are different problems,
+  // and the seller who hit this needs to be told which one they have.
+  const storedAccount = normalizePayoutAccount(payoutAccount.accountNumber);
+  const storedAccountUsable = storedAccount.ok;
+  const storedAccountProblem =
+    !storedAccount.ok && payoutAccount.accountNumber.trim()
+      ? PAYOUT_ACCOUNT_MESSAGES[storedAccount.error]
+      : null;
   const accountChanged =
-    accountNumber.trim() !== payoutAccount.accountNumber ||
+    accountNumber.trim() !== toE164ForDisplay(payoutAccount.accountNumber) ||
     accountName.trim() !== payoutAccount.accountName;
 
+  // A payout we never got an answer on holds money and needs a human.
+  const unresolvedPayout = payouts.find(
+    (payout) => payout.status === "processing"
+  );
+
   const canWithdraw =
-    isOwner && hasAccount && balance.available >= MIN_PAYOUT_AFN;
+    isOwner &&
+    storedAccountUsable &&
+    !unresolvedPayout &&
+    balance.available >= MIN_PAYOUT_AFN;
+
+  // Never offer a one-tap retry of something that may already have paid out.
+  const retryBlocked = Boolean(
+    unresolvedPayout || (lastErrorKind && !isSafeToRetry(lastErrorKind))
+  );
 
   const afn = (amount: number) => formatPrice(amount, AFN);
 
+  const clearField = (field: FieldName) =>
+    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+
   const handleSaveAccount = () => {
+    setFieldErrors({});
     startTransition(async () => {
       const result = await updatePayoutAccount(storeId, {
         accountNumber,
         accountName,
       });
+
       if (!result.success) {
-        toast.error(result.error || "Could not save the payout account");
+        if (result.error?.field) {
+          setFieldErrors({
+            [result.error.field]: asText(
+              result.error.message,
+              "That value is not valid"
+            ),
+          });
+        }
+        reportError(result.error, "Could not save the payout account");
         return;
       }
+
       toast.success("Payout account saved");
       router.refresh();
     });
@@ -129,17 +235,41 @@ export function EarningsClient({
   const handleWithdraw = () => {
     const amount = Number(withdrawAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Enter an amount to withdraw");
+      setFieldErrors({ amount: "Enter an amount to withdraw" });
       return;
     }
+    setFieldErrors({});
 
     startTransition(async () => {
       const result = await requestPayout(storeId, amount);
+
       if (!result.success) {
-        toast.error(result.error || "The withdrawal did not go through");
+        const kind = result.error?.kind ?? "unexpected";
+        setLastErrorKind(kind);
+
+        if (result.error?.field) {
+          setFieldErrors({
+            [result.error.field]: asText(
+              result.error.message,
+              "That value is not valid"
+            ),
+          });
+        }
+        reportError(result.error, "The withdrawal did not go through");
+
+        // Stay open for the two things the seller fixes in this dialog, and
+        // for an unconfirmed outcome where the warning must remain visible.
+        const keepOpen =
+          kind === "unknown_outcome" ||
+          kind === "validation" ||
+          kind === "balance";
+        if (!keepOpen) setWithdrawOpen(false);
+
         router.refresh();
         return;
       }
+
+      setLastErrorKind(null);
       toast.success("Sent to your HesabPay account");
       setWithdrawOpen(false);
       setWithdrawAmount("");
@@ -157,6 +287,18 @@ export function EarningsClient({
         </p>
       </div>
 
+      {unresolvedPayout && (
+        <Alert variant="destructive">
+          <AlertTriangle className="size-4" />
+          <AlertDescription>
+            Withdrawal {unresolvedPayout.payoutNumber} for{" "}
+            {afn(unresolvedPayout.amount)} has not been confirmed. That money is
+            being held until it is resolved. Check your HesabPay account to see
+            whether it arrived, and contact support before withdrawing it again.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* ------------------------------------------------------------------ */}
       {/* Balance                                                             */}
       {/* ------------------------------------------------------------------ */}
@@ -173,13 +315,14 @@ export function EarningsClient({
             {balance.reserved > 0 && (
               <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Clock className="size-3.5" />
-                {afn(balance.reserved)} is being sent right now
+                {afn(balance.reserved)} is held by a withdrawal in progress
               </p>
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
                 onClick={() => {
                   setWithdrawAmount(String(Math.floor(balance.available)));
+                  setFieldErrors({});
                   setWithdrawOpen(true);
                 }}
                 disabled={!canWithdraw || isPending}
@@ -207,7 +350,9 @@ export function EarningsClient({
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Withdrawn</span>
-              <span className="font-medium">{afn(balance.lifetimePaidOut)}</span>
+              <span className="font-medium">
+                {afn(balance.lifetimePaidOut)}
+              </span>
             </div>
             {totals.refunded > 0 && (
               <div className="flex justify-between">
@@ -253,41 +398,74 @@ export function EarningsClient({
             Where your money goes
           </CardTitle>
           <CardDescription>
-            The HesabPay account withdrawals are sent to. Check it carefully:
+            The HesabPay number withdrawals are sent to. Check it carefully:
             transfers cannot be reversed.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!hasAccount && (
+          {!storedAccountUsable && (
             <Alert variant="destructive">
               <AlertTriangle className="size-4" />
               <AlertDescription>
-                Add your HesabPay account number before you can withdraw.
+                {storedAccountProblem
+                  ? `The saved number ${payoutAccount.accountNumber} cannot be paid out to: ${storedAccountProblem.toLowerCase()}. Re-enter it below.`
+                  : "Add your HesabPay number before you can withdraw."}
               </AlertDescription>
             </Alert>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="accountNumber">HesabPay account number</Label>
-              <Input
+              <Label htmlFor="accountNumber">HesabPay number</Label>
+              <PhoneInput
                 id="accountNumber"
-                inputMode="numeric"
+                // HesabPay is Afghanistan-only, so the country is fixed. A
+                // number from anywhere else cannot receive a transfer.
+                defaultCountry={HESABPAY_COUNTRY}
+                countries={[HESABPAY_COUNTRY]}
+                international
+                // Without this the +93 prefix stays editable and a pasted
+                // foreign number is accepted, so the flag lies. This is the
+                // prop that actually pins the country.
+                countryCallingCodeEditable={false}
+                countrySelectProps={{ disabled: true }}
                 value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                placeholder="700000000"
+                onChange={(value) => {
+                  setAccountNumber(value || "");
+                  clearField("accountNumber");
+                }}
+                placeholder="77 602 2969"
                 disabled={!isOwner || isPending}
+                aria-invalid={!!fieldErrors.accountNumber}
               />
+              {fieldErrors.accountNumber ? (
+                <p className="text-sm text-destructive">
+                  {fieldErrors.accountNumber}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  The mobile number your HesabPay account is registered to.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="accountName">Account holder name</Label>
               <Input
                 id="accountName"
                 value={accountName}
-                onChange={(e) => setAccountName(e.target.value)}
+                onChange={(e) => {
+                  setAccountName(e.target.value);
+                  clearField("accountName");
+                }}
                 placeholder="As it appears in HesabPay"
                 disabled={!isOwner || isPending}
+                aria-invalid={!!fieldErrors.accountName}
               />
+              {fieldErrors.accountName && (
+                <p className="text-sm text-destructive">
+                  {fieldErrors.accountName}
+                </p>
+              )}
             </div>
           </div>
 
@@ -313,7 +491,18 @@ export function EarningsClient({
           </CardHeader>
           <CardContent className="space-y-3">
             {payouts.map((payout) => {
-              const status = PAYOUT_STATUS[payout.status];
+              const status = PAYOUT_STATUS[payout.status] ?? {
+                label: payout.status,
+                variant: "secondary" as const,
+              };
+              // Older rows can hold a mangled reason from before gateway
+              // errors were coerced to text. Never show that to a seller.
+              const reason =
+                payout.failureReason &&
+                payout.failureReason !== "[object Object]"
+                  ? payout.failureReason
+                  : null;
+
               return (
                 <div
                   key={payout.id}
@@ -322,18 +511,26 @@ export function EarningsClient({
                   <div className="min-w-0">
                     <p className="font-medium">{afn(payout.amount)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {payout.payoutNumber} &middot; to {payout.accountNumber}{" "}
-                      &middot; {new Date(payout.requestedAt).toLocaleString()}
+                      {payout.payoutNumber} &middot; to{" "}
+                      {formatPayoutAccount(payout.accountNumber)} &middot;{" "}
+                      {new Date(payout.requestedAt).toLocaleString()}
                     </p>
-                    {payout.failureReason && (
-                      <p className="mt-1 text-xs text-destructive">
-                        {payout.failureReason}
+                    {reason && (
+                      <p
+                        className={cn(
+                          "mt-1 text-xs",
+                          payout.status === "processing"
+                            ? "text-amber-700"
+                            : "text-destructive"
+                        )}
+                      >
+                        {reason}
                       </p>
                     )}
                     {payout.status === "processing" && (
                       <p className="mt-1 text-xs text-amber-700">
-                        We have not had a confirmation back yet. Check your
-                        HesabPay account before requesting this again.
+                        Not confirmed yet. Check your HesabPay account before
+                        requesting this again.
                       </p>
                     )}
                   </div>
@@ -418,8 +615,9 @@ export function EarningsClient({
           <DialogHeader>
             <DialogTitle>Withdraw to HesabPay</DialogTitle>
             <DialogDescription>
-              Sent to {payoutAccount.accountName || "your account"} (
-              {payoutAccount.accountNumber}). Transfers cannot be reversed.
+              Sent to {payoutAccount.accountName || "your account"} on{" "}
+              {formatPayoutAccount(payoutAccount.accountNumber)}. Transfers
+              cannot be reversed.
             </DialogDescription>
           </DialogHeader>
 
@@ -432,14 +630,32 @@ export function EarningsClient({
               min={MIN_PAYOUT_AFN}
               max={Math.floor(balance.available)}
               value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
+              onChange={(e) => {
+                setWithdrawAmount(e.target.value);
+                clearField("amount");
+              }}
               disabled={isPending}
+              aria-invalid={!!fieldErrors.amount}
             />
-            <p className="text-xs text-muted-foreground">
-              Available {afn(balance.available)}. Minimum{" "}
-              {afn(MIN_PAYOUT_AFN)}.
-            </p>
+            {fieldErrors.amount ? (
+              <p className="text-sm text-destructive">{fieldErrors.amount}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Available {afn(balance.available)}. Minimum{" "}
+                {afn(MIN_PAYOUT_AFN)}.
+              </p>
+            )}
           </div>
+
+          {retryBlocked && (
+            <Alert variant="destructive">
+              <AlertTriangle className="size-4" />
+              <AlertDescription>
+                This withdrawal has not been confirmed. Check your HesabPay
+                account and contact support before sending it again.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <DialogFooter>
             <Button
@@ -449,7 +665,10 @@ export function EarningsClient({
             >
               Cancel
             </Button>
-            <Button onClick={handleWithdraw} disabled={isPending}>
+            <Button
+              onClick={handleWithdraw}
+              disabled={isPending || retryBlocked}
+            >
               {isPending ? "Sending..." : "Send"}
             </Button>
           </DialogFooter>

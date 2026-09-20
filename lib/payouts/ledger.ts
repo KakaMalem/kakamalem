@@ -331,12 +331,20 @@ export async function reserveForPayout(params: {
   return { ok: true, available: available - params.amount };
 }
 
-/** The transfer succeeded: release the reservation and count it as paid out. */
+/**
+ * The transfer succeeded: release the reservation and count it as paid out.
+ *
+ * Pass `tx` to run inside the caller's transaction. The payout row's status and
+ * this balance change must commit together, or a failure between them leaves
+ * money reserved against a payout that already says it completed, with nothing
+ * left to notice it.
+ */
 export async function settlePayout(params: {
   tenantId: string;
   amount: number;
+  tx?: Transaction;
 }): Promise<void> {
-  await withTransaction(async (tx) => {
+  const run = async (tx: Transaction) => {
     const balance = await lockBalance(tx, params.tenantId);
     await tx
       .update(sellerBalances)
@@ -351,17 +359,26 @@ export async function settlePayout(params: {
         updatedAt: new Date().toISOString(),
       })
       .where(eq(sellerBalances.id, balance.id));
-  });
+  };
+
+  if (params.tx) return run(params.tx);
+  await withTransaction(run);
 }
 
-/** The transfer was rejected: give the money back to the seller. */
+/**
+ * The transfer was rejected: give the money back to the seller.
+ *
+ * Pass `tx` to commit this together with the payout row's status, for the same
+ * reason as `settlePayout`.
+ */
 export async function reversePayout(params: {
   tenantId: string;
   amount: number;
   payoutId: string;
   reason: string;
+  tx?: Transaction;
 }): Promise<void> {
-  await withTransaction(async (tx) => {
+  const run = async (tx: Transaction) => {
     const balance = await lockBalance(tx, params.tenantId);
 
     const inserted = await tx
@@ -392,7 +409,10 @@ export async function reversePayout(params: {
         updatedAt: new Date().toISOString(),
       })
       .where(eq(sellerBalances.id, balance.id));
-  });
+  };
+
+  if (params.tx) return run(params.tx);
+  await withTransaction(run);
 }
 
 /**

@@ -215,14 +215,19 @@ export interface HesabPaySendMoneyRequest {
 export interface HesabPaySendMoneyResponse {
   success?: boolean;
   status_code?: number;
-  message?: string;
+  /**
+   * NOT always a string. A rejected transfer can return a validation map such
+   * as `{"pin": ["Invalid PIN"]}`, so this is deliberately `unknown` and must
+   * go through `extractGatewayMessage()` before being shown or stored.
+   */
+  message?: unknown;
   transaction_id?: string;
   /** Per-vendor outcome, when HesabPay reports one. */
   results?: Array<{
     account_number?: string;
     amount?: number;
     success?: boolean;
-    message?: string;
+    message?: unknown;
     transaction_id?: string;
   }>;
 }
