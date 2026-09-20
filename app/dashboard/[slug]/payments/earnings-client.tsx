@@ -190,11 +190,26 @@ export function EarningsClient({
     (payout) => payout.status === "processing"
   );
 
+  // HesabPay settles whole Afghani, so this is the most that can ever be sent.
+  const withdrawableBalance = Math.floor(balance.available);
+
   const canWithdraw =
-    isOwner &&
-    storedAccountUsable &&
-    !unresolvedPayout &&
-    balance.available >= MIN_PAYOUT_AFN;
+    isOwner && storedAccountUsable && !unresolvedPayout && withdrawableBalance >= 1;
+
+  /**
+   * Why the button is off. A disabled control with no explanation reads as a
+   * broken page, and the seller cannot tell "wait for an order" apart from
+   * "your saved number is wrong" — which are opposite actions.
+   */
+  const withdrawBlockedReason = !isOwner
+    ? "Only the store owner can withdraw."
+    : unresolvedPayout
+      ? "A withdrawal is still unconfirmed. That has to be resolved first."
+      : !storedAccountUsable
+        ? "Add the HesabPay number to send your money to."
+        : withdrawableBalance < 1
+          ? "Nothing to withdraw yet. Paid card orders land here."
+          : null;
 
   // Never offer a one-tap retry of something that may already have paid out.
   const retryBlocked = Boolean(
@@ -236,6 +251,14 @@ export function EarningsClient({
     const amount = Number(withdrawAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       setFieldErrors({ amount: "Enter an amount to withdraw" });
+      return;
+    }
+    // Same rule the server enforces: the minimum only limits partial
+    // withdrawals, so a remainder under it can always still be taken out.
+    if (amount < MIN_PAYOUT_AFN && Math.floor(amount) !== withdrawableBalance) {
+      setFieldErrors({
+        amount: `Withdraw at least ${afn(MIN_PAYOUT_AFN)}, or take out your whole balance of ${afn(withdrawableBalance)}`,
+      });
       return;
     }
     setFieldErrors({});
@@ -330,9 +353,9 @@ export function EarningsClient({
                 <ArrowDownToLine className="mr-2 size-4" />
                 Withdraw
               </Button>
-              {!isOwner && (
+              {withdrawBlockedReason && (
                 <span className="self-center text-sm text-muted-foreground">
-                  Only the store owner can withdraw.
+                  {withdrawBlockedReason}
                 </span>
               )}
             </div>
@@ -627,8 +650,8 @@ export function EarningsClient({
               id="withdrawAmount"
               type="number"
               inputMode="numeric"
-              min={MIN_PAYOUT_AFN}
-              max={Math.floor(balance.available)}
+              min={Math.min(MIN_PAYOUT_AFN, withdrawableBalance)}
+              max={withdrawableBalance}
               value={withdrawAmount}
               onChange={(e) => {
                 setWithdrawAmount(e.target.value);
@@ -641,8 +664,10 @@ export function EarningsClient({
               <p className="text-sm text-destructive">{fieldErrors.amount}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Available {afn(balance.available)}. Minimum{" "}
-                {afn(MIN_PAYOUT_AFN)}.
+                Available {afn(balance.available)}.{" "}
+                {withdrawableBalance < MIN_PAYOUT_AFN
+                  ? "You can take out the whole amount."
+                  : `Minimum ${afn(MIN_PAYOUT_AFN)}, or take out everything.`}
               </p>
             )}
           </div>

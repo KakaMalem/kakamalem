@@ -177,17 +177,6 @@ export async function requestPayout(
       };
     }
 
-    if (amount < MIN_PAYOUT_AFN) {
-      return {
-        success: false,
-        error: payoutError(
-          "validation",
-          `The smallest withdrawal is ${MIN_PAYOUT_AFN} ${PAYOUT_CURRENCY}`,
-          "amount"
-        ),
-      };
-    }
-
     const [store] = await db
       .select({
         slug: tenants.slug,
@@ -223,6 +212,23 @@ export async function requestPayout(
     // Round to whole Afghani: HesabPay settles in whole units and a fractional
     // request would reserve money that can never be sent.
     const requested = Math.floor(amount);
+
+    // The minimum exists so a trivial transfer does not cost more attention
+    // than it moves. It must never strand a remainder, though, so taking the
+    // whole balance out is always allowed however small it is.
+    const balance = await getSellerBalance(storeId);
+    const wholeBalance = Math.floor(balance.available);
+
+    if (requested < MIN_PAYOUT_AFN && requested !== wholeBalance) {
+      return {
+        success: false,
+        error: payoutError(
+          "validation",
+          `Withdraw at least ${MIN_PAYOUT_AFN} ${PAYOUT_CURRENCY}, or take out your whole balance of ${wholeBalance} ${PAYOUT_CURRENCY}`,
+          "amount"
+        ),
+      };
+    }
 
     // Refuse before reserving anything if payouts are not configured at all,
     // so a misconfigured platform cannot strand a seller's money in `reserved`.
