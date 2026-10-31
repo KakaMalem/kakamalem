@@ -141,16 +141,63 @@ test("a slow signature verifier is aborted within the relay budget", async () =>
   }
 });
 
-test("stale, future, and malformed timestamps are rejected before verification network access", async () => {
+for (const { name, ageSeconds } of [
+  { name: "the observed 467-second provider delay", ageSeconds: 467 },
+  { name: "exactly ten minutes old", ageSeconds: 600 },
+  { name: "exactly one minute ahead", ageSeconds: -60 },
+]) {
+  test(
+    name + " still requires verification of the original JSON",
+    async (context) => {
+      const now = 1_800_000_000_000;
+      context.mock.method(Date, "now", () => now);
+      const payload = notification({
+        timestamp: String(now / 1000 - ageSeconds),
+      });
+      let calls = 0;
+      globalThis.fetch = async (_input, options) => {
+        calls++;
+        assert.deepEqual(JSON.parse(String(options?.body)), {
+          signature: payload.signature,
+          timestamp: payload.timestamp,
+        });
+        return Response.json({ success: true });
+      };
+      assert.equal((await client.verifyWebhook(payload, {})).valid, true);
+      assert.equal(calls, 1);
+    }
+  );
+}
+
+test("an eight-minute-old notification with an invalid signature remains rejected", async (context) => {
+  const now = 1_800_000_000_000;
+  context.mock.method(Date, "now", () => now);
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return Response.json({ success: false });
+  };
+  const result = await client.verifyWebhook(
+    notification({ timestamp: String(now / 1000 - 467) }),
+    {}
+  );
+  assert.equal(result.valid, false);
+  assert.match(result.error || "", /Invalid webhook signature/);
+  assert.equal(calls, 1);
+});
+
+test("stale, future, and malformed timestamps are rejected before verification network access", async (context) => {
+  const now = 1_800_000_000_000;
+  context.mock.method(Date, "now", () => now);
   let calls = 0;
   globalThis.fetch = async () => {
     calls++;
     assert.fail("Timestamp rejection must happen before network access");
   };
   for (const timestamp of [
-    String(Math.floor(Date.now() / 1000) - 360),
-    String(Math.floor(Date.now() / 1000) + 360),
-    `${Math.floor(Date.now() / 1000)}trailing`,
+    String(now / 1000 - 601),
+    String(now / 1000 + 61),
+    `${now / 1000}trailing`,
   ]) {
     const result = await client.verifyWebhook(notification({ timestamp }), {});
     assert.equal(result.valid, false);

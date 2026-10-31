@@ -312,13 +312,18 @@ export class HesabPayClient implements PaymentGatewayProvider {
         };
       }
 
-      // Reject stale webhooks (older than 5 minutes) to prevent replay attacks
+      // Match Kaata: allow up to ten minutes old and one minute ahead.
       const webhookTime = /^\d+$/.test(body.timestamp)
         ? Number(body.timestamp) * 1000
         : NaN;
       const now = Date.now();
-      const maxAge = 5 * 60 * 1000; // 5 minutes
-      if (isNaN(webhookTime) || Math.abs(now - webhookTime) > maxAge) {
+      const maxAge = 10 * 60 * 1000;
+      const maxFutureSkew = 60 * 1000;
+      if (
+        !Number.isFinite(webhookTime) ||
+        now - webhookTime > maxAge ||
+        webhookTime - now > maxFutureSkew
+      ) {
         console.error(
           `[HesabPay] Webhook timestamp too old or invalid: ${body.timestamp}`
         );

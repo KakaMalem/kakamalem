@@ -117,11 +117,14 @@ background promise.
   This implementation retains the provider's existing verification contract and
   adds strict local ownership/expected-charge checks; ask HesabPay to confirm the
   signature's scope. It does not infer ownership merely from a valid signature.
-- Kaka retains its five-minute timestamp freshness rule. Upstream
+- Kaka matches Kaata's timestamp limits: up to ten minutes old and one minute
+  ahead. The ten-minute past window accommodates the observed provider validation
+  delay; it does not bypass provider signature verification or payment
+  deduplication. Upstream
   [HesabPay retries](https://docs.hesab.com/webhooks/event-payloads/) refresh the
-  signature/timestamp. Kaata retries that preserve an original JSON body beyond
-  five minutes will fail verification and require a fresh upstream attempt or
-  reconciliation. Confirm Kaata's retry retention behavior before rollout.
+  signature/timestamp. Kaata relays synchronously and returns a retryable error
+  when forwarding fails; it does not keep an asynchronous replay queue. A body
+  older than ten minutes needs a fresh upstream attempt or reconciliation.
 - Legacy payloads without a resolvable gateway session and with several attempts
   for the same item reference are rejected as ambiguous. A future explicit
   per-attempt merchant reference can improve this without loose matching.
