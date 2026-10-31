@@ -3,6 +3,7 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, type Database, type Transaction } from "@/lib/db";
 import { webhookDatabase, WEBHOOK_CONCURRENCY } from "@/lib/db/webhook";
+import { withWebhookAcceptanceTransaction } from "@/lib/db/webhook-transaction";
 import {
   billingTransactions,
   invoices,
@@ -182,12 +183,7 @@ export async function acceptHesabPayNotification(
 ): Promise<Acceptance> {
   if (payload.currency && payload.currency.toUpperCase() !== "AFN")
     throw new WebhookRejection("HesabPay charge currency must be AFN");
-  return (options.database || db).transaction(async (tx) => {
-    // PG18 bounds the complete transaction, leaving time for signature verification
-    // and the response within Kaata's five-second delivery window.
-    await tx.execute(sql`SET LOCAL statement_timeout = '1200ms'`);
-    await tx.execute(sql`SET LOCAL lock_timeout = '500ms'`);
-    await tx.execute(sql`SET LOCAL transaction_timeout = '1500ms'`);
+  return withWebhookAcceptanceTransaction(options.database || db, async (tx) => {
     if (payload.transaction_id)
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${`hesabpay:${payload.transaction_id}`}, 0))`

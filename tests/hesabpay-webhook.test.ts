@@ -11,12 +11,13 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { after, before, beforeEach, describe, test } from "node:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as schema from "../lib/db/schema";
 import type { Database } from "../lib/db";
+import { withWebhookAcceptanceTransaction } from "../lib/db/webhook-transaction";
 
 // Deliberately do not load dotenv. This suite creates/destroys data and must
 // never fall back to the application's configured database.
@@ -286,7 +287,9 @@ describe(
       );
       const appDatabase = await import("../lib/db");
       database = appDatabase.db;
-      closeApplicationDatabase = appDatabase.closeDatabaseConnections;
+      // Timeout tests deliberately terminate pooled sessions. Bound teardown
+      // rather than waiting indefinitely for the driver's dead connection.
+      closeApplicationDatabase = () => appDatabase.sql.end({ timeout: 2 });
       ({
         createHesabPayWebhookHandler: createHandler,
         acceptVerifiedHesabPayPayment: acceptVerified,
@@ -305,7 +308,7 @@ describe(
 
     after(async () => {
       if (closeApplicationDatabase) await closeApplicationDatabase();
-      await raw.end();
+      await raw.end({ timeout: 2 });
     });
 
     test("repeated deliveries with refreshed signatures acknowledge once and credit one ledger entry", async () => {
@@ -813,6 +816,61 @@ describe(
         assert.ok(responses.every((response) => response.status === 200));
       }
       await assertOrderCreditedOnce(f);
+    });
+
+    test("acceptance limits work on PG16 and newer and remain transaction-local", async () => {
+      const settings = sql`
+        SELECT current_setting('statement_timeout') AS statement,
+          current_setting('lock_timeout') AS lock,
+          current_setting('idle_in_transaction_session_timeout') AS idle,
+          current_setting('transaction_timeout', true) AS transaction
+      `;
+      const [before] = await database.execute(settings);
+      const [inside] = await withWebhookAcceptanceTransaction(database, (tx) =>
+        tx.execute(settings)
+      );
+      assert.equal(inside.statement, "1200ms");
+      assert.equal(inside.lock, "500ms");
+      assert.equal(inside.idle, "1500ms");
+      assert.equal(
+        inside.transaction,
+        before.transaction === null ? null : "1500ms"
+      );
+      const [after] = await database.execute(settings);
+      assert.deepEqual({ ...after }, { ...before });
+    });
+
+    test("cumulative work over the acceptance budget rolls back before returning", async () => {
+      const f = await fixture("invoice");
+      await assert.rejects(
+        withWebhookAcceptanceTransaction(database, async (tx) => {
+          await tx
+            .update(schema.paymentSessions)
+            .set({ status: "completed" })
+            .where(eq(schema.paymentSessions.id, f.sessionId));
+          await tx.insert(schema.subscriptionInvoiceJobs).values({
+            invoiceId: f.reference,
+            tenantId: f.tenantId,
+            gatewayTransactionId: f.transactionId,
+          });
+          // Each query fits the statement limit; their combined duration does
+          // not. PG17+ aborts server-side; PG16 must reject before COMMIT.
+          for (let attempt = 0; attempt < 3; attempt++)
+            await tx.execute(sql`SELECT pg_sleep(0.6)`);
+        })
+      );
+      assert.equal((await session(f))?.status, "pending");
+      assert.equal(
+        (await database.select().from(schema.subscriptionInvoiceJobs)).length,
+        0
+      );
+      // A subsequent real webhook can still fulfill exactly once.
+      assert.equal((await post(request(payload(f)))).status, 200);
+      assert.equal((await session(f))?.status, "completed");
+      assert.equal(
+        (await database.select().from(schema.subscriptionInvoiceJobs)).length,
+        1
+      );
     });
 
     test("a contended order lock returns retryable failure within the relay budget", async () => {

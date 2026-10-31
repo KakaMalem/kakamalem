@@ -14,10 +14,13 @@ jobs:
   lint:
     name: Lint and Type Check
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        postgres: [16, 18]
 
     services:
       postgres:
-        image: postgres:18
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_USER: hesabpay_test
           POSTGRES_PASSWORD: isolated-test-password

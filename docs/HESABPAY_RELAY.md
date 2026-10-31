@@ -32,9 +32,16 @@ receivers, or enable Kaata checkout.
   Failures cannot change a completed session. Redirect verification shares this
   same persistence path and also durably queues subscription invoices.
 
-Signature verification aborts after 1.5 seconds. The PostgreSQL 18 acceptance
-transaction has a 1.5-second total timeout, 1.2-second statement timeout and
-0.5-second lock timeout. A reserved pool admits up to 16 webhook requests with a
+Signature verification aborts after 1.5 seconds. Acceptance uses transaction-local
+1.2-second statement, 0.5-second lock and 1.5-second idle-in-transaction timeouts.
+PostgreSQL 17+ also enforces a 1.5-second total transaction timeout. PostgreSQL 16
+has no such server setting: an elapsed-time check rejects work exceeding 1.5
+seconds before allowing commit. The full transaction, including rollback, is
+awaited; no timeout response abandons work that can later commit. On PG16 this
+commit guard does not interrupt cumulative active work exactly at 1.5 seconds,
+and neither version's transaction timer bounds pool queues or a network stall.
+Actual end-to-end latency must still be measured against the five-second relay
+budget. A reserved pool admits up to 16 webhook requests with a
 one-second connection timeout; overload returns 503 instead of waiting in the app
 pool. Busy/unavailable dependencies fail instead of acknowledging incomplete work.
 Monitor actual VPS end-to-end latency, including TLS, before enabling the relay.
@@ -101,12 +108,10 @@ background promise.
 
 ## Verification assumptions that remain unresolved
 
-- [HesabPay signature documentation](https://docs.hesab.com/webhooks/verify-signatures/)
-  specifies an authenticated verification request containing signature and
-  timestamp. It does **not** establish that two separately generated API keys on
-  a shared merchant account can verify each other's notifications. Confirm this
-  with HesabPay or an authorized sandbox/captured-fixture check using the existing
-  Kaka key. Do not bypass verification or substitute Kaata's trust if it fails.
+- Kaata and Kaka Malem use the same existing merchant API key. Keep it unchanged
+  and server-only. There is no cross-key verification requirement. Verify a real
+  notification through the full route before enabling shared production routing;
+  mocked tests and receiver-validation challenges do not prove payment delivery.
 - That documented verification request does not include the payment body. The
   precise cryptographic binding of amount/reference/status is not documented.
   This implementation retains the provider's existing verification contract and
@@ -127,11 +132,15 @@ background promise.
 requests, payments or emails are sent.
 
 On Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File
-tests/run-hesabpay-tests.ps1` starts and removes a disposable PostgreSQL 18 cluster
-using locally installed binaries. It never reads `.env` or uses an existing app
+tests/run-hesabpay-tests.ps1` starts and removes a disposable PostgreSQL cluster
+using locally installed binaries (PG16 and newer are supported). It never reads `.env` or uses an existing app
 database. Alternatively, provide `HESABPAY_TEST_DATABASE_URL` for a disposable
 loopback database named `kakamalem_hesabpay_test`, then run
 `pnpm test:hesabpay:integration`. That suite truncates its test tables.
+
+CI runs the integration suite on PostgreSQL 16 and 18. It also checks portable,
+transaction-local timeout settings and rollback after several individually
+bounded statements exceed the acceptance budget.
 
 The integration suite applies committed migrations and the payment-ledger
 trigger, and exercises duplicate/concurrent notifications, redirect races,
