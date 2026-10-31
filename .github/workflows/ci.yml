@@ -15,6 +15,21 @@ jobs:
     name: Lint and Type Check
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: hesabpay_test
+          POSTGRES_PASSWORD: isolated-test-password
+          POSTGRES_DB: kakamalem_hesabpay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hesabpay_test -d kakamalem_hesabpay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,7 +37,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10.28.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,6 +53,14 @@ jobs:
 
       - name: Type check
         run: pnpm exec tsc --noEmit
+
+      - name: HesabPay unit tests (no network or email)
+        run: pnpm test:hesabpay
+
+      - name: HesabPay PostgreSQL integration tests
+        run: pnpm test:hesabpay:integration
+        env:
+          HESABPAY_TEST_DATABASE_URL: postgresql://hesabpay_test:isolated-test-password@127.0.0.1:5432/kakamalem_hesabpay_test
 
       - name: Build check
         run: pnpm build

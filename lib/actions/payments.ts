@@ -12,7 +12,7 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { eq, and, desc, inArray, isNull } from "drizzle-orm";
+import { eq, and, desc, inArray, isNull, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   orders,
@@ -37,6 +37,7 @@ import {
   resolveHesabPayCharge,
 } from "@/lib/payments/currency";
 import { recordGatewayPaymentForOrder } from "@/lib/payments/order-payment";
+import { acceptVerifiedHesabPayPayment } from "@/lib/payments/hesabpay/webhook";
 
 // =============================================================================
 // TYPES
@@ -263,6 +264,34 @@ export async function verifyOrderPayment(
 
     // If payment is completed, update the order
     if (result.paid) {
+      if (session.gateway === "hesabpay") {
+        if (
+          !result.transactionId ||
+          typeof result.amount !== "number" ||
+          !Number.isFinite(result.amount) ||
+          result.amount <= 0
+        ) {
+          throw new Error("HesabPay verification omitted payment details");
+        }
+
+        const accepted = await acceptVerifiedHesabPayPayment({
+          localSessionId: session.id,
+          transactionId: result.transactionId,
+          amount: result.amount,
+          currency: result.currency,
+          gatewayResponse: result.gatewayResponse,
+        });
+        if (accepted.outcome === "ignored") {
+          throw new Error("Verified payment could not be accepted");
+        }
+        return {
+          success: true,
+          paid: true,
+          status: "completed",
+          orderId: session.orderId,
+        };
+      }
+
       await markOrderAsPaid(session.orderId, {
         gateway: session.gateway,
         transactionId: result.transactionId,
@@ -450,7 +479,8 @@ export async function verifyPendingSubscriptionPayment(
         and(
           eq(paymentSessions.tenantId, tenantId),
           eq(paymentSessions.gateway, "hesabpay"),
-          eq(paymentSessions.status, "pending")
+          eq(paymentSessions.status, "pending"),
+          isNotNull(paymentSessions.invoiceId)
         )
       )
       .orderBy(desc(paymentSessions.createdAt))
@@ -470,84 +500,36 @@ export async function verifyPendingSubscriptionPayment(
       return { success: true, activated: false };
     }
 
-    // Payment confirmed - update everything
-    // 1. Mark payment session as completed
-    await updatePaymentSessionStatus(session.id, "completed", {
-      gatewayResponse: result.gatewayResponse,
-    });
-
-    // 2. Mark invoice as paid
-    const [invoice] = await db
-      .select()
-      .from(invoices)
-      .where(eq(invoices.id, session.invoiceId))
-      .limit(1);
-
-    if (invoice && invoice.status !== "paid") {
-      await db
-        .update(invoices)
-        .set({
-          status: "paid",
-          paidAt: new Date().toISOString(),
-          paidAmount: session.amount,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(invoices.id, session.invoiceId));
-
-      // 3. Activate Pro subscription
-      const isYearly = (
-        invoice.items as Array<{ description?: string }> | null
-      )?.some((item) => item.description?.toLowerCase().includes("yearly"));
-
-      // Check if this is a renewal (tenant already has a start date)
-      const [currentTenant] = await db
-        .select({
-          slug: tenants.slug,
-          subscriptionStartedAt: tenants.subscriptionStartedAt,
-        })
-        .from(tenants)
-        .where(eq(tenants.id, tenantId))
-        .limit(1);
-
-      await db
-        .update(tenants)
-        .set({
-          subscriptionStatus: "active",
-          subscriptionPlan: "pro",
-          // Only set subscriptionStartedAt for new subscriptions, not renewals
-          ...(currentTenant?.subscriptionStartedAt
-            ? {}
-            : { subscriptionStartedAt: new Date().toISOString() }),
-          subscriptionEndsAt: invoice.periodEnd,
-          billingInterval: isYearly ? "yearly" : "monthly",
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(tenants.id, tenantId));
-
-      // 4. Update billing transaction
-      const { billingTransactions } = await import("@/lib/db/schema");
-      await db
-        .update(billingTransactions)
-        .set({
-          status: "completed",
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(billingTransactions.invoiceId, session.invoiceId));
-
-      const tenant = currentTenant;
-
-      if (tenant) {
-        revalidatePath(`/dashboard/${tenant.slug}/billing`);
-      }
-
-      console.log(
-        `[verifyPendingSubscriptionPayment] Invoice ${invoice.invoiceNumber} verified as paid, Pro activated`
-      );
-
-      return { success: true, activated: true };
+    if (
+      !result.transactionId ||
+      typeof result.amount !== "number" ||
+      !Number.isFinite(result.amount) ||
+      result.amount <= 0
+    ) {
+      throw new Error("HesabPay verification omitted payment details");
     }
 
-    return { success: true, activated: false };
+    // Share the webhook's transaction so a redirect cannot bypass invoice jobs
+    // or leave a completed session behind after a failed subscription update.
+    const accepted = await acceptVerifiedHesabPayPayment({
+      localSessionId: session.id,
+      transactionId: result.transactionId,
+      amount: result.amount,
+      currency: result.currency,
+      gatewayResponse: result.gatewayResponse,
+    });
+    if (accepted.outcome === "ignored") {
+      throw new Error("Verified subscription payment could not be accepted");
+    }
+
+    const [tenant] = await db
+      .select({ slug: tenants.slug })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    if (tenant) revalidatePath(`/dashboard/${tenant.slug}/billing`);
+
+    return { success: true, activated: true };
   } catch (error) {
     console.error("[verifyPendingSubscriptionPayment] Error:", error);
     return {

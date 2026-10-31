@@ -8,6 +8,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test:hesabpay": "tsx --test tests/hesabpay-verification.test.ts tests/subscription-invoice-sender.test.ts",
+    "test:hesabpay:integration": "tsx --test tests/hesabpay-webhook.test.ts",
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",

@@ -99,7 +99,7 @@ export interface HesabPayVerifyResponse {
  */
 export interface HesabPayWebhookPayload {
   /** Status code (10 = success) */
-  status_code: number;
+  status_code: number | string | null;
   /** Whether the operation was successful */
   success: boolean;
   /** Response message */
@@ -107,9 +107,11 @@ export interface HesabPayWebhookPayload {
   /** Sender's HesabPay account number */
   sender_account?: string;
   /** Unique transaction ID from HesabPay */
-  transaction_id: string;
+  transaction_id: string | null;
   /** Amount paid */
   amount: number;
+  /** HesabPay settles AFN; reject a contradictory currency if supplied. */
+  currency?: string;
   /** Payment memo/description */
   memo?: string;
   /** HMAC signature for verification */

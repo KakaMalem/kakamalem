@@ -22,7 +22,7 @@
  */
 
 import { and, eq, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, type Transaction } from "@/lib/db";
 import {
   orderPayments,
   orderTransactions,
@@ -47,6 +47,10 @@ export type RecordGatewayPaymentParams = {
   cardLastFour?: string;
   cardBrand?: string;
   gatewayResponse?: Record<string, unknown>;
+  /** Enforce the tenant resolved from the payment session. */
+  expectedTenantId?: string;
+  /** Join the webhook's acceptance transaction when supplied. */
+  tx?: Transaction;
 };
 
 export type RecordGatewayPaymentResult = {
@@ -68,28 +72,47 @@ export type RecordGatewayPaymentResult = {
 export async function recordGatewayPaymentForOrder(
   params: RecordGatewayPaymentParams
 ): Promise<RecordGatewayPaymentResult> {
-  const [order] = await db
+  return params.tx
+    ? recordPayment(params, params.tx)
+    : db.transaction((tx) => recordPayment(params, tx));
+}
+
+async function recordPayment(
+  params: RecordGatewayPaymentParams,
+  tx: Transaction
+): Promise<RecordGatewayPaymentResult> {
+  // Lock the gateway transaction before any order. This also serializes two
+  // different orders claiming the same transaction, including redirect races.
+  // Transaction-scoped advisory locks work through PgBouncer transaction mode.
+  if (params.transactionId) {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${params.gateway}:${params.transactionId}`}, 0))`
+    );
+  }
+
+  const [order] = await tx
     .select()
     .from(orders)
     .where(eq(orders.id, params.orderId))
+    .for("update")
     .limit(1);
 
   if (!order) {
     return { recorded: false, reason: "order_not_found" };
   }
 
-  if (order.paymentStatus === "paid") {
-    return { recorded: false, reason: "already_paid", orderId: order.id };
+  if (params.expectedTenantId && order.tenantId !== params.expectedTenantId) {
+    throw new Error("Payment session and order belong to different tenants");
   }
 
   // Idempotency: the same gateway transaction must only ever be credited once.
   if (params.transactionId) {
-    const [existing] = await db
-      .select({ id: orderTransactions.id })
+    const [existing] = await tx
+      .select({ id: orderTransactions.id, orderId: orderTransactions.orderId })
       .from(orderTransactions)
       .where(
         and(
-          eq(orderTransactions.orderId, order.id),
+          eq(orderTransactions.gateway, params.gateway),
           eq(orderTransactions.type, "payment"),
           eq(orderTransactions.gatewayTransactionId, params.transactionId)
         )
@@ -97,8 +120,25 @@ export async function recordGatewayPaymentForOrder(
       .limit(1);
 
     if (existing) {
-      return { recorded: false, reason: "duplicate", orderId: order.id };
+      if (existing.orderId !== order.id) {
+        throw new Error("Gateway transaction already belongs to another order");
+      }
+      return {
+        recorded: false,
+        reason: "duplicate",
+        orderId: order.id,
+        transactionId: existing.id,
+        isFullyPaid: order.paymentStatus === "paid",
+      };
     }
+  }
+
+  if (order.paymentStatus === "paid") {
+    return { recorded: false, reason: "already_paid", orderId: order.id };
+  }
+
+  if (!Number.isFinite(params.amount) || params.amount <= 0) {
+    return { recorded: false, reason: "invalid_amount", orderId: order.id };
   }
 
   const orderCurrency = (order.currencyCode || "AFN").toUpperCase();
@@ -111,16 +151,11 @@ export async function recordGatewayPaymentForOrder(
     amountInOrderCurrency = params.amount;
   } else {
     const rate = parseExchangeRate(order.exchangeRateUsed);
-    if (rate) {
+    if (paymentCurrency === "AFN" && rate) {
       amountInOrderCurrency = fromAfnAmount(params.amount, rate);
     } else {
-      // No locked rate to convert with. The gateway confirmed the payment, so
-      // trust the order total rather than writing a number in the wrong
-      // currency into the ledger.
-      console.warn(
-        `[payments] Order ${order.orderNumber} paid in ${paymentCurrency} but priced in ${orderCurrency} with no locked rate — crediting the order total`
-      );
-      amountInOrderCurrency = orderTotal;
+      // A payment confirmation cannot supply a missing exchange-rate quote.
+      return { recorded: false, reason: "invalid_amount", orderId: order.id };
     }
   }
 
@@ -130,7 +165,7 @@ export async function recordGatewayPaymentForOrder(
 
   // What was already paid. Read both the ledger and the cached column: legacy
   // orders may have one without the other.
-  const [ledgerRow] = await db
+  const [ledgerRow] = await tx
     .select({
       total: sql<string>`COALESCE(SUM(${orderPayments.amount}), '0')`,
     })
@@ -149,7 +184,7 @@ export async function recordGatewayPaymentForOrder(
 
   // 1. The ledger row (in the order's currency). Triggers sync the cached
   //    amount_paid / payment_status / amount_due columns from this.
-  await db.insert(orderPayments).values({
+  await tx.insert(orderPayments).values({
     orderId: order.id,
     amount: amountInOrderCurrency.toFixed(2),
     paymentMethod: params.gateway === "cod" ? "cash" : "card",
@@ -163,7 +198,7 @@ export async function recordGatewayPaymentForOrder(
   });
 
   // 2. The gateway transaction record, kept in the currency actually charged.
-  const [transaction] = await db
+  const [transaction] = await tx
     .insert(orderTransactions)
     .values({
       orderId: order.id,
@@ -187,29 +222,20 @@ export async function recordGatewayPaymentForOrder(
   //    the transaction row, so a replayed webhook credits nothing twice. Only
   //    HesabPay: cash on delivery and manual transfers never reach us.
   if (params.gateway === "hesabpay" && transaction?.id) {
-    try {
-      await creditSellerEarning({
-        tenantId: order.tenantId,
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        amountAfn: params.amount,
-        paymentTransactionId: transaction.id,
-      });
-    } catch (error) {
-      // The customer has paid and the order must still be marked paid. A
-      // missing credit is recoverable from the transaction row; a failed
-      // order update is not.
-      console.error(
-        `[payments] Failed to credit seller for order ${order.orderNumber}:`,
-        error
-      );
-    }
+    await creditSellerEarning({
+      tenantId: order.tenantId,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      amountAfn: params.amount,
+      paymentTransactionId: transaction.id,
+      tx,
+    });
   }
 
   // 4. Order status. The ledger trigger owns the cached payment columns, but
   //    set them explicitly too so this is correct even where the custom SQL
   //    migrations have not been applied. Order status is ours either way.
-  await db
+  await tx
     .update(orders)
     .set({
       amountPaid: finalAmountPaid.toFixed(2),

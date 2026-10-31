@@ -275,7 +275,12 @@ export async function createPaymentSession(
       cancelUrl: params.cancelUrl,
       customerEmail: params.customerEmail,
       customerPhone: params.customerPhone,
-      metadata: params.metadata,
+      metadata: {
+        ...params.metadata,
+        ...(result.chargedAmount !== undefined
+          ? { hesabpayChargeAmount: result.chargedAmount }
+          : {}),
+      },
       expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     })
     .returning();

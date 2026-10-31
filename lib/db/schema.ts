@@ -3283,6 +3283,9 @@ export const orderTransactions = pgTable(
     uniqueIndex("order_transactions_idempotency_idx")
       .on(table.tenantId, table.idempotencyKey)
       .where(sql`idempotency_key IS NOT NULL`),
+    uniqueIndex("order_transactions_gateway_payment_idx")
+      .on(table.gateway, table.gatewayTransactionId)
+      .where(sql`type = 'payment' AND gateway_transaction_id IS NOT NULL`),
   ]
 );
 
@@ -7038,6 +7041,49 @@ export const invoices = pgTable(
     index("invoices_status_idx").on(table.status),
     index("invoices_due_date_idx").on(table.dueDate),
     index("invoices_created_at_idx").on(table.createdAt),
+  ]
+);
+
+// ============================================================================
+// SUBSCRIPTION INVOICE OUTBOX
+// ============================================================================
+// Enqueued in the payment transaction. A worker locks one due row while doing
+// PDF/email work; a crash releases the lock and leaves the job available again.
+export const subscriptionInvoiceJobs = pgTable(
+  "subscription_invoice_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    gatewayTransactionId: varchar("gateway_transaction_id", {
+      length: 255,
+    }).notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    availableAt: timestamp("available_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("subscription_invoice_jobs_invoice_idx").on(table.invoiceId),
+    index("subscription_invoice_jobs_pending_idx")
+      .on(table.availableAt)
+      .where(sql`completed_at IS NULL`),
+    check("subscription_invoice_jobs_attempts_valid", sql`attempts >= 0`),
   ]
 );
 

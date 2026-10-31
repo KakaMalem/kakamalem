@@ -202,6 +202,7 @@ export class HesabPayClient implements PaymentGatewayProvider {
         success: true,
         sessionId,
         paymentUrl,
+        chargedAmount: items.reduce((total, item) => total + item.price, 0),
         gatewayResponse: data as unknown as Record<string, unknown>,
       };
     } catch (error) {
@@ -292,12 +293,12 @@ export class HesabPayClient implements PaymentGatewayProvider {
 
       // Get API key from environment (platform-level)
       const apiKey = process.env.HESABPAY_API_KEY;
-      const isLive = process.env.NODE_ENV === "production";
 
       if (!apiKey) {
         console.error("[HesabPay] HESABPAY_API_KEY not configured");
         return {
           valid: false,
+          unavailable: true,
           error: "HesabPay API key not configured",
         };
       }
@@ -312,7 +313,9 @@ export class HesabPayClient implements PaymentGatewayProvider {
       }
 
       // Reject stale webhooks (older than 5 minutes) to prevent replay attacks
-      const webhookTime = parseInt(body.timestamp, 10) * 1000;
+      const webhookTime = /^\d+$/.test(body.timestamp)
+        ? Number(body.timestamp) * 1000
+        : NaN;
       const now = Date.now();
       const maxAge = 5 * 60 * 1000; // 5 minutes
       if (isNaN(webhookTime) || Math.abs(now - webhookTime) > maxAge) {
@@ -329,7 +332,6 @@ export class HesabPayClient implements PaymentGatewayProvider {
       const isValid = await this.verifySignatureViaApi(
         body.signature,
         body.timestamp,
-        isLive,
         apiKey
       );
 
@@ -360,6 +362,7 @@ export class HesabPayClient implements PaymentGatewayProvider {
       console.error("[HesabPay] Webhook verification error:", error);
       return {
         valid: false,
+        unavailable: true,
         error:
           error instanceof Error ? error.message : "Failed to verify webhook",
       };
@@ -375,41 +378,41 @@ export class HesabPayClient implements PaymentGatewayProvider {
   private async verifySignatureViaApi(
     signature: string,
     timestamp: string,
-    _isLive: boolean,
     apiKey: string
   ): Promise<boolean> {
     const baseUrl = this.getBaseUrl();
     const url = `${baseUrl}${HESABPAY_API.VERIFY_WEBHOOK_SIGNATURE}`;
 
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `API-KEY ${apiKey}`,
-        },
-        body: JSON.stringify({
-          signature,
-          timestamp,
-        }),
-      });
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `API-KEY ${apiKey}`,
+      },
+      body: JSON.stringify({
+        signature,
+        timestamp,
+      }),
+      signal: AbortSignal.timeout(1_500),
+    });
 
-      const data: HesabPayVerifySignatureResponse = await response.json();
+    const data: HesabPayVerifySignatureResponse = await response.json();
 
-      if (!response.ok) {
-        console.error(
-          "[HesabPay] Signature verification API error:",
-          data.message
-        );
-        return false;
-      }
-
-      return data.success === true;
-    } catch (error) {
-      console.error("[HesabPay] Signature verification request failed:", error);
-      return false;
+    if (!response.ok) {
+      console.error(
+        "[HesabPay] Signature verification API error:",
+        data.message
+      );
+      throw new Error(
+        `Signature verification unavailable (HTTP ${response.status})`
+      );
     }
+
+    if (typeof data.success !== "boolean") {
+      throw new Error("Unreadable signature verification response");
+    }
+    return data.success;
   }
 
   /**

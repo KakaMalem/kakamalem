@@ -57,6 +57,8 @@ export interface PaymentLineItem {
 }
 
 export interface PaymentSessionResult {
+  /** Exact amount sent to the gateway, after gateway-specific rounding. */
+  chargedAmount?: number;
   success: boolean;
   /** Gateway's session/payment ID */
   sessionId?: string;
@@ -129,6 +131,8 @@ export interface WebhookEvent {
 
 export interface WebhookVerificationResult {
   valid: boolean;
+  /** Verification could not be performed; retry rather than treating as invalid. */
+  unavailable?: boolean;
   event?: WebhookEvent;
   /** Event type (e.g., "payment.completed", "refund.completed") */
   eventType?: string;

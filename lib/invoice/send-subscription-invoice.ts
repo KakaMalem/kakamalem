@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, type Database } from "@/lib/db";
 import { invoices, tenants, tenantMembers, user } from "@/lib/db/schema";
 import { sendEmail } from "@/lib/email";
 import { getSubscriptionInvoiceEmailHtml } from "@/lib/email/templates/subscription-invoice";
@@ -8,48 +8,63 @@ import { generateAndStoreSubscriptionInvoicePdf } from "./subscription-service";
 /**
  * Generate a subscription invoice PDF, store it, and email it to the store owner.
  *
- * This function is designed to be non-blocking — it catches all errors internally
- * and should never cause a payment webhook to fail.
+ * Called by the durable invoice worker, outside the payment webhook. Every
+ * failure is returned to the worker so it can retry the complete job.
  */
-export async function sendSubscriptionInvoice(params: {
-  invoiceId: string;
-  tenantId: string;
-  paymentMethod: string;
-  transactionId?: string;
-}): Promise<{ success: boolean; error?: string }> {
+export async function sendSubscriptionInvoice(
+  params: {
+    invoiceId: string;
+    tenantId: string;
+    paymentMethod: string;
+    transactionId?: string;
+  },
+  dependencies: {
+    database?: Database;
+    generatePdf?: typeof generateAndStoreSubscriptionInvoicePdf;
+    email?: typeof sendEmail;
+  } = {}
+): Promise<{ success: boolean; error?: string }> {
+  const database = dependencies.database ?? db;
   try {
-    // 1. Generate and store the PDF
-    const pdfResult = await generateAndStoreSubscriptionInvoicePdf(
-      params.invoiceId,
-      params.tenantId,
-      {
-        paymentMethod: params.paymentMethod,
-        transactionId: params.transactionId,
-      }
-    );
-
-    if (!pdfResult.success) {
-      console.error(
-        "[sendSubscriptionInvoice] PDF generation failed:",
-        pdfResult.error
-      );
-      // Continue — we can still send an email without the PDF link
-    }
-
-    // 2. Get the invoice for email data
-    const invoice = await db.query.invoices.findFirst({
+    // A durable job is scoped to a paid invoice in its own tenant. Recheck
+    // before producing or emailing any artifact, including on later retries.
+    const invoice = await database.query.invoices.findFirst({
       where: and(
         eq(invoices.id, params.invoiceId),
         eq(invoices.tenantId, params.tenantId)
       ),
     });
+    if (!invoice) return { success: false, error: "Invoice not found" };
+    if (invoice.status !== "paid") {
+      return { success: false, error: "Invoice is not paid" };
+    }
 
-    if (!invoice) {
-      return { success: false, error: "Invoice not found" };
+    // 1. Generate and store the PDF
+    // Reuse a stored PDF when email alone failed on the previous attempt.
+    const pdfResult: Awaited<
+      ReturnType<typeof generateAndStoreSubscriptionInvoicePdf>
+    > = invoice.pdfUrl
+      ? { success: true, pdfUrl: invoice.pdfUrl }
+      : await (
+          dependencies.generatePdf ?? generateAndStoreSubscriptionInvoicePdf
+        )(params.invoiceId, params.tenantId, {
+          paymentMethod: params.paymentMethod,
+          transactionId: params.transactionId,
+        });
+
+    if (!pdfResult.success || !pdfResult.pdfUrl) {
+      console.error(
+        "[sendSubscriptionInvoice] PDF generation failed:",
+        pdfResult.error
+      );
+      return {
+        success: false,
+        error: pdfResult.error || "PDF generation failed",
+      };
     }
 
     // 3. Get tenant info
-    const tenant = await db.query.tenants.findFirst({
+    const tenant = await database.query.tenants.findFirst({
       where: eq(tenants.id, params.tenantId),
       columns: { id: true, name: true, slug: true },
     });
@@ -59,7 +74,7 @@ export async function sendSubscriptionInvoice(params: {
     }
 
     // 4. Find the store owner's email
-    const ownerMember = await db.query.tenantMembers.findFirst({
+    const ownerMember = await database.query.tenantMembers.findFirst({
       where: and(
         eq(tenantMembers.tenantId, params.tenantId),
         eq(tenantMembers.role, "owner")
@@ -71,7 +86,7 @@ export async function sendSubscriptionInvoice(params: {
     let ownerName = "Store Owner";
 
     if (ownerMember) {
-      const ownerUser = await db.query.user.findFirst({
+      const ownerUser = await database.query.user.findFirst({
         where: eq(user.id, ownerMember.userId),
         columns: { name: true, email: true },
       });
@@ -131,18 +146,25 @@ export async function sendSubscriptionInvoice(params: {
     });
 
     // 8. Send email
-    await sendEmail({
+    const emailResult = await (dependencies.email ?? sendEmail)({
       to: ownerEmail,
       subject: `Payment Confirmed - Invoice ${invoice.invoiceNumber}`,
       html,
     });
+    if (!emailResult.success)
+      return { success: false, error: "Email delivery failed" };
 
     // 9. Update invoice sentAt if not already set
     if (!invoice.sentAt) {
-      await db
+      await database
         .update(invoices)
         .set({ sentAt: new Date().toISOString() })
-        .where(eq(invoices.id, params.invoiceId));
+        .where(
+          and(
+            eq(invoices.id, params.invoiceId),
+            eq(invoices.tenantId, params.tenantId)
+          )
+        );
     }
 
     console.log(
